@@ -25,6 +25,7 @@ import type {
 } from './types.ts';
 import { ClaudeAgent } from '../claude-agent.ts';
 import { PiAgent } from '../pi-agent.ts';
+import { ZenskillAgent } from './zenskill-agent.ts';
 import {
   getLlmConnection,
   getDefaultLlmConnection,
@@ -59,10 +60,12 @@ import {
 } from './internal/runtime-resolver.ts';
 import { anthropicDriver } from './internal/drivers/anthropic.ts';
 import { piDriver } from './internal/drivers/pi.ts';
+import { zenskillDriver } from './internal/drivers/zenskill.ts';
 
 const DRIVER_REGISTRY: Record<AgentProvider, ProviderDriver> = {
   anthropic: anthropicDriver,
   pi: piDriver,
+  zenskill: zenskillDriver,
 };
 
 function getProviderDriver(provider: AgentProvider): ProviderDriver {
@@ -139,6 +142,10 @@ export function createBackend(config: BackendConfig): AgentBackend {
       // PiAgent implements AgentBackend directly
       // Auth is API key based via Pi's AuthStorage
       return new PiAgent(config);
+
+    case 'zenskill':
+      // ZenskillAgent: ZenSkill agent-engine as subprocess
+      return new ZenskillAgent(config);
 
     default:
       throw new Error(`Unknown provider: ${config.provider}`);
@@ -258,6 +265,10 @@ export function providerTypeToAgentProvider(providerType: LlmProviderType): Agen
     case 'pi':
     case 'pi_compat':
       return 'pi';
+
+    // ZenSkill agent-engine backend
+    case 'zenskill':
+      return 'zenskill';
 
     default:
       // Exhaustive check
@@ -588,6 +599,7 @@ export const BACKEND_CAPABILITIES: Record<AgentProvider, {
 }> = {
   anthropic: { needsHttpPoolServer: false },
   pi: { needsHttpPoolServer: false },
+  zenskill: { needsHttpPoolServer: false },
 };
 
 // ============================================================

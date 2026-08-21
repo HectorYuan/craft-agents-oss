@@ -52,7 +52,8 @@ export function registerPiModelResolver(resolver: PiModelResolver): void {
 export type LlmProviderType =
   | 'anthropic'
   | 'pi'
-  | 'pi_compat';
+  | 'pi_compat'
+  | 'zenskill';
 
 /**
  * @deprecated Use LlmProviderType instead. Kept for migration compatibility.
@@ -737,6 +738,7 @@ export function isValidProviderAuthCombination(
     anthropic: ['api_key', 'oauth'],
     pi: ['api_key', 'oauth', 'iam_credentials', 'environment', 'none'],
     pi_compat: ['api_key_with_endpoint', 'none'],
+    zenskill: ['none'],
   };
 
   return validCombinations[providerType]?.includes(authType) ?? false;
