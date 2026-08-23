@@ -2872,16 +2872,16 @@ export class SessionManager implements ISessionManager {
         branchFromSessionPath,
         branchFromSdkCwd,
         branchFromSdkTurnId,
-        sourceProvider: sourceBackendContext.provider,
+        sourceProvider: sourceBackendContext.provider as any,
       }
 
       sessionLog.info('Branch validation succeeded', {
         workspaceId,
-        branchFromSessionId: validatedBranch.sourceSessionId,
-        branchFromMessageId: validatedBranch.sourceMessageId,
-        branchContextStrategy: validatedBranch.branchContextStrategy,
-        branchFromSdkSessionId: !!validatedBranch.branchFromSdkSessionId,
-        copiedMessageCount: validatedBranch.branchIdx + 1,
+        branchFromSessionId: validatedBranch?.sourceSessionId,
+        branchFromMessageId: validatedBranch?.sourceMessageId,
+        branchContextStrategy: validatedBranch?.branchContextStrategy,
+        branchFromSdkSessionId: !!validatedBranch?.branchFromSdkSessionId,
+        copiedMessageCount: validatedBranch?.branchIdx != null ? validatedBranch.branchIdx + 1 : 0,
       })
     }
 

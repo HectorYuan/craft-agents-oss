@@ -9,10 +9,12 @@
 import type { ModelFetcherMap } from '@craft-agent/shared/config'
 import { AnthropicModelFetcher } from './anthropic'
 import { PiModelFetcher } from './pi'
+import { ZenskillModelFetcher } from './zenskill'
 
 // Shared instances — fetchers are stateless
 const anthropicFetcher = new AnthropicModelFetcher()
 const piFetcher = new PiModelFetcher()
+const zenskillFetcher = new ZenskillModelFetcher()
 
 /**
  * Every FetchableProvider MUST have a fetcher entry.
@@ -22,4 +24,5 @@ const piFetcher = new PiModelFetcher()
 export const MODEL_FETCHERS: ModelFetcherMap = {
   anthropic: anthropicFetcher,
   pi:        piFetcher,
+  zenskill:  zenskillFetcher,
 }

@@ -240,4 +240,62 @@ export function registerSourcesHandlers(server: RpcServer, deps: HandlerDeps): v
       return { success: false, error: errorMessage }
     }
   })
+
+  // ── callMcpTool: invoke a specific MCP tool by name ──
+  server.handle('callMcpTool', async (_ctx, workspaceId: string, sourceSlug: string, toolName: string, args: Record<string, unknown>) => {
+    const workspace = getWorkspaceByNameOrId(workspaceId)
+    if (!workspace) return { success: false, error: 'Workspace not found' }
+
+    try {
+      const sources = await loadWorkspaceSources(workspace.rootPath)
+      const source = sources.find(s => s.config.slug === sourceSlug)
+      if (!source) return { success: false, error: 'Source not found' }
+      if (source.config.type !== 'mcp') return { success: false, error: 'Source is not an MCP server' }
+      if (!source.config.mcp) return { success: false, error: 'MCP config not found' }
+      if (source.config.connectionStatus === 'failed' || source.config.connectionStatus === 'untested') {
+        return { success: false, error: 'Source is not connected' }
+      }
+
+      const { CraftMcpClient } = await import('@craft-agent/shared/mcp')
+      let client: InstanceType<typeof CraftMcpClient>
+
+      if (source.config.mcp.transport === 'stdio') {
+        if (!source.config.mcp.command) {
+          return { success: false, error: 'Stdio MCP source missing command' }
+        }
+        client = new CraftMcpClient({
+          transport: 'stdio',
+          command: source.config.mcp.command,
+          args: source.config.mcp.args,
+          env: source.config.mcp.env,
+        })
+      } else {
+        if (!source.config.mcp.url) {
+          return { success: false, error: 'MCP source URL required' }
+        }
+        let accessToken: string | undefined
+        if (source.config.mcp.authType === 'oauth' || source.config.mcp.authType === 'bearer') {
+          const credentialManager = getCredentialManager()
+          const credentialId = source.config.mcp.authType === 'oauth'
+            ? { type: 'source_oauth' as const, workspaceId: source.workspaceId, sourceId: sourceSlug }
+            : { type: 'source_bearer' as const, workspaceId: source.workspaceId, sourceId: sourceSlug }
+          const credential = await credentialManager.get(credentialId)
+          accessToken = credential?.value
+        }
+        client = new CraftMcpClient({
+          transport: 'http',
+          url: source.config.mcp.url,
+          headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined,
+        })
+      }
+
+      const result = await client.callTool(toolName, args)
+      await client.close()
+
+      return { success: true, result }
+    } catch (error) {
+      log.error(`Failed to call MCP tool ${toolName}:`, error)
+      return { success: false, error: error instanceof Error ? error.message : 'Tool call failed' }
+    }
+  })
 }

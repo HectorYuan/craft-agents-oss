@@ -13,6 +13,7 @@ import { EditPopover, EditButton, getEditConfig } from '@/components/ui/EditPopo
 import { SourceAvatar } from '@/components/ui/source-avatar'
 import { SourceMenu } from '@/components/app-shell/SourceMenu'
 import { cn } from '@/lib/utils'
+import { ZenSkillDataPanel } from '@/components/app-shell/ZenSkillDataPanel'
 import { routes, navigate } from '@/lib/navigate'
 import { useNavigation } from '@/contexts/NavigationContext'
 import { toast } from 'sonner'
@@ -479,6 +480,16 @@ export default function SourceInfoPage({ sourceSlug, workspaceId, onDelete }: So
                 loading={mcpToolsLoading}
                 error={mcpToolsError ?? undefined}
               />
+            </Info_Section>
+          )}
+
+          {/* ZenSkill Data - for zenskill-4 MCP source */}
+          {source.config.type === 'mcp' && sourceSlug === 'zenskill-4' && workspaceId && (
+            <Info_Section
+              title="ZenSkill Data"
+              description="GTD inbox, memory, and system status"
+            >
+              <ZenSkillDataPanel workspaceId={workspaceId} sourceSlug={sourceSlug} />
             </Info_Section>
           )}
 
