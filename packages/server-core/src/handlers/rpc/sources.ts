@@ -250,19 +250,14 @@ export function registerSourcesHandlers(server: RpcServer, deps: HandlerDeps): v
       const sources = await loadWorkspaceSources(workspace.rootPath)
       const source = sources.find(s => s.config.slug === sourceSlug)
       if (!source) return { success: false, error: 'Source not found' }
-      if (source.config.type !== 'mcp') return { success: false, error: 'Source is not an MCP server' }
-      if (!source.config.mcp) return { success: false, error: 'MCP config not found' }
-      if (source.config.connectionStatus === 'failed' || source.config.connectionStatus === 'untested') {
-        return { success: false, error: 'Source is not connected' }
-      }
+      if (source.config.type !== 'mcp' || !source.config.mcp) return { success: false, error: 'Not an MCP source' }
+      if (source.config.connectionStatus === 'failed') return { success: false, error: 'Source connection failed' }
 
       const { CraftMcpClient } = await import('@craft-agent/shared/mcp')
       let client: InstanceType<typeof CraftMcpClient>
 
       if (source.config.mcp.transport === 'stdio') {
-        if (!source.config.mcp.command) {
-          return { success: false, error: 'Stdio MCP source missing command' }
-        }
+        if (!source.config.mcp.command) return { success: false, error: 'Missing command' }
         client = new CraftMcpClient({
           transport: 'stdio',
           command: source.config.mcp.command,
@@ -270,9 +265,7 @@ export function registerSourcesHandlers(server: RpcServer, deps: HandlerDeps): v
           env: source.config.mcp.env,
         })
       } else {
-        if (!source.config.mcp.url) {
-          return { success: false, error: 'MCP source URL required' }
-        }
+        if (!source.config.mcp.url) return { success: false, error: 'Missing URL' }
         let accessToken: string | undefined
         if (source.config.mcp.authType === 'oauth' || source.config.mcp.authType === 'bearer') {
           const credentialManager = getCredentialManager()
@@ -296,11 +289,8 @@ export function registerSourcesHandlers(server: RpcServer, deps: HandlerDeps): v
       const WRITE_TOOLS = ['gtd_capture', 'memory_remember', 'action_add', 'goal_set', 'habit_check', 'skill_install', 'skill_uninstall']
       if (WRITE_TOOLS.includes(toolName)) {
         try {
-          log.info(`[callMcpTool] Broadcasting zenskill:changed for ${toolName}`)
           server.push('zenskill:changed', { to: 'workspace', workspaceId }, { type: toolName, sourceSlug })
-        } catch (err) {
-          log.error(`[callMcpTool] Broadcast failed:`, err)
-        }
+        } catch { /* broadcast is best-effort */ }
       }
 
       return { success: true, result }
