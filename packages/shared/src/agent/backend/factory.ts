@@ -103,9 +103,9 @@ export function detectProvider(authType: string): AgentProvider {
     case 'oauth_token':
       return 'anthropic';
 
-    // Default to Anthropic for unknown types
+    // Default to zenskill for all auth types
     default:
-      return 'anthropic';
+      return 'zenskill';
   }
 }
 
@@ -148,7 +148,8 @@ export function createBackend(config: BackendConfig): AgentBackend {
       return new ZenskillAgent(config);
 
     default:
-      throw new Error(`Unknown provider: ${config.provider}`);
+      // Unknown provider → fallback to zenskill
+      return new ZenskillAgent(config);
   }
 }
 
@@ -271,9 +272,8 @@ export function providerTypeToAgentProvider(providerType: LlmProviderType): Agen
       return 'zenskill';
 
     default:
-      // Exhaustive check
-      const _exhaustive: never = providerType;
-      return 'anthropic';
+      // Unknown provider → zenskill
+      return 'zenskill';
   }
 }
 
@@ -292,7 +292,7 @@ export function connectionTypeToProvider(connectionType: LlmConnectionType): Age
     case 'openai-compat':
       return 'pi'; // Legacy OpenAI connections are now routed through Pi
     default:
-      return 'anthropic';
+      return 'zenskill';
   }
 }
 
