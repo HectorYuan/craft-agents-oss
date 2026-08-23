@@ -489,7 +489,15 @@ export default function SourceInfoPage({ sourceSlug, workspaceId, onDelete }: So
               title="ZenSkill Data"
               description="GTD inbox, memory, and system status"
             >
-              <ZenSkillDataPanel workspaceId={workspaceId} sourceSlug={sourceSlug} />
+              <ZenSkillDataPanel
+                workspaceId={workspaceId}
+                sourceSlug={sourceSlug}
+                onGtdItemClick={(text) => {
+                  // Navigate to a new session with the GTD item as context
+                  const msg = `关于这个待办: "${text}" — 帮我分析一下`
+                  window.dispatchEvent(new CustomEvent('zenskill:navigate', { detail: { action: 'new-session', message: msg } }))
+                }}
+              />
             </Info_Section>
           )}
 

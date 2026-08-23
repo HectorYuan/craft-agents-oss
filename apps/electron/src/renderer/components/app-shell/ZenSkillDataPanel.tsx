@@ -9,6 +9,7 @@ import { Inbox, Brain, Zap, RefreshCw, ChevronRight } from 'lucide-react'
 interface ZenSkillDataPanelProps {
   workspaceId: string
   sourceSlug: string
+  onGtdItemClick?: (text: string) => void
 }
 
 interface GtdItem {
@@ -35,7 +36,7 @@ interface DashboardData {
   total_gtd_items: number
 }
 
-export function ZenSkillDataPanel({ workspaceId, sourceSlug }: ZenSkillDataPanelProps) {
+export function ZenSkillDataPanel({ workspaceId, sourceSlug, onGtdItemClick }: ZenSkillDataPanelProps) {
   const [gtdItems, setGtdItems] = useState<GtdItem[]>([])
   const [memories, setMemories] = useState<MemoryItem[]>([])
   const [dashboard, setDashboard] = useState<DashboardData | null>(null)
@@ -94,6 +95,17 @@ export function ZenSkillDataPanel({ workspaceId, sourceSlug }: ZenSkillDataPanel
     fetchData()
   }, [fetchData])
 
+  // Step 3: Subscribe to zenskill:changed events for real-time sync
+  useEffect(() => {
+    if (!window.electronAPI?.onZenSkillChanged) return
+    const cleanup = window.electronAPI.onZenSkillChanged((_wsId, data) => {
+      if (data.sourceSlug === sourceSlug) {
+        fetchData()
+      }
+    })
+    return cleanup
+  }, [fetchData, sourceSlug])
+
   return (
     <div className="space-y-4">
       {/* Header */}
@@ -146,6 +158,8 @@ export function ZenSkillDataPanel({ workspaceId, sourceSlug }: ZenSkillDataPanel
               <div
                 key={item.id}
                 className="flex items-center gap-2 text-xs rounded px-2 py-1 hover:bg-muted/50 cursor-pointer group"
+                onClick={() => onGtdItemClick?.(item.text || item.raw_text || '')}
+                title="Click to discuss in chat"
               >
                 <ChevronRight className="h-3 w-3 text-muted-foreground shrink-0" />
                 <span className="truncate flex-1">{item.text || item.raw_text}</span>

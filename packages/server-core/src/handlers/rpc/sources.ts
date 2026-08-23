@@ -292,6 +292,17 @@ export function registerSourcesHandlers(server: RpcServer, deps: HandlerDeps): v
       const result = await client.callTool(toolName, args)
       await client.close()
 
+      // Broadcast change event for write tools
+      const WRITE_TOOLS = ['gtd_capture', 'memory_remember', 'action_add', 'goal_set', 'habit_check', 'skill_install', 'skill_uninstall']
+      if (WRITE_TOOLS.includes(toolName)) {
+        try {
+          log.info(`[callMcpTool] Broadcasting zenskill:changed for ${toolName}`)
+          server.push('zenskill:changed', { to: 'workspace', workspaceId }, { type: toolName, sourceSlug })
+        } catch (err) {
+          log.error(`[callMcpTool] Broadcast failed:`, err)
+        }
+      }
+
       return { success: true, result }
     } catch (error) {
       log.error(`Failed to call MCP tool ${toolName}:`, error)
