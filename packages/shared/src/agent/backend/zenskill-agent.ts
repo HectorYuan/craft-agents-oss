@@ -97,6 +97,24 @@ function parseAgentError(raw: string): AgentError {
 }
 
 // ============================================================
+// Helpers
+// ============================================================
+
+function safeParseJson(text: string): any {
+  try {
+    return JSON.parse(text)
+  } catch {
+    // Try extracting JSON from MCP content wrapper
+    try {
+      const inner = JSON.parse(text)
+      const innerText = inner?.content?.[0]?.text
+      if (typeof innerText === 'string') return JSON.parse(innerText)
+    } catch { /* ignore */ }
+    return null
+  }
+}
+
+// ============================================================
 // EventQueue — async generator pattern for streaming events
 // ============================================================
 
@@ -566,6 +584,47 @@ export class ZenskillAgent extends BaseAgent {
       parts.push(`Model: ${this._model || 'deepseek/deepseek-v4-flash'}`);
       parts.push('');
       parts.push(guideContent);
+
+      // Fresh context injection — fetch live GTD/memory data via MCP pool
+      try {
+        const mcpPool = (this.config as any).mcpPool;
+        if (mcpPool?.callTool) {
+          // Find the zenskill source slug from pool proxy tools
+          const proxyDefs = mcpPool.getProxyToolDefs?.() || [];
+          const zsProxy = proxyDefs.find((d: any) => d.name.startsWith('mcp__') && d.name.includes('__gtd_inbox_list'));
+          if (zsProxy) {
+            const sourceSlug = zsProxy.name.split('__')[1];
+
+            // GTD inbox (fresh)
+            const gtdResult = await mcpPool.callTool(`mcp__${sourceSlug}__gtd_inbox_list`, { limit: 8 });
+            const gtdText = typeof gtdResult === 'string' ? gtdResult : JSON.stringify(gtdResult);
+            const gtdParsed = safeParseJson(gtdText);
+            const gtdItems = gtdParsed?.items || [];
+            if (gtdItems.length > 0) {
+              parts.push('');
+              parts.push('## Fresh GTD Inbox (top items)');
+              for (const item of gtdItems.slice(0, 5)) {
+                parts.push(`- ${item.raw_text || item.text || ''}`);
+              }
+            }
+
+            // Memory (fresh)
+            const memResult = await mcpPool.callTool(`mcp__${sourceSlug}__memory_list`, { n: 5 });
+            const memText = typeof memResult === 'string' ? memResult : JSON.stringify(memResult);
+            const memParsed = safeParseJson(memText);
+            const memItems = memParsed?.items || [];
+            if (memItems.length > 0) {
+              parts.push('');
+              parts.push('## Fresh Memory (recent)');
+              for (const item of memItems.slice(0, 3)) {
+                parts.push(`- ${item.content || ''}`);
+              }
+            }
+          }
+        }
+      } catch {
+        // Fresh context injection is best-effort
+      }
 
       this._cachedSystemPrompt = parts.join('\n');
       return this._cachedSystemPrompt;
