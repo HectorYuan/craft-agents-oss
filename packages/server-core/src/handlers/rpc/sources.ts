@@ -242,6 +242,56 @@ export function registerSourcesHandlers(server: RpcServer, deps: HandlerDeps): v
   })
 
   // ── callMcpTool: invoke a specific MCP tool by name ──
+  // Connection cache: reuse CraftMcpClient across calls (keyed by source slug)
+  const mcpClientCache = new Map<string, { client: any; lastUsed: number }>()
+  const MCP_CACHE_TTL_MS = 5 * 60 * 1000 // 5 min idle timeout
+
+  async function getMcpClient(sourceSlug: string, source: any) {
+    const cached = mcpClientCache.get(sourceSlug)
+    if (cached && Date.now() - cached.lastUsed < MCP_CACHE_TTL_MS) {
+      cached.lastUsed = Date.now()
+      return cached.client
+    }
+
+    // Close stale cached client if any
+    if (cached) {
+      try { await cached.client.close() } catch { /* ignore */ }
+      mcpClientCache.delete(sourceSlug)
+    }
+
+    const { CraftMcpClient } = await import('@craft-agent/shared/mcp')
+    let client: InstanceType<typeof CraftMcpClient>
+
+    if (source.config.mcp.transport === 'stdio') {
+      if (!source.config.mcp.command) throw new Error('Missing command')
+      client = new CraftMcpClient({
+        transport: 'stdio',
+        command: source.config.mcp.command,
+        args: source.config.mcp.args,
+        env: source.config.mcp.env,
+      })
+    } else {
+      if (!source.config.mcp.url) throw new Error('Missing URL')
+      let accessToken: string | undefined
+      if (source.config.mcp.authType === 'oauth' || source.config.mcp.authType === 'bearer') {
+        const credentialManager = getCredentialManager()
+        const credentialId = source.config.mcp.authType === 'oauth'
+          ? { type: 'source_oauth' as const, workspaceId: source.workspaceId, sourceId: sourceSlug }
+          : { type: 'source_bearer' as const, workspaceId: source.workspaceId, sourceId: sourceSlug }
+        const credential = await credentialManager.get(credentialId)
+        accessToken = credential?.value
+      }
+      client = new CraftMcpClient({
+        transport: 'http',
+        url: source.config.mcp.url,
+        headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined,
+      })
+    }
+
+    mcpClientCache.set(sourceSlug, { client, lastUsed: Date.now() })
+    return client
+  }
+
   server.handle('callMcpTool', async (_ctx, workspaceId: string, sourceSlug: string, toolName: string, args: Record<string, unknown>) => {
     const workspace = getWorkspaceByNameOrId(workspaceId)
     if (!workspace) return { success: false, error: 'Workspace not found' }
@@ -253,37 +303,8 @@ export function registerSourcesHandlers(server: RpcServer, deps: HandlerDeps): v
       if (source.config.type !== 'mcp' || !source.config.mcp) return { success: false, error: 'Not an MCP source' }
       if (source.config.connectionStatus === 'failed') return { success: false, error: 'Source connection failed' }
 
-      const { CraftMcpClient } = await import('@craft-agent/shared/mcp')
-      let client: InstanceType<typeof CraftMcpClient>
-
-      if (source.config.mcp.transport === 'stdio') {
-        if (!source.config.mcp.command) return { success: false, error: 'Missing command' }
-        client = new CraftMcpClient({
-          transport: 'stdio',
-          command: source.config.mcp.command,
-          args: source.config.mcp.args,
-          env: source.config.mcp.env,
-        })
-      } else {
-        if (!source.config.mcp.url) return { success: false, error: 'Missing URL' }
-        let accessToken: string | undefined
-        if (source.config.mcp.authType === 'oauth' || source.config.mcp.authType === 'bearer') {
-          const credentialManager = getCredentialManager()
-          const credentialId = source.config.mcp.authType === 'oauth'
-            ? { type: 'source_oauth' as const, workspaceId: source.workspaceId, sourceId: sourceSlug }
-            : { type: 'source_bearer' as const, workspaceId: source.workspaceId, sourceId: sourceSlug }
-          const credential = await credentialManager.get(credentialId)
-          accessToken = credential?.value
-        }
-        client = new CraftMcpClient({
-          transport: 'http',
-          url: source.config.mcp.url,
-          headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined,
-        })
-      }
-
+      const client = await getMcpClient(sourceSlug, source)
       const result = await client.callTool(toolName, args)
-      await client.close()
 
       // Broadcast change event for write tools
       const WRITE_TOOLS = ['gtd_capture', 'memory_remember', 'action_add', 'goal_set', 'habit_check', 'skill_install', 'skill_uninstall']
