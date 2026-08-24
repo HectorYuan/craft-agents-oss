@@ -31,6 +31,7 @@ interface MemoryItem {
 
 interface DashboardData {
   active_skills: number
+  installed_skills: number
   today_sessions: number
   total_memories: number
   total_gtd_items: number
@@ -79,7 +80,7 @@ export function ZenSkillDataPanel({ workspaceId, sourceSlug, onGtdItemClick }: Z
     try {
       const [gtdResult, memResult, dashResult, energyResult, achieveResult, habitResult] = await Promise.allSettled([
         window.electronAPI.callMcpTool(workspaceId, sourceSlug, 'gtd_inbox_list', { limit: 10 }),
-        window.electronAPI.callMcpTool(workspaceId, sourceSlug, 'memory_list', { n: 10 }),
+        window.electronAPI.callMcpTool(workspaceId, sourceSlug, 'memory_list', { skill_id: 'all', n: 10 }),
         window.electronAPI.callMcpTool(workspaceId, sourceSlug, 'dashboard_summary', {}),
         window.electronAPI.callMcpTool(workspaceId, sourceSlug, 'energy_level', {}),
         window.electronAPI.callMcpTool(workspaceId, sourceSlug, 'achievement_list', {}),
@@ -96,6 +97,7 @@ export function ZenSkillDataPanel({ workspaceId, sourceSlug, onGtdItemClick }: Z
       if (dashData) {
         setDashboard({
           active_skills: dashData.active_skills || 0,
+          installed_skills: dashData.installed_skills || dashData.active_skills || 0,
           today_sessions: dashData.today_sessions || 0,
           total_memories: memData?.count || 0,
           total_gtd_items: gtdData?.count || 0,
@@ -158,7 +160,7 @@ export function ZenSkillDataPanel({ workspaceId, sourceSlug, onGtdItemClick }: Z
       <div className="grid grid-cols-3 gap-2 text-xs">
         <div className="rounded border border-border/30 p-2">
           <div className="text-muted-foreground">Skills</div>
-          <div className="text-lg font-semibold">{dashboard?.active_skills ?? '—'}</div>
+          <div className="text-lg font-semibold">{dashboard?.installed_skills ?? '—'}</div>
         </div>
         <div className="rounded border border-border/30 p-2">
           <div className="text-muted-foreground">Sessions</div>
