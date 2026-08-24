@@ -4,8 +4,8 @@
  * Embedded in SourceInfoPage for the zenskill-4 MCP source.
  */
 
-import React, { useState, useEffect, useCallback } from 'react'
-import { Inbox, Brain, Zap, RefreshCw, ChevronRight, Trophy, Target, Activity, Flame, Check, ArrowRight, Trash2, Archive, Wand2, Circle } from 'lucide-react'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
+import { Inbox, Brain, Zap, RefreshCw, ChevronRight, Trophy, Target, Activity, Flame, Check, ArrowRight, Trash2, Archive, Wand2, Circle, Search, TrendingUp } from 'lucide-react'
 
 interface ZenSkillDataPanelProps {
   workspaceId: string
@@ -27,6 +27,8 @@ interface MemoryItem {
   skill_id?: string
   timestamp?: string
   created_at?: string
+  action?: string
+  date?: string
 }
 
 interface DashboardData {
@@ -51,6 +53,9 @@ interface Habit {
   completion_rate?: number
   streak?: number
   target?: number
+  best_streak?: number
+  risk?: string
+  completed?: Record<string, boolean>
 }
 
 interface GtdAction {
@@ -59,6 +64,14 @@ interface GtdAction {
   priority?: string
   status?: string
   due_date?: string
+}
+
+interface GrowthSkill {
+  skill_id: string
+  level?: string
+  usage_count?: number
+  success_rate?: number
+  scores?: Record<string, number>
 }
 
 const PRIORITY_COLOR: Record<string, string> = {
@@ -77,9 +90,13 @@ export function ZenSkillDataPanel({ workspaceId, sourceSlug, onGtdItemClick }: Z
   const [habits, setHabits] = useState<Habit[]>([])
   const [actions, setActions] = useState<GtdAction[]>([])
   const [doneActions, setDoneActions] = useState<GtdAction[]>([])
+  const [growth, setGrowth] = useState<GrowthSkill[]>([])
   const [busyId, setBusyId] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [memQuery, setMemQuery] = useState('')
+  const [memResults, setMemResults] = useState<MemoryItem[] | null>(null)
+  const memSearchRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const extractJson = (result: any): any => {
     if (!result?.success) return null
@@ -96,15 +113,16 @@ export function ZenSkillDataPanel({ workspaceId, sourceSlug, onGtdItemClick }: Z
     setLoading(true)
     setError(null)
     try {
-      const [gtdResult, memResult, dashResult, energyResult, achieveResult, habitResult, actionResult, doneResult] = await Promise.allSettled([
+      const [gtdResult, memResult, dashResult, energyResult, achieveResult, habitResult, actionResult, doneResult, growthResult] = await Promise.allSettled([
         window.electronAPI.callMcpTool(workspaceId, sourceSlug, 'gtd_inbox_list', { limit: 10 }),
         window.electronAPI.callMcpTool(workspaceId, sourceSlug, 'memory_list', { skill_id: 'all', n: 10 }),
         window.electronAPI.callMcpTool(workspaceId, sourceSlug, 'dashboard_summary', {}),
         window.electronAPI.callMcpTool(workspaceId, sourceSlug, 'energy_level', {}),
         window.electronAPI.callMcpTool(workspaceId, sourceSlug, 'achievement_list', {}),
-        window.electronAPI.callMcpTool(workspaceId, sourceSlug, 'habit_list', {}),
+        window.electronAPI.callMcpTool(workspaceId, sourceSlug, 'habit_analyze', { days: 7 }),
         window.electronAPI.callMcpTool(workspaceId, sourceSlug, 'action_list', { status: 'pending', limit: 20 }),
         window.electronAPI.callMcpTool(workspaceId, sourceSlug, 'action_list', { status: 'done', limit: 3 }),
+        window.electronAPI.callMcpTool(workspaceId, sourceSlug, 'growth_dashboard', {}),
       ])
 
       const gtdData = extractJson(gtdResult.status === 'fulfilled' ? gtdResult.value : null)
@@ -135,13 +153,16 @@ export function ZenSkillDataPanel({ workspaceId, sourceSlug, onGtdItemClick }: Z
       if (achieveData) setAchievements(achieveData.badges || achieveData.items || achieveData.achievements || [])
 
       const habitData = extractJson(habitResult.status === 'fulfilled' ? habitResult.value : null)
-      if (habitData) setHabits(habitData.items || habitData.habits || [])
+      if (habitData) setHabits(habitData.habits || [])
 
       const actionData = extractJson(actionResult.status === 'fulfilled' ? actionResult.value : null)
       if (actionData) setActions(actionData.items || [])
 
       const doneData = extractJson(doneResult.status === 'fulfilled' ? doneResult.value : null)
       if (doneData) setDoneActions(doneData.items || [])
+
+      const growthData = extractJson(growthResult.status === 'fulfilled' ? growthResult.value : null)
+      if (growthData) setGrowth(growthData.skills || [])
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load data')
     } finally {
@@ -161,6 +182,20 @@ export function ZenSkillDataPanel({ workspaceId, sourceSlug, onGtdItemClick }: Z
       setBusyId(null)
     }
   }, [workspaceId, sourceSlug, fetchData])
+
+  // Debounced memory search
+  const searchMemories = useCallback((query: string) => {
+    if (memSearchRef.current) clearTimeout(memSearchRef.current)
+    memSearchRef.current = setTimeout(async () => {
+      const q = query.trim()
+      if (!q) { setMemResults(null); return }
+      try {
+        const res = await window.electronAPI.callMcpTool(workspaceId, sourceSlug, 'memory_search', { query: q, n: 8 })
+        const parsed = extractJson(res)
+        if (parsed?.items) setMemResults(parsed.items)
+      } catch { setMemResults(null) }
+    }, 300)
+  }, [workspaceId, sourceSlug])
 
   useEffect(() => { fetchData() }, [fetchData])
 
@@ -212,6 +247,41 @@ export function ZenSkillDataPanel({ workspaceId, sourceSlug, onGtdItemClick }: Z
           <div className="text-lg font-semibold capitalize">{energy ?? '—'}</div>
         </div>
       </div>
+
+      {/* Growth */}
+      {growth.length > 0 && (
+        <div>
+          <div className="flex items-center gap-1.5 mb-1.5">
+            <TrendingUp className="h-3.5 w-3.5 text-muted-foreground" />
+            <span className="text-xs font-medium text-muted-foreground">Growth ({growth.length})</span>
+          </div>
+          <div className="space-y-1.5">
+            {growth.slice(0, 3).map((g) => (
+              <div key={g.skill_id} className="text-xs rounded px-2 py-1 hover:bg-muted/50">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="truncate font-medium">{g.skill_id}</span>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <span className="text-[9px] px-1 py-px rounded bg-accent/10 text-accent">{g.level}</span>
+                    <span className="text-[10px] text-muted-foreground">{g.usage_count ?? 0}次</span>
+                    <span className="text-[10px] text-green-500/80">{Math.round((g.success_rate ?? 0) * 100)}%</span>
+                  </div>
+                </div>
+                {g.scores && (
+                  <div className="flex items-center gap-1 mt-1">
+                    {Object.entries(g.scores).map(([k, v]) => (
+                      <div key={k} className="flex-1" title={`${k}: ${v}`}>
+                        <div className="h-1 rounded bg-muted/60 overflow-hidden">
+                          <div className="h-full bg-accent/70" style={{ width: `${v}%` }} />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* GTD Inbox */}
       <div>
@@ -336,20 +406,37 @@ export function ZenSkillDataPanel({ workspaceId, sourceSlug, onGtdItemClick }: Z
       <div>
         <div className="flex items-center gap-1.5 mb-1.5">
           <Brain className="h-3.5 w-3.5 text-muted-foreground" />
-          <span className="text-xs font-medium text-muted-foreground">Memory ({memories.length})</span>
+          <span className="text-xs font-medium text-muted-foreground">Memory ({memResults ? memResults.length : memories.length})</span>
         </div>
-        {memories.length === 0 ? (
+        <div className="relative mb-1.5">
+          <Search className="h-3 w-3 text-muted-foreground absolute left-2 top-1/2 -translate-y-1/2" />
+          <input
+            value={memQuery}
+            onChange={(e) => { setMemQuery(e.target.value); searchMemories(e.target.value) }}
+            placeholder="Search memories..."
+            className="w-full text-xs bg-muted/40 rounded pl-6 pr-2 py-1 outline-none focus:ring-1 focus:ring-accent/40"
+          />
+        </div>
+        {(memResults ? memResults.length : memories.length) === 0 ? (
           <div className="text-xs text-muted-foreground italic pl-5">No memories stored</div>
         ) : (
           <div className="space-y-1">
-            {memories.slice(0, 5).map((item) => (
-              <div key={item.id} className="text-xs rounded px-2 py-1 hover:bg-muted/50 cursor-pointer">
-                <span className="truncate block">{item.content}</span>
-                {item.skill_id && <span className="text-[10px] text-muted-foreground">{item.skill_id}</span>}
+            {(memResults ?? memories).slice(0, 5).map((item, i) => (
+              <div key={item.id || `${item.skill_id}-${i}`} className="text-xs rounded px-2 py-1 hover:bg-muted/50">
+                <div className="truncate">{item.content}</div>
+                <div className="flex items-center gap-1.5 mt-0.5">
+                  {item.action && (
+                    <span className="text-[9px] px-1 py-px rounded bg-accent/10 text-accent shrink-0">{item.action}</span>
+                  )}
+                  <span className="text-[10px] text-muted-foreground shrink-0">{item.skill_id}</span>
+                  {item.date && (
+                    <span className="text-[10px] text-muted-foreground/60 shrink-0 ml-auto">{item.date}</span>
+                  )}
+                </div>
               </div>
             ))}
-            {memories.length > 5 && (
-              <div className="text-xs text-muted-foreground pl-5">+{memories.length - 5} more</div>
+            {(memResults ?? memories).length > 5 && (
+              <div className="text-xs text-muted-foreground pl-5">+{(memResults ?? memories).length - 5} more</div>
             )}
           </div>
         )}
@@ -386,18 +473,40 @@ export function ZenSkillDataPanel({ workspaceId, sourceSlug, onGtdItemClick }: Z
             <Flame className="h-3.5 w-3.5 text-muted-foreground" />
             <span className="text-xs font-medium text-muted-foreground">Habits ({habits.length})</span>
           </div>
-          <div className="space-y-1">
+          <div className="space-y-1.5">
             {habits.slice(0, 4).map((h) => (
-              <div key={h.id} className="flex items-center justify-between text-xs rounded px-2 py-1">
-                <span className="truncate">{h.name || h.title || h.id}</span>
-                <div className="flex items-center gap-2 shrink-0">
-                  {h.streak != null && h.streak > 0 && (
-                    <span className="text-[10px] text-orange-500">🔥{h.streak}</span>
-                  )}
-                  {h.completion_rate != null && (
-                    <span className="text-[10px] text-muted-foreground">{Math.round(h.completion_rate * 100)}%</span>
-                  )}
+              <div key={h.id} className="text-xs rounded px-2 py-1 hover:bg-muted/50 group">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="truncate">{h.title || h.name || h.id}</span>
+                  <div className="flex items-center gap-2 shrink-0">
+                    {(h.streak ?? 0) > 0 && (
+                      <span className="text-[10px] text-orange-500">🔥{h.streak}</span>
+                    )}
+                    <span className="text-[10px] text-muted-foreground">
+                      {Math.round((h.completion_rate ?? 0) * 100)}%
+                    </span>
+                    <button
+                      className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-green-500/20 text-muted-foreground hover:text-green-400"
+                      title="Check in"
+                      disabled={busyId === h.id}
+                      onClick={() => runTool('habit_check', { habit_id: h.id })}
+                    >
+                      <Check className="h-3 w-3" />
+                    </button>
+                  </div>
                 </div>
+                {h.completed && (
+                  <div className="flex items-center gap-0.5 mt-1" title="Last 7 days">
+                    {Object.entries(h.completed).map(([day, ok]) => (
+                      <span
+                        key={day}
+                        title={day}
+                        className={`h-2.5 w-2.5 rounded-[3px] ${ok ? 'bg-green-500/70' : 'bg-muted/60'}`}
+                      />
+                    ))}
+                    <span className="text-[9px] text-muted-foreground/60 ml-1">7d</span>
+                  </div>
+                )}
               </div>
             ))}
           </div>
