@@ -281,6 +281,10 @@ export class ZenskillAgent extends BaseAgent {
 
     // P1-9: Enable auto-compaction
     this.send({ type: 'set_auto_compaction', enabled: true });
+
+    // Register MCP pool tools with subprocess (critical: without this the
+    // model cannot see mcp__zenskill-4__* tools)
+    this.registerPoolTools();
   }
 
   // P0-1: Handle subprocess crash
@@ -620,6 +624,22 @@ export class ZenskillAgent extends BaseAgent {
                 parts.push(`- ${item.content || ''}`);
               }
             }
+
+            // Growth data (fresh)
+            const growthResult = await mcpPool.callTool(`mcp__${sourceSlug}__growth_milestone`, {});
+            const growthText = typeof growthResult === 'string' ? growthResult : JSON.stringify(growthResult);
+            const growthParsed = safeParseJson(growthText);
+            if (growthParsed) {
+              parts.push('');
+              parts.push('## Fresh Growth Status');
+              parts.push(`- Milestones: ${JSON.stringify(growthParsed).slice(0, 200)}`);
+            }
+
+            // Growth feedback instruction
+            parts.push('');
+            parts.push('## Growth Feedback Rule');
+            parts.push('After completing a user task, ALWAYS call `growth_report` (or `growth_milestone` for level-up detection) via the mcp__zenskill-4__ tools, and report skill growth to the user in this format:');
+            parts.push('📈 [skill] 成长：[old_level] → [new_level]（已使用 N 次，成功率 X%）');
           }
         }
       } catch {
