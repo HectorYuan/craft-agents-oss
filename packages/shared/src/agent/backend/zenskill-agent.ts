@@ -197,6 +197,34 @@ export class ZenskillAgent extends BaseAgent {
   }
 
   // ============================================================
+  // Path Resolution
+  // ============================================================
+
+  private _resolveZenSkillPath(): string {
+    const isWin = process.platform === 'win32';
+    const wrapperName = isWin ? 'zenskill-cmd.cmd' : 'zenskill-cmd';
+
+    // 1. Packaged app: resources/bin/zenskill-cmd
+    if ((process as any).resourcesPath) {
+      const packaged = require('path').join(
+        (process as any).resourcesPath, 'app', 'resources', 'bin', wrapperName,
+      );
+      if (require('fs').existsSync(packaged)) return packaged;
+    }
+
+    // 2. Dev runtime: walk up to project root
+    if (process.env.CRAFT_DEV_RUNTIME) {
+      const devPath = require('path').join(
+        __dirname, '..', '..', '..', '..', '..', 'apps', 'electron', 'resources', 'bin', wrapperName,
+      );
+      if (require('fs').existsSync(devPath)) return devPath;
+    }
+
+    // 3. Fallback: PATH
+    return 'zenskill';
+  }
+
+  // ============================================================
   // Lifecycle
   // ============================================================
 
@@ -206,7 +234,7 @@ export class ZenskillAgent extends BaseAgent {
   }
 
   private async spawnSubprocess(): Promise<void> {
-    const zenskillPath = 'zenskill';
+    const zenskillPath = this._resolveZenSkillPath();
     const args = ['agent-engine', 'serve'];
     const permMode = (this.config as any).permissionMode || this.config.session?.permissionMode;
     const permMap: Record<string, string> = { 'allow-all': 'full', 'full': 'full', 'restricted': 'restricted', 'plan': 'plan', 'sandbox': 'sandbox' };
@@ -220,6 +248,18 @@ export class ZenskillAgent extends BaseAgent {
     const apiKey = await this.resolveApiKey(this.config.connectionSlug);
     if (apiKey) {
       env['DEEPSEEK_API_KEY'] = apiKey;
+    }
+
+    // Set CRAFT_ZENSKILL for wrapper scripts
+    if ((process as any).resourcesPath) {
+      env['CRAFT_ZENSKILL'] = require('path').join(
+        (process as any).resourcesPath, 'app', 'resources', 'zenskill',
+      );
+      env['CRAFT_UV'] = require('path').join(
+        (process as any).resourcesPath, 'app', 'resources', 'bin',
+        process.platform === 'win32' ? 'win32-x64' : `${process.platform}-${process.arch}`,
+        process.platform === 'win32' ? 'uv.exe' : 'uv',
+      );
     }
 
     const child = spawn(zenskillPath, args, {

@@ -1,0 +1,20 @@
+[project]
+name = "zenskill"
+version = "2.6.0"
+description = "ZenSkill - 有生命的技能系统"
+requires-python = ">=3.11"
+license = {text = "MIT"}
+
+dependencies = [
+    "rich>=13.0",
+    "prompt_toolkit>=3.0",
+    "requests>=2.28",
+    "pyyaml>=6.0",
+]
+
+[project.scripts]
+zenskill = "zenskill.__main__:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

@@ -241,6 +241,38 @@ foreach ($dep in @("interceptor-common.ts", "feature-flags.ts", "interceptor-req
     }
 }
 
+# 5.5. Copy ZenSkill source code
+$ZenSkillDir = "$RootDir\..\..\ZenSkill"
+$ZenSkillTarget = "$ElectronDir\resources\zenskill"
+if (Test-Path $ZenSkillDir) {
+    Write-Host "Copying ZenSkill source code..."
+    if (Test-Path $ZenSkillTarget) { Remove-Item -Recurse -Force $ZenSkillTarget }
+    New-Item -ItemType Directory -Force -Path "$ZenSkillTarget\zenskill" | Out-Null
+    # Copy essential source files (exclude tests, __pycache__, .git)
+    $SourceDir = "$ZenSkillDir\zenskill"
+    if (Test-Path $SourceDir) {
+        robocopy $SourceDir "$ZenSkillTarget\zenskill" /E /XD __pycache__ .git tests .pytest_cache /XF "*.pyc" /NFL /NDL /NJH /NJS /NC /NS
+    }
+    # Copy pyproject.toml and uv.lock
+    if (Test-Path "$ZenSkillDir\pyproject.toml") {
+        Copy-Item "$ZenSkillDir\pyproject.toml" "$ZenSkillTarget\"
+    }
+    if (Test-Path "$ZenSkillDir\uv.lock") {
+        Copy-Item "$ZenSkillDir\uv.lock" "$ZenSkillTarget\"
+    }
+    # Generate uv.lock if not present
+    if (-not (Test-Path "$ZenSkillTarget\uv.lock")) {
+        $uv = "$ElectronDir\resources\bin\win32-x64\uv.exe"
+        if (Test-Path $uv) {
+            Write-Host "  Generating uv.lock for ZenSkill..."
+            & $uv pip compile "$ZenSkillTarget\pyproject.toml" -o "$ZenSkillTarget\uv.lock" 2>$null
+        }
+    }
+    Write-Host "  ZenSkill copied to resources/zenskill"
+} else {
+    Write-Host "WARNING: ZenSkill directory not found at $ZenSkillDir, skipping" -ForegroundColor Yellow
+}
+
 # 6. Build Electron app
 Write-Host "Building Electron app..."
 

@@ -54,6 +54,10 @@ files:
   - resources/bin/linux-x64/**/*
   # Include bundled Bun runtime (platform-specific, set by build script)
   - vendor/bun/**/*
+  # Include ZenSkill Python code and wrapper scripts
+  - resources/zenskill/**/*
+  - resources/bin/zenskill-cmd
+  - resources/bin/zenskill-cmd.cmd
   # Exclude everything from node_modules (will use extraResources for SDK)
   - "!node_modules/**/*"
 
@@ -121,6 +125,9 @@ mac:
     # WhatsApp worker subprocess (self-contained; Baileys bundled in).
     - from: ../../packages/messaging-whatsapp-worker/dist/worker.cjs
       to: messaging-whatsapp-worker/worker.cjs
+    # ZenSkill Python runtime
+    - from: resources/zenskill
+      to: app/resources/zenskill
   # Exclude binaries for other platforms
   files:
     - "!**/resources/bin/win32-*/**"
@@ -186,6 +193,9 @@ win:
     # WhatsApp worker subprocess (self-contained; Baileys bundled in).
     - from: ../../packages/messaging-whatsapp-worker/dist/worker.cjs
       to: messaging-whatsapp-worker/worker.cjs
+    # ZenSkill Python runtime
+    - from: resources/zenskill
+      to: app/resources/zenskill
 
 nsis:
   oneClick: true
@@ -213,6 +223,9 @@ linux:
     # WhatsApp worker subprocess (self-contained; Baileys bundled in).
     - from: ../../packages/messaging-whatsapp-worker/dist/worker.cjs
       to: messaging-whatsapp-worker/worker.cjs
+    # ZenSkill Python runtime
+    - from: resources/zenskill
+      to: app/resources/zenskill
   # Exclude binaries for other platforms
   files:
     - "!**/resources/bin/darwin-*/**"
