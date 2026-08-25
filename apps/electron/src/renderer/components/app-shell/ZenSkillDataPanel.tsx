@@ -72,6 +72,12 @@ interface CompanionSummary {
   overdue: number
 }
 
+interface SkillCategory {
+  name: string
+  count: number
+  skills: { skill_id: string; name: string; description: string; usage_count: number; level: string }[]
+}
+
 interface GtdAction {
   id: string
   title: string
@@ -108,6 +114,9 @@ export function ZenSkillDataPanel({ workspaceId, sourceSlug, onGtdItemClick }: Z
   const [doneActions, setDoneActions] = useState<GtdAction[]>([])
   const [growth, setGrowth] = useState<GrowthSkill[]>([])
   const [companion, setCompanion] = useState<CompanionSummary | null>(null)
+  const [skillCategories, setSkillCategories] = useState<SkillCategory[]>([])
+  const [totalSkills, setTotalSkills] = useState(0)
+  const [expandedCats, setExpandedCats] = useState<Set<string>>(new Set())
   const [suggestions, setSuggestions] = useState<string[]>([])
   const [busyId, setBusyId] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
@@ -131,7 +140,7 @@ export function ZenSkillDataPanel({ workspaceId, sourceSlug, onGtdItemClick }: Z
     setLoading(true)
     setError(null)
     try {
-      const [gtdResult, memResult, dashResult, energyResult, achieveResult, habitResult, actionResult, doneResult, growthResult, companionResult] = await Promise.allSettled([
+      const [gtdResult, memResult, dashResult, energyResult, achieveResult, habitResult, actionResult, doneResult, growthResult, companionResult, skillBrowseResult] = await Promise.allSettled([
         window.electronAPI.callMcpTool(workspaceId, sourceSlug, 'gtd_inbox_list', { limit: 10 }),
         window.electronAPI.callMcpTool(workspaceId, sourceSlug, 'memory_list', { skill_id: 'all', n: 10 }),
         window.electronAPI.callMcpTool(workspaceId, sourceSlug, 'dashboard_summary', {}),
@@ -142,6 +151,7 @@ export function ZenSkillDataPanel({ workspaceId, sourceSlug, onGtdItemClick }: Z
         window.electronAPI.callMcpTool(workspaceId, sourceSlug, 'action_list', { status: 'done', limit: 3 }),
         window.electronAPI.callMcpTool(workspaceId, sourceSlug, 'growth_dashboard', {}),
         window.electronAPI.callMcpTool(workspaceId, sourceSlug, 'companion_summary', {}),
+        window.electronAPI.callMcpTool(workspaceId, sourceSlug, 'skill_browse', { limit: 3 }),
       ])
 
       const gtdData = extractJson(gtdResult.status === 'fulfilled' ? gtdResult.value : null)
@@ -196,6 +206,12 @@ export function ZenSkillDataPanel({ workspaceId, sourceSlug, onGtdItemClick }: Z
         else if (companionData.overdue) setSuggestions([`${companionData.overdue} 个行动已逾期，建议先处理`])
         else if (companionData.inbox_pending > 5) setSuggestions([`收件箱有 ${companionData.inbox_pending} 条待处理，建议定期清空`])
       }
+
+      const skillBrowseData = extractJson(skillBrowseResult.status === 'fulfilled' ? skillBrowseResult.value : null)
+      if (skillBrowseData) {
+        setSkillCategories(skillBrowseData.categories || [])
+        setTotalSkills(skillBrowseData.total || 0)
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load data')
     } finally {
@@ -242,7 +258,7 @@ export function ZenSkillDataPanel({ workspaceId, sourceSlug, onGtdItemClick }: Z
   }, [fetchData, sourceSlug])
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 p-3">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
@@ -557,6 +573,58 @@ export function ZenSkillDataPanel({ workspaceId, sourceSlug, onGtdItemClick }: Z
                 ))}
             </div>
           )}
+        </div>
+      )}
+
+      {/* Skills Browse */}
+      {skillCategories.length > 0 && (
+        <div>
+          <div className="flex items-center gap-1.5 mb-1.5">
+            <span className="text-sm">🧩</span>
+            <span className="text-xs font-medium text-muted-foreground">Skills ({totalSkills})</span>
+          </div>
+          <div className="space-y-0.5">
+            {skillCategories.slice(0, 5).map((cat) => {
+              const expanded = expandedCats.has(cat.name)
+              return (
+                <div key={cat.name}>
+                  <button
+                    className="flex items-center gap-1.5 w-full text-left text-xs rounded px-2 py-1 hover:bg-muted/50"
+                    onClick={() => {
+                      const next = new Set(expandedCats)
+                      if (next.has(cat.name)) next.delete(cat.name)
+                      else next.add(cat.name)
+                      setExpandedCats(next)
+                    }}
+                  >
+                    <ChevronRight className={`h-3 w-3 text-muted-foreground transition-transform ${expanded ? 'rotate-90' : ''}`} />
+                    <span className="font-medium truncate">{cat.name}</span>
+                    <span className="text-[10px] text-muted-foreground/60 ml-auto shrink-0">{cat.count}</span>
+                  </button>
+                  {expanded && (
+                    <div className="pl-5 space-y-0.5">
+                      {cat.skills.map((s) => (
+                        <div
+                          key={s.skill_id}
+                          className="text-[11px] rounded px-2 py-0.5 hover:bg-muted/50 cursor-pointer group"
+                          onClick={() => onGtdItemClick?.(`帮我了解一下 ${s.name} 这个技能`)}
+                          title={s.description}
+                        >
+                          <span className="truncate block">{s.name}</span>
+                          <div className="flex items-center gap-1.5">
+                            {s.usage_count > 0 && (
+                              <span className="text-[9px] text-muted-foreground/60">{s.usage_count}次</span>
+                            )}
+                            <span className="text-[9px] text-muted-foreground/40 truncate flex-1">{s.description}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
         </div>
       )}
 
