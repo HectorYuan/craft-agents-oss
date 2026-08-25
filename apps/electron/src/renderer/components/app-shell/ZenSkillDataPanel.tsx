@@ -5,7 +5,7 @@
  */
 
 import React, { useState, useEffect, useCallback, useRef } from 'react'
-import { Inbox, Brain, Zap, RefreshCw, ChevronRight, Trophy, Target, Activity, Flame, Check, ArrowRight, Trash2, Archive, Wand2, Circle, Search, TrendingUp } from 'lucide-react'
+import { Inbox, Brain, Zap, RefreshCw, ChevronRight, Trophy, Target, Activity, Flame, Check, ArrowRight, Trash2, Archive, Wand2, Circle, Search, TrendingUp, Lightbulb } from 'lucide-react'
 
 interface ZenSkillDataPanelProps {
   workspaceId: string
@@ -63,6 +63,15 @@ interface Habit {
   completed?: Record<string, boolean>
 }
 
+interface CompanionSummary {
+  mood: string
+  energy: { level: string; pct: number; current: number; max: number }
+  inbox_pending: number
+  pending_actions: number
+  due_today: number
+  overdue: number
+}
+
 interface GtdAction {
   id: string
   title: string
@@ -98,6 +107,8 @@ export function ZenSkillDataPanel({ workspaceId, sourceSlug, onGtdItemClick }: Z
   const [actions, setActions] = useState<GtdAction[]>([])
   const [doneActions, setDoneActions] = useState<GtdAction[]>([])
   const [growth, setGrowth] = useState<GrowthSkill[]>([])
+  const [companion, setCompanion] = useState<CompanionSummary | null>(null)
+  const [suggestions, setSuggestions] = useState<string[]>([])
   const [busyId, setBusyId] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -120,7 +131,7 @@ export function ZenSkillDataPanel({ workspaceId, sourceSlug, onGtdItemClick }: Z
     setLoading(true)
     setError(null)
     try {
-      const [gtdResult, memResult, dashResult, energyResult, achieveResult, habitResult, actionResult, doneResult, growthResult] = await Promise.allSettled([
+      const [gtdResult, memResult, dashResult, energyResult, achieveResult, habitResult, actionResult, doneResult, growthResult, companionResult] = await Promise.allSettled([
         window.electronAPI.callMcpTool(workspaceId, sourceSlug, 'gtd_inbox_list', { limit: 10 }),
         window.electronAPI.callMcpTool(workspaceId, sourceSlug, 'memory_list', { skill_id: 'all', n: 10 }),
         window.electronAPI.callMcpTool(workspaceId, sourceSlug, 'dashboard_summary', {}),
@@ -130,6 +141,7 @@ export function ZenSkillDataPanel({ workspaceId, sourceSlug, onGtdItemClick }: Z
         window.electronAPI.callMcpTool(workspaceId, sourceSlug, 'action_list', { status: 'pending', limit: 20 }),
         window.electronAPI.callMcpTool(workspaceId, sourceSlug, 'action_list', { status: 'done', limit: 3 }),
         window.electronAPI.callMcpTool(workspaceId, sourceSlug, 'growth_dashboard', {}),
+        window.electronAPI.callMcpTool(workspaceId, sourceSlug, 'companion_summary', {}),
       ])
 
       const gtdData = extractJson(gtdResult.status === 'fulfilled' ? gtdResult.value : null)
@@ -174,6 +186,16 @@ export function ZenSkillDataPanel({ workspaceId, sourceSlug, onGtdItemClick }: Z
 
       const growthData = extractJson(growthResult.status === 'fulfilled' ? growthResult.value : null)
       if (growthData) setGrowth(growthData.skills || [])
+
+      const companionData = extractJson(companionResult.status === 'fulfilled' ? companionResult.value : null)
+      if (companionData) {
+        setCompanion(companionData)
+        // Extract suggestions from energy_level advice
+        const eAdvice = energyData?.advice
+        if (eAdvice?.suggestions?.length) setSuggestions(eAdvice.suggestions.slice(0, 2))
+        else if (companionData.overdue) setSuggestions([`${companionData.overdue} 个行动已逾期，建议先处理`])
+        else if (companionData.inbox_pending > 5) setSuggestions([`收件箱有 ${companionData.inbox_pending} 条待处理，建议定期清空`])
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load data')
     } finally {
@@ -239,6 +261,45 @@ export function ZenSkillDataPanel({ workspaceId, sourceSlug, onGtdItemClick }: Z
 
       {error && (
         <div className="text-xs text-destructive bg-destructive/5 rounded p-2">{error}</div>
+      )}
+
+      {/* Companion: mood + energy bar + urgency */}
+      {companion && (
+        <div className="rounded border border-border/30 p-2 space-y-1.5">
+          <div className="text-xs text-muted-foreground">{companion.mood}</div>
+          <div className="flex items-center gap-2">
+            <div className="flex-1 h-1.5 rounded bg-muted/60 overflow-hidden">
+              <div
+                className={`h-full rounded transition-all ${
+                  companion.energy.pct > 0.7 ? 'bg-green-500/70'
+                    : companion.energy.pct > 0.3 ? 'bg-yellow-500/70'
+                    : companion.energy.pct > 0.1 ? 'bg-orange-500/70'
+                    : 'bg-red-500/70'
+                }`}
+                style={{ width: `${Math.round(companion.energy.pct * 100)}%` }}
+              />
+            </div>
+            <span className="text-[10px] text-muted-foreground w-8 text-right shrink-0">
+              {Math.round(companion.energy.pct * 100)}%
+            </span>
+          </div>
+          {(companion.overdue > 0 || companion.due_today > 0) && (
+            <div className="flex gap-3 text-[10px]">
+              {companion.overdue > 0 && (
+                <span className="text-red-400">⚠ {companion.overdue} overdue</span>
+              )}
+              {companion.due_today > 0 && (
+                <span className="text-yellow-400">📅 {companion.due_today} due today</span>
+              )}
+            </div>
+          )}
+          {suggestions.length > 0 && (
+            <div className="flex items-start gap-1.5 text-[10px] text-muted-foreground/70">
+              <Lightbulb className="h-3 w-3 mt-px shrink-0 text-yellow-500/60" />
+              <span>{suggestions[0]}</span>
+            </div>
+          )}
+        </div>
       )}
 
       {/* Dashboard + Energy */}
