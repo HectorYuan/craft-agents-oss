@@ -41,9 +41,14 @@ interface DashboardData {
 
 interface Achievement {
   id: string
-  name: string
+  name?: string
+  title?: string
+  icon?: string
+  tier?: string
   description?: string
   unlocked?: boolean
+  progress?: number
+  detail?: string
 }
 
 interface Habit {
@@ -87,6 +92,8 @@ export function ZenSkillDataPanel({ workspaceId, sourceSlug, onGtdItemClick }: Z
   const [dashboard, setDashboard] = useState<DashboardData | null>(null)
   const [energy, setEnergy] = useState<string | null>(null)
   const [achievements, setAchievements] = useState<Achievement[]>([])
+  const [lockedAchievements, setLockedAchievements] = useState<Achievement[]>([])
+  const [achieveRate, setAchieveRate] = useState(0)
   const [habits, setHabits] = useState<Habit[]>([])
   const [actions, setActions] = useState<GtdAction[]>([])
   const [doneActions, setDoneActions] = useState<GtdAction[]>([])
@@ -150,7 +157,11 @@ export function ZenSkillDataPanel({ workspaceId, sourceSlug, onGtdItemClick }: Z
       }
 
       const achieveData = extractJson(achieveResult.status === 'fulfilled' ? achieveResult.value : null)
-      if (achieveData) setAchievements(achieveData.badges || achieveData.items || achieveData.achievements || [])
+      if (achieveData) {
+        setAchievements(achieveData.badges || [])
+        setLockedAchievements(achieveData.locked || [])
+        setAchieveRate(achieveData.completion_rate || 0)
+      }
 
       const habitData = extractJson(habitResult.status === 'fulfilled' ? habitResult.value : null)
       if (habitData) setHabits(habitData.habits || [])
@@ -447,22 +458,44 @@ export function ZenSkillDataPanel({ workspaceId, sourceSlug, onGtdItemClick }: Z
         <div>
           <div className="flex items-center gap-1.5 mb-1.5">
             <Trophy className="h-3.5 w-3.5 text-muted-foreground" />
-            <span className="text-xs font-medium text-muted-foreground">Achievements ({achievements.length})</span>
-          </div>
-          <div className="flex flex-wrap gap-1">
-            {achievements.slice(0, 6).map((a) => (
-              <span
-                key={a.id}
-                className="text-[10px] px-1.5 py-0.5 rounded bg-accent/10 text-accent"
-                title={a.description}
-              >
-                {a.name}
-              </span>
-            ))}
-            {achievements.length > 6 && (
-              <span className="text-[10px] text-muted-foreground">+{achievements.length - 6}</span>
+            <span className="text-xs font-medium text-muted-foreground">
+              Achievements ({achievements.length}/{achievements.length + lockedAchievements.length})
+            </span>
+            {achieveRate > 0 && (
+              <span className="text-[9px] text-muted-foreground/60 ml-auto">{Math.round(achieveRate * 100)}%</span>
             )}
           </div>
+          {/* Unlocked badges */}
+          <div className="flex flex-wrap gap-1 mb-1">
+            {achievements.map((a) => (
+              <span
+                key={a.id}
+                className="text-[10px] px-1.5 py-0.5 rounded bg-accent/10 text-accent inline-flex items-center gap-1"
+                title={`${a.description}\n${a.detail || ''}`}
+              >
+                <span>{a.icon || '🏅'}</span>
+                {a.title || a.name}
+              </span>
+            ))}
+          </div>
+          {/* Locked badges with progress (closest to unlocking first) */}
+          {lockedAchievements.length > 0 && lockedAchievements.some(a => (a.progress ?? 0) > 0) && (
+            <div className="space-y-1 mt-1.5">
+              {lockedAchievements
+                .filter(a => (a.progress ?? 0) > 0)
+                .slice(0, 3)
+                .map((a) => (
+                  <div key={a.id} className="flex items-center gap-1.5 text-[10px]" title={a.description}>
+                    <span className="text-muted-foreground/40">{a.icon || '🔒'}</span>
+                    <span className="text-muted-foreground/70 truncate flex-1">{a.title || a.name}</span>
+                    <div className="w-10 h-1 rounded bg-muted/60 overflow-hidden shrink-0">
+                      <div className="h-full bg-accent/40" style={{ width: `${Math.round((a.progress ?? 0) * 100)}%` }} />
+                    </div>
+                    <span className="text-muted-foreground/50 w-7 text-right shrink-0">{Math.round((a.progress ?? 0) * 100)}%</span>
+                  </div>
+                ))}
+            </div>
+          )}
         </div>
       )}
 
