@@ -180,6 +180,35 @@ for dep in interceptor-common.ts feature-flags.ts interceptor-request-utils.ts; 
   fi
 done
 
+# 5.5. Copy ZenSkill source code
+ZENSKILL_DIR="$ROOT_DIR/../../ZenSkill"
+ZENSKILL_TARGET="$ELECTRON_DIR/resources/zenskill"
+if [ -d "$ZENSKILL_DIR" ]; then
+  echo "Copying ZenSkill source code..."
+  rm -rf "$ZENSKILL_TARGET"
+  mkdir -p "$ZENSKILL_TARGET/zenskill"
+  # Copy essential source files (exclude tests, __pycache__, .git)
+  if [ -d "$ZENSKILL_DIR/zenskill" ]; then
+    rsync -a --exclude='__pycache__' --exclude='.git' --exclude='tests' \
+      --exclude='*.pyc' --exclude='.pytest_cache' \
+      "$ZENSKILL_DIR/zenskill/" "$ZENSKILL_TARGET/zenskill/"
+  fi
+  # Copy pyproject.toml and uv.lock
+  [ -f "$ZENSKILL_DIR/pyproject.toml" ] && cp "$ZENSKILL_DIR/pyproject.toml" "$ZENSKILL_TARGET/"
+  [ -f "$ZENSKILL_DIR/uv.lock" ] && cp "$ZENSKILL_DIR/uv.lock" "$ZENSKILL_TARGET/"
+  # Generate uv.lock if not present
+  if [ ! -f "$ZENSKILL_TARGET/uv.lock" ]; then
+    UV="$ELECTRON_DIR/resources/bin/linux-x64/uv"
+    if [ -x "$UV" ]; then
+      echo "  Generating uv.lock for ZenSkill..."
+      "$UV" pip compile "$ZENSKILL_TARGET/pyproject.toml" -o "$ZENSKILL_TARGET/uv.lock" 2>/dev/null || true
+    fi
+  fi
+  echo "  ZenSkill copied to resources/zenskill"
+else
+  echo "WARNING: ZenSkill directory not found at $ZENSKILL_DIR, skipping"
+fi
+
 # 6. Build Electron app
 echo "Building Electron app..."
 cd "$ROOT_DIR"
