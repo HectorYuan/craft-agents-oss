@@ -24,7 +24,10 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Iterator, Optional
 
-import fcntl
+try:
+    import fcntl
+except ImportError:  # Windows: POSIX 文件锁不可用
+    fcntl = None
 
 # ============================================================
 # Profile 管理常量
@@ -49,6 +52,8 @@ def file_lock(path: Path, timeout: float = LOCK_NORMAL) -> Iterator[None]:
     start = time.monotonic()
     with open(lock_path, "a+", encoding="utf-8") as lock_file:
         while True:
+            if fcntl is None:
+                break
             try:
                 fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
                 break
@@ -61,7 +66,8 @@ def file_lock(path: Path, timeout: float = LOCK_NORMAL) -> Iterator[None]:
         try:
             yield
         finally:
-            fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
+            if fcntl is not None:
+                fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
 
 
 def _fsync_dir(path: Path) -> None:

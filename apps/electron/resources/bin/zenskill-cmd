@@ -1,4 +1,6 @@
 #!/bin/sh
 # ZenSkill CLI wrapper for Craft Agents Electron app
-# CRAFT_UV and CRAFT_ZENSKILL are set by the Electron main process
-exec "$CRAFT_UV" run --python 3.12 "$CRAFT_ZENSKILL/zenskill/__main__.py" "$@"
+# CRAFT_UV and CRAFT_ZENSKILL are set by the Electron main process.
+# --project is required: __main__.py uses package-relative imports and cannot
+# be executed as a bare script path.
+exec "$CRAFT_UV" run --project "$CRAFT_ZENSKILL" --python 3.12 zenskill "$@"

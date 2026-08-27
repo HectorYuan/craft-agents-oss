@@ -102,3 +102,9 @@ export type {
   TokenRefreshResult,
   RefreshManagerOptions,
 } from './token-refresh-manager.ts';
+
+// ZenSkill MCP source auto-seeding (first-run integration)
+export {
+  ZENSKILL_SOURCE_SLUG,
+  seedZenskillSource,
+} from './zenskill-seed.ts';

@@ -102,6 +102,7 @@ import { getWorkspaces, getWorkspaceByNameOrId, loadStoredConfig, addWorkspace, 
 import { getDefaultWorkspacesDir } from '@craft-agent/shared/workspaces'
 import { initializeDocs } from '@craft-agent/shared/docs'
 import { initializeReleaseNotes } from '@craft-agent/shared/release-notes'
+import { seedZenskillSource } from '@craft-agent/shared/sources'
 import { ensureDefaultPermissions } from '@craft-agent/shared/agent/permissions-config'
 import { ensureToolIcons, ensurePresetThemes } from '@craft-agent/shared/config'
 import { setBundledAssetsRoot } from '@craft-agent/shared/utils'
@@ -344,6 +345,13 @@ async function createInitialWindows(): Promise<void> {
     addWorkspace({ rootPath: defaultPath, name: 'My Workspace' })
     workspaces = getWorkspaces() // Refresh after creation
     mainLog.info('Created default workspace on first run')
+  }
+
+  // Seed the ZenSkill MCP source into workspaces lacking one. Idempotent:
+  // skipped when a zenskill* source exists, the user dismissed it, or the
+  // engine pack isn't bundled (dev machines manage sources manually).
+  for (const ws of workspaces) {
+    seedZenskillSource(ws.rootPath)
   }
 
   const validWorkspaceIds = workspaces.map(ws => ws.id)

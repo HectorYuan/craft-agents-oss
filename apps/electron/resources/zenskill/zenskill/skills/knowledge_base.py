@@ -135,8 +135,10 @@ class KnowledgeBaseSkill:
                 "kb_root": self.KB_ROOT
             }
     
-    def _get_base_capabilities(self) -> List[SkillCapability]:
+    def _get_base_capabilities(self) -> List["SkillCapability"]:
         """基础能力清单"""
+        from ..skill_router import SkillCapability  # lazy: 避免 router↔skills 循环导入
+
         return [
             SkillCapability(
                 name="知识入库",
