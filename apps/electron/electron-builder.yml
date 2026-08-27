@@ -47,6 +47,10 @@ files:
   - resources/bin/pptx-tool.cmd
   - resources/bin/ical-tool
   - resources/bin/ical-tool.cmd
+  # ZenSkill engine pack + CLI wrappers (ZenSkill integration)
+  - resources/zenskill/**/*
+  - resources/bin/zenskill-cmd
+  - resources/bin/zenskill-cmd.cmd
   # Include bundled uv binary (platform-specific, only the relevant one ships per build)
   - resources/bin/darwin-arm64/**/*
   - resources/bin/darwin-x64/**/*

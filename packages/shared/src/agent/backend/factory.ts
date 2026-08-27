@@ -25,6 +25,7 @@ import type {
 } from './types.ts';
 import { ClaudeAgent } from '../claude-agent.ts';
 import { PiAgent } from '../pi-agent.ts';
+import { ZenskillAgent } from './zenskill-agent.ts';
 import {
   getLlmConnection,
   getDefaultLlmConnection,
@@ -139,6 +140,10 @@ export function createBackend(config: BackendConfig): AgentBackend {
       // PiAgent implements AgentBackend directly
       // Auth is API key based via Pi's AuthStorage
       return new PiAgent(config);
+
+    case 'zenskill':
+      // ZenskillAgent: ZenSkill agent-engine as subprocess
+      return new ZenskillAgent(config);
 
     default:
       throw new Error(`Unknown provider: ${config.provider}`);
