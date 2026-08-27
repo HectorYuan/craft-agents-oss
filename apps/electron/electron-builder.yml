@@ -49,6 +49,7 @@ files:
   - resources/bin/ical-tool.cmd
   # ZenSkill engine pack + CLI wrappers (ZenSkill integration)
   - resources/zenskill/**/*
+  - "!resources/zenskill/**/.venv/**"
   - resources/bin/zenskill-cmd
   - resources/bin/zenskill-cmd.cmd
   # Include bundled uv binary (platform-specific, only the relevant one ships per build)
@@ -84,6 +85,13 @@ publish:
 
 # Disable ASAR to avoid decompression overhead and click delays
 asar: false
+
+# ZenSkill slim builds: max NSIS compression + CN/EN Chromium locales only.
+# App-level i18n lives in renderer JS bundles, unaffected by locale paks.
+compression: "maximum"
+electronLanguages:
+  - zh-CN
+  - en-US
 
 mac:
   category: public.app-category.productivity
@@ -175,21 +183,31 @@ win:
     # See: https://github.com/electron-userland/electron-builder/issues/8250
     - "!vendor/bun/**/*"
     - "!**/resources/bin/win32-x64/**"
+    # ZenSkill slimming (Windows):
+    # - dist copy of the engine pack duplicates app/resources/zenskill; the runtime
+    #   resolves CRAFT_ZENSKILL to app/resources/zenskill, so ship exactly one copy.
+    - "!dist/resources/zenskill/**/*"
+    # Browser WebUI (Path B) requires the undeclared aiohttp [webui] extra and is
+    # never served by the Electron main process — 27 MB of dead static assets.
+    - "!resources/zenskill/zenskill/webui/**/*"
+    # macOS-only artifacts copied verbatim into every platform build by copy-assets.
+    - "!dist/resources/dmg-background.tiff"
+    - "!dist/resources/dmg-background.png"
+    - "!dist/resources/dmg-background@2x.png"
+    - "!dist/resources/source.png"
+    - "!dist/resources/icon.icon"
   # Copy executables as extraResources to avoid EBUSY file locking (see comment above)
+  # ZenSkill slim builds: the Claude native binary alias and the WhatsApp worker
+  # are NOT shipped — createBackend() defaults every provider to ZenskillAgent.
   extraResources:
     - from: node_modules/@anthropic-ai/claude-agent-sdk
       to: app/node_modules/@anthropic-ai/claude-agent-sdk
-    - from: node_modules/@anthropic-ai/claude-agent-sdk-binary
-      to: app/node_modules/@anthropic-ai/claude-agent-sdk-binary
     - from: node_modules/@vscode/ripgrep
       to: app/node_modules/@vscode/ripgrep
     - from: vendor/bun/bun.exe
       to: vendor/bun/bun.exe
     - from: resources/bin/win32-x64
       to: app/resources/bin/win32-x64
-    # WhatsApp worker subprocess (self-contained; Baileys bundled in).
-    - from: ../../packages/messaging-whatsapp-worker/dist/worker.cjs
-      to: messaging-whatsapp-worker/worker.cjs
 
 nsis:
   oneClick: true
