@@ -323,7 +323,9 @@ Push-Location $ElectronDir
 try {
     bun scripts/copy-assets.ts
     if ($LASTEXITCODE -ne 0) { throw "Asset copy failed" }
-    Write-Host "  Assets copied" -ForegroundColor Green
+    bun scripts/brand-replace.ts
+    if ($LASTEXITCODE -ne 0) { throw "Brand replace failed" }
+    Write-Host "  Assets copied + rebranded" -ForegroundColor Green
 } finally {
     Pop-Location
 }

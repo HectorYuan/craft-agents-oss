@@ -1,6 +1,6 @@
 [project]
 name = "zenskill"
-version = "2.6.1"
+version = "2.6.2"
 description = "有生命的技能系统 - 记忆、成长、自我反思"
 authors = [{name = "ZenSkill Team"}]
 requires-python = ">=3.9"

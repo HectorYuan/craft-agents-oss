@@ -1,6 +1,6 @@
-appId: com.lukilabs.craft-agent
-productName: Craft Agents
-copyright: Copyright © 2026 Craft Docs Ltd.
+appId: com.zenskill.desktop
+productName: ZenSkill
+copyright: Copyright © 2026 ZenSkill Team
 
 electronVersion: "39.2.7"
 
@@ -80,8 +80,9 @@ extraMetadata:
 
 # Auto-update: electron-updater fetches from this URL for update manifests (.yml files)
 publish:
-  provider: generic
-  url: https://thecraftagents.com/electron/latest
+  provider: github
+  owner: HectorYuan
+  repo: ZenSkill
 
 # Disable ASAR to avoid decompression overhead and click delays
 asar: false
@@ -170,8 +171,8 @@ win:
     - target: nsis
       arch:
         - x64
-  # Use predictable naming: Craft-Agents-x64.exe
-  artifactName: "Craft-Agents-${arch}.${ext}"
+  # Use predictable naming: ZenSkill-x64.exe
+  artifactName: "ZenSkill-${arch}.${ext}"
   files:
     # Exclude binaries for other platforms
     - "!**/resources/bin/darwin-*/**"
