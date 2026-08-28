@@ -60,10 +60,12 @@ import {
 } from './internal/runtime-resolver.ts';
 import { anthropicDriver } from './internal/drivers/anthropic.ts';
 import { piDriver } from './internal/drivers/pi.ts';
+import { zenskillDriver } from './internal/drivers/zenskill.ts';
 
 const DRIVER_REGISTRY: Record<AgentProvider, ProviderDriver> = {
   anthropic: anthropicDriver,
   pi: piDriver,
+  zenskill: zenskillDriver,
 };
 
 function getProviderDriver(provider: AgentProvider): ProviderDriver {
@@ -574,6 +576,7 @@ export const BACKEND_CAPABILITIES: Record<AgentProvider, {
 }> = {
   anthropic: { needsHttpPoolServer: false },
   pi: { needsHttpPoolServer: false },
+  zenskill: { needsHttpPoolServer: false },
 };
 
 // ============================================================
@@ -590,6 +593,8 @@ export function getDefaultAuthType(provider: AgentProvider): LlmAuthType | undef
   switch (provider) {
     case 'anthropic': return undefined;
     case 'pi':        return 'api_key';
+    // ZenSkill connections are API-key based (injected as engine env vars)
+    case 'zenskill':  return 'api_key';
     default:          return undefined;
   }
 }

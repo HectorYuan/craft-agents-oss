@@ -117,7 +117,10 @@ export function getDefaultProviderType(provider: AgentProvider): LlmProviderType
   switch (provider) {
     case 'anthropic':
       return 'anthropic';
+    // ZenSkill runs every connection type; without a concrete connection the
+    // pi family is the closest default (presets like DeepSeek live there).
     case 'pi':
+    case 'zenskill':
       return 'pi';
   }
 }
