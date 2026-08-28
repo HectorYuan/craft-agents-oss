@@ -15,9 +15,13 @@
  */
 
 import { spawn, type ChildProcess } from 'node:child_process';
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
 import { createInterface, type Interface as ReadlineInterface } from 'node:readline';
 import type { AgentBackend } from './types.ts';
 import type { AgentEvent } from '@craft-agent/core/types';
+import { getLlmConnection } from '../../config/storage.ts';
+import { getCredentialManager } from '../../credentials/manager.ts';
 
 // ============================================================
 // JSONL Protocol Types (mirror zenskill/runtime/agent/rpc.py)
@@ -140,6 +144,10 @@ export interface ZenskillBackendConfig {
   faux?: boolean;
   /** Debug logging */
   debug?: boolean;
+  /** Connection slug — set by the factory for credential routing */
+  connectionSlug?: string;
+  /** LLM provider type from the connection ('anthropic' | 'pi' | 'pi_compat') */
+  providerType?: string;
 }
 
 export class ZenskillAgent implements AgentBackend {
@@ -171,13 +179,88 @@ export class ZenskillAgent implements AgentBackend {
   // Lifecycle
   // ============================================================
 
+  // ============================================================
+  // Path & Credential Resolution (packaged / dev)
+  // ============================================================
+
+  /** resourcesPath exists only inside packaged Electron; dev falls back to cwd. */
+  private _packagedAppResource(relPath: string): string | null {
+    const resourcesPath = (process as unknown as { resourcesPath?: string }).resourcesPath;
+    if (resourcesPath) {
+      const p = join(resourcesPath, 'app', 'resources', relPath);
+      if (existsSync(p)) return p;
+    }
+    return null;
+  }
+
+  /**
+   * Resolve the zenskill CLI wrapper. The wrapper is a cmd/sh script next to
+   * the bundled uv; executing the engine pack's __main__.py directly fails on
+   * package-relative imports.
+   */
+  private _resolveZenSkillPath(): string {
+    const wrapperName = process.platform === 'win32' ? 'zenskill-cmd.cmd' : 'zenskill-cmd';
+    const packaged = this._packagedAppResource(join('bin', wrapperName));
+    if (packaged) return packaged;
+    const dev = join(process.cwd(), 'resources', 'bin', wrapperName);
+    if (existsSync(dev)) return dev;
+    return this.config.zenskillPath || 'zenskill';
+  }
+
+  /**
+   * Map the connection's provider to the env var the engine reads its API
+   * key from. For pi-type connections the concrete provider lives in
+   * LlmConnection.piAuthProvider (e.g. 'deepseek').
+   */
+  private _providerKeyEnv(): string | null {
+    const cfg = this.config as ZenskillBackendConfig;
+    let authProvider: string | undefined;
+    if (cfg.providerType === 'pi' || cfg.providerType === 'pi_compat') {
+      authProvider = cfg.connectionSlug
+        ? getLlmConnection(cfg.connectionSlug)?.piAuthProvider
+        : undefined;
+    }
+    switch (authProvider ?? cfg.providerType) {
+      case 'deepseek':
+        return 'DEEPSEEK_API_KEY';
+      case 'anthropic':
+      case 'anthropic_compat':
+        return 'ANTHROPIC_API_KEY';
+      case 'openai':
+      case 'openai_compat':
+      case 'openai-codex':
+        return 'OPENAI_API_KEY';
+      case 'ark':
+      case 'volc':
+        return 'ARK_API_KEY';
+      case 'qwen':
+        return 'DASHSCOPE_API_KEY';
+      case 'moonshot':
+        return 'MOONSHOT_API_KEY';
+      case 'zhipu':
+        return 'ZHIPU_API_KEY';
+      default:
+        return null;
+    }
+  }
+
+  private async _resolveProviderApiKey(): Promise<string | null> {
+    const slug = this.config.connectionSlug;
+    if (!slug) return null;
+    try {
+      return (await getCredentialManager().getLlmApiKey(slug)) ?? null;
+    } catch {
+      return null;
+    }
+  }
+
   private async ensureSubprocess(): Promise<void> {
     if (this.subprocess && !this.subprocess.killed) return;
     await this.spawnSubprocess();
   }
 
   private async spawnSubprocess(): Promise<void> {
-    const zenskillPath = this.config.zenskillPath || 'zenskill';
+    const zenskillPath = this._resolveZenSkillPath();
     const args = ['agent-engine', 'serve'];
     if (this.config.permission) args.push('--permission', this.config.permission);
     if (this.config.cwd) args.push('--cwd', this.config.cwd);
@@ -185,10 +268,31 @@ export class ZenskillAgent implements AgentBackend {
     if (this.config.model) args.push('--model', this.config.model);
     if (this.config.faux) args.push('--faux');
 
+    // Engine pack + bundled uv locations, then the provider credential.
+    // The engine reads its LLM key from provider-specific env vars
+    // (zenskill/core/llm_provider.py), so inject at spawn time to keep the
+    // credential scoped to the subprocess.
+    const env: Record<string, string> = { ...process.env } as Record<string, string>;
+    const engineRoot = this._packagedAppResource('zenskill')
+      ?? join(process.cwd(), 'resources', 'zenskill');
+    if (existsSync(engineRoot)) env.CRAFT_ZENSKILL = engineRoot;
+
+    const archDir = `${process.platform}-${process.arch}`;
+    const uvName = process.platform === 'win32' ? 'uv.exe' : 'uv';
+    const uvPath = this._packagedAppResource(join('bin', archDir, uvName))
+      ?? join(process.cwd(), 'resources', 'bin', archDir, uvName);
+    if (existsSync(uvPath)) env.CRAFT_UV = uvPath;
+
+    const keyEnv = this._providerKeyEnv();
+    if (keyEnv) {
+      const apiKey = await this._resolveProviderApiKey();
+      if (apiKey) env[keyEnv] = apiKey;
+    }
+
     const child = spawn(zenskillPath, args, {
       cwd: this.config.cwd || process.cwd(),
       stdio: ['pipe', 'pipe', 'pipe'],
-      env: process.env,
+      env,
     });
 
     this.subprocess = child;
@@ -207,7 +311,9 @@ export class ZenskillAgent implements AgentBackend {
 
     // Wait for server_hello
     await new Promise<void>((resolve, reject) => {
-      const timeout = setTimeout(() => reject(new Error('ZenSkill subprocess timeout (no server_hello)')), 15000);
+      // Cold start on a fresh machine provisions the engine venv via uv
+      // (~20-60s); warm starts answer server_hello in well under a second.
+      const timeout = setTimeout(() => reject(new Error('ZenSkill subprocess timeout (no server_hello)')), 90000);
       const check = setInterval(() => {
         if (this.serverReady) {
           clearInterval(check);

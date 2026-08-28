@@ -87,8 +87,10 @@ export function normalizeDeprecatedModelId(modelId: string): string {
 
 /**
  * Provider identifier for AI backends.
+ * 'zenskill' is the single shipped backend (slim build): every LLM connection
+ * routes through the ZenSkill agent-engine subprocess.
  */
-export type ModelProvider = 'anthropic' | 'pi';
+export type ModelProvider = 'anthropic' | 'pi' | 'zenskill';
 
 /**
  * Full model definition with capabilities and costs.

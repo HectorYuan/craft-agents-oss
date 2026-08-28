@@ -254,21 +254,13 @@ export function isProviderAvailable(provider: AgentProvider): boolean {
  * @returns The agent provider for SDK selection
  */
 export function providerTypeToAgentProvider(providerType: LlmProviderType): AgentProvider {
-  switch (providerType) {
-    // Anthropic SDK backend (direct API only)
-    case 'anthropic':
-      return 'anthropic';
-
-    // Pi backends (includes former bedrock/vertex/anthropic_compat via migration)
-    case 'pi':
-    case 'pi_compat':
-      return 'pi';
-
-    default:
-      // Exhaustive check
-      const _exhaustive: never = providerType;
-      return 'anthropic';
-  }
+  // ZenSkill engine is the single backend in this product: every LLM
+  // connection type (anthropic / pi / pi_compat) routes through the
+  // ZenSkill agent-engine subprocess. The Claude/Pi backends remain for
+  // upstream parity but are unreachable — the slim build does not ship
+  // their subprocess runtimes (claude binary, pi-agent-server).
+  void providerType;
+  return 'zenskill';
 }
 
 /**
@@ -279,15 +271,9 @@ export function providerTypeToAgentProvider(providerType: LlmProviderType): Agen
  * @returns The corresponding agent provider
  */
 export function connectionTypeToProvider(connectionType: LlmConnectionType): AgentProvider {
-  switch (connectionType) {
-    case 'anthropic':
-      return 'anthropic';
-    case 'openai':
-    case 'openai-compat':
-      return 'pi'; // Legacy OpenAI connections are now routed through Pi
-    default:
-      return 'anthropic';
-  }
+  // See providerTypeToAgentProvider — everything routes to the ZenSkill engine.
+  void connectionType;
+  return 'zenskill';
 }
 
 /**
