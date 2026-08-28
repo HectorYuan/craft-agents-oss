@@ -97,8 +97,8 @@ electronLanguages:
 mac:
   category: public.app-category.productivity
   icon: resources/icon.icns
-  # macOS 26+ Liquid Glass: Tell macOS to look for icon in Assets.car
-  # The value must match --app-icon used in actool (see afterPack.js)
+  # Icon source of truth: resources/icon.png (Z-core master). icns composed
+  # from the icon_NxN.png set via icnsutil; regenerate on icon changes.
   extendInfo:
     CFBundleIconName: AppIcon
     # Required for macOS to list the app under Privacy & Security > Local Network
@@ -184,19 +184,11 @@ win:
     # See: https://github.com/electron-userland/electron-builder/issues/8250
     - "!vendor/bun/**/*"
     - "!**/resources/bin/win32-x64/**"
-    # ZenSkill slimming (Windows):
-    # - dist copy of the engine pack duplicates app/resources/zenskill; the runtime
-    #   resolves CRAFT_ZENSKILL to app/resources/zenskill, so ship exactly one copy.
-    - "!dist/resources/zenskill/**/*"
-    # Browser WebUI (Path B) requires the undeclared aiohttp [webui] extra and is
-    # never served by the Electron main process — 27 MB of dead static assets.
-    - "!resources/zenskill/zenskill/webui/**/*"
-    # macOS-only artifacts copied verbatim into every platform build by copy-assets.
-    - "!dist/resources/dmg-background.tiff"
-    - "!dist/resources/dmg-background.png"
-    - "!dist/resources/dmg-background@2x.png"
-    - "!dist/resources/source.png"
-    - "!dist/resources/icon.icon"
+    # NOTE: dist/resources/zenskill + bin duplicates and macOS-only assets
+    # (dmg-background*, source.png) are NOT removed here —
+    # electron-builder files negations proved unreliable. They are pruned
+    # deterministically in scripts/afterPack.cjs (win32 branch); the dist
+    # copies are never generated in the first place (copy-assets.ts skip list).
   # Copy executables as extraResources to avoid EBUSY file locking (see comment above)
   # ZenSkill slim builds: the Claude native binary alias and the WhatsApp worker
   # are NOT shipped — createBackend() defaults every provider to ZenskillAgent.

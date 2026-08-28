@@ -11,13 +11,22 @@
  * Run: bun scripts/copy-assets.ts
  */
 
-import { cpSync, copyFileSync, mkdirSync } from 'fs';
+import { cpSync, copyFileSync, readdirSync } from 'fs';
 import { join } from 'path';
 
-// Copy all resources (icons, themes, docs, permissions, tool-icons, etc.)
-cpSync('resources', 'dist/resources', { recursive: true });
+// Copy resources/ → dist/resources/, skipping subdirectories that are dead
+// weight in every packaged layout: the ZenSkill engine pack (CRAFT_ZENSKILL /
+// zenskill-seed) and bundled uv are resolved via <resourcesPath>/app/resources,
+// never via the dist copy. docs/themes/permissions/tool-icons MUST keep being
+// copied — packaged getBundledAssetsDir resolves them from <__dirname>/resources/.
+const SKIP_COPY = new Set(['zenskill', 'bin']);
 
-console.log('✓ Copied resources/ → dist/resources/');
+for (const entry of readdirSync('resources')) {
+  if (SKIP_COPY.has(entry)) continue;
+  cpSync(join('resources', entry), join('dist', 'resources', entry), { recursive: true });
+}
+
+console.log('✓ Copied resources/ → dist/resources/ (skipped: ' + [...SKIP_COPY].join(', ') + ')');
 
 // Copy PowerShell parser script (for Windows command validation in Explore mode)
 // Source: packages/shared/src/agent/powershell-parser.ps1

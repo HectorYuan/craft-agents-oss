@@ -1,52 +1,50 @@
 /**
  * electron-builder afterPack hook
  *
- * Copies the pre-compiled macOS 26+ Liquid Glass icon (Assets.car) into the
- * app bundle. The Assets.car file is compiled locally using actool with the
- * macOS 26 SDK (not available in CI), then committed to the repo.
+ * Windows: prunes dead weight that the files-glob exclusions cannot reliably
+ * remove (electron-builder negation ordering is unreliable) — the dist copy of
+ * the ZenSkill engine pack / bundled bin (runtime reads
+ * <resourcesPath>/app/resources via CRAFT_ZENSKILL), macOS-only assets copied
+ * in by copy-assets, and the engine pack's browser-webui static files.
  *
- * To regenerate Assets.car after icon changes:
- *   cd apps/electron
- *   xcrun actool "resources/icon.icon" --compile "resources" \
- *     --app-icon AppIcon --minimum-deployment-target 26.0 \
- *     --platform macosx --output-partial-info-plist /dev/null
- *
- * For older macOS versions, the app falls back to icon.icns which is
- * included separately by electron-builder.
+ * macOS: nothing to do — icons come from resources/icon.icns, which is
+ * generated from the Z-core master (see ../../.. Temp note in repo history;
+ * compose via `python -m icnsutil compose` over icon_NxN.png set).
  */
 
 const path = require('path');
 const fs = require('fs');
 
+/** Remove a path inside the packed app if present; returns true when removed. */
+function pruneIfExists(appPath, relPath) {
+  const target = path.join(appPath, relPath);
+  if (!fs.existsSync(target)) return false;
+  fs.rmSync(target, { recursive: true, force: true });
+  console.log(`afterPack: pruned ${relPath}`);
+  return true;
+}
+
 module.exports = async function afterPack(context) {
-  // Only process macOS builds
-  if (context.electronPlatformName !== 'darwin') {
-    console.log('Skipping Liquid Glass icon (not macOS)');
+  if (context.electronPlatformName !== 'win32') {
+    console.log('afterPack: no prune rules for this platform');
     return;
   }
 
-  const appPath = context.appOutDir;
-  const resourcesDir = path.join(appPath, 'Craft Agents.app', 'Contents', 'Resources');
-  const precompiledAssets = path.join(context.packager.projectDir, 'resources', 'Assets.car');
-
-  console.log(`afterPack: projectDir=${context.packager.projectDir}`);
-  console.log(`afterPack: looking for Assets.car at ${precompiledAssets}`);
-
-  // Check if pre-compiled Assets.car exists
-  if (!fs.existsSync(precompiledAssets)) {
-    console.log('Warning: Pre-compiled Assets.car not found in resources/');
-    console.log('The app will use the fallback icon.icns on all macOS versions');
-    return;
+  const appPath = path.join(context.appOutDir, 'resources', 'app');
+  const pruned =
+    pruneIfExists(appPath, path.join('dist', 'resources', 'zenskill')) |
+    pruneIfExists(appPath, path.join('dist', 'resources', 'bin'));
+  const deadAssets = [
+    'dmg-background.png',
+    'dmg-background.tiff',
+    'dmg-background@2x.png',
+    'source.png',
+  ];
+  for (const name of deadAssets) {
+    pruneIfExists(appPath, path.join('dist', 'resources', name));
   }
-
-  // Copy pre-compiled Assets.car to the app bundle
-  const destAssetsCar = path.join(resourcesDir, 'Assets.car');
-  try {
-    fs.copyFileSync(precompiledAssets, destAssetsCar);
-    console.log(`Liquid Glass icon copied: ${destAssetsCar}`);
-  } catch (err) {
-    // Don't fail the build if Assets.car can't be copied - app will use fallback icon.icns
-    console.log(`Warning: Could not copy Assets.car: ${err.message}`);
-    console.log('The app will use the fallback icon.icns on all macOS versions');
-  }
+  // Browser WebUI (Path B) static assets under the canonical engine pack copy:
+  // need an undeclared aiohttp extra and are never served by Electron (~27MB).
+  pruneIfExists(appPath, path.join('resources', 'zenskill', 'zenskill', 'webui'));
+  if (!pruned) console.log('afterPack: win32 prune — nothing to remove');
 };
