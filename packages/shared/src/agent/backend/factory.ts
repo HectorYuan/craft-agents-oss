@@ -131,23 +131,13 @@ export function detectProvider(authType: string): AgentProvider {
  * ```
  */
 export function createBackend(config: BackendConfig): AgentBackend {
-  switch (config.provider) {
-    case 'anthropic':
-      // ClaudeAgent implements AgentBackend directly
-      return new ClaudeAgent(config);
-
-    case 'pi':
-      // PiAgent implements AgentBackend directly
-      // Auth is API key based via Pi's AuthStorage
-      return new PiAgent(config);
-
-    case 'zenskill':
-      // ZenskillAgent: ZenSkill agent-engine as subprocess
-      return new ZenskillAgent(config);
-
-    default:
-      throw new Error(`Unknown provider: ${config.provider}`);
-  }
+  // ZenSkill engine is the only shipped backend: whatever provider a caller
+  // requests (the connection-test path passes the raw wizard provider, e.g.
+  // 'pi'), it executes on the ZenSkill agent-engine subprocess. ClaudeAgent /
+  // PiAgent stay imported for upstream parity but their runtimes are not
+  // part of the slim build.
+  void config.provider;
+  return new ZenskillAgent(config);
 }
 
 /**
@@ -167,7 +157,11 @@ export function createBackendFromResolvedContext(args: {
   providerOptions?: BackendProviderOptions;
 }): AgentBackend {
   const { context, coreConfig, hostRuntime, providerOptions } = args;
-  const { driver, resolvedPaths } = resolveDriverRuntime(context.provider, hostRuntime);
+  // Single-backend product: callers may pass the raw connection provider
+  // (e.g. the API-config wizard passes 'pi') — execution always happens on
+  // the ZenSkill engine.
+  const provider: AgentProvider = 'zenskill';
+  const { driver, resolvedPaths } = resolveDriverRuntime(provider, hostRuntime);
 
   const buildArgs = {
     context,
@@ -182,11 +176,12 @@ export function createBackendFromResolvedContext(args: {
 
   const config: ResolvedBackendConfig = {
     ...coreConfig,
-    provider: context.provider,
-    providerType: context.connection?.providerType ?? getDefaultProviderType(context.provider),
-    authType: context.authType || getDefaultAuthType(context.provider),
+    provider,
+    providerType: context.connection?.providerType ?? getDefaultProviderType(provider),
+    authType: context.authType || getDefaultAuthType(provider),
     model: context.resolvedModel,
     connectionSlug: context.connection?.slug,
+    piAuthProvider: context.connection?.piAuthProvider,
     runtime,
   };
 

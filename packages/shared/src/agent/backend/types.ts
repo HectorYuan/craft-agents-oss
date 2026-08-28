@@ -671,6 +671,14 @@ export interface BackendConfig extends CoreBackendConfig {
   mcpToken?: string;
 
   /**
+   * Auth provider from the LLM connection (e.g. 'deepseek').
+   * Carried through so single-backend runtimes can map credentials to the
+   * engine's expected env vars — including synthetic test connections that
+   * are not persisted to storage.
+   */
+  piAuthProvider?: string;
+
+  /**
    * Connection slug for credential routing.
    * Set by factory when creating from a connection.
    * Used to read/write credentials under the correct key.
