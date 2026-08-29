@@ -657,6 +657,19 @@ class AgentServer:
 
 
 async def _stdin_lines() -> AsyncIterator[str]:
+    if sys.platform == "win32":
+        # Windows ProactorEventLoop stdin pipe transport crashes on read
+        # (_ProactorReadPipeTransport._empty_waiter AttributeError, CPython
+        # proactor quirk) — the JSONL protocol goes silent right after
+        # server_hello. Read the line protocol on a worker thread instead.
+        import concurrent.futures
+        loop = asyncio.get_event_loop()
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+            while True:
+                line = await loop.run_in_executor(pool, sys.stdin.readline)
+                if not line:
+                    return
+                yield line
     reader = asyncio.StreamReader()
     protocol = asyncio.StreamReaderProtocol(reader)
     loop = asyncio.get_event_loop()
