@@ -16,6 +16,7 @@
 
 import { spawn, type ChildProcess } from 'node:child_process';
 import { existsSync } from 'node:fs';
+import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { createInterface, type Interface as ReadlineInterface } from 'node:readline';
 import type { AgentBackend } from './types.ts';
@@ -208,18 +209,25 @@ export class ZenskillAgent implements AgentBackend {
   }
 
   /**
-   * Map the connection's provider to the env var the engine reads its API
-   * key from. For pi-type connections the concrete provider lives in
-   * LlmConnection.piAuthProvider (e.g. 'deepseek').
+   * Resolve the pi auth provider for this connection (e.g. 'deepseek').
+   * Synthetic test connections carry it on the config itself; persisted
+   * connections are resolved from storage as fallback.
    */
-  private _providerKeyEnv(): string | null {
-    const cfg = this.config as ZenskillBackendConfig;
-    let authProvider: string | undefined;
-    if (cfg.providerType === 'pi' || cfg.providerType === 'pi_compat') {
-      authProvider = cfg.connectionSlug
-        ? getLlmConnection(cfg.connectionSlug)?.piAuthProvider
-        : undefined;
+  private _resolveAuthProvider(): string | undefined {
+    const cfg = this.config as ZenskillBackendConfig & { piAuthProvider?: string };
+    if (cfg.piAuthProvider) return cfg.piAuthProvider;
+    if ((cfg.providerType === 'pi' || cfg.providerType === 'pi_compat') && cfg.connectionSlug) {
+      return getLlmConnection(cfg.connectionSlug)?.piAuthProvider;
     }
+    return undefined;
+  }
+
+  /**
+   * Map the connection's provider to the env var the engine reads its API
+   * key from (zenskill/runtime/agent/providers registry).
+   */
+  private _providerKeyEnv(authProvider?: string): string | null {
+    const cfg = this.config as ZenskillBackendConfig & { providerType?: string };
     switch (authProvider ?? cfg.providerType) {
       case 'deepseek':
         return 'DEEPSEEK_API_KEY';
@@ -244,6 +252,34 @@ export class ZenskillAgent implements AgentBackend {
     }
   }
 
+  /**
+   * Engine model ids must be provider-prefixed ('deepseek/deepseek-chat'):
+   * a bare model name hits the engine's "unknown model → OpenAI fallback",
+   * which sends the request to api.openai.com regardless of the credential
+   * actually available.
+   */
+  private _engineModelId(model: string, authProvider?: string): string {
+    if (model.includes('/')) return model;
+    // Defense in depth: stub catalogs can leak test ids (e.g. 'mock-gpt')
+    // through connection defaults — substitute the provider's real default.
+    if (/mock|^$/i.test(model)) {
+      const defaults: Record<string, string> = {
+        deepseek: 'deepseek-v4-flash',
+        anthropic: 'claude-sonnet-4-5',
+        openai: 'gpt-4o-mini',
+        volc: 'doubao-pro-32k',
+        qwen: 'qwen-plus',
+      };
+      const real = defaults[authProvider ?? ''];
+      if (real) return `${authProvider}/${real}`;
+    }
+    const registryProvider =
+      ({ deepseek: 'deepseek', anthropic: 'anthropic', openai: 'openai', 'openai-codex': 'openai', ark: 'volc', volc: 'volc', qwen: 'qwen', mimo: 'mimo' } as Record<string, string>)[
+        authProvider ?? ''
+      ];
+    return registryProvider ? `${registryProvider}/${model}` : model;
+  }
+
   private async _resolveProviderApiKey(): Promise<string | null> {
     const slug = this.config.connectionSlug;
     if (!slug) return null;
@@ -260,12 +296,12 @@ export class ZenskillAgent implements AgentBackend {
   }
 
   private async spawnSubprocess(): Promise<void> {
-    const zenskillPath = this._resolveZenSkillPath();
+    const authProvider = this._resolveAuthProvider();
     const args = ['agent-engine', 'serve'];
     if (this.config.permission) args.push('--permission', this.config.permission);
     if (this.config.cwd) args.push('--cwd', this.config.cwd);
     if (this.config.sessionRoot) args.push('--session-root', this.config.sessionRoot);
-    if (this.config.model) args.push('--model', this.config.model);
+    if (this.config.model) args.push('--model', this._engineModelId(this.config.model, authProvider));
     if (this.config.faux) args.push('--faux');
 
     // Engine pack + bundled uv locations, then the provider credential.
@@ -281,15 +317,35 @@ export class ZenskillAgent implements AgentBackend {
     const uvName = process.platform === 'win32' ? 'uv.exe' : 'uv';
     const uvPath = this._packagedAppResource(join('bin', archDir, uvName))
       ?? join(process.cwd(), 'resources', 'bin', archDir, uvName);
+
+    // Windows: spawn uv.exe directly. Node ≥20 refuses to spawn .cmd/.bat
+    // without shell:true (CVE-2024-27980) — the zenskill-cmd.cmd wrapper is
+    // only for interactive shell use. POSIX keeps the sh wrapper.
+    let exe: string;
+    if (process.platform === 'win32') {
+      if (!existsSync(uvPath)) throw new Error(`Bundled uv not found: ${uvPath}`);
+      exe = uvPath;
+      args.unshift('run', '--project', engineRoot, '--python', '3.12', 'zenskill');
+    } else {
+      exe = this._resolveZenSkillPath();
+    }
     if (existsSync(uvPath)) env.CRAFT_UV = uvPath;
 
-    const keyEnv = this._providerKeyEnv();
+    // One shared engine venv (same one the seeded MCP source uses): avoids
+    // per-install provisioning on first run and keeps agent-engine + MCP
+    // server on identical dependency sets.
+    env.UV_PROJECT_ENVIRONMENT = join(homedir(), '.craft-agent', 'zenskill', 'venv');
+    // Engine JSONL protocol writes via print(); piped stdout is block-buffered
+    // otherwise and server_hello never reaches us.
+    env.PYTHONUNBUFFERED = '1';
+
+    const keyEnv = this._providerKeyEnv(authProvider);
     if (keyEnv) {
       const apiKey = await this._resolveProviderApiKey();
       if (apiKey) env[keyEnv] = apiKey;
     }
 
-    const child = spawn(zenskillPath, args, {
+    const child = spawn(exe, args, {
       cwd: this.config.cwd || process.cwd(),
       stdio: ['pipe', 'pipe', 'pipe'],
       env,
@@ -581,27 +637,31 @@ export class ZenskillAgent implements AgentBackend {
   }
 
   async runMiniCompletion(prompt: string): Promise<string | null> {
-    try {
-      await this.ensureSubprocess();
-      const id = `mc-${++this.rpcIdCounter}`;
-      return await new Promise<string | null>((resolve) => {
-        const timeout = setTimeout(() => resolve(null), 30000);
-        const handler = (line: string) => {
-          try {
-            const msg = JSON.parse(line);
-            if (msg.type === 'response' && msg.command === 'mini_completion' && msg.id === id) {
-              clearTimeout(timeout);
-              this.readline?.off('line', handler);
-              resolve(msg.success ? msg.data?.text ?? null : null);
+    await this.ensureSubprocess();
+    const id = `mc-${++this.rpcIdCounter}`;
+    return await new Promise<string | null>((resolve, reject) => {
+      // 30s is warm-path LLM latency; slow first-token providers rely on the
+      // caller's own (generous) timeout instead.
+      const timeout = setTimeout(() => resolve(null), 30000);
+      const handler = (line: string) => {
+        try {
+          const msg = JSON.parse(line);
+          if (msg.type === 'response' && msg.command === 'mini_completion' && msg.id === id) {
+            clearTimeout(timeout);
+            this.readline?.off('line', handler);
+            if (msg.success) {
+              resolve(msg.data?.text ?? null);
+            } else {
+              // Surface the engine's real failure (e.g. provider HTTP 401)
+              // instead of collapsing it into a silent null.
+              reject(new Error(String(msg.error ?? 'mini_completion failed')));
             }
-          } catch { /* ignore parse errors */ }
-        };
-        this.readline?.on('line', handler);
-        this.send({ type: 'mini_completion', id, prompt });
-      });
-    } catch {
-      return null;
-    }
+          }
+        } catch { /* ignore parse errors */ }
+      };
+      this.readline?.on('line', handler);
+      this.send({ type: 'mini_completion', id, prompt });
+    });
   }
 
   destroy(): void {

@@ -664,9 +664,18 @@ export function getDefaultModelsForConnection(providerType: LlmProviderType, piA
  */
 export function getDefaultModelForConnection(providerType: LlmProviderType, piAuthProvider?: string): string {
   const models = getDefaultModelsForConnection(providerType, piAuthProvider);
-  const first = models[0];
-  if (!first) return '';  // Dynamic provider — no default
-  return typeof first === 'string' ? first : first.id;
+  // Stub catalogs (slim builds ship a Pi SDK whose deepseek catalog carries
+  // only test models like 'mock-gpt') would otherwise hand back a bogus id.
+  // When the catalog can't match the vendor's preferred real models, fall
+  // back to the first preferred id itself.
+  const preferred = (piAuthProvider && PI_PREFERRED_DEFAULTS[piAuthProvider]) || [];
+  const matched = models.find(m => {
+    const bare = (typeof m === 'string' ? m : m.id).replace(/^pi\//, '');
+    return preferred.some(p => bare === p || bare.startsWith(`${p}-`));
+  });
+  const chosen = matched ?? (preferred.length > 0 ? preferred[0] : models[0]);
+  if (!chosen) return '';  // Dynamic provider — no default
+  return typeof chosen === 'string' ? chosen : chosen.id;
 }
 
 /**
