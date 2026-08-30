@@ -510,8 +510,18 @@ class AgentServer:
                     respond(None, success=False, error="prompt is required")
                     return
                 try:
-                    from ...core.llm_provider import get_llm_provider
-                    provider = get_llm_provider()
+                    mc = getattr(self, "model", None)
+                    if mc is not None and getattr(mc, "provider", "") == "deepseek":
+                        # Honor the serve-time --model (provider-prefixed) so GUI
+                        # connections exercise the exact endpoint+credential they
+                        # configured, not the ambient llm_config.
+                        from ...core.llm_provider import DeepSeekLLMProvider
+                        provider = DeepSeekLLMProvider(
+                            api_key=mc.api_key, model=mc.id, base_url=mc.base_url
+                        )
+                    else:
+                        from ...core.llm_provider import get_llm_provider
+                        provider = get_llm_provider()
                     result = await provider.simple_chat(prompt)
                     respond({"text": result})
                 except Exception as e:

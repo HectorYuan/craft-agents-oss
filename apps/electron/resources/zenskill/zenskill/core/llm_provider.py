@@ -862,10 +862,13 @@ class DeepSeekLLMProvider(BaseLLMProvider):
                 json=payload,
                 timeout=kwargs.get("timeout", 30),
             ) as resp:
-                data = await resp.json()
-
+                raw = await resp.text()
                 if resp.status != 200:
-                    raise Exception(f"DeepSeek API error: {resp.status} - {data}")
+                    # Include the raw body: non-JSON error bodies (or empty 400s)
+                    # would otherwise surface as an opaque mimetype error.
+                    raise Exception(f"DeepSeek API error: {resp.status} - {raw[:500]}")
+                import json as _json
+                data = _json.loads(raw)
 
                 choice = data.get("choices", [{}])[0]
                 message = choice.get("message", {})
