@@ -355,7 +355,9 @@ export function registerLlmConnectionsHandlers(server: RpcServer, deps: HandlerD
         allowEmptyApiKey,
         model: testModel,
         baseUrl,
-        timeoutMs: 45000,
+        // First run on a fresh machine provisions the engine venv (uv
+        // resolves dependencies before the engine serves) — keep headroom.
+        timeoutMs: 120000,
         hostRuntime: buildBackendHostRuntimeContext(deps.platform),
         connection: hint,
       })

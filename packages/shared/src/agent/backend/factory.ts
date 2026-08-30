@@ -784,7 +784,7 @@ export async function testBackendConnection(args: {
 
       return text
         ? { success: true }
-        : { success: false, error: 'No response from provider. Check your API key.' };
+        : { success: false, error: withStderrContext('No response from provider. Check your API key.') };
     } catch (error) {
       const base = error instanceof Error ? error.message : String(error);
       // Avoid double-appending if the timeout branch already included stderr context.
