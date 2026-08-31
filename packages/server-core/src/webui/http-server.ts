@@ -224,7 +224,9 @@ export function createWebuiHandler(options: WebuiHandlerOptions): WebuiHandler {
     }
 
     // ── Static assets that login page needs (no auth) ──
-    if (path === '/favicon.ico' || path.startsWith('/login-assets/')) {
+    // manifest.json is referenced by the HTML head on every page (PWA install
+    // hint, no sensitive data) — leaving it auth-gated spams 401s in console.
+    if (path === '/favicon.ico' || path === '/manifest.json' || path.startsWith('/login-assets/')) {
       const file = Bun.file(join(webuiDir, path))
       if (await file.exists()) {
         return new Response(file, {

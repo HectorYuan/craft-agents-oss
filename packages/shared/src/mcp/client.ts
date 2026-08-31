@@ -108,22 +108,36 @@ export class CraftMcpClient {
     }
   }
 
+  private connecting: Promise<void> | null = null;
+
   async connect(): Promise<void> {
     if (this.connected) return;
+    // Concurrent callers (e.g. parallel callTool on a cold client) must share
+    // one handshake — parallel connect/listTools on one transport interleave
+    // and fail with opaque errors.
+    if (this.connecting) return this.connecting;
 
-    await this.client.connect(this.transport);
+    this.connecting = (async () => {
+      await this.client.connect(this.transport);
 
-    // Verify connection works by listing tools
+      // Verify connection works by listing tools
+      try {
+        await this.client.listTools();
+      } catch (error) {
+        await this.client.close();
+        throw new Error(
+          `MCP connection failed health check: ${error instanceof Error ? error.message : String(error)}`
+        );
+      }
+
+      this.connected = true;
+    })();
+
     try {
-      await this.client.listTools();
-    } catch (error) {
-      await this.client.close();
-      throw new Error(
-        `MCP connection failed health check: ${error instanceof Error ? error.message : String(error)}`
-      );
+      await this.connecting;
+    } finally {
+      this.connecting = null;
     }
-
-    this.connected = true;
   }
 
   async listTools(): Promise<Tool[]> {

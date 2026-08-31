@@ -244,6 +244,9 @@ export function registerSourcesHandlers(server: RpcServer, deps: HandlerDeps): v
   // ── callMcpTool: invoke a specific MCP tool by name ──
   // Connection cache: reuse CraftMcpClient across calls (keyed by source slug)
   const mcpClientCache = new Map<string, { client: any; lastUsed: number }>()
+  // In-flight client creation per slug: concurrent callers on a cold cache
+  // share one spawn instead of racing N subprocesses (which all fail).
+  const mcpClientPending = new Map<string, Promise<any>>()
   const MCP_CACHE_TTL_MS = 5 * 60 * 1000 // 5 min idle timeout
 
   async function getMcpClient(sourceSlug: string, source: any) {
@@ -253,7 +256,21 @@ export function registerSourcesHandlers(server: RpcServer, deps: HandlerDeps): v
       return cached.client
     }
 
+    const inFlight = mcpClientPending.get(sourceSlug)
+    if (inFlight) return inFlight
+
+    const creation = createMcpClient(sourceSlug, source)
+    mcpClientPending.set(sourceSlug, creation)
+    try {
+      return await creation
+    } finally {
+      mcpClientPending.delete(sourceSlug)
+    }
+  }
+
+  async function createMcpClient(sourceSlug: string, source: any) {
     // Close stale cached client if any
+    const cached = mcpClientCache.get(sourceSlug)
     if (cached) {
       try { await cached.client.close() } catch { /* ignore */ }
       mcpClientCache.delete(sourceSlug)
