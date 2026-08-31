@@ -119,6 +119,7 @@ export function ZenSkillDataPanel({ workspaceId, sourceSlug, onGtdItemClick }: Z
   const [expandedCats, setExpandedCats] = useState<Set<string>>(new Set())
   const [suggestions, setSuggestions] = useState<string[]>([])
   const [busyId, setBusyId] = useState<string | null>(null)
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [memQuery, setMemQuery] = useState('')
@@ -223,14 +224,15 @@ export function ZenSkillDataPanel({ workspaceId, sourceSlug, onGtdItemClick }: Z
     setBusyId(String(args.action_id ?? args.item_id ?? tool))
     setError(null)
     try {
+      // 刷新统一由 zenskill:changed 广播驱动（runTool 的工具都在 WRITE_TOOLS 内），
+      // 不在此手动 fetchData——避免双重刷新
       await window.electronAPI.callMcpTool(workspaceId, sourceSlug, tool, args)
-      await fetchData()
     } catch (err) {
       setError(err instanceof Error ? err.message : `Failed to run ${tool}`)
     } finally {
       setBusyId(null)
     }
-  }, [workspaceId, sourceSlug, fetchData])
+  }, [workspaceId, sourceSlug])
 
   // Debounced memory search
   const searchMemories = useCallback((query: string) => {
@@ -464,10 +466,22 @@ export function ZenSkillDataPanel({ workspaceId, sourceSlug, onGtdItemClick }: Z
                   <ArrowRight className="h-3 w-3" />
                 </button>
                 <button
-                  className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-red-500/20 text-muted-foreground hover:text-red-400 shrink-0"
-                  title="Delete"
+                  className={`opacity-0 group-hover:opacity-100 p-0.5 rounded shrink-0 ${
+                    confirmDeleteId === a.id
+                      ? 'bg-red-500/25 text-red-400'
+                      : 'hover:bg-red-500/20 text-muted-foreground hover:text-red-400'
+                  }`}
+                  title={confirmDeleteId === a.id ? '点击再次确认删除' : 'Delete'}
                   disabled={busyId === a.id}
-                  onClick={() => runTool('action_delete', { action_id: a.id })}
+                  onClick={() => {
+                    if (confirmDeleteId === a.id) {
+                      setConfirmDeleteId(null)
+                      runTool('action_delete', { action_id: a.id })
+                    } else {
+                      setConfirmDeleteId(a.id)
+                      setTimeout(() => setConfirmDeleteId((cur) => (cur === a.id ? null : cur)), 3000)
+                    }
+                  }}
                 >
                   <Trash2 className="h-3 w-3" />
                 </button>
