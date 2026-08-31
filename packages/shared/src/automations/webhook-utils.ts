@@ -206,7 +206,26 @@ export async function executeWebhookRequest(
 
     // Build body
     let requestBody: string | undefined;
-    if (method !== 'GET' && action.body !== undefined) {
+    if (method !== 'GET' && action.body === undefined && action.bodyFormat === 'json') {
+      // Explicit json format without a body: default to the full event payload.
+      // CRAFT_EVENT_DATA is JSON.stringify(payload) built by buildBaseEventEnv —
+      // parsed here (not string-substituted) so nested JSON stays valid.
+      const eventData = env?.CRAFT_EVENT_DATA;
+      if (eventData) {
+        try {
+          const parsed = JSON.parse(eventData);
+          const body = typeof parsed === 'object' && parsed !== null
+            ? { event: env?.CRAFT_EVENT, ...parsed }
+            : parsed;
+          if (!headers['Content-Type'] && !headers['content-type']) {
+            headers['Content-Type'] = 'application/json';
+          }
+          requestBody = JSON.stringify(body);
+        } catch {
+          // Malformed env data — fall through to no-body behavior
+        }
+      }
+    } else if (method !== 'GET' && action.body !== undefined) {
       const bodyFormat = action.bodyFormat ?? 'json';
 
       if (bodyFormat === 'json') {
