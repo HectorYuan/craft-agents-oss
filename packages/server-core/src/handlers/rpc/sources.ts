@@ -306,10 +306,15 @@ export function registerSourcesHandlers(server: RpcServer, deps: HandlerDeps): v
       const client = await getMcpClient(sourceSlug, source)
       const result = await client.callTool(toolName, args)
 
-      // Broadcast change event for write tools
-      const WRITE_TOOLS = ['gtd_capture', 'memory_remember', 'action_add', 'goal_set', 'habit_check', 'skill_install', 'skill_uninstall',
-        'inbox_clarify', 'inbox_archive', 'action_done', 'action_mark_next', 'action_update', 'action_delete', 'project_done', 'incubating_promote']
-      if (WRITE_TOOLS.includes(toolName)) {
+      // Broadcast change event for write tools.
+      // Prefixes cover whole GTD families (new gtd_*/action_*/... tools are
+      // picked up automatically); exact list for one-off write tools that sit
+      // under read-heavy prefixes (memory_list/memory_search stay reads).
+      const WRITE_TOOL_PREFIXES = ['gtd_', 'inbox_', 'action_', 'project_', 'incubating_']
+      const WRITE_TOOLS_EXACT = ['memory_remember', 'goal_set', 'habit_check', 'skill_install', 'skill_uninstall']
+      const isWriteTool = (n: string) =>
+        WRITE_TOOLS_EXACT.includes(n) || WRITE_TOOL_PREFIXES.some((p) => n.startsWith(p))
+      if (isWriteTool(toolName)) {
         try {
           server.push('zenskill:changed', { to: 'workspace', workspaceId }, { type: toolName, sourceSlug })
         } catch { /* broadcast is best-effort */ }
