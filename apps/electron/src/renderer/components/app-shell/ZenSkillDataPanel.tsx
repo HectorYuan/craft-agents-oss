@@ -324,17 +324,26 @@ export function ZenSkillDataPanel({ workspaceId, sourceSlug, onGtdItemClick }: Z
       <div className="grid grid-cols-3 gap-2 text-xs">
         <div className="rounded border border-border/30 p-2">
           <div className="text-muted-foreground">Skills</div>
-          <div className="text-lg font-semibold">{dashboard?.installed_skills ?? '—'}</div>
+          <div className="text-lg font-semibold">
+            {dashboard ? dashboard.installed_skills
+              : <span className={`inline-block w-8 h-5 rounded bg-muted/60 ${loading ? 'animate-pulse' : ''}`} />}
+          </div>
         </div>
         <div className="rounded border border-border/30 p-2">
           <div className="text-muted-foreground">Sessions</div>
-          <div className="text-lg font-semibold">{dashboard?.today_sessions ?? '—'}</div>
+          <div className="text-lg font-semibold">
+            {dashboard ? dashboard.today_sessions
+              : <span className={`inline-block w-8 h-5 rounded bg-muted/60 ${loading ? 'animate-pulse' : ''}`} />}
+          </div>
         </div>
         <div className="rounded border border-border/30 p-2">
           <div className="text-muted-foreground flex items-center gap-1">
             <Activity className="h-3 w-3" /> Energy
           </div>
-          <div className="text-lg font-semibold capitalize">{energy ?? '—'}</div>
+          <div className="text-lg font-semibold capitalize">
+            {energy ? energy
+              : <span className={`inline-block w-10 h-5 rounded bg-muted/60 ${loading ? 'animate-pulse' : ''}`} />}
+          </div>
         </div>
       </div>
 
