@@ -204,12 +204,25 @@ nsis:
   perMachine: false
   deleteAppDataOnUninstall: true
 
+deb:
+  packageName: zenskill-agents
+  # 依赖由 Electron 运行时自带，仅需基础图形库（几乎所有发行版默认有）
+  depends:
+    - libgtk-3-0
+    - libnss3
+    - libxss1
+    - libasound2
+  packageCategory: utils
+
 linux:
   icon: resources/icon.png
   category: Utility
-  maintainer: "Craft Docs Ltd. <support@craft.do>"
+  maintainer: "ZenSkill Team <zenskill@users.noreply.github.com>"
   target:
     - target: AppImage
+      arch:
+        - x64
+    - target: deb
       arch:
         - x64
   artifactName: "Craft-Agents-${arch}.${ext}"
