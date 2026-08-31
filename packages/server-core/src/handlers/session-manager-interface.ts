@@ -254,6 +254,8 @@ export interface ISessionManager {
   /** Count of sessions with active backend processes. Pass workspaceId to scope. */
   getActiveSessionCount(workspaceId?: string): number
   /** Automation summary for a workspace (count of configured automations + scheduler state). */
+  /** Emit ZenSkillChanged on the workspace automation event bus (after ZenSkill MCP write-tools) */
+  emitZenSkillChanged(workspaceId: string, detail?: Record<string, unknown>): Promise<void>
   getWorkspaceAutomationSummary(workspaceId: string): { automationCount: number; schedulerRunning: boolean }
   /** Active sessions across all workspaces (sessions with running backend processes). */
   getActiveSessionsInfo(): ActiveSessionInfo[]
