@@ -2358,6 +2358,27 @@ export class SessionManager implements ISessionManager {
     return count
   }
 
+  /**
+   * Emit ZenSkillChanged on the workspace automation event bus.
+   * Fired after ZenSkill MCP write-tools (GTD/memory/skills) mutate state,
+   * letting automation rules (prompt/webhook) react to data changes.
+   */
+  async emitZenSkillChanged(workspaceId: string, detail: Record<string, unknown> = {}): Promise<void> {
+    try {
+      const workspace = getWorkspaceByNameOrId(workspaceId)
+      if (!workspace) return
+      const automationSystem = this.automationSystems.get(workspace.rootPath)
+      if (!automationSystem) return
+      await automationSystem.emit('ZenSkillChanged', {
+        workspaceId: workspace.id,
+        timestamp: Date.now(),
+        data: detail,
+      })
+    } catch (error) {
+      sessionLog.error('[Automations] Failed to emit ZenSkillChanged:', error)
+    }
+  }
+
   getWorkspaceAutomationSummary(workspaceId: string): { automationCount: number; schedulerRunning: boolean } {
     const workspace = getWorkspaceByNameOrId(workspaceId)
     if (!workspace) return { automationCount: 0, schedulerRunning: false }

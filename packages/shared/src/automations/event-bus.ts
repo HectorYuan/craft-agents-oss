@@ -84,6 +84,7 @@ export interface EventPayloadMap {
   FlagChange: FlagChangePayload;
   SessionStatusChange: SessionStatusChangePayload;
   SchedulerTick: SchedulerTickPayload;
+  ZenSkillChanged: GenericEventPayload;
 
   // Agent events (generic payload)
   PreToolUse: GenericEventPayload;

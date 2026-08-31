@@ -307,11 +307,16 @@ export function registerSourcesHandlers(server: RpcServer, deps: HandlerDeps): v
       const result = await client.callTool(toolName, args)
 
       // Broadcast change event for write tools
-      const WRITE_TOOLS = ['gtd_capture', 'memory_remember', 'action_add', 'goal_set', 'habit_check', 'skill_install', 'skill_uninstall']
+      const WRITE_TOOLS = ['gtd_capture', 'memory_remember', 'action_add', 'goal_set', 'habit_check', 'skill_install', 'skill_uninstall',
+        'inbox_clarify', 'inbox_archive', 'action_done', 'action_mark_next', 'action_update', 'action_delete', 'project_done', 'incubating_promote']
       if (WRITE_TOOLS.includes(toolName)) {
         try {
           server.push('zenskill:changed', { to: 'workspace', workspaceId }, { type: toolName, sourceSlug })
         } catch { /* broadcast is best-effort */ }
+        // Feed the automation event bus so rules can react to ZenSkill data changes
+        try {
+          await deps.sessionManager.emitZenSkillChanged(workspaceId, { type: toolName, sourceSlug })
+        } catch { /* automation emit is best-effort */ }
       }
 
       return { success: true, result }
