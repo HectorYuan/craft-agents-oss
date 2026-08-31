@@ -1,4 +1,8 @@
 #!/bin/sh
 # ZenSkill CLI wrapper for Craft Agents Electron app
 # CRAFT_UV and CRAFT_ZENSKILL are set by the Electron main process
-exec "$CRAFT_UV" run --python 3.12 "$CRAFT_ZENSKILL/zenskill/__main__.py" "$@"
+# -m 模块方式运行（脚本路径会破坏相对导入）
+# UV_PROJECT_ENVIRONMENT 重定向 venv 到可写目录（安装目录只读）
+export UV_PROJECT_ENVIRONMENT="${UV_PROJECT_ENVIRONMENT:-$HOME/.zenskill/electron-venv}"
+cd "$CRAFT_ZENSKILL" || exit 1
+exec "$CRAFT_UV" run --python 3.12 --project "$CRAFT_ZENSKILL" python -m zenskill "$@"
