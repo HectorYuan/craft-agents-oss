@@ -321,16 +321,31 @@ export function registerSourcesHandlers(server: RpcServer, deps: HandlerDeps): v
       if (source.config.connectionStatus === 'failed') return { success: false, error: 'Source connection failed' }
 
       const client = await getMcpClient(sourceSlug, source)
-      const result = await client.callTool(toolName, args)
+      let result
+      try {
+        result = await client.callTool(toolName, args)
+      } catch (callErr) {
+        const msg = callErr instanceof Error ? callErr.message : String(callErr)
+        // Stale connection (subprocess died mid-session): rebuild once, retry.
+        // bebe4fc only covers cold-start concurrency; this covers mid-life drops.
+        if (!/Connection closed|Not connected|transport/i.test(msg)) throw callErr
+        log.warn(`MCP tool ${toolName} failed (${msg.slice(0, 80)}) — rebuilding connection`)
+        await mcpClientCache.get(sourceSlug)?.client.close().catch?.(() => {})
+        mcpClientCache.delete(sourceSlug)
+        const fresh = await getMcpClient(sourceSlug, source)
+        result = await fresh.callTool(toolName, args)
+      }
 
       // Broadcast change event for write tools.
-      // Prefixes cover whole GTD families (new gtd_*/action_*/... tools are
-      // picked up automatically); exact list for one-off write tools that sit
-      // under read-heavy prefixes (memory_list/memory_search stay reads).
+      // Prefixes cover whole GTD families; READ_TOOLS excludes read tools that
+      // sit under those prefixes (gtd_inbox_list/gtd_review/... would otherwise
+      // be misclassified as writes, spamming broadcasts and automation rules).
       const WRITE_TOOL_PREFIXES = ['gtd_', 'inbox_', 'action_', 'project_', 'incubating_']
       const WRITE_TOOLS_EXACT = ['memory_remember', 'goal_set', 'habit_check', 'skill_install', 'skill_uninstall']
+      const READ_TOOLS = ['gtd_inbox_list', 'gtd_review', 'action_list', 'project_list', 'incubating_list']
       const isWriteTool = (n: string) =>
-        WRITE_TOOLS_EXACT.includes(n) || WRITE_TOOL_PREFIXES.some((p) => n.startsWith(p))
+        !READ_TOOLS.includes(n) &&
+        (WRITE_TOOLS_EXACT.includes(n) || WRITE_TOOL_PREFIXES.some((p) => n.startsWith(p)))
       if (isWriteTool(toolName)) {
         try {
           server.push('zenskill:changed', { to: 'workspace', workspaceId }, { type: toolName, sourceSlug })
