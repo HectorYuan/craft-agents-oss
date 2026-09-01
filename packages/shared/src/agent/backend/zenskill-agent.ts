@@ -189,6 +189,15 @@ export class ZenskillAgent extends BaseAgent {
   private _faux = false;
   private _cachedSystemPrompt: string | null = null;
 
+  // G3: Crash-restart policy — idle crashes auto-restart with backoff;
+  // in-flight crashes report instead (silently restarting would drop the
+  // conversation context without the user noticing).
+  private crashRestartCount = 0;
+  private restartPending = false;
+  private destroyed = false;
+  private static MAX_CRASH_RESTARTS = 3;
+  private static RESTART_BACKOFF_MS = [1000, 4000, 16000];
+
   constructor(config: BackendConfig) {
     super(config, 'deepseek/deepseek-v4-flash');
     this._faux = !!(config as any).faux || false;
@@ -231,6 +240,7 @@ export class ZenskillAgent extends BaseAgent {
   private async ensureSubprocess(): Promise<void> {
     if (this.subprocess && !this.subprocess.killed) return;
     await this.spawnSubprocess();
+    this.crashRestartCount = 0; // fresh instance, fresh crash budget (G3)
   }
 
   private async spawnSubprocess(): Promise<void> {
@@ -327,8 +337,9 @@ export class ZenskillAgent extends BaseAgent {
     this.registerPoolTools();
   }
 
-  // P0-1: Handle subprocess crash
+  // P0-1 + G3: Handle subprocess crash — distinguish idle vs in-flight
   private handleSubprocessCrash(errorMsg: string): void {
+    const wasProcessing = this._isProcessing;
     const parsed = parseAgentError(errorMsg);
     const deduped = this.deduplicateError(parsed.message);
     if (deduped) {
@@ -339,6 +350,53 @@ export class ZenskillAgent extends BaseAgent {
     this.subprocess = null;
     this.readline = null;
     this.serverReady = false;
+
+    if (this.destroyed) return;
+
+    if (wasProcessing) {
+      // In-flight crash: restarting silently would wipe the conversation
+      // context without the user noticing — report and let the next user
+      // action rebuild the subprocess via ensureSubprocess().
+      this.eventQueue.enqueue({
+        type: 'error',
+        message: '子进程在会话处理中异常退出，本次对话上下文已丢失。重新发送消息将自动恢复。',
+      });
+      return;
+    }
+
+    // Idle crash: safe to auto-restart with backoff
+    this.scheduleIdleRestart();
+  }
+
+  // G3: Idle-crash backoff restart (1s / 4s / 16s, then give up until
+  // the next user action triggers ensureSubprocess())
+  private scheduleIdleRestart(): void {
+    if (this.restartPending) return; // exit+error handlers may both fire
+    if (this.crashRestartCount >= ZenskillAgent.MAX_CRASH_RESTARTS) {
+      this.eventQueue.enqueue({
+        type: 'error',
+        message: `ZenSkill 子进程连续崩溃 ${this.crashRestartCount} 次，已暂停自动重启。下次发送消息时将重试。`,
+      });
+      return;
+    }
+    const delay = ZenskillAgent.RESTART_BACKOFF_MS[this.crashRestartCount] ?? 16000;
+    this.crashRestartCount++;
+    this.restartPending = true;
+    console.error(
+      `[zenskill-agent] Idle crash — auto-restart ${this.crashRestartCount}/${ZenskillAgent.MAX_CRASH_RESTARTS} in ${delay}ms`,
+    );
+    setTimeout(async () => {
+      this.restartPending = false;
+      if (this.destroyed) return;
+      try {
+        await this.spawnSubprocess();
+        this.crashRestartCount = 0;
+        console.error('[zenskill-agent] Auto-restart OK');
+      } catch (err) {
+        console.error(`[zenskill-agent] Auto-restart failed: ${err instanceof Error ? err.message : err}`);
+        this.scheduleIdleRestart();
+      }
+    }, delay);
   }
 
   // P0-2: Error deduplication
@@ -396,6 +454,7 @@ export class ZenskillAgent extends BaseAgent {
   // ============================================================
 
   override destroy(): void {
+    this.destroyed = true; // G3: stop any pending auto-restart
     this.stopConfigWatcher();
     this.killSubprocessGracefully();
     this.eventQueue.complete();
