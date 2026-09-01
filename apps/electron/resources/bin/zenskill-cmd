@@ -4,5 +4,7 @@
 # -m 模块方式运行（脚本路径会破坏相对导入）
 # UV_PROJECT_ENVIRONMENT 重定向 venv 到可写目录（安装目录只读）
 export UV_PROJECT_ENVIRONMENT="${UV_PROJECT_ENVIRONMENT:-$HOME/.zenskill/electron-venv}"
+# 内置 CPython（离线首跑，无需从 GitHub 下载 Python）
+export UV_PYTHON_INSTALL_DIR="${CRAFT_ZENSKILL}/python"
 cd "$CRAFT_ZENSKILL" || exit 1
 exec "$CRAFT_UV" run --python 3.12 --project "$CRAFT_ZENSKILL" python -m zenskill "$@"
