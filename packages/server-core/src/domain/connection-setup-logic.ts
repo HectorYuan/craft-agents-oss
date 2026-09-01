@@ -50,21 +50,13 @@ export function parseTestConnectionError(msg: string): string {
 }
 
 /**
- * Guard against ambiguous Pi custom endpoint tests where no provider routing is selected.
+ * Setup test input validation. Pi custom-endpoint routing removed —
+ * all providers are served by the zenskill engine.
  */
-export function validateSetupTestInput(params: {
-  provider: 'anthropic' | 'pi'
+export function validateSetupTestInput(_params: {
+  provider: 'anthropic' | 'zenskill'
   baseUrl?: string
-  piAuthProvider?: string
 }): { valid: true } | { valid: false; error: string } {
-  const hasCustomEndpoint = !!params.baseUrl?.trim()
-  if (params.provider === 'pi' && hasCustomEndpoint && !params.piAuthProvider) {
-    return {
-      valid: false,
-      error: 'Custom endpoint in Craft Agents Backend mode requires selecting a provider preset. For arbitrary Anthropic-compatible endpoints, use Anthropic API Key mode.',
-    }
-  }
-
   return { valid: true }
 }
 

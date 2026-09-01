@@ -33,7 +33,7 @@ function piModelToDefinition(m: Model<Api>): ModelDefinition {
     name: m.name,
     shortName,
     description: `${m.provider} model via Craft Agents Backend`,
-    provider: 'pi',
+    provider: 'zenskill', // was 'pi' — provider removed; kept as migration-test fixture data
     contextWindow: m.contextWindow,
     supportsThinking: m.reasoning,
   };

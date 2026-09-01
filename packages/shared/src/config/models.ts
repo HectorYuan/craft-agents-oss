@@ -88,7 +88,7 @@ export function normalizeDeprecatedModelId(modelId: string): string {
 /**
  * Provider identifier for AI backends.
  */
-export type ModelProvider = 'anthropic' | 'pi' | 'zenskill';
+export type ModelProvider = 'anthropic' | 'zenskill';
 
 /**
  * Full model definition with capabilities and costs.

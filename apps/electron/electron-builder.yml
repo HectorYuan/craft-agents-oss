@@ -60,12 +60,13 @@ files:
   - resources/bin/zenskill-cmd.cmd
   # Exclude everything from node_modules (will use extraResources for SDK)
   - "!node_modules/**/*"
+  # Dedup: dist/resources 是 resources 的构建期副本，运行时只用后者 (-91MB)
+  - "!dist/resources/zenskill/**"
+  - "!dist/resources/bin/**"
 
-# Since SDK 0.2.113 the SDK ships a thin core (`@anthropic-ai/claude-agent-sdk`)
-# and a per-platform optional dependency (`-darwin-arm64`, `-darwin-x64`, etc.)
-# containing the ~210 MB native `claude` binary. We bundle both as extraResources
-# below — only the binary matching the build target is shipped per artifact, so
-# the platform `files` rules below also exclude the wrong-platform binaries.
+# ZenSkill 发行版（Option B）：仅打包 SDK thin core（共享工具依赖），
+# 不打包 ~210MB claude 原生二进制 —— Claude 后端已在 factory.ts 明确禁用。
+# 见 docs/PACKAGING_OPTIMIZATION_PLAN.md §0.2。
 #
 # Why extraResources instead of `files`: since electron-builder v20.15.2,
 # `node_modules` directories are auto-excluded from `files`. extraResources
@@ -77,10 +78,8 @@ files:
 extraMetadata:
   main: dist/main.cjs
 
-# Auto-update: electron-updater fetches from this URL for update manifests (.yml files)
-publish:
-  provider: generic
-  url: https://thecraftagents.com/electron/latest
+# Auto-update 已禁用：ZenSkill 发行版不接上游 thecraftagents.com 更新源，
+# 避免更新检查报错 / 误拉官方版本。发版走 GitHub Releases。
 
 # Disable ASAR to avoid decompression overhead and click delays
 asar: false
@@ -113,12 +112,6 @@ mac:
     # Thin core SDK (sdk.mjs + types). ~4 MB — present on every platform.
     - from: node_modules/@anthropic-ai/claude-agent-sdk
       to: app/node_modules/@anthropic-ai/claude-agent-sdk
-    # Stable alias pointing at the target-arch native binary package.
-    # Populated by build-dmg.sh / build-linux.sh / build-win.ps1 before
-    # electron-builder runs (`apps/electron/node_modules/@anthropic-ai/claude-agent-sdk-binary/`).
-    # The runtime resolver (runtime-resolver.ts) looks here first.
-    - from: node_modules/@anthropic-ai/claude-agent-sdk-binary
-      to: app/node_modules/@anthropic-ai/claude-agent-sdk-binary
     # ripgrep (used by packages/server-core/src/services/search.ts).
     - from: node_modules/@vscode/ripgrep
       to: app/node_modules/@vscode/ripgrep
@@ -182,8 +175,6 @@ win:
   extraResources:
     - from: node_modules/@anthropic-ai/claude-agent-sdk
       to: app/node_modules/@anthropic-ai/claude-agent-sdk
-    - from: node_modules/@anthropic-ai/claude-agent-sdk-binary
-      to: app/node_modules/@anthropic-ai/claude-agent-sdk-binary
     - from: node_modules/@vscode/ripgrep
       to: app/node_modules/@vscode/ripgrep
     - from: vendor/bun/bun.exe
@@ -229,8 +220,6 @@ linux:
   extraResources:
     - from: node_modules/@anthropic-ai/claude-agent-sdk
       to: app/node_modules/@anthropic-ai/claude-agent-sdk
-    - from: node_modules/@anthropic-ai/claude-agent-sdk-binary
-      to: app/node_modules/@anthropic-ai/claude-agent-sdk-binary
     - from: node_modules/@vscode/ripgrep
       to: app/node_modules/@vscode/ripgrep
     # WhatsApp worker subprocess (self-contained; Baileys bundled in).

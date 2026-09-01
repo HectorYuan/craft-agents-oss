@@ -72,7 +72,7 @@ export async function rebuildMenu(): Promise<void> {
     : {
         label: i18n.t("menu.checkForUpdatesEllipsis"),
         click: async () => {
-          await checkForUpdates({ autoDownload: true })
+          await checkForUpdates({ autoDownload: false })
         }
       }
 
@@ -197,7 +197,7 @@ export async function rebuildMenu(): Promise<void> {
           label: i18n.t("menu.checkForUpdates"),
           click: async () => {
             const { checkForUpdates } = await import('./auto-update')
-            const info = await checkForUpdates({ autoDownload: true })
+            const info = await checkForUpdates({ autoDownload: false })
             mainLog.info('[debug-menu] Update check result:', info)
           }
         },

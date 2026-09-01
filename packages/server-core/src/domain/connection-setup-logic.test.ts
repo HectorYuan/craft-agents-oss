@@ -8,25 +8,7 @@ import {
 } from './connection-setup-logic'
 
 describe('validateSetupTestInput', () => {
-  it('rejects pi custom endpoint tests without piAuthProvider', () => {
-    const result = validateSetupTestInput({
-      provider: 'pi',
-      baseUrl: 'https://example.com/v1',
-    })
 
-    expect(result.valid).toBe(false)
-    if (!result.valid) {
-      expect(result.error).toContain('requires selecting a provider preset')
-    }
-  })
-
-  it('allows pi custom endpoint tests with piAuthProvider', () => {
-    expect(validateSetupTestInput({
-      provider: 'pi',
-      baseUrl: 'https://example.com/v1',
-      piAuthProvider: 'openai',
-    })).toEqual({ valid: true })
-  })
 })
 
 describe('setup test API key requirements', () => {

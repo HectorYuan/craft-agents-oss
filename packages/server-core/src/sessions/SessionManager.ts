@@ -2669,7 +2669,7 @@ export class SessionManager implements ISessionManager {
       managedModel: resolvedModelOption,
     })
     const targetProviderType = targetBackendContext.connection?.providerType
-      ?? (targetBackendContext.provider === 'pi' ? 'pi' : 'anthropic')
+      ?? 'anthropic'
     const targetPiAuthProvider = targetBackendContext.connection?.piAuthProvider
 
     // Resolve working directory from options:
@@ -2774,15 +2774,12 @@ export class SessionManager implements ISessionManager {
         managedModel: sourceManaged?.model || sourceSession.model,
       })
       const sourceProviderType = sourceBackendContext.connection?.providerType
-        ?? (sourceBackendContext.provider === 'pi' ? 'pi' : 'anthropic')
+        ?? 'anthropic'
       const sourcePiAuthProvider = sourceBackendContext.connection?.piAuthProvider
 
       const providerMismatch = sourceBackendContext.provider !== targetBackendContext.provider
       const providerTypeMismatch = sourceProviderType !== targetProviderType
-      const piAuthProviderMismatch =
-        sourceBackendContext.provider === 'pi' && sourcePiAuthProvider !== targetPiAuthProvider
-
-      if (providerMismatch || providerTypeMismatch || piAuthProviderMismatch) {
+      if (providerMismatch || providerTypeMismatch) {
         sessionLog.warn('Branch validation failed: source and target providers are incompatible', {
           workspaceId,
           branchFromSessionId: options.branchFromSessionId,
@@ -2829,18 +2826,7 @@ export class SessionManager implements ISessionManager {
       const branchMessage = sourceSession.messages[branchIdx]
       let branchFromSdkTurnId: string | undefined
       if (branchContextStrategy === 'sdk-fork') {
-        if (sourceBackendContext.provider === 'pi') {
-          if (branchFromSessionPath) {
-            branchFromSdkTurnId = await getPiTurnAnchor(branchFromSessionPath, options.branchFromMessageId)
-            if (!branchFromSdkTurnId) {
-              sessionLog.warn('Pi branch anchor missing: falling back to full-history fork for this branch', {
-                workspaceId,
-                branchFromSessionId: options.branchFromSessionId,
-                branchFromMessageId: options.branchFromMessageId,
-              })
-            }
-          }
-        } else if (sourceBackendContext.provider === 'anthropic') {
+        if (sourceBackendContext.provider === 'anthropic') {
           if (branchFromSessionPath && branchFromSdkSessionId) {
             const anchor = await getClaudeTurnAnchor(branchFromSessionPath, options.branchFromMessageId)
             if (!anchor) {

@@ -19,7 +19,7 @@ const baseCompat: LlmConnection = {
 function sig(connection: LlmConnection) {
   return buildBackendRuntimeSignature({
     connection,
-    provider: 'pi',
+    provider: 'zenskill',
     authType: 'api_key',
     resolvedModel: 'gemma',
   })

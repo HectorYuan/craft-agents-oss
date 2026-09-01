@@ -15,9 +15,15 @@ import { cpSync, copyFileSync, mkdirSync } from 'fs';
 import { join } from 'path';
 
 // Copy all resources (icons, themes, docs, permissions, tool-icons, etc.)
+// ZenSkill: 排除 zenskill/ 与 bin/ —— 它们经 extraResources 打进 resources/app/resources/
+// （运行时唯一读取路径），在 dist/resources 再复制一份纯属 -91MB 冗余。
+import { readdirSync, rmSync } from 'fs';
 cpSync('resources', 'dist/resources', { recursive: true });
+for (const skip of ['zenskill', 'bin']) {
+  rmSync(join('dist', 'resources', skip), { recursive: true, force: true });
+}
 
-console.log('✓ Copied resources/ → dist/resources/');
+console.log('✓ Copied resources/ → dist/resources/ (zenskill/bin dedup)');
 
 // Copy PowerShell parser script (for Windows command validation in Explore mode)
 // Source: packages/shared/src/agent/powershell-parser.ps1

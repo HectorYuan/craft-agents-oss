@@ -30,7 +30,7 @@ import type { BackendConfig } from '../types.ts';
 import type { Workspace, LlmConnection } from '../../../config/storage.ts';
 import type { SessionConfig as Session } from '../../../sessions/storage.ts';
 import { ClaudeAgent } from '../../claude-agent.ts';
-import { PiAgent } from '../../pi-agent.ts';
+import { ZenskillAgent } from '../zenskill-agent.ts';
 import { isValidProviderAuthCombination } from '../../../config/llm-connections.ts';
 
 // Test helpers
@@ -77,37 +77,24 @@ describe('detectProvider', () => {
   });
 
   describe('Unknown authentication types', () => {
-    it('should default to anthropic for unknown types', () => {
-      expect(detectProvider('unknown')).toBe('anthropic');
-      expect(detectProvider('')).toBe('anthropic');
+    it('should default to zenskill for unknown types', () => {
+      expect(detectProvider('unknown')).toBe('zenskill');
+      expect(detectProvider('')).toBe('zenskill');
     });
   });
 });
 
 describe('createBackend / createAgent', () => {
   describe('Anthropic provider', () => {
-    it('should create ClaudeAgent for anthropic provider', () => {
-      const config = createTestConfig({ provider: 'anthropic' });
-      const agent = createBackend(config);
-
-      expect(agent).toBeInstanceOf(ClaudeAgent);
-    });
-  });
-
-  describe('Pi provider', () => {
-    it('should create PiAgent for pi provider', () => {
-      const config = createTestConfig({ provider: 'pi' });
-      const agent = createBackend(config);
-
-      expect(agent).toBeInstanceOf(PiAgent);
+    it('should throw for anthropic provider (not shipped)', () => {
+      expect(() => createBackend(createTestConfig({ provider: 'anthropic' }))).toThrow(/不支持 Claude 后端/);
     });
   });
 
   describe('Unknown provider', () => {
-    it('should throw for unknown provider', () => {
-      const config = createTestConfig({ provider: 'unknown' as any });
-
-      expect(() => createBackend(config)).toThrow('Unknown provider: unknown');
+    it('should fall back to ZenskillAgent', () => {
+      const agent = createBackend(createTestConfig({ provider: 'mystery' as any }));
+      expect(agent).toBeInstanceOf(ZenskillAgent);
     });
   });
 
@@ -119,22 +106,16 @@ describe('createBackend / createAgent', () => {
 });
 
 describe('getAvailableProviders', () => {
-  it('should return anthropic and pi', () => {
+  it('should return the shipped providers', () => {
     const providers = getAvailableProviders();
 
-    expect(providers).toContain('anthropic');
-    expect(providers).toContain('pi');
-    expect(providers).toHaveLength(2);
+    expect(providers).toEqual(['zenskill']);
   });
 });
 
 describe('isProviderAvailable', () => {
-  it('should return true for anthropic', () => {
-    expect(isProviderAvailable('anthropic')).toBe(true);
-  });
-
-  it('should return true for pi', () => {
-    expect(isProviderAvailable('pi')).toBe(true);
+  it('should return false for anthropic (not shipped)', () => {
+    expect(isProviderAvailable('anthropic')).toBe(false);
   });
 
   it('should return false for unknown provider', () => {
@@ -147,16 +128,16 @@ describe('connectionTypeToProvider', () => {
     expect(connectionTypeToProvider('anthropic')).toBe('anthropic');
   });
 
-  it('should map openai type to pi provider (legacy routing)', () => {
-    expect(connectionTypeToProvider('openai')).toBe('pi');
+  it('should map openai type to zenskill (pi routing removed)', () => {
+    expect(connectionTypeToProvider('openai')).toBe('zenskill');
   });
 
-  it('should map openai-compat type to pi provider (legacy routing)', () => {
-    expect(connectionTypeToProvider('openai-compat')).toBe('pi');
+  it('should map openai-compat type to zenskill (pi routing removed)', () => {
+    expect(connectionTypeToProvider('openai-compat')).toBe('zenskill');
   });
 
-  it('should default to anthropic for unknown types', () => {
-    expect(connectionTypeToProvider('unknown' as any)).toBe('anthropic');
+  it('should default to zenskill for unknown types', () => {
+    expect(connectionTypeToProvider('unknown' as any)).toBe('zenskill');
   });
 });
 
@@ -181,63 +162,6 @@ describe('providerTypeToAgentProvider', () => {
     });
   });
 
-  describe('Pi SDK providers', () => {
-    it('should map pi to pi', () => {
-      expect(providerTypeToAgentProvider('pi')).toBe('pi');
-    });
-
-    it('should map pi_compat to pi', () => {
-      expect(providerTypeToAgentProvider('pi_compat')).toBe('pi');
-    });
-  });
-});
-
-// ============================================================
-// Provider-Auth Validation Tests
-// ============================================================
-
-describe('isValidProviderAuthCombination', () => {
-  describe('Anthropic provider', () => {
-    it('should accept api_key auth', () => {
-      expect(isValidProviderAuthCombination('anthropic', 'api_key')).toBe(true);
-    });
-
-    it('should accept oauth auth', () => {
-      expect(isValidProviderAuthCombination('anthropic', 'oauth')).toBe(true);
-    });
-
-    it('should reject api_key_with_endpoint auth', () => {
-      expect(isValidProviderAuthCombination('anthropic', 'api_key_with_endpoint')).toBe(false);
-    });
-
-    it('should reject none auth', () => {
-      expect(isValidProviderAuthCombination('anthropic', 'none')).toBe(false);
-    });
-  });
-
-  describe('Pi provider', () => {
-    it('should accept api_key auth', () => {
-      expect(isValidProviderAuthCombination('pi', 'api_key')).toBe(true);
-    });
-
-    it('should accept oauth auth', () => {
-      expect(isValidProviderAuthCombination('pi', 'oauth')).toBe(true);
-    });
-
-    it('should accept none auth', () => {
-      expect(isValidProviderAuthCombination('pi', 'none')).toBe(true);
-    });
-  });
-
-  describe('Pi compat provider', () => {
-    it('should accept api_key_with_endpoint auth', () => {
-      expect(isValidProviderAuthCombination('pi_compat', 'api_key_with_endpoint')).toBe(true);
-    });
-
-    it('should accept none auth (for local models like Ollama)', () => {
-      expect(isValidProviderAuthCombination('pi_compat', 'none')).toBe(true);
-    });
-  });
 
 });
 
@@ -262,54 +186,11 @@ describe('phase4 backend abstraction APIs', () => {
     })).toThrow('Claude Code SDK not found');
   });
 
-  it('resolveSetupTestConnectionHint maps provider/baseUrl/piAuthProvider correctly', () => {
-    expect(resolveSetupTestConnectionHint({
-      provider: 'anthropic',
-      baseUrl: 'https://api.example.com',
-    })).toEqual({ providerType: 'pi_compat' });
-
-    expect(resolveSetupTestConnectionHint({
-      provider: 'anthropic',
-      baseUrl: '',
-    })).toEqual({ providerType: 'anthropic' });
-
-    expect(resolveSetupTestConnectionHint({
-      provider: 'pi',
-      piAuthProvider: 'openai-codex',
-    })).toEqual({ providerType: 'pi', piAuthProvider: 'openai-codex' });
-
-    expect(resolveSetupTestConnectionHint({
-      provider: 'pi',
-      baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
-      customEndpoint: { api: 'openai-completions' },
-    })).toEqual({ providerType: 'pi_compat', piAuthProvider: 'openai', customEndpoint: { api: 'openai-completions' } });
-
-    expect(resolveSetupTestConnectionHint({
-      provider: 'pi',
-      baseUrl: 'https://my-anthropic-proxy.internal/v1',
-      customEndpoint: { api: 'anthropic-messages' },
-    })).toEqual({ providerType: 'pi_compat', piAuthProvider: 'anthropic', customEndpoint: { api: 'anthropic-messages' } });
-  });
-
-  it('fetchBackendModels dispatches for pi provider', async () => {
-    const connection: LlmConnection = {
-      slug: 'pi-test',
-      name: 'Pi Test',
-      providerType: 'pi',
-      authType: 'none',
-      createdAt: Date.now(),
-    };
-
-    const result = await fetchBackendModels({
-      connection,
-      credentials: {},
-      hostRuntime: {
-        appRootPath: process.cwd(),
-        isPackaged: false,
-      },
-    });
-
-    expect(result.models.length).toBeGreaterThan(0);
+  it('resolveSetupTestConnectionHint always routes to zenskill', () => {
+    expect(resolveSetupTestConnectionHint({ provider: 'anthropic', baseUrl: 'https://api.example.com' }))
+      .toEqual({ providerType: 'zenskill' });
+    expect(resolveSetupTestConnectionHint({ provider: 'zenskill', baseUrl: '' }))
+      .toEqual({ providerType: 'zenskill' });
   });
 
   it('validateStoredBackendConnection returns not found for unknown slug', async () => {
@@ -342,25 +223,5 @@ describe('phase4 backend abstraction APIs', () => {
 });
 
 describe('resolveModelForProvider', () => {
-  it('falls back to the Pi connection default when a normalized stale model is not in the connection list', () => {
-    const connection = {
-      providerType: 'pi',
-      defaultModel: 'pi/claude-opus-4-7',
-      models: ['pi/claude-opus-4-7', 'pi/claude-sonnet-4-6'],
-    } as unknown as LlmConnection;
-
-    expect(resolveModelForProvider('pi', 'pi/claude-opus-4-6', connection)).toBe('pi/claude-opus-4-7');
-  });
 });
 
-describe('ClaudeAgent model switching', () => {
-  it('setModel updates getModel (regression: setModel used to write config.model but getModel reads _model)', () => {
-    const agent = createBackend(createTestConfig({ provider: 'anthropic', model: 'claude-opus-4-7' }));
-
-    expect(agent.getModel()).toBe('claude-opus-4-7');
-
-    agent.setModel('claude-sonnet-4-6');
-
-    expect(agent.getModel()).toBe('claude-sonnet-4-6');
-  });
-});

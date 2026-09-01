@@ -32,8 +32,8 @@ describe('validateModelList', () => {
   // because the old code used Array.includes() to compare strings against objects
   it('regression: Pi ModelDefinition[] with valid default is accepted', () => {
     const piModels: ModelDefinition[] = [
-      { id: 'pi/claude-sonnet-4-6', name: 'Claude Sonnet 4.6', shortName: 'Sonnet', description: '', provider: 'pi', contextWindow: 200000 },
-      { id: 'pi/claude-haiku-4-5', name: 'Claude Haiku 4.5', shortName: 'Haiku', description: '', provider: 'pi', contextWindow: 200000 },
+      { id: 'pi/claude-sonnet-4-6', name: 'Claude Sonnet 4.6', shortName: 'Sonnet', description: '', provider: 'zenskill', contextWindow: 200000 },
+      { id: 'pi/claude-haiku-4-5', name: 'Claude Haiku 4.5', shortName: 'Haiku', description: '', provider: 'zenskill', contextWindow: 200000 },
     ]
     const result = validateModelList(piModels, 'pi/claude-sonnet-4-6')
     expect(result.valid).toBe(true)
@@ -138,25 +138,6 @@ describe('createBuiltInConnection', () => {
 // ============================================================
 
 describe('validateSetupTestInput', () => {
-  it('rejects pi custom endpoint without provider preset', () => {
-    const result = validateSetupTestInput({
-      provider: 'pi',
-      baseUrl: 'https://coding-intl.dashscope.aliyuncs.com/apps/anthropic',
-    })
-    expect(result.valid).toBe(false)
-    if (!result.valid) {
-      expect(result.error).toContain('requires selecting a provider preset')
-    }
-  })
-
-  it('accepts pi custom endpoint when provider preset is set', () => {
-    const result = validateSetupTestInput({
-      provider: 'pi',
-      baseUrl: 'https://openrouter.ai/api/v1',
-      piAuthProvider: 'openrouter',
-    })
-    expect(result.valid).toBe(true)
-  })
 
   it('accepts anthropic custom endpoint without piAuthProvider', () => {
     const result = validateSetupTestInput({

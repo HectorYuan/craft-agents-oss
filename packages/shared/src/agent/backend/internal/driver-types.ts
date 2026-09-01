@@ -117,8 +117,6 @@ export function getDefaultProviderType(provider: AgentProvider): LlmProviderType
   switch (provider) {
     case 'anthropic':
       return 'anthropic';
-    case 'pi':
-      return 'pi';
     case 'zenskill':
       return 'zenskill';
   }

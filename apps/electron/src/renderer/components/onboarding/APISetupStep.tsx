@@ -148,7 +148,8 @@ function ProviderSegmentedControl({
   onSegmentChange: (segment: ProviderSegment) => void
   segmentLabels: Record<ProviderSegment, string>
 }) {
-  const segments: ProviderSegment[] = ['anthropic', 'pi']
+  // ZenSkill 发行版不支持 Claude 后端（见 factory.ts 守卫），onboarding 仅提供 pi
+  const segments: ProviderSegment[] = ['pi']
 
   return (
     <div className="flex rounded-xl bg-foreground/[0.03] p-1 mb-4">
@@ -183,7 +184,7 @@ export function APISetupStep({
   onSelect,
   onContinue,
   onBack,
-  initialSegment = 'anthropic',
+  initialSegment = 'pi',
 }: APISetupStepProps) {
   const { t } = useTranslation()
   const [activeSegment, setActiveSegment] = useState<ProviderSegment>(initialSegment)

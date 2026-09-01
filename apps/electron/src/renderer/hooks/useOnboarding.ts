@@ -449,9 +449,8 @@ export function useOnboarding({
         }
       }
 
-      // Validate connection by spawning a lightweight subprocess test.
-      // Custom endpoint protocol routes through PiAgent at runtime, so test with Pi too.
-      const setupTestProvider = data.customEndpoint ? 'pi' : (isPiApiKeyFlow ? 'pi' : 'anthropic')
+      // Validate connection via the zenskill backend (only shipped backend).
+      const setupTestProvider = 'zenskill'
       const testResult = await window.electronAPI.testLlmConnectionSetup({
         provider: setupTestProvider,
         apiKey: data.apiKey,

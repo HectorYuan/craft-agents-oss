@@ -602,7 +602,7 @@ export interface LlmConnectionSetup {
 }
 
 export interface TestLlmConnectionParams {
-  provider: 'anthropic' | 'pi'
+  provider: 'anthropic' | 'zenskill'
   apiKey: string
   baseUrl?: string
   model?: string

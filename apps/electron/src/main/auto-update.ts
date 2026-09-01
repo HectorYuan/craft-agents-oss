@@ -2,7 +2,7 @@
  * Auto-update module using electron-updater
  *
  * Handles checking for updates, downloading, and installing via the standard
- * electron-updater library. Updates are served from https://thecraftagents.com/electron/latest
+ * electron-updater library. ZenSkill 发行版已禁用自动更新（feed 与产物不匹配）。
  * using the generic provider (YAML manifests + binaries on R2/S3).
  *
  * Platform behavior:
@@ -154,11 +154,10 @@ function broadcastDownloadProgress(progress: number): void {
 
 // ─── Configure electron-updater ───────────────────────────────────────────────
 
-// Auto-download updates in the background after detection
-autoUpdater.autoDownload = true
-
-// Install on app quit (if update is downloaded but user hasn't clicked "Restart")
-autoUpdater.autoInstallOnAppQuit = true
+// ZenSkill 发行版禁用自动下载/静默安装：
+// 上游 feed (thecraftagents.com) 与本构建产物不匹配，自动拉取只会报错。
+autoUpdater.autoDownload = false
+autoUpdater.autoInstallOnAppQuit = false
 
 // Use the logger for electron-updater internal logging
 autoUpdater.logger = {

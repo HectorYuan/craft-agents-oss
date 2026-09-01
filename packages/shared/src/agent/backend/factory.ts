@@ -3,8 +3,8 @@
  *
  * Creates the appropriate AI agent based on configuration.
  * Supports two agents:
- * - ClaudeAgent (Anthropic) - Default, using @anthropic-ai/claude-agent-sdk
- * - PiAgent (Pi) - Using @earendil-works/pi-ai SDK
+ * - ZenskillAgent - ZenSkill agent-engine subprocess (the only shipped backend)
+ * (Claude/Pi backends removed — see DELETED_UPSTREAM_FILES.md)
  *
  * All agents implement AgentBackend directly.
  *
@@ -23,8 +23,8 @@ import type {
   CoreBackendConfig,
   BackendHostRuntimeContext,
 } from './types.ts';
-import { ClaudeAgent } from '../claude-agent.ts';
-import { PiAgent } from '../pi-agent.ts';
+// ZenSkill 发行版不支持 Claude 后端：ClaudeAgent 不再由 factory 引用，
+// SDK core 仅作为共享工具依赖保留（见 docs/PACKAGING_OPTIMIZATION_PLAN.md §0.2 Option B）。
 import { ZenskillAgent } from './zenskill-agent.ts';
 import {
   getLlmConnection,
@@ -59,12 +59,10 @@ import {
   resolveBackendRuntimePaths,
 } from './internal/runtime-resolver.ts';
 import { anthropicDriver } from './internal/drivers/anthropic.ts';
-import { piDriver } from './internal/drivers/pi.ts';
 import { zenskillDriver } from './internal/drivers/zenskill.ts';
 
 const DRIVER_REGISTRY: Record<AgentProvider, ProviderDriver> = {
   anthropic: anthropicDriver,
-  pi: piDriver,
   zenskill: zenskillDriver,
 };
 
@@ -125,23 +123,16 @@ export function detectProvider(authType: string): AgentProvider {
  *   model: 'claude-sonnet-4-6',
  * });
  *
- * // Create Pi backend (routes OpenAI / Copilot / Bedrock / etc. via Pi SDK)
- * const piBackend = createBackend({
- *   provider: 'pi',
- *   workspace: myWorkspace,
- * });
  * ```
  */
 export function createBackend(config: BackendConfig): AgentBackend {
   switch (config.provider) {
     case 'anthropic':
-      // ClaudeAgent implements AgentBackend directly
-      return new ClaudeAgent(config);
-
-    case 'pi':
-      // PiAgent implements AgentBackend directly
-      // Auth is API key based via Pi's AuthStorage
-      return new PiAgent(config);
+      // ZenSkill 发行版明确不支持 Claude 后端：
+      // 未打包 210MB claude 原生二进制，选择即失败，给出明确指引。
+      throw new Error(
+        'ZenSkill 发行版不支持 Claude 后端。请在会话设置中选择 zenskill 后端（默认）。'
+      );
 
     case 'zenskill':
       // ZenskillAgent: ZenSkill agent-engine as subprocess
@@ -229,7 +220,7 @@ export function resolveBackendHostTooling(args: {
  * @returns Array of provider identifiers that have working implementations
  */
 export function getAvailableProviders(): AgentProvider[] {
-  return ['anthropic', 'pi'];
+  return ['zenskill'];
 }
 
 /**
@@ -250,8 +241,7 @@ export function isProviderAvailable(provider: AgentProvider): boolean {
  * Map LlmProviderType to AgentProvider (SDK selection).
  *
  * AgentProvider determines which backend class to instantiate:
- * - 'anthropic' → ClaudeAgent
- * - 'pi' → PiAgent
+ * - 'zenskill' → ZenskillAgent
  *
  * @param providerType - The full provider type from LLM connection
  * @returns The agent provider for SDK selection
@@ -261,11 +251,6 @@ export function providerTypeToAgentProvider(providerType: LlmProviderType): Agen
     // Anthropic SDK backend (direct API only)
     case 'anthropic':
       return 'anthropic';
-
-    // Pi backends (includes former bedrock/vertex/anthropic_compat via migration)
-    case 'pi':
-    case 'pi_compat':
-      return 'pi';
 
     // ZenSkill agent-engine backend
     case 'zenskill':
@@ -288,9 +273,6 @@ export function connectionTypeToProvider(connectionType: LlmConnectionType): Age
   switch (connectionType) {
     case 'anthropic':
       return 'anthropic';
-    case 'openai':
-    case 'openai-compat':
-      return 'pi'; // Legacy OpenAI connections are now routed through Pi
     default:
       return 'zenskill';
   }
@@ -400,23 +382,10 @@ export function resolveSetupTestConnectionHint(args: {
   piAuthProvider?: string;
   customEndpoint?: CustomEndpointConfig;
 }): Pick<LlmConnection, 'providerType' | 'piAuthProvider' | 'customEndpoint'> {
-  if (args.provider === 'pi') {
-    if (args.customEndpoint && args.baseUrl?.trim()) {
-      return {
-        providerType: 'pi_compat',
-        piAuthProvider: args.customEndpoint.api === 'anthropic-messages' ? 'anthropic' : 'openai',
-        customEndpoint: args.customEndpoint,
-      };
-    }
-
-    return {
-      providerType: 'pi',
-      piAuthProvider: args.piAuthProvider,
-    };
-  }
-
+  // All providers are served by the zenskill engine in this distribution —
+  // setup-time connection tests always route through the zenskill backend.
   return {
-    providerType: args.baseUrl ? 'pi_compat' : 'anthropic',
+    providerType: 'zenskill',
   };
 }
 
@@ -598,7 +567,6 @@ export const BACKEND_CAPABILITIES: Record<AgentProvider, {
   needsHttpPoolServer: boolean;
 }> = {
   anthropic: { needsHttpPoolServer: false },
-  pi: { needsHttpPoolServer: false },
   zenskill: { needsHttpPoolServer: false },
 };
 
@@ -615,7 +583,6 @@ export const BACKEND_CAPABILITIES: Record<AgentProvider, {
 export function getDefaultAuthType(provider: AgentProvider): LlmAuthType | undefined {
   switch (provider) {
     case 'anthropic': return undefined;
-    case 'pi':        return 'api_key';
     default:          return undefined;
   }
 }
@@ -655,22 +622,7 @@ export function resolveModelForProvider(
     ? normalizeDeprecatedModelId(connection.defaultModel)
     : undefined;
 
-  if (provider === 'pi' && connection?.models?.length) {
-    const connectionModelIds = connection.models.map(m => typeof m === 'string' ? m : m.id);
-    if (managedModel && !connectionModelIds.includes(managedModel)) {
-      managedModel = undefined;
-    }
-    if (connectionDefault && !connectionModelIds.includes(connectionDefault)) {
-      connectionDefault = connectionModelIds[0];
-    }
-  }
-
-  switch (provider) {
-    case 'pi':
-      return managedModel || connectionDefault || '';
-    default:
-      return managedModel || connectionDefault || DEFAULT_MODEL;
-  }
+  return managedModel || connectionDefault || DEFAULT_MODEL;
 }
 
 // ============================================================
@@ -858,10 +810,6 @@ export async function validateConnection(
         baseUrl: connection.baseUrl,
       });
     }
-
-    case 'pi':
-      // Pi validates on connect via its auth storage — no pre-flight check available
-      return { success: true };
 
     default:
       return { success: true };
