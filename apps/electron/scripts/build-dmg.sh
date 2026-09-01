@@ -139,44 +139,6 @@ mkdir -p "$ELECTRON_DIR/node_modules/@anthropic-ai"
 rm -rf "$ELECTRON_DIR/node_modules/@anthropic-ai/claude-agent-sdk"
 cp -r "$SDK_SOURCE" "$ELECTRON_DIR/node_modules/@anthropic-ai/"
 
-# 4a. Resolve the target arch's binary package. If the host arch matches the
-#     target, bun install already placed it in node_modules/@anthropic-ai/.
-#     Otherwise, fetch and unpack the matching tarball directly via npm.
-SDK_BIN_PKG="claude-agent-sdk-darwin-${ARCH}"
-SDK_BIN_SOURCE="$ROOT_DIR/node_modules/@anthropic-ai/${SDK_BIN_PKG}"
-if [ ! -d "$SDK_BIN_SOURCE" ]; then
-    echo "Cross-arch build: ${SDK_BIN_PKG} not in node_modules — fetching from npm..."
-    SDK_VERSION=$(node -p "require('$ROOT_DIR/package.json').dependencies['@anthropic-ai/claude-agent-sdk']" | tr -d '"')
-    PKG_TMP=$(mktemp -d)
-    trap "rm -rf $PKG_TMP" RETURN
-    (
-        cd "$PKG_TMP"
-        npm pack "@anthropic-ai/${SDK_BIN_PKG}@${SDK_VERSION}" >/dev/null
-        TARBALL=$(ls anthropic-ai-*.tgz | head -1)
-        tar -xzf "$TARBALL"
-    )
-    mkdir -p "$SDK_BIN_SOURCE"
-    cp -r "$PKG_TMP/package/." "$SDK_BIN_SOURCE/"
-fi
-
-require_path "$SDK_BIN_SOURCE" "SDK native binary package (${SDK_BIN_PKG})" \
-  "Run 'bun install' from the repository root, or check your network for the npm cross-fetch."
-
-echo "Staging SDK native binary as claude-agent-sdk-binary alias..."
-ALIAS_DEST="$ELECTRON_DIR/node_modules/@anthropic-ai/claude-agent-sdk-binary"
-rm -rf "$ALIAS_DEST"
-mkdir -p "$ALIAS_DEST"
-cp -r "$SDK_BIN_SOURCE/." "$ALIAS_DEST/"
-chmod +x "$ALIAS_DEST/claude"
-
-# Sanity check: native binary should be ~210 MB. Anything dramatically smaller
-# indicates a botched copy / wrong tarball.
-BIN_SIZE=$(stat -f%z "$ALIAS_DEST/claude" 2>/dev/null || stat -c%s "$ALIAS_DEST/claude")
-if [ "$BIN_SIZE" -lt 50000000 ]; then
-    echo "ERROR: claude binary at $ALIAS_DEST/claude is only ${BIN_SIZE} bytes (expected ~210 MB)"
-    exit 1
-fi
-echo "  Native binary: $((BIN_SIZE / 1024 / 1024)) MB"
 
 # 5. Copy ripgrep (was previously bundled inside the SDK at vendor/ripgrep/;
 #    moved out in 0.2.113. Search service still needs the binary directly.)

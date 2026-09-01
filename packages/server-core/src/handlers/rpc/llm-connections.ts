@@ -1,6 +1,7 @@
 import { RPC_CHANNELS, type LlmConnectionSetup } from '@craft-agent/shared/protocol'
 import { getLlmConnections, getLlmConnection, addLlmConnection, updateLlmConnection, deleteLlmConnection, getDefaultLlmConnection, setDefaultLlmConnection, touchLlmConnection, isCompatProvider, isAnthropicProvider, getDefaultModelsForConnection, getDefaultModelForConnection, type LlmConnection, type LlmConnectionWithStatus, toBedrockNativeId, deriveBedrockRegionPrefix } from '@craft-agent/shared/config'
 import { getCredentialManager } from '@craft-agent/shared/credentials'
+import { parseValidationError } from '@craft-agent/shared/utils/parse-validation-error.ts'
 import { setSetupDeferred } from '@craft-agent/shared/config/storage'
 import {
   resolveSetupTestConnectionHint,
@@ -538,7 +539,6 @@ export function registerLlmConnectionsHandlers(server: RpcServer, deps: HandlerD
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error)
       deps.platform.logger?.info(`[LLM_CONNECTION_TEST] Error for ${slug}: ${msg.slice(0, 500)}`)
-      const { parseValidationError } = await import('@craft-agent/shared/config')
       return { success: false, error: parseValidationError(msg) }
     }
   })

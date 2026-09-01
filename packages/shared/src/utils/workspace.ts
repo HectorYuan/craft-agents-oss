@@ -11,6 +11,9 @@ import { join } from 'node:path';
  * @returns The plugin name, or null if the manifest doesn't exist or is unreadable
  */
 export function readPluginName(workspaceRootPath: string): string | null {
+  // Empty/relative rootPath would resolve '.claude-plugin' against process cwd —
+  // silently picking up whatever project the test/server happens to run in.
+  if (!workspaceRootPath) return null;
   try {
     const manifestPath = join(workspaceRootPath, '.claude-plugin', 'plugin.json');
     if (!existsSync(manifestPath)) return null;

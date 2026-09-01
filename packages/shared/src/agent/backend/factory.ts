@@ -37,10 +37,10 @@ import type { LlmConnectionType, CustomEndpointConfig } from '../../config/llm-c
 import {
   isValidProviderAuthCombination,
 } from '../../config/llm-connections.ts';
-import { parseValidationError, type LlmValidationResult } from '../../config/llm-validation.ts';
 import type { ModelFetchResult } from '../../config/model-fetcher.ts';
 // Model resolution utilities
 import { DEFAULT_MODEL, normalizeDeprecatedModelId } from '../../config/models.ts';
+import { parseValidationError } from '../../utils/parse-validation-error.ts';
 import { homedir } from 'node:os';
 import { rm } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -120,6 +120,12 @@ export function detectProvider(authType: string): AgentProvider {
  *
  * ```
  */
+/** Validation result for backend connection tests. */
+export interface LlmValidationResult {
+  success: boolean;
+  error?: string;
+}
+
 export function createBackend(config: BackendConfig): AgentBackend {
   switch (config.provider) {
     case 'zenskill':
