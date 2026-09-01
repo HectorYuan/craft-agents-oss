@@ -198,11 +198,12 @@ nsis:
 deb:
   packageName: zenskill-agents
   # 依赖由 Electron 运行时自带，仅需基础图形库（几乎所有发行版默认有）
+  # libasound2: Ubuntu 24.04+ 因 time64 过渡改名 libasound2t64，双写兼容 22.04/24.04/Debian 12
   depends:
     - libgtk-3-0
     - libnss3
     - libxss1
-    - libasound2
+    - libasound2 | libasound2t64
   packageCategory: utils
 
 linux:
