@@ -77,10 +77,10 @@ class Sandbox:
         return expanded
 
     def _match_path(self, path: str, patterns: list[str]) -> bool:
-        """检查路径是否匹配模式列表"""
-        path = os.path.abspath(path)
+        """检查路径是否匹配模式列表（realpath 解析符号链接，防沙箱逃逸）"""
+        path = os.path.realpath(os.path.abspath(path))
         for pattern in patterns:
-            pattern = os.path.abspath(pattern)
+            pattern = os.path.realpath(os.path.abspath(pattern))
             # 处理 ** 通配符：dir/** 匹配 dir 自身与 dir 下任意路径
             if "**" in pattern:
                 prefix = pattern.split("**")[0].rstrip("/")
@@ -119,29 +119,73 @@ class Sandbox:
 
         return False, f"Path not in sandbox whitelist: {path}"
 
+    # 复合命令分隔符（&& || ; |）
+    _COMPOUND_RE = re.compile(r"&&|\|\||;|\|")
+    # 输出重定向（> >> 2> 2>> &> &>>），捕获目标路径
+    _REDIRECT_RE = re.compile(r"\d*&?>{1,2}\s*(\S+)")
+    # 命令替换（$(...) / 反引号）——可绕过首词白名单，沙箱内直接禁止
+    _SUBSTITUTION_RE = re.compile(r"\$\(|`")
+
     def _check_command(self, command: str) -> tuple[bool, str]:
-        """检查命令权限
+        """检查命令权限：拆分复合命令逐段检查 + 重定向目标路径校验。
 
         Returns:
             (allowed, reason)
         """
-        # 提取命令主程序
-        cmd_parts = command.strip().split()
+        if not command or not command.strip():
+            return False, "Empty command"
+
+        # 命令替换可注入任意命令绕过白名单，沙箱模式下直接拒绝
+        if self._SUBSTITUTION_RE.search(command):
+            return False, "Command substitution not allowed in sandbox: use direct commands"
+
+        # 拆分复合命令，逐段检查
+        segments = [s.strip() for s in self._COMPOUND_RE.split(command) if s.strip()]
+        for seg in segments:
+            ok, reason = self._check_single_command(seg)
+            if not ok:
+                return False, reason
+
+        # 重定向目标必须在路径白名单内
+        for target in self._REDIRECT_RE.findall(command):
+            ok, reason = self._check_path(target)
+            if not ok:
+                return False, f"Redirect target denied: {reason}"
+
+        return True, ""
+
+    # wrapper 命令：其后的 token 才是实际执行的命令
+    _WRAPPER_COMMANDS = {"env", "nohup", "nice", "timeout", "xargs", "command", "exec", "time", "stdbuf"}
+
+    def _check_single_command(self, command: str) -> tuple[bool, str]:
+        """检查单条（已拆分的）命令：拒绝列表看首词+wrapper 链，允许列表看实际命令。"""
+        try:
+            import shlex
+            cmd_parts = shlex.split(command)
+        except ValueError:
+            cmd_parts = command.split()
         if not cmd_parts:
             return False, "Empty command"
 
-        cmd_name = cmd_parts[0]
+        denied_bases = {os.path.basename(d.split()[0]) for d in self._config.denied_commands}
 
-        # 检查拒绝列表
-        for denied in self._config.denied_commands:
-            if command.startswith(denied) or cmd_name == denied:
-                return False, f"Command denied by sandbox: {command}"
+        # 穿透 wrapper 链（env sudo rm → 逐个检查 sudo/rm），最深 3 层
+        effective = cmd_parts[0]
+        for idx in range(min(3, len(cmd_parts))):
+            base = os.path.basename(cmd_parts[idx])
+            if base in denied_bases:
+                return False, f"Command denied by sandbox: {base}"
+            if base in self._WRAPPER_COMMANDS:
+                continue
+            effective = cmd_parts[idx]
+            break
 
-        # 检查允许列表
-        if cmd_name in self._config.allowed_commands:
+        # basename 归一化：/bin/python3 与 python3 等价
+        effective_name = os.path.basename(effective)
+        if effective_name in self._config.allowed_commands:
             return True, ""
 
-        return False, f"Command not in sandbox whitelist: {cmd_name}"
+        return False, f"Command not in sandbox whitelist: {effective_name}"
 
     async def check(
         self,

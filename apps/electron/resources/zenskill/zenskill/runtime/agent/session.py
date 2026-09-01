@@ -7,6 +7,7 @@ entry 的 parentId 链构成树，分支 = 换一个 parentId 继续追加；当
 from __future__ import annotations
 
 import json
+import logging
 import os
 import uuid
 from dataclasses import dataclass, field
@@ -24,6 +25,8 @@ from .types import (
 )
 
 SESSION_VERSION = 1
+
+logger = logging.getLogger(__name__)
 
 
 def _uuid7_like() -> str:
@@ -105,9 +108,40 @@ class Session:
             timestamp=now_ms(),
             data=data or {},
         )
+        line = json.dumps(entry.to_dict(), ensure_ascii=False) + "\n"
+        persisted = False
         with self._write_lock:
-            with open(self.path, "a", encoding="utf-8") as f:
-                f.write(json.dumps(entry.to_dict(), ensure_ascii=False) + "\n")
+            # WAL: 写入 .wal 临时文件，成功后原子追加到主文件
+            wal_path = str(self.path) + ".wal"
+            try:
+                with open(wal_path, "a", encoding="utf-8") as wf:
+                    wf.write(line)
+                    wf.flush()
+                    os.fsync(wf.fileno())
+                with open(self.path, "a", encoding="utf-8") as f:
+                    f.write(line)
+                    f.flush()
+                    os.fsync(f.fileno())
+                try:
+                    os.unlink(wal_path)
+                except OSError:
+                    pass
+                persisted = True
+            except Exception as wal_err:
+                # WAL 失败时 fallback 到直接写入
+                try:
+                    with open(self.path, "a", encoding="utf-8") as f:
+                        f.write(line)
+                        f.flush()
+                    persisted = True
+                except Exception as direct_err:
+                    logger.error(
+                        "session append NOT persisted (entry %s): wal=%s, direct=%s",
+                        entry.id, wal_err, direct_err,
+                    )
+            if not persisted:
+                # 磁盘没写进去：内存不能假装成功，否则崩溃恢复丢消息且无迹可查
+                raise OSError(f"session write failed (wal + direct): {self.path}")
             self.entries.append(entry)
         self._leaf_override = None
         return entry
@@ -143,8 +177,11 @@ class Session:
         chain.reverse()
         return chain
 
-    def build_context(self, leaf_id: Optional[str] = None) -> Dict[str, Any]:
-        """产出 {messages, model}；分支上的 compaction entry 把被压缩前缀替换为摘要"""
+    def collect_pairs(self, leaf_id: Optional[str] = None) -> tuple:
+        """沿分支收集 (entry_id, Message) 对，应用 compaction 折叠。
+
+        返回 (collected, model)：collected[0] 可能是历史摘要（entry_id=None）。
+        """
         collected: List[Any] = []  # [entry_id, Message] 对
         model: Optional[str] = None
         for entry in self.walk(leaf_id):
@@ -167,6 +204,11 @@ class Session:
                     collected.insert(0, [None, UserMessage(
                         content=f"[conversation summary]\n{summary}"
                     )])
+        return collected, model
+
+    def build_context(self, leaf_id: Optional[str] = None) -> Dict[str, Any]:
+        """产出 {messages, model}；分支上的 compaction entry 把被压缩前缀替换为摘要"""
+        collected, model = self.collect_pairs(leaf_id)
         return {"messages": [m for _, m in collected], "model": model}
 
 

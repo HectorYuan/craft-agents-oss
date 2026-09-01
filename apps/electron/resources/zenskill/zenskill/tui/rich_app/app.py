@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+from datetime import datetime
 from pathlib import Path
 from typing import Dict, Optional
 
@@ -45,7 +46,7 @@ logger = logging.getLogger(__name__)
 COMMAND_LIST = [
     "/dashboard", "/chat", "/growth", "/skills", "/mirror",
     "/knowledge", "/system", "/doctor", "/llm",
-    "/help", "/clear", "/quit", "/version", "/history",
+    "/help", "/clear", "/quit", "/version", "/history", "/agent",
     "/d", "/c", "/g", "/s", "/m", "/k", "/h", "/q",
     "/skills list", "/growth report", "/growth compare",
     "/growth replay", "/growth errors", "/growth feedback",
@@ -62,6 +63,7 @@ PAGE_SHORTCUTS = {
     "4": "gtd",
     "5": "settings",
     "6": "help",
+    "7": "agent",
 }
 
 
@@ -79,6 +81,22 @@ class ZenRichTUI:
         self._current_page = "dashboard"
         self._pages: Dict[str, object] = {}
         self._total_cost = 0.0
+        self._agent_session = None  # lazy AgentChatSession
+
+    def _get_agent_session(self):
+        """懒加载 AgentChatSession。"""
+        if self._agent_session is None:
+            try:
+                from ..core.agent_session import AgentChatSession
+                self._agent_session = AgentChatSession(
+                    model=self.session.model if self.session.model != "未配置" else None,
+                    with_memory=True,
+                    with_skills=True,
+                )
+            except Exception as e:
+                self.console.print(f"[yellow]Agent engine 不可用: {e}，使用直接 LLM 路径[/yellow]")
+                return None
+        return self._agent_session
 
     def _get_data(self):
         if self.data is None:
@@ -99,6 +117,7 @@ class ZenRichTUI:
         from .pages.settings import SettingsPage
         from .pages.status import StatusPage
         from .pages.help import HelpPage
+        from .pages.agent import AgentPage
 
         data = self._get_data()
         self._pages = {
@@ -113,6 +132,7 @@ class ZenRichTUI:
             "settings": SettingsPage(self.console, data),
             "status": StatusPage(self.console, data),
             "help": HelpPage(self.console, data),
+            "agent": AgentPage(self.console, data),
         }
 
     # ═══════════════════════════════════════════════════════════════
@@ -219,7 +239,7 @@ class ZenRichTUI:
             commands = [f"/{e.qualified_name}" for e in registry.all()]
             # 加上内置命令
             commands.extend([
-                "/help", "/clear", "/quit", "/version", "/history",
+                "/help", "/clear", "/quit", "/version", "/history", "/agent",
                 "/d", "/c", "/g", "/s", "/m", "/k", "/h", "/q",
             ])
             return sorted(set(commands))
@@ -279,6 +299,9 @@ class ZenRichTUI:
 
         if parsed.resource == "clear":
             self.session.clear()
+            if self._agent_session:
+                sid = self._agent_session.clear()
+                self.console.print(f"[dim]新 session: {sid[:12]}...[/dim]" if sid else "")
             self.console.clear()
             self._show_landing()
             self._toast("对话已清除", "success")
@@ -292,6 +315,10 @@ class ZenRichTUI:
 
         if parsed.resource == "history":
             self._show_history()
+            return
+
+        if parsed.resource == "agent":
+            await self._handle_agent_command(parsed)
             return
 
         if parsed.resource == "export":
@@ -448,7 +475,7 @@ class ZenRichTUI:
     # ═══════════════════════════════════════════════════════════════
 
     async def _handle_chat(self, user_input: str):
-        """处理普通对话 -- Rich.Live 流式输出。"""
+        """处理普通对话 -- 默认走 Agent Engine，失败时降级到直接 LLM。"""
         self.console.print(f"\n[bold blue]❯[/bold blue] {user_input}")
 
         # 保存用户消息
@@ -459,23 +486,24 @@ class ZenRichTUI:
         if ctx_chars > 50000:
             self.console.print("[yellow]⚠ 对话历史较长，建议 /clear 清除后开始新话题[/yellow]")
 
-        # 选择 LLM 路径：agent engine 或直接 provider
-        use_agent = os.environ.get("ZENSKILL_TUI_AGENT", "0") == "1"
+        # 选择 LLM 路径：agent engine（默认）或直接 provider
+        force_direct = os.environ.get("ZENSKILL_TUI_AGENT", "1") == "0"
 
-        if use_agent:
-            await self._handle_chat_agent(user_input)
-        else:
+        if force_direct:
             await self._handle_chat_direct(user_input)
+        else:
+            agent = self._get_agent_session()
+            if agent is not None:
+                await self._handle_chat_agent(user_input)
+            else:
+                await self._handle_chat_direct(user_input)
 
     async def _handle_chat_agent(self, user_input: str):
-        """Agent Engine 路径：工具执行 + 能力注入。"""
-        from ..core.streaming import stream_from_agent
-
-        # 构建 history（不含当前输入）
-        history = [
-            {"role": m.role, "content": m.content}
-            for m in self.session.messages[-20:]
-        ]
+        """Agent Engine 路径：工具执行 + 能力注入 + 会话持久化。"""
+        agent = self._get_agent_session()
+        if agent is None:
+            await self._handle_chat_direct(user_input)
+            return
 
         self.console.print("[dim]▸ agent engine 处理中...[/dim]")
 
@@ -486,7 +514,6 @@ class ZenRichTUI:
         tool_status = ""
 
         def _md_render(force: bool = False):
-            # delta 粒度可达单字符，全量 Markdown 重解析需节流（100ms）
             nonlocal last_render
             import time as _time
 
@@ -505,13 +532,7 @@ class ZenRichTUI:
 
         try:
             with Live(console=self.console, refresh_per_second=10) as live:
-                async for chunk in stream_from_agent(
-                    user_input=user_input,
-                    history=history,
-                    model=self.session.model,
-                    with_memory=True,
-                    with_skills=True,
-                ):
+                async for chunk in agent.chat(user_input):
                     if cancelled:
                         break
 
@@ -527,7 +548,13 @@ class ZenRichTUI:
                         _md_render()
 
                     elif ctype == "tool_start":
-                        tool_status = f"[dim]🔧 {ctext}...[/dim]"
+                        tool_status = f"[dim]🔧 {ctext}[/dim]"
+                        _md_render(force=True)
+
+                    elif ctype == "tool_progress":
+                        # 实时进度：截断显示最后 80 字符
+                        tail = ctext[-80:] if len(ctext) > 80 else ctext
+                        tool_status = f"[dim]🔧 {tail}[/dim]"
                         _md_render(force=True)
 
                     elif ctype == "tool_end":
@@ -540,21 +567,94 @@ class ZenRichTUI:
                     elif ctype == "done":
                         break
 
-                _md_render(force=True)  # 收尾渲染最终状态
+                _md_render(force=True)
 
-            # 保存回复
+            # 保存回复到 TUI session（兼容旧路径）
             if full_content:
                 self.session.receive("assistant", full_content)
                 self._total_cost += self._estimate_turn_cost(user_input, full_content)
 
         except KeyboardInterrupt:
             cancelled = True
+            agent.abort()
             if full_content:
                 self.session.receive("assistant", full_content + "\n\n[已中断]")
             self._toast("流式输出已中断", "warning")
 
         except Exception as e:
             self.console.print(f"\n[red]❌ Agent engine 错误: {e}[/red]")
+            # 降级到直接 LLM 路径
+            self.console.print("[dim]降级到直接 LLM 路径...[/dim]")
+            await self._handle_chat_direct(user_input)
+
+    async def _handle_agent_command(self, parsed):
+        """处理 /agent 子命令。"""
+        action = parsed.args[0] if parsed.args else "status"
+
+        if action == "status":
+            agent = self._get_agent_session()
+            if agent is None:
+                self.console.print("[yellow]Agent engine 未初始化[/yellow]")
+                return
+            page = self._pages.get("agent")
+            if page:
+                page.render(agent_session=agent)
+            else:
+                # fallback: 直接打印
+                info = agent.session_info()
+                self.console.print(f"Model: {info.get('model', '?')}")
+                self.console.print(f"Session: {info.get('session_id', '?')[:16]}...")
+                self.console.print(f"Tools: {info.get('tool_count', 0)}")
+
+        elif action == "compact":
+            agent = self._get_agent_session()
+            if agent is None:
+                self.console.print("[yellow]Agent engine 未初始化[/yellow]")
+                return
+            self.console.print("[dim]Compaction 需要 LLM 调用，将在下次 chat 时自动触发[/dim]")
+
+        elif action == "session":
+            agent = self._get_agent_session()
+            if agent is None:
+                self.console.print("[yellow]Agent engine 未初始化[/yellow]")
+                return
+            info = agent.session_info()
+            self.console.print(f"Session ID: {info.get('session_id', '?')}")
+            self.console.print(f"Messages: {info.get('message_count', 0)}")
+
+        elif action == "model":
+            agent = self._get_agent_session()
+            if agent is None:
+                self.console.print("[yellow]Agent engine 未初始化[/yellow]")
+                return
+            model_name = parsed.args[1] if len(parsed.args) > 1 else None
+            if not model_name:
+                self.console.print(f"当前模型: {agent.session_info().get('model', '?')}")
+                self.console.print("[dim]用法: /agent model <model-name>[/dim]")
+                return
+            result = agent.switch_model(model_name)
+            self.console.print(f"模型已切换: {result}")
+
+        elif action == "tools":
+            agent = self._get_agent_session()
+            if agent is None:
+                self.console.print("[yellow]Agent engine 未初始化[/yellow]")
+                return
+            info = agent.session_info()
+            self.console.print(f"已加载 {info.get('tool_count', 0)} 个工具")
+            if agent._tools:
+                from rich.table import Table
+                t = Table(title="Loaded Tools")
+                t.add_column("Name", style="bold")
+                t.add_column("Description")
+                for tool in agent._tools:
+                    desc = tool.description[:80] if tool.description else ""
+                    t.add_row(tool.name, desc)
+                self.console.print(t)
+
+        else:
+            self.console.print(f"[yellow]未知子命令: {action}[/yellow]")
+            self.console.print("[dim]可用: status, compact, session, model, tools[/dim]")
 
     async def _handle_chat_direct(self, user_input: str):
         """直接 LLM 路径（原始行为）。"""

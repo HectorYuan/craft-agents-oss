@@ -845,11 +845,113 @@ def _parse_ddg_html(html: str, max_results: int) -> str:
     return "\n\n".join(results)
 
 
+class GitTool(AgentTool):
+    """Git 操作工具：commit / diff / log / status。"""
+
+    name = "git"
+    description = (
+        "Git operations: commit (stage+commit), diff (show changes), "
+        "log (commit history), status (working tree state). "
+        "Use for version control tasks."
+    )
+    parameters = {
+        "type": "object",
+        "properties": {
+            "action": {
+                "type": "string",
+                "enum": ["commit", "diff", "log", "status"],
+                "description": "Git action to perform",
+            },
+            "message": {
+                "type": "string",
+                "description": "Commit message (required for commit action)",
+            },
+            "path": {
+                "type": "string",
+                "description": "File path for diff (optional, defaults to all)",
+            },
+            "n": {
+                "type": "integer",
+                "description": "Number of log entries to show (default 10)",
+            },
+        },
+        "required": ["action"],
+    }
+
+    def __init__(self, cwd: str = "."):
+        self.cwd = cwd
+
+    async def run(self, tool_call_id: str, params: Dict[str, Any], on_update=None) -> AgentToolResult:
+        action = params.get("action", "status")
+        import asyncio
+
+        if action == "commit":
+            message = params.get("message", "")
+            if not message:
+                return AgentToolResult(
+                    content=[TextContent("Commit message is required. Pass 'message' parameter.")],
+                    is_error=True,
+                )
+            # Stage all + commit
+            proc = await asyncio.create_subprocess_shell(
+                "git add -A && git commit -m " + repr(message),
+                cwd=self.cwd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.STDOUT,
+            )
+            stdout, _ = await proc.communicate()
+            output = stdout.decode("utf-8", errors="replace")
+            return AgentToolResult(content=[TextContent(output)])
+
+        elif action == "diff":
+            path = params.get("path", "")
+            cmd = "git diff" + (f" -- {path}" if path else "")
+            proc = await asyncio.create_subprocess_shell(
+                cmd, cwd=self.cwd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.STDOUT,
+            )
+            stdout, _ = await proc.communicate()
+            output = stdout.decode("utf-8", errors="replace")
+            if len(output) > 8000:
+                output = output[:4000] + "\n\n... (truncated) ...\n\n" + output[-4000:]
+            return AgentToolResult(content=[TextContent(output or "(no changes)")])
+
+        elif action == "log":
+            n = params.get("n", 10)
+            proc = await asyncio.create_subprocess_shell(
+                f"git log --oneline -{n}",
+                cwd=self.cwd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.STDOUT,
+            )
+            stdout, _ = await proc.communicate()
+            output = stdout.decode("utf-8", errors="replace")
+            return AgentToolResult(content=[TextContent(output or "(no commits)")])
+
+        elif action == "status":
+            proc = await asyncio.create_subprocess_shell(
+                "git status --short",
+                cwd=self.cwd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.STDOUT,
+            )
+            stdout, _ = await proc.communicate()
+            output = stdout.decode("utf-8", errors="replace")
+            return AgentToolResult(content=[TextContent(output or "(clean working tree)")])
+
+        else:
+            return AgentToolResult(
+                content=[TextContent(f"Unknown git action: {action}")],
+                is_error=True,
+            )
+
+
 def create_default_tools(cwd: str) -> List[AgentTool]:
     return [
         ReadTool(cwd), WriteTool(cwd), EditTool(cwd), BashTool(cwd),
         GrepTool(cwd), FindTool(cwd), ListTool(cwd),
-        WebFetchTool(), SearchTool(),
+        WebFetchTool(), SearchTool(), GitTool(cwd),
     ]
 
 

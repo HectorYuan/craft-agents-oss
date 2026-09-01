@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import time
 from dataclasses import dataclass
 from typing import Any, AsyncIterator, Callable, Dict, List, Optional
@@ -169,8 +170,11 @@ class AgentLoop:
         if self.config.on_entry is not None:
             try:
                 self.config.on_entry(message)
-            except Exception:
-                pass
+            except Exception as e:
+                # 会话持久化失败不能静默：磁盘没写进去但内存状态已推进，
+                # 崩溃恢复时会丢这条消息，必须留痕
+                logging.warning("on_entry (session persistence) failed: %s: %s",
+                                type(e).__name__, e)
 
     # ------------------------------------------------------------------
     # 主循环
@@ -261,7 +265,7 @@ class AgentLoop:
                 # Retry on ERROR (not ABORTED) if retries remain
                 if (final_msg.stop_reason == StopReason.ERROR
                         and turn_retries < self.config.max_turn_retries
-                        and not (self.config.abort_event and self.config.abort_event.isset() if hasattr(self.config.abort_event, 'isset') else False)):
+                        and not (self.config.abort_event is not None and self.config.abort_event.is_set())):
                     turn_retries += 1
                     yield MessageEnd(final_msg)
                     # Remove failed message from context before retry

@@ -1,4 +1,4 @@
-"""共享 HTTP 重试工具：指数退避 + jitter + Retry-After 支持。
+"""共享 HTTP 重试工具：指数退避 + jitter + Retry-After 支持 + SSE 中间重试。
 
 两个 provider（openai_completions / anthropic_messages）共用此模块，
 消除重复的重试逻辑。
@@ -115,3 +115,42 @@ async def retry_post(
         return None, f"HTTP {status}: {body}"
 
     return None, f"failed after {max_retries + 1} attempts: {last_error}"
+
+
+# SSE 中间重试：当流式读取中途断开时重新发起 POST
+_SSE_RETRYABLE = (ConnectionError, ConnectionResetError, BrokenPipeError,
+                   TimeoutError, aiohttp.ClientPayloadError,
+                   aiohttp.ClientResponseError, OSError)
+
+
+async def retry_sse_read(
+    session: aiohttp.ClientSession,
+    url: str,
+    headers: dict,
+    payload: dict,
+    max_retries: int = 2,
+    base_delay: float = 1.0,
+) -> Tuple[Optional[aiohttp.ClientResponse], Optional[str]]:
+    """SSE 中间断开后重新发起 POST。返回 (new_response, error)。
+
+    用于流式读取 `resp.content` 过程中发生连接错误时：
+    关闭旧 response，重新 POST，返回新 response 供继续读取。
+    调用方需负责关闭返回的 response。
+    """
+    for attempt in range(max_retries + 1):
+        wait = compute_backoff(attempt, base_delay, max_delay=10.0)
+        await asyncio.sleep(wait)
+        try:
+            resp = await session.post(url, headers=headers, json=payload)
+            if resp.status == 200:
+                return resp, None
+            body = (await resp.text())[:300]
+            resp.close()
+            if resp.status not in RETRYABLE_STATUSES:
+                return None, f"HTTP {resp.status}: {body}"
+        except asyncio.CancelledError:
+            raise
+        except Exception as e:
+            if attempt >= max_retries:
+                return None, f"SSE retry failed: {type(e).__name__}: {e}"
+    return None, f"SSE retry exhausted after {max_retries + 1} attempts"

@@ -161,6 +161,8 @@ class AgentServer:
         permission: str = "full",
         cwd: Optional[str] = None,
         stateless: bool = False,
+        max_steps: Optional[int] = None,
+        max_total_tokens: Optional[int] = None,
     ) -> None:
         self.model = model
         self.stream_fn = stream_fn
@@ -168,6 +170,8 @@ class AgentServer:
         self.permission = permission
         self.cwd = cwd or "."
         self._stateless = stateless
+        self.max_steps = max_steps
+        self.max_total_tokens = max_total_tokens
         self.session: Optional[Session] = None
         self.steering: List[UserMessage] = []
         self.follow_up: List[UserMessage] = []
@@ -183,6 +187,37 @@ class AgentServer:
         self._thinking_level: str = "medium"  # 思考深度
         self._auto_compaction: bool = True  # 自动压缩开关
         self._config: Dict[str, Any] = {}  # 运行时配置
+        # 记忆桥接（统一模式方案：brain 层公共能力，craft/python 两种运行
+        # 模式共享；上移自 ws_server 的 Mode C 专用实现）
+        self._event_collector = None
+        try:
+            from ...mirroring.event_collector import EventCollector
+            self._event_collector = EventCollector()
+        except Exception:
+            self._event_collector = None
+
+    def _mirror_event(self, ev: Any) -> None:
+        """AgentEvent → ZenSkill mirroring 记录（宿主/GUI 会话进记忆生态）。"""
+        if self._event_collector is None:
+            return
+        try:
+            etype = type(ev).__name__
+            if etype == "ToolExecutionStart":
+                self._event_collector.record_skill_execution(
+                    skill_id="agent-engine",
+                    task=f"{ev.tool_name}: {json.dumps(ev.args or {}, ensure_ascii=False)[:200]}",
+                    success=True,
+                    duration_ms=0,
+                    context={"tool_name": ev.tool_name, "tool_call_id": ev.tool_call_id},
+                )
+            elif etype == "ToolExecutionEnd" and ev.is_error:
+                text = ev.result.text() if hasattr(ev.result, "text") else str(ev.result)
+                self._event_collector.record_error(
+                    skill_id="agent-engine",
+                    error_msg=f"{ev.tool_name}: {text[:200]}",
+                )
+        except Exception:
+            pass
 
     # ------------------------------------------------------------------
     # 出站
@@ -248,6 +283,8 @@ class AgentServer:
             get_follow_up_messages=take_follow_up,
             on_entry=on_entry,
             tool_executor=self._build_proxy_executor() if self._proxy_tools else None,
+            max_steps=self.max_steps,
+            max_total_tokens=self.max_total_tokens,
         )
         # 注入 Craft system prompt（合并到 Context.system_prompt）
         if self._host_system_prompt:
@@ -315,6 +352,7 @@ class AgentServer:
                 payload = serialize_event(ev)
                 if payload is not None:
                     await self._send_await(payload)
+                self._mirror_event(ev)
         except asyncio.CancelledError:
             raise
         except Exception as e:
@@ -333,12 +371,24 @@ class AgentServer:
                             "tokensBefore": result.tokens_before,
                             "tokensAfter": result.tokens_after,
                         })
-                except Exception:
-                    pass
+                except Exception as e:
+                    # 压缩失败不应静默：向宿主暴露错误但继续正常收尾
+                    self._send({
+                        "type": "compaction_error",
+                        "error": f"{type(e).__name__}: {e}",
+                    })
             self._send({"type": "agent_settled"})
 
     def start_prompt(self, message: str) -> None:
         session = self._ensure_session()
+        # 记忆桥接：宿主/GUI 用户输入进 mirroring 生态（模式无关）
+        if self._event_collector is not None:
+            try:
+                self._event_collector.record_user_input(
+                    skill_id="agent-engine", input_text=message,
+                )
+            except Exception:
+                pass
         tools = create_default_tools(self.cwd)
         # 把代理工具追加到 context 的 tool 列表
         for name, spec in self._proxy_tools.items():
@@ -722,6 +772,8 @@ def serve_main(args: Any) -> int:
         permission=getattr(args, "permission", "full") or "full",
         cwd=getattr(args, "cwd", None) or ".",
         stateless=bool(getattr(args, "stateless", False)),
+        max_steps=getattr(args, "max_steps", None),
+        max_total_tokens=getattr(args, "max_total_tokens", None),
     )
     try:
         _asyncio.run(server.serve(_stdin_lines(), _stdout_write))

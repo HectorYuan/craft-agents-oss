@@ -306,7 +306,7 @@ async def anthropic_stream(model, context, abort_event=None):
     }
     url = model.base_url.rstrip("/") + "/v1/messages"
 
-    from .retry import retry_post, should_degrade_tools, strip_tools_from_payload
+    from .retry import retry_post, retry_sse_read, should_degrade_tools, strip_tools_from_payload
 
     state = AnthropicStreamState(model_id)
     try:
@@ -329,27 +329,50 @@ async def anthropic_stream(model, context, abort_event=None):
                 return
             try:
                 yield StreamStart(AssistantMessage(model=model_id))
-                async for raw_line in resp.content:
-                    if abort_event is not None and abort_event.is_set():
-                        yield StreamError(
-                            "aborted",
-                            AssistantMessage(
-                                model=model_id,
-                                stop_reason=StopReason.ABORTED,
-                                error_message="aborted by user",
-                            ),
-                        )
-                        return
-                    line = raw_line.decode("utf-8", errors="replace")
-                    stripped = line.strip()
-                    if not stripped.startswith("data:"):
-                        continue
+                sse_retries = 0
+                while True:
                     try:
-                        data = json.loads(stripped[5:].strip())
-                    except ValueError:
-                        continue
-                    for ev in state.feed_event(data):
-                        yield ev
+                        async for raw_line in resp.content:
+                            if abort_event is not None and abort_event.is_set():
+                                yield StreamError(
+                                    "aborted",
+                                    AssistantMessage(
+                                        model=model_id,
+                                        stop_reason=StopReason.ABORTED,
+                                        error_message="aborted by user",
+                                    ),
+                                )
+                                return
+                            line = raw_line.decode("utf-8", errors="replace")
+                            stripped = line.strip()
+                            if not stripped.startswith("data:"):
+                                continue
+                            try:
+                                data = json.loads(stripped[5:].strip())
+                            except ValueError:
+                                continue
+                            for ev in state.feed_event(data):
+                                yield ev
+                        break  # SSE 读取正常完成
+                    except asyncio.CancelledError:
+                        raise
+                    except Exception as e:
+                        if sse_retries >= 2:
+                            partial = state.partial_message()
+                            partial.stop_reason = StopReason.ERROR
+                            partial.error_message = f"stream interrupted after retries: {type(e).__name__}: {e}"
+                            yield StreamError("error", partial)
+                            return
+                        sse_retries += 1
+                        resp.close()
+                        new_resp, err = await retry_sse_read(session, url, headers, payload)
+                        if err or new_resp is None:
+                            partial = state.partial_message()
+                            partial.stop_reason = StopReason.ERROR
+                            partial.error_message = f"stream interrupted: {err or 'retry failed'}"
+                            yield StreamError("error", partial)
+                            return
+                        resp = new_resp
                 for ev in state.finish():
                     yield ev
             finally:

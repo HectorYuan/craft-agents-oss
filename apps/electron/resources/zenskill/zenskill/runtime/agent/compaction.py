@@ -42,16 +42,24 @@ def find_cut_point(messages: List[Message],
     """从尾向前累积 token 预算找截断点，对齐到 turn 边界（UserMessage 开头）。
 
     返回截断索引（0 < i < len）：messages[:i] 被摘要，messages[i:] 保留。
+    保留段必须以 UserMessage 开头——否则压缩后上下文以孤立 tool_calls/
+    ToolResultMessage 开头，LLM API 会拒绝（HTTP 400）。找不到安全边界时
+    返回 None 跳过压缩。
     """
     budget = 0
     for i in range(len(messages) - 1, 0, -1):
         budget += estimate_tokens([messages[i]])
         if budget > keep_recent_tokens:
-            # i 之后的消息超预算：在 (i, len) 内向前找最近的 turn 边界
+            # 优先：i 之后向前找最近的 turn 边界
             for j in range(i + 1, len(messages)):
                 if isinstance(messages[j], UserMessage):
                     return j
-            return i + 1
+            # 回退：从 i 向后扫找 UserMessage（预算略超但边界安全）
+            for k in range(i, 0, -1):
+                if isinstance(messages[k], UserMessage):
+                    return k
+            # 全序列无 UserMessage：无安全 turn 边界，放弃压缩
+            return None
     return None
 
 
@@ -102,18 +110,13 @@ async def compact_session(session: Session, stream, model,
                           reserve: int = DEFAULT_RESERVE_TOKENS) -> Optional[CompactionResult]:
     """若超过阈值则压缩当前分支：摘要前缀 + compaction entry 落盘。
 
-    前缀消息从 entry 链上由 compaction.firstKeptEntryId 指向保留起点；
-    build_context 会用摘要替换被压缩前缀。
+    支持重复压缩：entry 映射通过 collect_pairs 计算（与 build_context 同源，
+    已考虑历史 compaction 折叠），新摘要会把旧摘要一并卷入。
     """
-    built = session.build_context()
-    messages: List[Message] = built["messages"]
+    collected, _model = session.collect_pairs()
+    messages: List[Message] = [m for _, m in collected]
     used = estimate_tokens(messages)
     if not should_compact(used, context_window, reserve):
-        return None
-
-    chain = session.walk()
-    # M2 限定每分支压缩一次：已有 compaction 时摘要叠加会使 entry 映射失效
-    if any(e.type == "compaction" for e in chain):
         return None
 
     cut = find_cut_point(messages, keep_recent_tokens)
@@ -122,13 +125,12 @@ async def compact_session(session: Session, stream, model,
 
     summary = await summarize_prefix(messages[:cut], stream, model)
 
-    # 保留段第一条消息对应的 entry id（当前分支 walk 与 messages 一一对应）
-    message_entries = [e for e in chain if e.type == "message"]
+    # 保留段第一条消息对应的 entry id（collected 与 messages 一一对应）
     first_kept_entry_id = None
-    if cut < len(message_entries):
-        first_kept_entry_id = message_entries[cut].id
+    if cut < len(collected):
+        first_kept_entry_id = collected[cut][0]
 
-    entry = session.append("compaction", {
+    session.append("compaction", {
         "summary": summary,
         "firstKeptEntryId": first_kept_entry_id,
         "tokensBefore": used,

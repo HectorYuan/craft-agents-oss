@@ -42,7 +42,7 @@ def _str_box_footer() -> str:
 
 # 版本信息（与 __init__.py 同步
 __title__ = "ZenSkill"
-__version__ = "2.6.5"
+__version__ = "2.6.6"
 __version_info__ = (1, 9, 0)
 __author__ = "ZenSkill Team"
 
@@ -2290,8 +2290,52 @@ def cmd_zentest(args: argparse.Namespace) -> None:
 
 def cmd_run(args: argparse.Namespace) -> None:
     """运行技能（Agent 引擎执行；旧关键词引擎已于 v3.1 退役）"""
+    if getattr(args, "background", False):
+        _run_background(args)
+        return
     from .runtime.agent.cli import cmd_run_agent
     raise SystemExit(cmd_run_agent(args))
+
+
+def _run_background(args: argparse.Namespace) -> None:
+    """后台执行 agent 任务：spawn 子进程，输出写入日志文件。"""
+    import subprocess
+    import time
+    from pathlib import Path
+
+    log_dir = Path.home() / ".zenskill" / "agent" / "background"
+    log_dir.mkdir(parents=True, exist_ok=True)
+
+    ts = time.strftime("%Y%m%d_%H%M%S")
+    task_short = (args.task or "task")[:30].replace(" ", "_").replace("/", "_")
+    log_file = log_dir / f"{ts}_{task_short}.log"
+    pid_file = log_dir / f"{ts}_{task_short}.pid"
+
+    # 构建命令
+    cmd = [sys.executable, "-m", "zenskill", "run", args.task or ""]
+    for flag in ["model", "permission", "session", "max_steps", "timeout"]:
+        val = getattr(args, flag, None)
+        if val is not None:
+            cmd.extend([f"--{flag.replace('_', '-')}", str(val)])
+    if getattr(args, "with_memory", False):
+        cmd.append("--with-memory")
+    if getattr(args, "with_skills", False):
+        cmd.append("--with-skills")
+    if getattr(args, "debug", False):
+        cmd.append("--debug")
+
+    with open(log_file, "w") as log:
+        proc = subprocess.Popen(
+            cmd, stdout=log, stderr=subprocess.STDOUT,
+            start_new_session=True,
+        )
+
+    pid_file.write_text(str(proc.pid))
+    print(f"后台任务已启动")
+    print(f"  PID: {proc.pid}")
+    print(f"  日志: {log_file}")
+    print(f"  查看: tail -f {log_file}")
+    print(f"  停止: kill {proc.pid}")
 
 
 def cmd_test_skill(args: argparse.Namespace) -> None:
@@ -2760,6 +2804,8 @@ def main() -> int:
     run_parser.add_argument("--thinking-level", choices=["on", "off"], default=None,
         help="思考深度控制（仅 deepseek 等支持开关的模型生效；off 可显著省 token）")
     run_parser.add_argument("--timeout", type=float, default=300.0, help="超时时间（秒）")
+    run_parser.add_argument("--background", action="store_true",
+        help="后台执行：输出写入日志文件，可用 run --status 查看状态")
     run_parser.set_defaults(func=cmd_run)
 
     # agent-engine 命令组（从 cli/agent.py 注册）

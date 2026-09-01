@@ -1,16 +1,23 @@
 """ZenSkill WebUI Server — aiohttp WS RPC + 静态文件托管。
 
-DEPRECATED（2026-08-31）：Plan C 方案，已被 vendor/craft-agents 的
-ZenskillAgent TS subprocess 后端（Plan B）替代。保留原因：
-1. 唯一零 Node 依赖的 GUI 路径（无 bun/node 机器上 `zenskill serve` 即可跑 Craft WebUI）
-2. 事件桥接（event collector / update_guide 记忆刷新）是 TS 方案不具备的
-   Python 侧生态接入点
+状态（2026-08-31）：Plan C 复活 Wave 1 完成。曾被 DEPRECATED（被 vendor 的
+ZenskillAgent TS subprocess 后端替代），因两个独有价值恢复开发：
+1. 零 Node 依赖的 GUI 路径（`zenskill serve` 一条命令，无 bun/node 机器可用）
+2. GUI 会话事件桥接进 ZenSkill 记忆/mirroring 生态（TS 方案的进程边界做不到）
 
-未投产原因：Craft WS 协议 40+ channel + onboarding 状态机对齐成本高，
-且 Craft 前端迭代快，Python 侧追协议是持久负担。
-已知 latent bug：SessionManager._event_collector 未在 __init__ 声明
-（ZenWebServer 上才有），create_session 触发记忆注入时会 AttributeError。
-复活前必须修复。
+Wave 1 已验收（真实 DeepSeek 端到端）：
+- HTTP：静态托管 + JWT 认证 + session cookie 全链路
+- WS：handshake → sessions:create → sendMessage → 完整事件流
+  （user_message → thinking_delta → tool_start → tool_result →
+   text_delta → assistant_message → complete）
+- 修复三处接口腐烂：_event_collector 未声明（AttributeError）、
+  裸 TextDelta isinstance 永假（AgentEvent 是 MessageUpdate 包装）、
+  ToolExecutionStart.params 应为 .args
+- 测试：tests/server/test_ws_server.py
+
+协议对齐现状：已实现 24 / 官方 287 channel。缺失多为 Electron 桌面专属
+（menu/window/badge/theme/update），浏览器场景无需。Wave 2 待补核心域：
+sessions:respondToPermission（权限交互）、projects:*、fs:*、skills:*。
 
 同端口提供：
 - HTTP 静态文件（WebUI dist）
@@ -129,6 +136,38 @@ class RPCHandler:
         self._handlers["sessions:sendMessage"] = self._sessions_send_message
         self._handlers["sessions:cancel"] = self._sessions_cancel
         self._handlers["sessions:command"] = self._sessions_command
+        # Wave 2：权限交互 + 启动探测 stub（前端非致命探测，返回安全空值避免报错噪音）
+        self._handlers["sessions:respondToPermission"] = self._sessions_respond_to_permission
+        self._handlers["sessions:delete"] = self._sessions_delete
+        self._handlers["session:getModel"] = self._session_get_model
+        self._handlers["theme:getApp"] = self._stub_theme
+        self._handlers["drafts:getAll"] = self._stub_empty_list
+        self._handlers["releaseNotes:getLatestVersion"] = self._stub_null
+        self._handlers["releaseNotes:get"] = self._stub_null
+        self._handlers["LLM_Connection:listWithStatus"] = self._stub_empty_list
+        self._handlers["LLM_Connection:list"] = self._stub_empty_list
+        self._handlers["notification:getEnabled"] = self._stub_disabled
+        self._handlers["system:isDebugMode"] = self._stub_false
+        # server:* 域（Select Workspace 界面依赖）
+        self._handlers["server:getWorkspaces"] = self._workspaces_get
+        self._handlers["server:createWorkspace"] = self._server_create_workspace
+        self._handlers["server:getHealth"] = self._server_health
+        self._handlers["server:getStatus"] = self._server_health
+        self._handlers["server:homeDir"] = self._server_home_dir
+        # 主界面非致命探测（console error 消音，功能占位空实现）
+        self._handlers["projects:get"] = self._stub_empty_list
+        self._handlers["labels:list"] = self._stub_empty_list
+        self._handlers["statuses:list"] = self._stub_empty_list
+        self._handlers["views:list"] = self._stub_empty_list
+        self._handlers["workspaceSettings:get"] = self._stub_empty_object
+        self._handlers["sessions:getUnreadSummary"] = self._stub_empty_object
+        self._handlers["sessions:getPendingPlanExecution"] = self._stub_null
+        self._handlers["input:getAutoCapitalisation"] = self._stub_false
+        self._handlers["input:getSendMessageKey"] = self._stub_null
+        self._handlers["input:getSpellCheck"] = self._stub_false
+        self._handlers["system:homeDir"] = self._server_home_dir
+        self._handlers["preferences:read"] = self._stub_empty_object
+        self._handlers["drafts:set"] = self._stub_empty_object
         # Sources
         self._handlers["sources:get"] = self._sources_get
         self._handlers["sources:create"] = self._sources_create
@@ -218,13 +257,23 @@ class RPCHandler:
 
     async def _send_envelope(self, envelope: dict):
         try:
+            # 前端 codec validateEnvelopeShape 丢弃无 id 信封——所有出站
+            # 信封（含 handshake_ack/event）必须带非空 id；response 已带
+            # 请求方 id，其余在此兜底注入。
+            if not envelope.get("id"):
+                envelope["id"] = str(uuid.uuid4())
             await self.ws.send_str(json.dumps(envelope, ensure_ascii=False, default=str))
         except Exception:
             pass
 
     def push_event(self, channel: str, args: list):
-        """推送事件到客户端（fire-and-forget）"""
+        """推送事件到客户端（fire-and-forget）。
+
+        信封必须带非空 id——前端 codec 的 validateEnvelopeShape 会丢弃
+        无 id 信封（Wave 2 协议核查发现，此前端到端自测客户端未校验故漏过）。
+        """
         asyncio.ensure_future(self._send_envelope({
+            "id": str(uuid.uuid4()),
             "type": "event",
             "channel": channel,
             "args": args,
@@ -250,8 +299,10 @@ class RPCHandler:
         self.workspace_id = workspace_id
         return {"switched": True}
 
-    async def _sessions_get(self, workspace_id: str):
-        return self.server.session_manager.list_sessions(workspace_id)
+    async def _sessions_get(self, workspace_id: str = None):
+        # 前端不传 workspace_id（从连接上下文取）；handshake/switch_workspace 已存
+        wid = workspace_id or self.workspace_id or self.server.session_manager.default_workspace_id()
+        return self.server.session_manager.list_sessions(wid)
 
     async def _sessions_create(self, workspace_id: str, options: dict = None):
         options = options or {}
@@ -277,6 +328,51 @@ class RPCHandler:
     async def _sessions_cancel(self, session_id: str, silent: bool = False):
         self.server.session_manager.cancel(session_id)
         return {"cancelled": True}
+
+    async def _sessions_respond_to_permission(self, session_id: str, request_id: str,
+                                              allowed: bool, always_allow: bool):
+        """权限审批回传（前端 confirm 弹窗 → 这里 resolve pending future）"""
+        fut = self.server.session_manager._pending_permissions.pop(request_id, None)
+        if fut is None or fut.done():
+            return False
+        fut.set_result({"allowed": bool(allowed), "alwaysAllow": bool(always_allow)})
+        return True
+
+    async def _sessions_delete(self, session_id: str):
+        self.server.session_manager.delete_session(session_id)
+        return {"deleted": True}
+
+    async def _session_get_model(self, session_id: str):
+        return {"model": None}
+
+    # 启动探测 stub：非致命探测返回安全空值，避免前端 console 报错风暴
+    async def _stub_empty_list(self, *args):
+        return []
+
+    async def _stub_null(self, *args):
+        return None
+
+    async def _stub_false(self, *args):
+        return False
+
+    async def _stub_disabled(self, *args):
+        return {"enabled": False}
+
+    async def _stub_theme(self, *args):
+        return {"theme": "system"}
+
+    async def _stub_empty_object(self, *args):
+        return {}
+
+    async def _server_create_workspace(self, abs_path: str, name: str):
+        return self.server.workspace_manager.create_workspace(abs_path, name)
+
+    async def _server_health(self):
+        return {"healthy": True, "status": "ok"}
+
+    async def _server_home_dir(self):
+        import os as _os
+        return {"homeDir": _os.path.expanduser("~")}
 
     async def _sessions_command(self, session_id: str, command: dict):
         cmd_type = command.get("type")
@@ -404,18 +500,106 @@ class WorkspaceManager:
 # ============================================================
 
 class SessionManager:
-    """session 管理（S4 扩展为完整 JSONL 持久化）"""
+    """session 管理——元数据索引 + 消息历史持久化（agent JSONL）。
+
+    消息历史复用 runtime/agent 的 JSONL SessionManager（含崩溃恢复）：
+    - 多轮上下文：_run_agent 用 build_context() 携带全部历史
+    - 重启恢复：list_sessions 从索引重建，消息从 JSONL 重放
+    """
 
     def __init__(self, workspace_manager: WorkspaceManager):
         self._wm = workspace_manager
         self._sessions: Dict[str, dict] = {}
         self._running_tasks: Dict[str, asyncio.Task] = {}
+        # 待审批的权限请求：requestId -> Future（sessions:respondToPermission resolve）
+        self._pending_permissions: Dict[str, asyncio.Future] = {}
+        # 由 ZenWebServer 注入（会话事件 → ZenSkill 记忆/mirroring 生态桥接）
+        self._event_collector = None
+        # 持久化：agent JSONL（消息历史）+ 索引 JSON（GUI 元数据）
+        from ..runtime.agent.session import SessionManager as AgentSessionManager
+        self._persist_root = Path.home() / ".zenskill" / "agent" / "gui-sessions"
+        self._agent_sm = AgentSessionManager(root=str(self._persist_root))
+        self._index_path = self._persist_root / "index.json"
+        self._index: Dict[str, dict] = self._load_index()
+        self._restore_sessions()
+
+    # ------------------------------------------------------------------
+    # 持久化
+    # ------------------------------------------------------------------
+
+    def _agent_session(self, session_id: str):
+        """取（或恢复）agent JSONL session；不存在返回 None。"""
+        try:
+            return self._agent_sm.load(session_id)
+        except FileNotFoundError:
+            return None
+
+    def _load_index(self) -> Dict[str, dict]:
+        try:
+            return json.loads(self._index_path.read_text())
+        except Exception:
+            return {}
+
+    def _save_index(self) -> None:
+        try:
+            self._persist_root.mkdir(parents=True, exist_ok=True)
+            tmp = self._index_path.with_suffix(".tmp")
+            tmp.write_text(json.dumps(self._index, ensure_ascii=False, indent=2))
+            tmp.replace(self._index_path)
+        except Exception:
+            pass
+
+    def _restore_sessions(self) -> None:
+        """重启恢复：索引 → 内存 session dict（消息按需从 JSONL 读）。"""
+        for sid, meta in self._index.items():
+            self._sessions[sid] = {
+                "id": sid,
+                "workspaceId": meta.get("workspaceId", ""),
+                "name": meta.get("name", "untitled"),
+                "status": "idle",
+                "permissionMode": meta.get("permissionMode", "allow-all"),
+                "enabledSourceSlugs": meta.get("enabledSourceSlugs", []),
+                "messages": [],
+                "createdAt": meta.get("createdAt", 0),
+                "updatedAt": meta.get("updatedAt", 0),
+            }
+
+    def default_workspace_id(self) -> str:
+        """无参 sessions:get 的兜底：第一个 workspace（或空串）。"""
+        for w in self._wm.list_workspaces():
+            return w["id"]
+        return ""
 
     def list_sessions(self, workspace_id: str) -> list:
+        # 字段对齐官方 managedToSession DTO：缺字段会导致前端渲染
+        # undefined.length 崩溃（真实浏览器验收发现）
         return [
-            {"id": s["id"], "name": s["name"], "status": s.get("status", "idle"),
-             "permissionMode": s.get("permissionMode", "allow-all"),
-             "createdAt": s.get("createdAt"), "updatedAt": s.get("updatedAt")}
+            {
+                "id": s["id"],
+                "name": s["name"],
+                "status": s.get("status", "idle"),
+                "workspaceId": s.get("workspaceId", ""),
+                "workspaceName": "",
+                "permissionMode": s.get("permissionMode", "allow-all"),
+                "createdAt": s.get("createdAt"),
+                "updatedAt": s.get("updatedAt"),
+                "lastMessageAt": s.get("updatedAt"),
+                "lastMessageRole": None,
+                "preview": None,
+                "messageCount": 0,
+                "messages": [],
+                "tokenUsage": None,
+                "isProcessing": s.get("status") == "streaming",
+                "isFlagged": False,
+                "isArchived": False,
+                "hidden": False,
+                "hasUnread": False,
+                "labels": [],
+                "sessionStatus": "todo",
+                "enabledSourceSlugs": s.get("enabledSourceSlugs", []),
+                "sessionFolderPath": "",
+                "supportsBranching": False,
+            }
             for s in self._sessions.values()
             if s.get("workspaceId") == workspace_id
         ]
@@ -436,6 +620,18 @@ class SessionManager:
             "updatedAt": int(time.time() * 1000),
         }
         self._sessions[session_id] = session
+        # 持久化：agent JSONL + 索引
+        try:
+            self._agent_sm.create(session_id=session_id)
+        except Exception:
+            pass
+        self._index[session_id] = {
+            "workspaceId": workspace_id, "name": name,
+            "permissionMode": permission_mode,
+            "enabledSourceSlugs": enabled_source_slugs or [],
+            "createdAt": session["createdAt"], "updatedAt": session["updatedAt"],
+        }
+        self._save_index()
 
         # 记忆注入：刷新 guide.md 注入最新记忆/GTD/技能数据
         if self._event_collector is not None:
@@ -451,9 +647,35 @@ class SessionManager:
 
         return session
 
-    def get_messages(self, session_id: str) -> list:
+    def get_messages(self, session_id: str) -> dict:
+        """会话消息历史。官方 GET_MESSAGES 语义：返回整个 session 对象
+        （内含 messages 数组），返回裸数组会让前端 undefined.length 崩溃。"""
         session = self._sessions.get(session_id, {})
-        return session.get("messages", [])
+        messages = []
+        agent_session = self._agent_session(session_id)
+        if agent_session is not None:
+            for entry in agent_session.walk():
+                if entry.type != "message":
+                    continue
+                msg = entry.data.get("message") or {}
+                role = msg.get("role", "")
+                if role not in ("user", "assistant"):
+                    continue
+                content = msg.get("content", "")
+                if isinstance(content, list):
+                    content = "".join(
+                        b.get("text", "") for b in content if isinstance(b, dict)
+                    )
+                if content:
+                    messages.append({
+                        "id": entry.id,
+                        "role": role,
+                        "content": content,
+                        "timestamp": entry.timestamp,
+                    })
+        result = dict(session)
+        result["messages"] = messages
+        return result
 
     async def send_message(self, session_id: str, message: str,
                            push_event: Callable, options: dict = None) -> bool:
@@ -468,6 +690,18 @@ class SessionManager:
             "role": "user", "content": message,
             "timestamp": int(time.time() * 1000),
         })
+        # 持久化：user 消息入 agent JSONL（assistant/toolResult 由 on_entry 记录）
+        try:
+            agent_session = self._agent_session(session_id)
+            if agent_session is not None:
+                from ..runtime.agent.types import UserMessage
+                agent_session.append_message(UserMessage(content=message))
+            meta = self._index.get(session_id)
+            if meta is not None:
+                meta["updatedAt"] = session["updatedAt"]
+                self._save_index()
+        except Exception:
+            pass
 
         # 事件流桥接：记录用户输入到 ZenSkill event collector
         if self._event_collector is not None:
@@ -498,18 +732,43 @@ class SessionManager:
         try:
             from ..runtime.agent.agent_loop import AgentLoop, AgentLoopConfig
             from ..runtime.agent.types import (
-                TextDelta, ToolExecutionStart, ToolExecutionEnd,
-                AgentEnd, MessageEnd, UserMessage, Context,
+                MessageEnd, MessageUpdate, TextDelta, ThinkingDelta,
+                ToolExecutionStart, ToolExecutionEnd,
+                AgentEnd, UserMessage, Context,
             )
-            from ..runtime.agent.tools import create_default_tools, DEFAULT_SYSTEM_PROMPT
+            from ..runtime.agent.tools import DEFAULT_SYSTEM_PROMPT
 
-            # 构建 context
-            tools = create_default_tools(".")
+            session_meta = self._sessions.get(session_id) or {}
+
+            # 全量工具组装：基础 + MCP sources + 自定义 + Skill 工具
+            ws_meta = self._wm.get_workspace_path(session_meta.get("workspaceId") or "")
+            tools, mcp_clients = await _build_session_tools(ws_meta)
+
+            # 能力注入（memory + summary）+ 项目指令 + skills 提示词
+            from ..runtime.agent.builtin_capabilities import MemoryCapability, SummaryCapability
+            from ..runtime.agent.capability import CapabilityHost
+            from ..runtime.agent.project_context import load_project_instructions
+            from ..runtime.agent.mcp_capability import format_skills_prompt
+            host = CapabilityHost([MemoryCapability(), SummaryCapability()])
+            instructions = load_project_instructions(".")
+            if instructions:
+                host.add_prompt_section(instructions)
+            skills_section = format_skills_prompt()
+            if skills_section:
+                host.add_prompt_section(skills_section)
+
             context = Context(
                 messages=[UserMessage(content=message)],
-                system_prompt=DEFAULT_SYSTEM_PROMPT,
-                tools=tools,
+                system_prompt=host.build_system_prompt(DEFAULT_SYSTEM_PROMPT),
+                tools=tools + host.extra_tools,
             )
+
+            # 多轮上下文：从 agent JSONL 重放历史（含本轮 user 消息）
+            agent_session = self._agent_session(session_id)
+            if agent_session is not None:
+                built = agent_session.build_context()
+                if built.get("messages"):
+                    context.messages = built["messages"]
 
             # 获取 LLM provider
             from ..core.llm_provider import get_llm_provider
@@ -519,30 +778,105 @@ class SessionManager:
             model = resolve_model(None)
             stream_fn = create_stream(model)
 
-            config = AgentLoopConfig(
+            # capability 生命周期钩子（memory recall/store、summary）
+            config_kwargs = host.hooks()
+            # on_entry：assistant/toolResult 自动落 JSONL（user 已在 send_message 记录）
+            if agent_session is not None:
+                config_kwargs["on_entry"] = agent_session.append_message
+
+            # 权限流（P1-3）：safe 等模式下发 permission_request 事件，
+            # 前端弹确认框 → sessions:respondToPermission 回传
+            permission_mode = session_meta.get("permissionMode", "allow-all")
+            if permission_mode != "allow-all":
+                async def permission_gate(tool_call, params):
+                    request_id = f"perm-{uuid.uuid4().hex[:8]}"
+                    fut = asyncio.get_event_loop().create_future()
+                    self._pending_permissions[request_id] = fut
+                    emit({
+                        "type": "permission_request",
+                        "request": {
+                            "requestId": request_id,
+                            "toolName": tool_call.name,
+                            "description": f"Allow {tool_call.name} with "
+                                           f"{json.dumps(params, ensure_ascii=False)[:200]}?",
+                            "type": "bash" if tool_call.name == "bash" else "file_write",
+                        },
+                    })
+                    try:
+                        result = await asyncio.wait_for(fut, timeout=300)
+                    except asyncio.TimeoutError:
+                        self._pending_permissions.pop(request_id, None)
+                        return {"block": True, "reason": "permission request timed out"}
+                    if result.get("allowed"):
+                        return None
+                    return {"block": True, "reason": "denied by user"}
+
+                config.before_tool_call = permission_gate
+                config_kwargs["before_tool_call"] = permission_gate
+
+            loop = AgentLoop(AgentLoopConfig(
                 stream=stream_fn,
                 model=model,
-            )
+                **config_kwargs,
+            ))
 
-            loop = AgentLoop(config)
+            # --- 事件发射器：对齐 Craft 前端 SessionEvent DTO 契约 ---
+            # 前端无 thinking_delta / assistant_message 类型：
+            # - thinking → text_complete + isIntermediate:true（渲染为 Commentary）
+            # - 正文完成 → text_complete
+            # - text_delta 50ms 批处理（对齐官方 SessionManager.queueDelta）
+            loop_ref = asyncio.get_event_loop()
+            pending_deltas: list = []
+            delta_timer = None
+
+            def emit(event: dict) -> None:
+                event["sessionId"] = session_id
+                push_event("session:event", [event])
+
+            def flush_deltas() -> None:
+                nonlocal delta_timer, pending_deltas
+                delta_timer = None
+                if pending_deltas:
+                    text = "".join(pending_deltas)
+                    pending_deltas = []
+                    emit({"type": "text_delta", "delta": text})
+
+            def queue_delta(text: str) -> None:
+                nonlocal delta_timer
+                pending_deltas.append(text)
+                if delta_timer is None:
+                    delta_timer = loop_ref.call_later(0.05, flush_deltas)
+
+            def flush_thinking(buffer: list) -> None:
+                if buffer:
+                    emit({"type": "text_complete", "isIntermediate": True,
+                          "text": "".join(buffer)})
+
+            thinking_buf: list = []
             async for ev in loop.run(context):
-                if isinstance(ev, TextDelta):
-                    push_event("session:event", [{
-                        "type": "text_delta", "sessionId": session_id,
-                        "delta": ev.text,
-                    }])
+                # loop.run() 产出 AgentEvent；文本/思考 delta 包在 MessageUpdate 内
+                if isinstance(ev, MessageUpdate):
+                    d = ev.delta
+                    dtype = type(d).__name__
+                    if dtype == "TextDelta":
+                        queue_delta(d.text)
+                    elif dtype == "ThinkingDelta":
+                        thinking_buf.append(d.thinking)
                 elif isinstance(ev, ToolExecutionStart):
+                    flush_deltas()
+                    flush_thinking(thinking_buf)
+                    thinking_buf.clear()
                     push_event("session:event", [{
                         "type": "tool_start", "sessionId": session_id,
                         "toolName": ev.tool_name, "toolUseId": ev.tool_call_id,
-                        "toolInput": ev.params,
+                        "toolInput": ev.args,
                     }])
                     # 事件流桥接：记录工具调用到 ZenSkill event collector
                     if self._event_collector is not None:
                         try:
                             self._event_collector.record_skill_execution(
                                 skill_id="craft-gui",
-                                task=f"{ev.tool_name}: {json.dumps(ev.params or {}, ensure_ascii=False)[:200]}",
+                                task=f"{ev.tool_name}: {json.dumps(ev.args or {}, ensure_ascii=False)[:200]}",
                                 success=True,
                                 duration_ms=0,
                                 context={"tool_name": ev.tool_name, "tool_call_id": ev.tool_call_id},
@@ -553,12 +887,18 @@ class SessionManager:
                     push_event("session:event", [{
                         "type": "tool_result", "sessionId": session_id,
                         "toolUseId": ev.tool_call_id, "toolName": ev.tool_name,
-                        "result": str(ev.result), "isError": ev.is_error,
+                        "result": ev.result.text()[:8000], "isError": ev.is_error,
                     }])
+                elif isinstance(ev, MessageEnd):
+                    msg = ev.message
+                    flush_deltas()
+                    flush_thinking(thinking_buf)
+                    thinking_buf.clear()
+                    if msg.text():
+                        emit({"type": "text_complete", "text": msg.text()})
                 elif isinstance(ev, AgentEnd):
-                    push_event("session:event", [{
-                        "type": "complete", "sessionId": session_id,
-                    }])
+                    flush_deltas()
+                    emit({"type": "complete"})
 
             session = self._sessions.get(session_id)
             if session:
@@ -596,6 +936,23 @@ class SessionManager:
         session = self._sessions.get(session_id)
         if session:
             session["name"] = name
+            meta = self._index.get(session_id)
+            if meta is not None:
+                meta["name"] = name
+                self._save_index()
+
+    def delete_session(self, session_id: str) -> None:
+        """删除会话：内存 + 索引 + JSONL 文件。"""
+        self._sessions.pop(session_id, None)
+        self._running_tasks.pop(session_id, None)
+        self._index.pop(session_id, None)
+        self._save_index()
+        try:
+            path = self._persist_root / f"{session_id}.jsonl"
+            if path.exists():
+                path.unlink()
+        except Exception:
+            pass
 
     def set_permission_mode(self, session_id: str, mode: str):
         session = self._sessions.get(session_id)
@@ -702,6 +1059,64 @@ class SourceManager:
             return []
 
 
+async def _build_session_tools(workspace_path):
+    """会话全量工具组装（与 runtime/agent/cli.py _run_task 同源）。
+
+    此前 _run_agent 只挂 9 个基础工具，丢失了 Plan B 时代的
+    MCP source（zenskill-4 的 26 工具）/ Skill 工具 / 自定义工具——
+    界面 Sources 0 / Skills 0 的直接原因。
+
+    返回 (tools, mcp_clients)；MCP 客户端须随会话存活。
+    """
+    from ..runtime.agent.tools import create_default_tools
+    tools = list(create_default_tools("."))
+    mcp_clients = []
+
+    # 1. MCP sources：workspace 的 sources/*/config.json（type=mcp 且 enabled）
+    if workspace_path is not None:
+        sources_dir = Path(workspace_path) / "sources"
+        if sources_dir.is_dir():
+            from ..runtime.mcp.client import MCPClient
+            from ..runtime.agent.cli import _wrap_mcp_tool
+            for cfg_path in sorted(sources_dir.glob("*/config.json")):
+                try:
+                    conf = json.loads(cfg_path.read_text())
+                except Exception:
+                    continue
+                if not conf.get("enabled") or conf.get("type") != "mcp":
+                    continue
+                mcp_conf = conf.get("mcp") or {}
+                command = mcp_conf.get("command")
+                if not command:
+                    continue
+                argv = [command] + list(mcp_conf.get("args") or [])
+                try:
+                    client = MCPClient()
+                    await asyncio.wait_for(client.connect(argv), timeout=30)
+                    mcp_tools = await client.list_tools()
+                    for mt in mcp_tools:
+                        tools.append(_wrap_mcp_tool(client, mt))
+                    mcp_clients.append(client)
+                except Exception:
+                    continue
+
+    # 2. 自定义工具（~/.zenskill/tools/）
+    try:
+        from ..runtime.agent.custom_tools import load_custom_tools
+        tools.extend(load_custom_tools())
+    except Exception:
+        pass
+
+    # 3. Skill → Tool（285 skills 折叠为 skill_list/skill_load）
+    try:
+        from ..runtime.agent.skill_tools import load_skill_tools
+        tools.extend(load_skill_tools())
+    except Exception:
+        pass
+
+    return tools, mcp_clients
+
+
 # ============================================================
 # ZenWebServer
 # ============================================================
@@ -723,6 +1138,8 @@ class ZenWebServer:
             self._event_collector = EventCollector()
         except Exception:
             pass
+        # 桥接注入：SessionManager 的会话事件经此进入 ZenSkill 记忆生态
+        self.session_manager._event_collector = self._event_collector
 
     def verify_token(self, token: Optional[str]) -> bool:
         return token is not None and hmac.compare_digest(token, self.token)
@@ -739,13 +1156,16 @@ class ZenWebServer:
             login_path = self.webui_path / "login.html"
             secret = self.token
 
-            async def serve_index(request: web.Request) -> web.FileResponse:
+            async def serve_index(request: web.Request) -> web.Response:
                 cookie_token = request.cookies.get(COOKIE_NAME)
+                # 登录态决定返回 index 还是 login——响应不可缓存，否则
+                # 登录后跳转命中缓存的 login.html 造成"登录无效"假象
+                headers = {"Cache-Control": "no-store"}
                 if cookie_token and _verify_jwt(secret, cookie_token):
-                    return web.FileResponse(index_path)
+                    return web.FileResponse(index_path, headers=headers)
                 if login_path.exists():
-                    return web.FileResponse(login_path)
-                return web.FileResponse(index_path)
+                    return web.FileResponse(login_path, headers=headers)
+                return web.FileResponse(index_path, headers=headers)
 
             app.router.add_get("/", serve_index)
             app.router.add_static("/", str(self.webui_path), show_index=False)
@@ -771,8 +1191,10 @@ class ZenWebServer:
         )
 
     async def _handle_config(self, request: web.Request) -> web.Response:
-        # wsUrl 不需要认证——SPA 在登录前就需要读取它来建立 WS 连接
-        return web.json_response({"wsUrl": f"ws://localhost:{self.port}/ws"})
+        # wsUrl 不需要认证——SPA 在登录前就需要读取它来建立 WS 连接。
+        # host 跟随请求头：写死 localhost 会命中 IPv6(::1) 解析而服务器
+        # 只听 IPv4，前端 WS 超时（Wave 2 真实浏览器验收发现）。
+        return web.json_response({"wsUrl": f"ws://{request.host}/ws"})
 
     async def _handle_config_workspaces(self, request: web.Request) -> web.Response:
         token = _extract_token_from_cookie(request)
