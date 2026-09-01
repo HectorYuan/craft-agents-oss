@@ -342,7 +342,7 @@ export function registerLlmConnectionsHandlers(server: RpcServer, deps: HandlerD
       const testModel = model || getDefaultModelForConnection(provider, piAuthProvider)
       deps.platform.logger?.info(`[testLlmConnectionSetup] Resolved model: ${testModel}`)
       const result = await testBackendConnection({
-        provider,
+        provider: 'zenskill',
         apiKey: trimmedKey,
         allowEmptyApiKey,
         model: testModel,

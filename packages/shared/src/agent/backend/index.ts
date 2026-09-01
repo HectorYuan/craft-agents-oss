@@ -85,7 +85,6 @@ export { BaseEventAdapter } from './base-event-adapter.ts';
 export { EventQueue } from './event-queue.ts';
 
 // Provider-specific event adapters
-export { ClaudeEventAdapter } from './claude/event-adapter.ts';
 
 // Agent implementations are imported directly by factory.ts
 // Consumers should use createAgent() / createBackend() instead of concrete classes

@@ -331,7 +331,7 @@ describe('Claude Fable 5', () => {
   it('is registered as an Anthropic model with the expected metadata', () => {
     const fable = ANTHROPIC_MODELS.find(m => m.id === 'claude-fable-5')
     expect(fable).toBeDefined()
-    expect(fable!.provider).toBe('anthropic')
+    expect(fable!.provider).toBe('zenskill')
     expect(fable!.name).toBe('Fable 5')
     expect(fable!.shortName).toBe('Fable')
     expect(fable!.contextWindow).toBe(1_000_000)

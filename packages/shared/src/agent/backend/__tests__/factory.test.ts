@@ -29,7 +29,6 @@ import {
 import type { BackendConfig } from '../types.ts';
 import type { Workspace, LlmConnection } from '../../../config/storage.ts';
 import type { SessionConfig as Session } from '../../../sessions/storage.ts';
-import { ClaudeAgent } from '../../claude-agent.ts';
 import { ZenskillAgent } from '../zenskill-agent.ts';
 import { isValidProviderAuthCombination } from '../../../config/llm-connections.ts';
 
@@ -57,7 +56,7 @@ function createTestSession(): Session {
 
 function createTestConfig(overrides: Partial<BackendConfig> = {}): BackendConfig {
   return {
-    provider: 'anthropic',
+    provider: 'zenskill',
     workspace: createTestWorkspace(),
     session: createTestSession(),
     isHeadless: true, // Prevent config watchers from starting
@@ -68,11 +67,11 @@ function createTestConfig(overrides: Partial<BackendConfig> = {}): BackendConfig
 describe('detectProvider', () => {
   describe('Anthropic authentication types', () => {
     it('should return anthropic for api_key', () => {
-      expect(detectProvider('api_key')).toBe('anthropic');
+      expect(detectProvider('api_key')).toBe('zenskill');
     });
 
     it('should return anthropic for oauth_token', () => {
-      expect(detectProvider('oauth_token')).toBe('anthropic');
+      expect(detectProvider('oauth_token')).toBe('zenskill');
     });
   });
 
@@ -85,11 +84,6 @@ describe('detectProvider', () => {
 });
 
 describe('createBackend / createAgent', () => {
-  describe('Anthropic provider', () => {
-    it('should throw for anthropic provider (not shipped)', () => {
-      expect(() => createBackend(createTestConfig({ provider: 'anthropic' }))).toThrow(/不支持 Claude 后端/);
-    });
-  });
 
   describe('Unknown provider', () => {
     it('should fall back to ZenskillAgent', () => {
@@ -115,7 +109,7 @@ describe('getAvailableProviders', () => {
 
 describe('isProviderAvailable', () => {
   it('should return false for anthropic (not shipped)', () => {
-    expect(isProviderAvailable('anthropic')).toBe(false);
+    expect(isProviderAvailable('anthropic' as any)).toBe(false);
   });
 
   it('should return false for unknown provider', () => {
@@ -125,7 +119,7 @@ describe('isProviderAvailable', () => {
 
 describe('connectionTypeToProvider', () => {
   it('should map anthropic type to anthropic provider', () => {
-    expect(connectionTypeToProvider('anthropic')).toBe('anthropic');
+    expect(connectionTypeToProvider('anthropic')).toBe('zenskill');
   });
 
   it('should map openai type to zenskill (pi routing removed)', () => {
@@ -158,7 +152,7 @@ describe('connectionAuthTypeToBackendAuthType (legacy)', () => {
 describe('providerTypeToAgentProvider', () => {
   describe('Anthropic SDK providers', () => {
     it('should map anthropic to anthropic', () => {
-      expect(providerTypeToAgentProvider('anthropic')).toBe('anthropic');
+      expect(providerTypeToAgentProvider('anthropic')).toBe('zenskill');
     });
   });
 
@@ -187,7 +181,7 @@ describe('phase4 backend abstraction APIs', () => {
   });
 
   it('resolveSetupTestConnectionHint always routes to zenskill', () => {
-    expect(resolveSetupTestConnectionHint({ provider: 'anthropic', baseUrl: 'https://api.example.com' }))
+    expect(resolveSetupTestConnectionHint({ provider: 'anthropic' as any, baseUrl: 'https://api.example.com' }))
       .toEqual({ providerType: 'zenskill' });
     expect(resolveSetupTestConnectionHint({ provider: 'zenskill', baseUrl: '' }))
       .toEqual({ providerType: 'zenskill' });
@@ -208,7 +202,7 @@ describe('phase4 backend abstraction APIs', () => {
 
   it('testBackendConnection keeps required model argument and validates key presence', async () => {
     const result = await testBackendConnection({
-      provider: 'anthropic',
+      provider: 'zenskill',
       apiKey: '   ',
       model: 'claude-sonnet-4-6',
       hostRuntime: {

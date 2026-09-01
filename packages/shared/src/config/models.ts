@@ -88,7 +88,7 @@ export function normalizeDeprecatedModelId(modelId: string): string {
 /**
  * Provider identifier for AI backends.
  */
-export type ModelProvider = 'anthropic' | 'zenskill';
+export type ModelProvider = 'zenskill';
 
 /**
  * Full model definition with capabilities and costs.
@@ -134,7 +134,7 @@ export const MODEL_REGISTRY: ModelDefinition[] = [
     shortName: 'Opus',
     description: 'Most capable for complex work',
     descriptionKey: 'model.opusDesc',
-    provider: 'anthropic',
+    provider: 'zenskill',
     contextWindow: 1_000_000,
   },
   {
@@ -143,7 +143,7 @@ export const MODEL_REGISTRY: ModelDefinition[] = [
     shortName: 'Opus',
     description: 'Previous Opus generation',
     descriptionKey: 'model.opusDesc',
-    provider: 'anthropic',
+    provider: 'zenskill',
     contextWindow: 1_000_000,
   },
   // TODO(opus-4.6-sunset): remove this entry when Opus 4.6 is deprecated by
@@ -159,7 +159,7 @@ export const MODEL_REGISTRY: ModelDefinition[] = [
     shortName: 'Opus',
     description: 'Previous Opus release',
     descriptionKey: 'model.opusDesc',
-    provider: 'anthropic',
+    provider: 'zenskill',
     contextWindow: 200_000,
   },
   {
@@ -168,7 +168,7 @@ export const MODEL_REGISTRY: ModelDefinition[] = [
     shortName: 'Sonnet',
     description: 'Best combination of speed and intelligence',
     descriptionKey: 'model.sonnetDesc',
-    provider: 'anthropic',
+    provider: 'zenskill',
     contextWindow: 1_000_000,
   },
   {
@@ -177,7 +177,7 @@ export const MODEL_REGISTRY: ModelDefinition[] = [
     shortName: 'Sonnet',
     description: 'Previous Sonnet generation',
     descriptionKey: 'model.sonnetDesc',
-    provider: 'anthropic',
+    provider: 'zenskill',
     contextWindow: 200_000,
   },
   {
@@ -186,7 +186,7 @@ export const MODEL_REGISTRY: ModelDefinition[] = [
     shortName: 'Haiku',
     description: 'Fastest for quick answers',
     descriptionKey: 'model.haikuDesc',
-    provider: 'anthropic',
+    provider: 'zenskill',
     contextWindow: 200_000,
   },
   {
@@ -195,7 +195,7 @@ export const MODEL_REGISTRY: ModelDefinition[] = [
     shortName: 'Fable',
     description: 'Next-generation model for complex work',
     descriptionKey: 'model.fableDesc',
-    provider: 'anthropic',
+    provider: 'zenskill',
     contextWindow: 1_000_000,
   },
 
@@ -218,8 +218,8 @@ export function getModelsByProvider(provider: ModelProvider): ModelDefinition[] 
   return MODEL_REGISTRY.filter(m => m.provider === provider);
 }
 
-/** All Anthropic Claude models */
-export const ANTHROPIC_MODELS = getModelsByProvider('anthropic');
+/** All models (provider catalog now zenskill-only) */
+export const ANTHROPIC_MODELS = MODEL_REGISTRY;
 
 
 /**

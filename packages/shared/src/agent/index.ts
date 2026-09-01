@@ -1,5 +1,6 @@
-// Export ClaudeAgent (renamed from CraftAgent) and backward-compatible aliases
-export * from './claude-agent.ts';
+// AgentEvent (was re-exported via claude-agent.ts, removed in P2)
+export type { AgentEvent } from '@craft-agent/core/types';
+
 export * from './conversation-summary.ts';
 
 // Export PiAgent for direct use
@@ -168,4 +169,4 @@ export {
   resolveKeepBackgroundTasksAlive,
   createPushableInputStream,
   type PushableInputStream,
-} from './backend/claude/persistent-input.ts';
+} from './backend/persistent-input.ts';

@@ -4,6 +4,40 @@
 > Pi / Claude 后端（唯一后端为 zenskill）。上游自动同步产生合并冲突时，
 > 按本清单复删并重放类型收窄，然后删除本清单中对应条目。
 
+## P2 — Claude 线（P1 之后提交）
+
+### 删除的文件
+- `packages/shared/src/agent/claude-agent.ts`（3175 行，ClaudeAgent 主类）
+- `packages/shared/src/agent/claude-llm-query.ts`、`claude-sdk-error-mapper.ts`
+- `packages/shared/src/agent/backend/internal/drivers/anthropic.ts` + test
+- `packages/shared/src/agent/backend/claude/`（event-adapter / persistent-input
+  / task-notification / session-tool-parity 等）
+- Claude 专属测试：claude-event-adapter / claude-sdk-error-mapper /
+  claude-background-message-routing / claude-thinking-config /
+  claude-agent-handoff / query-llm-partial-output / claude-agent-spawn-cwd /
+  browser-tools 等
+
+### 抢救到中性位置
+- `backend/persistent-input.ts`（自 backend/claude/ 移出）——
+  `resolveKeepBackgroundTasksAlive` 被 SessionManager 活引用
+- `agent/json-prop-to-zod.ts`（自 claude-agent.ts 抽出）——纯 zod 工具，
+  json-prop-to-zod.test 继续使用
+- `AgentEvent` 类型 re-export 改为直连 `@craft-agent/core/types`
+
+### 修改的行为（上游 sync 冲突高发点）
+- `ModelProvider = 'zenskill'`（唯一值）；`ANTHROPIC_MODELS = MODEL_REGISTRY` 别名
+- factory：anthropic driver/case/分支全删；`resolveSessionBackendContext`
+  provider 恒 zenskill；`validateStoredBackendConnection` 恒 success；
+  `resolveSetupTestConnectionHint` 签名放宽 provider: string（恒 zenskill 返回）
+- `domain/connection-setup-logic.ts`：validateSetupTestInput 简化（pi 校验移除）
+- SessionManager：branch anchor 的 anthropropic/pi 分支折叠为统一 turnId 语义
+
+### ⚠️ 依赖保留（P3 待做）
+- `@anthropic-ai/claude-agent-sdk` 未卸载：共享工具层
+  `llm-tool.ts` / `session-scoped-tools.ts` / `browser-tools.ts` 的
+  `tool()`/`createSdkMcpServer()` 被 zenskill-agent 复用。卸载需先把工具
+  schema 构造去 SDK 化（zod 直构），属独立重构
+
 ## P1 — Pi 线（commit：本文件引入的提交）
 
 ### 删除的文件/目录

@@ -40,7 +40,7 @@ import {
 import { parseValidationError, type LlmValidationResult } from '../../config/llm-validation.ts';
 import type { ModelFetchResult } from '../../config/model-fetcher.ts';
 // Model resolution utilities
-import { getModelProvider, DEFAULT_MODEL, normalizeDeprecatedModelId } from '../../config/models.ts';
+import { DEFAULT_MODEL, normalizeDeprecatedModelId } from '../../config/models.ts';
 import { homedir } from 'node:os';
 import { rm } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -58,11 +58,9 @@ import {
   resolveBackendHostTooling as resolveHostToolingPaths,
   resolveBackendRuntimePaths,
 } from './internal/runtime-resolver.ts';
-import { anthropicDriver } from './internal/drivers/anthropic.ts';
 import { zenskillDriver } from './internal/drivers/zenskill.ts';
 
 const DRIVER_REGISTRY: Record<AgentProvider, ProviderDriver> = {
-  anthropic: anthropicDriver,
   zenskill: zenskillDriver,
 };
 
@@ -97,9 +95,6 @@ function resolveDriverRuntime(
  */
 export function detectProvider(authType: string): AgentProvider {
   switch (authType) {
-    case 'api_key':
-    case 'oauth_token':
-      return 'anthropic';
 
     // Default to zenskill for all auth types
     default:
@@ -127,13 +122,6 @@ export function detectProvider(authType: string): AgentProvider {
  */
 export function createBackend(config: BackendConfig): AgentBackend {
   switch (config.provider) {
-    case 'anthropic':
-      // ZenSkill 发行版明确不支持 Claude 后端：
-      // 未打包 210MB claude 原生二进制，选择即失败，给出明确指引。
-      throw new Error(
-        'ZenSkill 发行版不支持 Claude 后端。请在会话设置中选择 zenskill 后端（默认）。'
-      );
-
     case 'zenskill':
       // ZenskillAgent: ZenSkill agent-engine as subprocess
       return new ZenskillAgent(config);
@@ -248,10 +236,6 @@ export function isProviderAvailable(provider: AgentProvider): boolean {
  */
 export function providerTypeToAgentProvider(providerType: LlmProviderType): AgentProvider {
   switch (providerType) {
-    // Anthropic SDK backend (direct API only)
-    case 'anthropic':
-      return 'anthropic';
-
     // ZenSkill agent-engine backend
     case 'zenskill':
       return 'zenskill';
@@ -272,7 +256,7 @@ export function providerTypeToAgentProvider(providerType: LlmProviderType): Agen
 export function connectionTypeToProvider(connectionType: LlmConnectionType): AgentProvider {
   switch (connectionType) {
     case 'anthropic':
-      return 'anthropic';
+      return 'zenskill';
     default:
       return 'zenskill';
   }
@@ -353,9 +337,7 @@ export function resolveBackendContext(args: {
     args.workspaceDefaultConnectionSlug
   );
 
-  const provider = connection
-    ? providerTypeToAgentProvider(connection.providerType || 'anthropic')
-    : 'anthropic';
+  const provider = 'zenskill' as const;
 
   const authType = connection
     ? connectionAuthTypeToBackendAuthType(connection.authType)
@@ -377,7 +359,7 @@ export function resolveBackendContext(args: {
  * Keeps provider-specific hint mapping out of Electron main IPC handlers.
  */
 export function resolveSetupTestConnectionHint(args: {
-  provider: AgentProvider;
+  provider: string;
   baseUrl?: string;
   piAuthProvider?: string;
   customEndpoint?: CustomEndpointConfig;
@@ -566,7 +548,6 @@ export const BACKEND_CAPABILITIES: Record<AgentProvider, {
   /** Whether the backend needs an HTTP pool server (external subprocess can't access McpClientPool directly) */
   needsHttpPoolServer: boolean;
 }> = {
-  anthropic: { needsHttpPoolServer: false },
   zenskill: { needsHttpPoolServer: false },
 };
 
@@ -582,7 +563,6 @@ export const BACKEND_CAPABILITIES: Record<AgentProvider, {
  */
 export function getDefaultAuthType(provider: AgentProvider): LlmAuthType | undefined {
   switch (provider) {
-    case 'anthropic': return undefined;
     default:          return undefined;
   }
 }
@@ -608,14 +588,8 @@ export function resolveModelForProvider(
   managedModel: string | undefined,
   connection: LlmConnection | null
 ): string {
-  // Cross-provider guard: if the model belongs to a different provider, fall back
-  // to the connection's default. This prevents e.g. sending a Claude model to Pi.
   if (managedModel) {
     managedModel = normalizeDeprecatedModelId(managedModel);
-    const modelProvider = getModelProvider(managedModel);
-    if (modelProvider && modelProvider !== provider) {
-      managedModel = undefined; // Clear — will fall through to connection default
-    }
   }
 
   let connectionDefault = connection?.defaultModel
@@ -722,12 +696,7 @@ export async function testBackendConnection(args: {
         session: { id: `test-${now}`, workspaceRootPath: cwd, createdAt: 0, lastUsedAt: 0 },
         isHeadless: true,
         miniModel: testModel,
-        envOverrides: args.provider === 'anthropic'
-          ? {
-            ANTHROPIC_API_KEY: trimmedKey,
-            ...(args.baseUrl?.trim() ? { ANTHROPIC_BASE_URL: args.baseUrl.trim() } : {}),
-          }
-          : undefined,
+        envOverrides: undefined,
       },
       hostRuntime: args.hostRuntime,
       providerOptions: { piAuthProvider: args.connection?.piAuthProvider },
@@ -797,21 +766,6 @@ export async function validateConnection(
   connection: LlmConnection,
   credentials: { apiKey?: string; oauthToken?: string },
 ): Promise<LlmValidationResult> {
-  const provider = providerTypeToAgentProvider(connection.providerType);
-
-  switch (provider) {
-    case 'anthropic': {
-      // Anthropic-based providers can be validated via the Claude Agent SDK
-      const { validateAnthropicConnection } = await import('../../config/llm-validation.ts');
-      return validateAnthropicConnection({
-        model: connection.defaultModel || DEFAULT_MODEL,
-        apiKey: credentials.apiKey,
-        oauthToken: credentials.oauthToken,
-        baseUrl: connection.baseUrl,
-      });
-    }
-
-    default:
-      return { success: true };
-  }
+  // Anthropic/Claude validation removed — zenskill backend owns connectivity
+  return { success: true };
 }

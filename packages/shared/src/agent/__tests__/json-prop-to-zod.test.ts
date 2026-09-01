@@ -7,7 +7,7 @@
  */
 import { describe, it, expect } from 'bun:test'
 import { z } from 'zod'
-import { jsonPropToZod } from '../claude-agent.ts'
+import { jsonPropToZod } from '../json-prop-to-zod.ts'
 
 describe('jsonPropToZod', () => {
   describe('primitives', () => {
