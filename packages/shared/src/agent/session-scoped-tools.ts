@@ -15,7 +15,6 @@
  * - call_llm (backend-specific, not in registry)
  */
 
-import { createSdkMcpServer, tool } from '@anthropic-ai/claude-agent-sdk';
 import { getSessionPlansPath, getSessionPath } from '../sessions/storage.ts';
 import { DOC_REFS } from '../docs/index.ts';
 import { createClaudeContext } from './claude-context.ts';
@@ -31,9 +30,6 @@ import {
   type ToolResult,
   type AuthRequest,
 } from '@craft-agent/session-tools-core';
-import { createLLMTool, type LLMQueryRequest, type LLMQueryResult } from './llm-tool.ts';
-import { createSpawnSessionTool, type SpawnSessionFn } from './spawn-session-tool.ts';
-import { createBrowserTools, type BrowserPaneFns } from './browser-tools.ts';
 import { FEATURE_FLAGS } from '../feature-flags.ts';
 import { getBrowserToolEnabled } from '../config/storage.ts';
 
@@ -157,38 +153,6 @@ function convertResult(result: ToolResult): { content: Array<{ type: 'text'; tex
   };
 }
 
-// ============================================================
-// Cache for Session-Scoped Tools
-// ============================================================
-
-// Cache tools by session to avoid recreating them on every query.
-// We cache the tools array (expensive to build) but NOT the MCP server wrapper,
-// because createSdkMcpServer returns an MCP Server instance that holds transport
-// state. The SDK's query() calls connect() on it, setting _transport. On the next
-// query(), connect() is called again — but if the previous Query's subprocess hasn't
-// fully exited yet, _transport is still set and connect() throws
-// "Already connected to a transport". Creating a fresh server wrapper per query avoids this.
-const sessionToolsCache = new Map<string, ReturnType<typeof tool>[]>();
-
-/**
- * Invalidate ALL session tool caches (e.g., when a global setting like browserToolEnabled changes).
- * This forces tools to be rebuilt on the next message for every session.
- */
-export function invalidateAllSessionToolsCaches(): void {
-  sessionToolsCache.clear();
-}
-
-/**
- * Clean up cached tools for a session
- */
-export function cleanupSessionScopedTools(sessionId: string): void {
-  const prefix = `${sessionId}::`;
-  for (const key of sessionToolsCache.keys()) {
-    if (key.startsWith(prefix)) {
-      sessionToolsCache.delete(key);
-    }
-  }
-}
 
 // ============================================================
 // Tool Descriptions (base from registry + Claude-specific DOC_REFS)
@@ -214,104 +178,3 @@ const TOOL_DESCRIPTIONS: Record<string, string> = {
  * All tools come from the canonical SESSION_TOOL_DEFS registry in session-tools-core,
  * except call_llm which is backend-specific.
  */
-export function getSessionScopedTools(
-  sessionId: string,
-  workspaceRootPath: string,
-  workspaceId?: string
-): ReturnType<typeof createSdkMcpServer> {
-  const cacheKey = `${sessionId}::${workspaceRootPath}`;
-
-  // Return cached tools if available, but always create a fresh MCP server wrapper
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let tools: any[] | undefined = sessionToolsCache.get(cacheKey);
-  if (!tools) {
-    // Create Claude context with full capabilities
-    const ctx = createClaudeContext({
-      sessionId,
-      workspacePath: workspaceRootPath,
-      workspaceId: workspaceId || basename(workspaceRootPath) || '',
-      onPlanSubmitted: (planPath: string) => {
-        setLastPlanFilePath(sessionId, planPath);
-        const callbacks = getSessionScopedToolCallbacks(sessionId);
-        callbacks?.onPlanSubmitted?.(planPath);
-      },
-      onAuthRequest: (request: unknown) => {
-        const callbacks = getSessionScopedToolCallbacks(sessionId);
-        callbacks?.onAuthRequest?.(request as AuthRequest);
-      },
-    });
-
-    // Attach session self-management bindings (lazy getters from callback registry)
-    attachSessionSelfManagementBindings(ctx, sessionId);
-
-    // Helper to create a tool from the canonical registry.
-    // The `as any` on schema bridges a Zod generic-variance issue when .shape
-    // types (ZodType<string>) flow into Record<string, ZodType<unknown>>.
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    function registryTool(name: string, schema: any) {
-      const def = SESSION_TOOL_REGISTRY.get(name)!;
-      return tool(name, TOOL_DESCRIPTIONS[name] || def.description, schema, async (args: any) => {
-        const result = await def.handler!(ctx, args);
-        return convertResult(result);
-      }, def.readOnly ? { annotations: { readOnlyHint: true } } : undefined);
-    }
-
-    // Ensure backend-mode tool wiring is in sync with core metadata.
-    assertClaudeBackendSessionToolParity();
-
-    // Create tools from the canonical registry — all tools with handlers.
-    // Tool visibility is centrally filtered in session-tools-core to avoid backend drift.
-    tools = getSessionToolDefs({ includeDeveloperFeedback: FEATURE_FLAGS.developerFeedback })
-      .filter(def => def.handler !== null) // Skip backend-specific tools (call_llm)
-      .map(def => registryTool(def.name, def.inputSchema.shape));
-
-    // Add call_llm — backend-specific (not in registry handler)
-    const sessionPath = getSessionPath(workspaceRootPath, sessionId);
-    tools.push(
-      createLLMTool({
-        sessionId,
-        sessionPath,
-        getQueryFn: () => {
-          const callbacks = getSessionScopedToolCallbacks(sessionId);
-          return callbacks?.queryFn;
-        },
-      }),
-    );
-
-    // Add spawn_session — backend-specific (not in registry handler)
-    tools.push(
-      createSpawnSessionTool({
-        sessionId,
-        getSpawnSessionFn: () => {
-          const callbacks = getSessionScopedToolCallbacks(sessionId);
-          return callbacks?.spawnSessionFn;
-        },
-      }),
-    );
-
-    // Add browser_* tools — backend-specific (requires BrowserPaneManager in Electron)
-    // Gated by the "Built-in browser" setting so users with external browser tools
-    // (Playwright, Puppeteer, etc.) can disable the built-in one.
-    if (getBrowserToolEnabled()) {
-      tools.push(
-        ...createBrowserTools({
-          sessionId,
-          getBrowserPaneFns: () => {
-            const callbacks = getSessionScopedToolCallbacks(sessionId);
-            return callbacks?.browserPaneFns;
-          },
-        }),
-      );
-    }
-
-    sessionToolsCache.set(cacheKey, tools);
-  }
-
-  // Always create a fresh MCP server wrapper to avoid "Already connected to a transport"
-  // race condition when queries are sent back-to-back (see comment on sessionToolsCache).
-  return createSdkMcpServer({
-    name: 'session',
-    version: '1.0.0',
-    tools,
-  });
-}

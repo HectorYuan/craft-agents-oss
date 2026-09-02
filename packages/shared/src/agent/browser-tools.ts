@@ -10,7 +10,6 @@
  * (getOrCreateForSession pattern), so commands don't need instance IDs.
  */
 
-import { tool } from '@anthropic-ai/claude-agent-sdk';
 import { z } from 'zod';
 import { executeBrowserToolCommand } from './browser-tool-runtime.ts';
 
@@ -230,52 +229,3 @@ Examples:
 // Tool Factories
 // ============================================================================
 
-export function createBrowserTools(options: BrowserToolsOptions) {
-  function getBrowserFns(): BrowserPaneFns {
-    const fns = options.getBrowserPaneFns();
-    if (!fns) {
-      throw new Error('Browser window controls are not available. This tool requires the desktop app.');
-    }
-    return fns;
-  }
-
-  return [
-    // Single CLI-like tool for all browser actions
-    tool(
-      'browser_tool',
-      BROWSER_TOOL_DESCRIPTION,
-      {
-        command: z.union([
-          z.string(),
-          z.array(z.string()),
-        ]).describe('Browser command as a string (e.g., "click @e1") or array (e.g., ["evaluate", "var x = 1; x + 2"]). Array mode preserves semicolons and whitespace in arguments.'),
-      },
-      async (args) => {
-        try {
-          const result = await executeBrowserToolCommand({
-            command: args.command,
-            fns: getBrowserFns(),
-            sessionId: options.sessionId,
-          });
-
-          const text = result.appendReleaseHint
-            ? result.output + BROWSER_RELEASE_HINT
-            : result.output;
-
-          if (result.image) {
-            return {
-              content: [
-                { type: 'text' as const, text },
-                { type: 'image' as const, data: result.image.data, mimeType: result.image.mimeType },
-              ],
-            };
-          }
-
-          return successResponse(text);
-        } catch (error) {
-          return errorResponse(error instanceof Error ? error.message : String(error));
-        }
-      },
-    ),
-  ];
-}
