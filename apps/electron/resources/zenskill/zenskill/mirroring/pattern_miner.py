@@ -66,9 +66,13 @@ class StatisticalPatternMiner:
                 pass
 
         profile = self._compute()
-        self._cache_file.write_text(
-            json.dumps(asdict(profile), indent=2, ensure_ascii=False)
-        )
+        try:
+            self._cache_file.parent.mkdir(parents=True, exist_ok=True)
+            self._cache_file.write_text(
+                json.dumps(asdict(profile), indent=2, ensure_ascii=False)
+            )
+        except OSError:
+            pass  # 缓存写失败不影响挖掘结果
         return profile
 
     def _compute(self) -> PatternProfile:

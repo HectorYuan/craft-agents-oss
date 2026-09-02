@@ -34,6 +34,9 @@ class AgentPage:
         # 3. 能力列表
         self._render_capabilities(info)
 
+        # 4. 成长面板（T4）
+        self._render_growth()
+
     def _render_status(self, info: dict) -> None:
         """渲染模型/会话状态。"""
         table = Table(title="Agent Status", show_header=False, box=None, padding=(0, 2))
@@ -104,3 +107,36 @@ class AgentPage:
                 border_style="dim",
             )
         )
+
+    def _render_growth(self) -> None:
+        """T4 成长面板：能量（境界上限联动）/ 成就进度 / episodes 计数。"""
+        try:
+            from ....core.paths import SkillStateManager
+            from ....systems.gtd.energy import EnergyEngine
+            from ....systems.active.achievement_system import AchievementSystem
+
+            skill_id = "zenskill-core"
+            energy = EnergyEngine().status()
+            ach = AchievementSystem(skill_id).evaluate()
+            state = SkillStateManager(skill_id).load()
+            episodes = state.get("episodes", [])
+            agent_sessions = sum(1 for e in episodes if e.get("action") == "agent_session")
+
+            filled = int(min(energy.get("pct") or 0, 1) * 20)
+            bar = "█" * filled + "░" * (20 - filled)
+            icon = {"critical": "🔴", "low": "🟠", "medium": "🟡", "high": "🟢"}.get(
+                energy.get("level"), "🟡")
+
+            lines = [
+                f"{icon} 能量  [bold]{energy.get('current_energy')}/{energy.get('max_energy')}[/bold]  {bar}"
+                f"   境界 [bold]{state.get('level', '?')}[/bold]（{state.get('usage_count', 0)} 次使用）",
+                f"🏆 成就  [bold]{ach.get('count', 0)}/{ach.get('total', 0)}[/bold]"
+                f"   会话回流 episodes: [bold]{agent_sessions}[/bold]",
+            ]
+            self.console.print(Panel(
+                "\n".join(lines),
+                title="Growth",
+                border_style="dim",
+            ))
+        except Exception:
+            pass  # 成长数据失败不影响 agent 页核心信息

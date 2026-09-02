@@ -173,6 +173,7 @@ class RPCHandler:
         self._handlers["sources:create"] = self._sources_create
         self._handlers["sources:delete"] = self._sources_delete
         self._handlers["sources:getMcpTools"] = self._sources_get_mcp_tools
+        self._handlers["callMcpTool"] = self._call_mcp_tool
         # LLM connections
         self._handlers["LLM_Connection:save"] = self._llm_save
         self._handlers["LLM_Connection:setDefault"] = self._llm_set_default
@@ -399,6 +400,31 @@ class RPCHandler:
 
     async def _sources_get_mcp_tools(self, workspace_id: str, source_slug: str):
         return self.server.source_manager.get_mcp_tools(workspace_id, source_slug)
+
+    async def _call_mcp_tool(self, workspace_id: str, source_slug: str,
+                             tool_name: str, args: dict | None = None):
+        """进程内直调 registry 工具（对齐 TS callMcpTool 返回结构）。
+
+        result 包装为 MCP content 形态——WebUI extractJson 依赖
+        result.result.content[0].text 路径。写工具后广播 zenskill:changed
+        （DataPanel/自动化依赖此事件刷新）。
+        """
+        result_text = self.server.registry.call(tool_name, args or {})
+        if self.server.registry.is_write_tool(tool_name):
+            payload = [{"type": tool_name, "sourceSlug": source_slug}]
+            # 成就解锁进事件 payload——自动化规则/webhook 可感知
+            try:
+                parsed = json.loads(result_text)
+                new_ach = parsed.get("new_achievements")
+                if new_ach:
+                    payload[0]["newAchievements"] = new_ach
+            except Exception:
+                pass
+            self.push_event("zenskill:changed", payload)
+        return {
+            "success": True,
+            "result": {"content": [{"type": "text", "text": result_text}]},
+        }
 
     async def _llm_save(self, connection: dict):
         return {"success": True}
@@ -1131,6 +1157,10 @@ class ZenWebServer:
         self.workspace_manager = WorkspaceManager(Path.home() / ".zenskill" / "workspaces")
         self.session_manager = SessionManager(self.workspace_manager)
         self.source_manager = SourceManager(self.workspace_manager)
+        # 进程内工具注册表单例：callMcpTool 直调（免 spawn MCP 子进程），
+        # TTL 缓存与 skill 索引跨请求生效
+        from ..runtime.mcp.registry import build_default_registry
+        self.registry = build_default_registry()
         # 事件流桥接：Craft session 事件自动记录到 ZenSkill event collector
         self._event_collector = None
         try:

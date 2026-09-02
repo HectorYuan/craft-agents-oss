@@ -80,9 +80,24 @@ _REGISTRY: Dict[str, Dict[str, Any]] = {
         "default_model": "mimo-v2.5-pro",
         "model_env": "MIMO_MODEL",
     },
+    "gemini": {
+        "api": "openai-completions",
+        "base_url": "https://generativelanguage.googleapis.com/v1beta/openai",
+        "api_key_env": "GEMINI_API_KEY",
+        "default_model": "gemini-2.0-flash",
+        "model_env": "GEMINI_MODEL",
+        "supports_vision": True,
+    },
+    "ollama": {
+        "api": "openai-completions",
+        "base_url": "http://localhost:11434/v1",
+        "api_key_env": "OLLAMA_API_KEY",
+        "default_model": "llama3.2",
+        "model_env": "OLLAMA_MODEL",
+    },
 }
 
-_ENV_DETECT_ORDER = ["deepseek", "anthropic", "openai", "volc", "qwen", "mimo"]
+_ENV_DETECT_ORDER = ["deepseek", "anthropic", "openai", "volc", "qwen", "gemini", "mimo", "ollama"]
 
 
 def build_model_config(provider: str, model_id: Optional[str] = None,
@@ -93,11 +108,23 @@ def build_model_config(provider: str, model_id: Optional[str] = None,
     # DeepSeek key 兼容：model-switcher 存为 DEEPSEEK_ANTHROPIC_AUTH_TOKEN
     if not resolved_key and provider == "deepseek":
         resolved_key = os.getenv("DEEPSEEK_ANTHROPIC_AUTH_TOKEN")
+    # Gemini key 兼容：GOOGLE_API_KEY 是官方文档常见别名
+    if not resolved_key and provider == "gemini":
+        resolved_key = os.getenv("GOOGLE_API_KEY")
+    base_url = entry["base_url"]
+    if provider == "ollama":
+        # Ollama 本地服务无需真实 key；OLLAMA_HOST 支持远程/自定义端口
+        resolved_key = resolved_key or "ollama"
+        host = os.getenv("OLLAMA_HOST", "").strip()
+        if host:
+            if not host.startswith(("http://", "https://")):
+                host = "http://" + host
+            base_url = host.rstrip("/") + ("/v1" if not host.rstrip("/").endswith("/v1") else "")
     return ModelConfig(
         id=resolved_model,
         api=entry["api"],
         provider=provider,
-        base_url=entry["base_url"],
+        base_url=base_url,
         api_key=resolved_key,
         api_key_env=entry["api_key_env"],
         supports_vision=bool(entry.get("supports_vision", False)),

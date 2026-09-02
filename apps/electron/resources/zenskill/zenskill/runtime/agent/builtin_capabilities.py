@@ -10,6 +10,7 @@ after_tool 对错误结果做 SelfEvaluator 分类并写入 ERROR 记忆，
 """
 from __future__ import annotations
 
+import logging
 from typing import Any, Dict, List, Optional
 
 from .capability import AgentCapability
@@ -22,6 +23,8 @@ from .types import (
     ToolResultMessage,
     UserMessage,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def _last_user_text(messages: List[Message]) -> str:
@@ -89,8 +92,9 @@ class MemoryCapability(AgentCapability):
                     entry_tokens = _tokens(entry.content) | _tokens(" ".join(entry.tags))
                     if len(task_tokens & entry_tokens) >= 1:
                         memories.append({"content": entry.content})
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("MemoryCapability: recall fallback degraded: %s: %s",
+                             type(e).__name__, e)
 
         lines: List[str] = []
         for memory in memories[: self._max]:
@@ -140,8 +144,9 @@ class MemoryCapability(AgentCapability):
                 tags=["agent-session"],
             )
             await self._ensure_manager().short_term.remember(entry)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("MemoryCapability: episode persist failed: %s: %s",
+                           type(e).__name__, e)
 
     def get_tools(self) -> List[Any]:
         async def do_remember(params: Dict[str, Any]) -> AgentToolResult:
@@ -236,8 +241,9 @@ class ReflectionCapability(AgentCapability):
             )
             raw_type = getattr(evaluation, "error_type", None)
             error_type = getattr(raw_type, "value", str(raw_type or "UNKNOWN"))
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("ReflectionCapability: error evaluation degraded: %s: %s",
+                         type(e).__name__, e)
         try:
             manager = _make_context_manager(self._root)
             await manager.remember_error(
@@ -246,8 +252,9 @@ class ReflectionCapability(AgentCapability):
                 args={},
                 error=f"[{error_type}] {result.text()[:300]}",
             )
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("ReflectionCapability: remember_error failed: %s: %s",
+                           type(e).__name__, e)
         return None
 
     async def after_turn(self, context: Context, last_message: Any) -> None:

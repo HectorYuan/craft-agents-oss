@@ -42,7 +42,7 @@ def _str_box_footer() -> str:
 
 # 版本信息（与 __init__.py 同步
 __title__ = "ZenSkill"
-__version__ = "2.6.6"
+__version__ = "2.6.7"
 __version_info__ = (1, 9, 0)
 __author__ = "ZenSkill Team"
 
@@ -63,92 +63,11 @@ def _runtime_storage_dir():
 # model 命令处理 — 参考 ModelSwitcher
 # ═══════════════════════════════════════════════════════
 
-def generate_reflection_report(state: dict) -> str:
-    """生成详细的反思报告内容"""
-    usage_count = state.get('usage_count', 0)
-    episodes = state.get('episodes', [])
-    level = state.get('level', 'NOVICE')
-    metrics = state.get('metrics', {})
 
-    # 生成洞见
-    insights = []
-    if usage_count >= 5:
-        insights.append("✓ 已达到学徒境界门槛，开始积累实践经验")
-    if usage_count >= 15:
-        insights.append("✓ 使用频率稳定，系统已成为日常工具的一部分")
-    if metrics.get('success_rate', 0) >= 0.8:
-        insights.append("✓ 执行成功率较高，系统稳定性良好")
-    if len(episodes) >= 5:
-        insights.append("✓ 记忆库正在增长，开始形成历史沉淀")
 
-    # 改进建议
-    suggestions = []
-    if level == "NOVICE":
-        suggestions.append("→ 继续保持使用频率，尽快突破到学徒境界")
-    elif level == "APPRENTICE":
-        suggestions.append("→ 尝试更复杂的任务，向熟手境界迈进")
-    if metrics.get('success_rate', 1) < 0.7:
-        suggestions.append("→ 近期失败率偏高，建议检查参数或简化任务")
-
-    # 生成报告
-    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    report_lines = [
-        "# ZenSkill 禅思反思报告",
-        "",
-        f"> 生成时间: {timestamp}",
-        f"> 当前境界: {level}",
-        "",
-        "---",
-        "",
-        "## 📊 周期统计",
-        "",
-        f"- **使用次数**: {usage_count} 次",
-        f"- **成长事件**: {len(episodes)} 条",
-        f"- **成功率**: {metrics.get('success_rate', 0):.2%}",
-        f"- **平均耗时**: {metrics.get('avg_duration_ms', 0):.1f}ms",
-        "",
-        "## 💡 洞见与发现",
-        "",
-    ]
-
-    if insights:
-        for insight in insights:
-            report_lines.append(insight)
-    else:
-        report_lines.append("（积累更多数据后将产生洞见）")
-
-    report_lines.extend([
-        "",
-        "## 🎯 改进建议",
-        "",
-    ])
-
-    if suggestions:
-        for suggestion in suggestions:
-            report_lines.append(suggestion)
-    else:
-        report_lines.append("系统运行良好，继续保持！")
-
-    report_lines.extend([
-        "",
-        "## 📝 最近记忆",
-        "",
-    ])
-
-    for ep in reversed(episodes[-5:]):
-        date = ep.get('date', 'N/A')
-        action = ep.get('action', 'N/A')
-        content = ep.get('content', 'N/A')
-        report_lines.append(f"- [{date}] **{action}**: {content}")
-
-    report_lines.extend([
-        "",
-        "---",
-        "",
-        "*此报告由 ZenSkill 禅思系统自动生成*",
-    ])
-
-    return "\n".join(report_lines)
+from .cli.reflect import generate_reflection_report  # noqa: E402 (向后兼容 re-export)
+from .cli.growth import cmd_growth_status  # noqa: E402
+from .cli.collector import _run_light_pipeline  # noqa: E402
 
 
 def cmd_default_overview(args: argparse.Namespace) -> None:
@@ -1497,44 +1416,6 @@ def _cmd_internal_record_event(args: argparse.Namespace) -> None:
 # 智能体生态采集器命令
 # ====================================================================
 
-def _run_light_pipeline() -> dict | None:
-    """运行轻量管道分析（去重→NLP→聚合），返回结果字典"""
-    import json, time
-    from pathlib import Path
-
-    events_file = Path.home() / ".zenskill" / "mirroring" / "events.jsonl"
-    if not events_file.exists():
-        return None
-
-    events = []
-    for line in open(events_file):
-        try:
-            events.append(json.loads(line.strip()))
-        except Exception:
-            pass
-    if not events:
-        return None
-
-    try:
-        from .mirroring.processors import EventDeduplicator, SignalAggregator, NLPSignalExtractor
-        dedup = EventDeduplicator()
-        unique = dedup.deduplicate(events[-100:])  # 最近 100 条
-
-        nlp = NLPSignalExtractor()
-        nlp_result = nlp.extract(unique)
-
-        agg = SignalAggregator()
-        agg_result = agg.aggregate(unique)
-
-        return {
-            "timestamp": time.time(),
-            "dedup_removed": len(events[-100:]) - len(unique),
-            "nlp": nlp_result,
-            "insights": agg_result.get("insights", []),
-            "event_count": len(events),
-        }
-    except Exception:
-        return None
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -2040,11 +1921,40 @@ def cmd_action_list(args: argparse.Namespace) -> None:
 def cmd_action_done(args: argparse.Namespace) -> None:
     """完成 Action"""
     from .systems.gtd.action import ActionEngine
+    from .systems.gtd.energy import EnergyEngine
+    from .systems.active.achievement_system import AchievementSystem
+
     engine = ActionEngine()
+    action = engine.get(args.action_id)
     success = engine.done(args.action_id, energy_invested=getattr(args, 'energy_invested', 0))
-    cli_output({"ok": success, "action_id": args.action_id},
-               args, text=lambda: f"✅ Done: {args.action_id}" if success
-               else f"❌ 未找到: {args.action_id}")
+    if not success:
+        cli_output({"ok": False, "action_id": args.action_id},
+                   args, text=lambda: f"❌ 未找到: {args.action_id}")
+        return
+
+    # 成长反馈（与 GUI/agent 路径一致）：能量扣减 + 成就解锁
+    extras = []
+    try:
+        energy = EnergyEngine().status()
+        extras.append(f"⚡ 能量 {energy.get('current_energy')}/{energy.get('max_energy')}")
+    except Exception:
+        pass
+    try:
+        skill_id = (action.skill_id if action else '') or 'zenskill-core'
+        system = AchievementSystem(skill_id)
+        new_ids = system.evaluate()['new_unlocks']
+        if new_ids:
+            titles = [f"{b.icon} {b.title}" for b in system.evaluate()['unlocked']
+                      if b.badge_id in new_ids]
+            if titles:
+                extras.append("🏆 解锁成就：" + "、".join(titles))
+    except Exception:
+        pass
+
+    title = action.title if action else args.action_id
+    cli_output({"ok": True, "action_id": args.action_id},
+               args, text=lambda: "✅ Done: " + title
+               + ("\n   " + "\n   ".join(extras) if extras else ""))
 
 
 def cmd_action_delete(args: argparse.Namespace) -> None:
@@ -2798,7 +2708,8 @@ def main() -> int:
     run_parser.add_argument("--image", action="append", default=[],
         help="图片文件路径（可多次指定，需视觉模型如 gpt-4o/claude）")
     run_parser.add_argument("--args", help="工具参数 JSON (e.g. '{\"path\": \"/tmp/test.txt\"}')")
-    run_parser.add_argument("--mcp-server", help="MCP Server 可执行文件路径")
+    run_parser.add_argument("--mcp-server", action="append", default=None,
+        help="MCP Server 可执行文件路径（可多次指定接入多台，经 pool 前缀路由）")
     run_parser.add_argument("--skill-id", help="技能 ID")
     run_parser.add_argument("--max-steps", type=int, default=10, help="最大执行步数")
     run_parser.add_argument("--thinking-level", choices=["on", "off"], default=None,
@@ -2806,6 +2717,8 @@ def main() -> int:
     run_parser.add_argument("--timeout", type=float, default=300.0, help="超时时间（秒）")
     run_parser.add_argument("--background", action="store_true",
         help="后台执行：输出写入日志文件，可用 run --status 查看状态")
+    run_parser.add_argument("--no-delegate", action="store_true",
+        help="禁用 SubAgent delegate 工具（子任务隔离子上下文执行）")
     run_parser.set_defaults(func=cmd_run)
 
     # agent-engine 命令组（从 cli/agent.py 注册）

@@ -92,14 +92,26 @@ class ContextGuideEngine:
     def _build_suggestions(self, tools: dict, langs: list[str], error_count: int,
                            total: int) -> list[str]:
         suggestions = []
+        # 词汇对齐：事件里的工具名大小写/来源不一（MCP 小写、宿主可能驼峰），
+        # 统一小写计数；Claude Code 名（Edit/Glob/Agent）映射到 MCP 等价词
+        alias = {"glob": "find", "agent": "delegate", "task": "delegate"}
+        low = dict(tools or {})
+        tools = {}
+        for k, v in low.items():
+            key = str(k).lower()
+            key = alias.get(key, key)
+            tools[key] = tools.get(key, 0) + (v or 0)
+
+        def tsum(*names: str) -> int:
+            return sum(tools.get(n, 0) for n in names)
 
         # 高错误率
         if total > 10 and error_count / total > 0.15:
             suggestions.append("错误率偏高，建议运行测试: `pytest -v`")
 
-        # 大量 Edit 但很少测试
-        edit_count = tools.get("Edit", 0) + tools.get("Write", 0)
-        test_count = tools.get("Bash", 0)
+        # 大量写操作但很少测试（edit/write/edit_multi 都算写）
+        edit_count = tsum("edit", "write")
+        test_count = tsum("bash")
         if edit_count > 10 and test_count < 3:
             suggestions.append("代码修改频繁但测试较少，建议增加测试覆盖")
 
@@ -111,12 +123,12 @@ class ContextGuideEngine:
             if lvl in ("NOVICE", "APPRENTICE"):
                 suggestions.append("Python 练习建议：尝试 `zenskill task recommend` 获取任务")
 
-        # 多文件操作
-        if tools.get("Glob", 0) + tools.get("Grep", 0) > 20:
+        # 搜索频繁
+        if tsum("grep", "find") > 20:
             suggestions.append("搜索操作频繁，考虑优化项目结构或更新 .gitignore")
 
-        # Agent 使用
-        if tools.get("Agent", 0) > 5:
+        # 子代理使用
+        if tsum("delegate") > 5:
             suggestions.append("大量使用子代理，检查是否有重复或可合并的任务")
 
         # 默认建议

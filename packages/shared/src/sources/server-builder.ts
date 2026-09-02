@@ -14,8 +14,7 @@
 import type { LoadedSource, ApiConfig } from './types.ts';
 import { isMultiHeaderCredential, type ApiCredential } from './credential-manager.ts';
 import { isSourceUsable } from './storage.ts';
-import { createApiServer, type SummarizeCallback } from './api-tools.ts';
-import { createSdkMcpServer } from '@anthropic-ai/claude-agent-sdk';
+import { createApiServer, type InProcessMcpServerConfig, type SummarizeCallback } from './api-tools.ts';
 import { debug } from '../utils/debug.ts';
 
 /**
@@ -53,7 +52,7 @@ export interface BuiltServers {
   /** MCP server configs keyed by source slug */
   mcpServers: Record<string, McpServerConfig>;
   /** In-process API servers keyed by source slug */
-  apiServers: Record<string, ReturnType<typeof createSdkMcpServer>>;
+  apiServers: Record<string, InProcessMcpServerConfig>;
   /** Sources that failed to build (missing auth, etc.) */
   errors: Array<{ sourceSlug: string; error: string }>;
 }
@@ -166,7 +165,7 @@ export class SourceServerBuilder {
     sessionPath?: string,
     summarize?: SummarizeCallback,
     getCredential?: () => Promise<ApiCredential | null>
-  ): Promise<ReturnType<typeof createSdkMcpServer> | null> {
+  ): Promise<InProcessMcpServerConfig | null> {
     if (source.config.type !== 'api') return null;
     if (!source.config.api) {
       debug(`[SourceServerBuilder] API source ${source.config.slug} missing api config`);
@@ -320,7 +319,7 @@ export class SourceServerBuilder {
     getCredentialForSource?: (source: LoadedSource) => (() => Promise<ApiCredential | null>) | undefined
   ): Promise<BuiltServers> {
     const mcpServers: Record<string, McpServerConfig> = {};
-    const apiServers: Record<string, ReturnType<typeof createSdkMcpServer>> = {};
+    const apiServers: Record<string, InProcessMcpServerConfig> = {};
     const errors: BuiltServers['errors'] = [];
 
     for (const { source, token, credential } of sourcesWithCredentials) {

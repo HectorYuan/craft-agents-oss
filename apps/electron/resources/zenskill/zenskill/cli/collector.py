@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 
 from ..cli_utils import output as cli_output
+from ..core.paths import file_lock, atomic_write_json
 from ..cli_helpers import _register_collectors, _str_box_footer, _str_box_header, _str_section
 
 def cmd_collector_list(args: argparse.Namespace) -> None:
@@ -737,4 +738,43 @@ def register_collector_parser(subparsers) -> None:
     # collector pipeline (手动触发管道分析)
     collector_pipeline_parser = collector_subparsers.add_parser("pipeline", help="手动触发管道分析（去重→NLP→聚合）")
     collector_pipeline_parser.set_defaults(func=cmd_collector_pipeline)
+
+def _run_light_pipeline() -> dict | None:
+    """运行轻量管道分析（去重→NLP→聚合），返回结果字典"""
+    import json, time
+    from pathlib import Path
+
+    events_file = Path.home() / ".zenskill" / "mirroring" / "events.jsonl"
+    if not events_file.exists():
+        return None
+
+    events = []
+    for line in open(events_file):
+        try:
+            events.append(json.loads(line.strip()))
+        except Exception:
+            pass
+    if not events:
+        return None
+
+    try:
+        from ...mirroring.processors import EventDeduplicator, SignalAggregator, NLPSignalExtractor
+        dedup = EventDeduplicator()
+        unique = dedup.deduplicate(events[-100:])  # 最近 100 条
+
+        nlp = NLPSignalExtractor()
+        nlp_result = nlp.extract(unique)
+
+        agg = SignalAggregator()
+        agg_result = agg.aggregate(unique)
+
+        return {
+            "timestamp": time.time(),
+            "dedup_removed": len(events[-100:]) - len(unique),
+            "nlp": nlp_result,
+            "insights": agg_result.get("insights", []),
+            "event_count": len(events),
+        }
+    except Exception:
+        return None
 

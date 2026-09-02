@@ -176,21 +176,37 @@ async def _run_task(task: str, model, max_steps, timeout, json_output: bool,
                     thinking_level=None) -> int:
     tools = create_default_tools(".")
 
-    # MCP server 连接：发现并注册远程工具
+    # MCP server 连接：发现并注册远程工具（单台直连，多台走 pool 前缀路由）
     mcp_client = None
+    mcp_pool = None
     if mcp_server:
+        servers = mcp_server if isinstance(mcp_server, (list, tuple)) else [mcp_server]
+        servers = [s for s in servers if s and s.strip()]
         try:
-            from ..mcp.client import MCPClient
-            mcp_client = MCPClient()
-            await mcp_client.connect(mcp_server.split())
-            mcp_tools = await mcp_client.list_tools()
-            for mt in mcp_tools:
-                tools.append(_wrap_mcp_tool(mcp_client, mt))
-            if not json_output:
-                print(f"MCP: 已连接，发现 {len(mcp_tools)} 个工具")
+            if len(servers) <= 1:
+                from ..mcp.client import MCPClient
+                mcp_client = MCPClient()
+                await mcp_client.connect((servers[0] if servers else "").split())
+                mcp_tools = await mcp_client.list_tools()
+                for mt in mcp_tools:
+                    tools.append(_wrap_mcp_tool(mcp_client, mt))
+                if not json_output:
+                    print(f"MCP: 已连接，发现 {len(mcp_tools)} 个工具")
+            else:
+                from ..mcp.pool import MCPClientPool
+                from .mcp_capability import McpCapability
+                mcp_pool = MCPClientPool()
+                for i, s in enumerate(servers):
+                    await mcp_pool.add_server(f"s{i}", s.split())
+                cap = McpCapability(mcp_pool)
+                mcp_tools = await cap.discover()
+                tools.extend(mcp_tools)
+                if not json_output:
+                    print(f"MCP: 已连接 {len(servers)} 台服务器，发现 {len(mcp_tools)} 个工具")
         except Exception as e:
             print(f"MCP 连接失败: {e}", file=sys.stderr)
             mcp_client = None
+            mcp_pool = None
 
     # 自定义工具加载（~/.zenskill/tools/）
     try:
@@ -215,6 +231,19 @@ async def _run_task(task: str, model, max_steps, timeout, json_output: bool,
     except Exception as e:
         if not json_output:
             print(f"Skill 工具加载失败: {e}", file=sys.stderr)
+
+    # SubAgent delegate 工具（P2-3）：聚焦子任务隔离子上下文执行
+    if not getattr(args, "no_delegate", False):
+        try:
+            from .delegate_tool import DelegateTool
+            from .tools import DEFAULT_SYSTEM_PROMPT as _DSP
+            tools.append(DelegateTool(
+                create_stream(model), model, cwd=".",
+                system_prompt=_DSP,
+            ))
+        except Exception as e:
+            if not json_output:
+                print(f"delegate 工具加载失败: {e}", file=sys.stderr)
 
     session, initial_messages = _open_session(session_id, continue_session, fork_entry, task)
     if initial_messages is None:
@@ -478,8 +507,51 @@ def cmd_agent_session(args: Any) -> int:
             print("暂无会话（zenskill run ... --session <id> --engine agent 创建）")
         else:
             for s in sessions:
-                print(f"{s['id']}  entries={s['entries']}  cwd={s['cwd']}")
+                branches = f"  branches={s['branches']}" if s.get("branches") else ""
+                print(f"{s['id']}  entries={s['entries']}{branches}  cwd={s['cwd']}")
         return 0
+
+    if action == "prune":
+        import time as _time
+        cutoff = _time.time() - max(1, int(getattr(args, "older_than", 30) or 30)) * 86400
+        do_delete = bool(getattr(args, "delete", False))
+        sessions = manager.list_sessions()
+        victims, keep = [], 0
+        for s in sessions:
+            path = manager.root / f"{s['id']}.jsonl"
+            mtime = path.stat().st_mtime if path.exists() else 0
+            if mtime and mtime < cutoff:
+                victims.append((path, s))
+            else:
+                keep += 1
+        total_size = sum(p.stat().st_size for p, _ in victims)
+        if getattr(args, "json_output", False):
+            print(_json.dumps({
+                "older_than_days": int(getattr(args, "older_than", 30) or 30),
+                "candidates": len(victims),
+                "size_bytes": total_size,
+                "keep": keep,
+                "deleted": bool(do_delete) and len(victims),
+            }, ensure_ascii=False))
+            return 0
+        if not victims:
+            print(f"没有 {getattr(args, 'older_than', 30)} 天前的会话可清理（保留 {keep} 个）")
+            return 0
+        for path, s in victims:
+            print(f"  {'删' if do_delete else '预览'} {s['id']}  "
+                  f"entries={s['entries']}  "
+                  f"{_time.strftime('%Y-%m-%d', _time.localtime(path.stat().st_mtime))}")
+        if not do_delete:
+            print(f"预览：{len(victims)} 个会话 / {total_size // 1024} KB 可清理"
+                  f"（加 --delete 真删）")
+            return 0
+        from pathlib import Path as _Path
+        for path, _ in victims:
+            path.unlink(missing_ok=True)
+            _Path(str(path) + ".wal").unlink(missing_ok=True)
+        print(f"已删除 {len(victims)} 个会话（{total_size // 1024} KB），保留 {keep} 个")
+        return 0
+
 
     if not args.session_id:
         print("错误: 需要 --session-id", file=sys.stderr)
@@ -515,6 +587,7 @@ def cmd_agent_session(args: Any) -> int:
             children.setdefault(e.parent_id or "ROOT", []).append(e.id)
         ids = {e.id: e for e in session.entries}
         on_branch = {e.id for e in session.walk()}
+        branch_labels = session.get_branch_labels()
 
         def render(node_id: str, depth: int = 0) -> None:
             for child in children.get(node_id, []):
@@ -523,6 +596,9 @@ def cmd_agent_session(args: Any) -> int:
                 label = e.type
                 if e.type == "message":
                     label = f"message:{e.data.get('message', {}).get('role', '?')}"
+                # 分支标签渲染：被命名的 entry 显示 #label
+                if child in branch_labels:
+                    label = f"{label} #{branch_labels[child]}"
                 print(f"{'  ' * depth}{mark} {child[:13]} {label}")
                 render(child, depth + 1)
 

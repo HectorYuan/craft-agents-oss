@@ -98,9 +98,26 @@ class ProactiveInsightEngine:
         return f"insight_{timestamp}_{self.skill_id}"
 
     def _save_insight(self, insight: ProactiveInsight) -> None:
-        """保存洞察到文件"""
+        """保存洞察到文件（追加 + 条数上限截断，防无限增长）"""
         with open(self.insights_file, "a", encoding="utf-8") as f:
             f.write(json.dumps(insight.to_dict(), ensure_ascii=False) + "\n")
+        self._truncate_insights_file()
+
+    def _truncate_insights_file(self, max_lines: int = 500) -> None:
+        """jsonl 超过 max_lines 时保留最新 max_lines 条"""
+        try:
+            if not self.insights_file.exists():
+                return
+            with open(self.insights_file, "r", encoding="utf-8") as f:
+                lines = f.readlines()
+            if len(lines) <= max_lines:
+                return
+            tmp = self.insights_file.with_suffix(".tmp")
+            with open(tmp, "w", encoding="utf-8") as f:
+                f.writelines(lines[-max_lines:])
+            tmp.replace(self.insights_file)
+        except Exception:
+            pass  # 轮转失败不影响主流程
 
     def check_and_generate_insights(self, state: Optional[Dict[str, Any]] = None) -> List[ProactiveInsight]:
         """

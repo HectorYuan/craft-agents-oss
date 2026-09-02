@@ -163,9 +163,82 @@ class TuiDataAdapter:
         from ..systems.active.error_cluster import ErrorClusterAnalyzer
         return ErrorClusterAnalyzer(skill_id).format_report()
 
+    def get_companion_summary(self) -> Dict[str, Any]:
+        """陪伴摘要（时间问候/能量/待办/洞察/微反馈）——T1 启动问候与 dashboard 用"""
+        from datetime import datetime
+        from ..systems.gtd.energy import EnergyEngine
+        from ..systems.gtd.action import ActionEngine
+        from ..systems.gtd.inbox import InboxEngine
+
+        now = datetime.now()
+        hour = now.hour
+        if 5 <= hour < 12:
+            greeting = "早上好"
+        elif 12 <= hour < 14:
+            greeting = "中午好"
+        elif 14 <= hour < 18:
+            greeting = "下午好"
+        elif 18 <= hour < 23:
+            greeting = "晚上好"
+        else:
+            greeting = "夜深了"
+
+        energy = EnergyEngine().status()
+        inbox = InboxEngine().count()
+        actions = ActionEngine().list(status="pending", limit=100)
+        today = now.strftime("%Y-%m-%d")
+        due_today = [a for a in actions if a.due_date and a.due_date[:10] == today]
+        overdue = [a for a in actions if a.due_date and a.due_date[:10] < today]
+
+        level = energy.get("level", "medium")
+        mood = {
+            "critical": "需要休息一下",
+            "low": "适合做些轻松的事",
+            "medium": "状态不错",
+        }.get(level, "精力充沛，适合挑战高难度")
+
+        parts = [mood]
+        if overdue:
+            parts.append(f"{len(overdue)} 个行动已逾期")
+        elif due_today:
+            parts.append(f"今天有 {len(due_today)} 个待办到期")
+        elif inbox > 0:
+            parts.append(f"收件箱有 {inbox} 条待处理")
+
+        top_insight = None
+        try:
+            from ..systems.active.proactive_insight import ProactiveInsightEngine
+            insights = ProactiveInsightEngine(skill_id="zenskill-core").get_unread_insights()
+            if insights:
+                top = insights[0]
+                top_insight = {
+                    "type": getattr(top, "insight_type", getattr(top, "type", "info")),
+                    "title": getattr(top, "title", ""),
+                }
+                parts.append(f"洞察：{top_insight['title']}")
+        except Exception:
+            pass
+
+        return {
+            "greeting": greeting,
+            "mood": "；".join(parts) + "。",
+            "energy": {"level": level, "pct": energy.get("pct"),
+                       "current": energy.get("current_energy"), "max": energy.get("max_energy")},
+            "inbox_pending": inbox,
+            "pending_actions": len(actions),
+            "due_today": len(due_today),
+            "overdue": len(overdue),
+            "top_insight": top_insight,
+        }
+
     def get_instant_feedback(self, skill_id: str) -> str:
         from ..systems.active.instant_feedback import InstantFeedbackEngine
         return InstantFeedbackEngine(skill_id).format_report()
+
+    def get_instant_feedback_line(self, skill_id: str) -> str:
+        """一句话微反馈（无内容返回空串，适合卡片单行展示）"""
+        from ..systems.active.instant_feedback import InstantFeedbackEngine
+        return InstantFeedbackEngine(skill_id).generate_one_line()
 
     def get_custom_dimensions(self, skill_id: str) -> str:
         from ..systems.active.custom_dimensions import CustomDimensionManager

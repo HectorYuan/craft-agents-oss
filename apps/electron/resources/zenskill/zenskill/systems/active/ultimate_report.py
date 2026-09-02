@@ -60,10 +60,10 @@ class UltimateReportEngine:
         lines.append("")
 
         # 五维雷达
-        if scores:
+        score_map = scores if isinstance(scores, dict) else {}
+        if score_map:
             lines.append("## 五维能力")
             lines.append("")
-            score_map = scores if isinstance(scores, dict) else {}
             for dim in dims:
                 val = score_map.get(dim, 0) if score_map else 0
                 bar_w = 20

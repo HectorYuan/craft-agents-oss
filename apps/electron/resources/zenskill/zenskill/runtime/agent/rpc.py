@@ -14,6 +14,7 @@ from __future__ import annotations
 import asyncio
 import json
 import sys
+import time
 from typing import Any, AsyncIterator, Callable, Dict, List, Optional
 
 from .agent_loop import AgentLoop, AgentLoopConfig
@@ -282,7 +283,7 @@ class AgentServer:
             get_steering_messages=take_steering,
             get_follow_up_messages=take_follow_up,
             on_entry=on_entry,
-            tool_executor=self._build_proxy_executor() if self._proxy_tools else None,
+            tool_executor=self._build_proxy_executor(context) if self._proxy_tools else None,
             max_steps=self.max_steps,
             max_total_tokens=self.max_total_tokens,
         )
@@ -291,12 +292,18 @@ class AgentServer:
             config._host_system_prompt = self._host_system_prompt
         return AgentLoop(config)
 
-    def _build_proxy_executor(self):
-        """构建工具代理执行器：发 tool_execute_request，等 tool_execute_response"""
+    def _build_proxy_executor(self, context: "Context"):
+        """构建工具代理执行器：代理表内工具发 tool_execute_request 委托宿主；
+        表外工具（builtin：ls/bash/read...）走进程内执行。
+
+        此前无条件转发所有工具——宿主 routeToolCall 只认 MCP 代理工具，
+        导致 builtin 工具全部返回 Unknown tool（craft 模式基础工具断裂根因）。
+        """
         proxy_tools = self._proxy_tools
         proxy_pending = self._proxy_pending
         pre_tool_pending = self._pre_tool_pending
         send = self._send
+        local_tools = {t.name: t for t in context.tools}
 
         async def executor(tc, params):
             from uuid import uuid4
@@ -322,7 +329,30 @@ class AgentServer:
                 except asyncio.TimeoutError:
                     pass  # 超时不阻塞，继续执行
 
-            # tool_execute 请求
+            # 非代理工具（builtin）走进程内执行
+            if tc.name not in proxy_tools:
+                tool = local_tools.get(tc.name)
+                if tool is None:
+                    return ToolResultMessage(
+                        tool_call_id=tc.id, tool_name=tc.name,
+                        content=[TextContent(f"Unknown tool: {tc.name}")],
+                        is_error=True,
+                    )
+                try:
+                    result = await tool.run(tc.id, params)
+                    return ToolResultMessage(
+                        tool_call_id=tc.id, tool_name=tc.name,
+                        content=result.content,
+                        is_error=result.is_error,
+                    )
+                except Exception as e:
+                    return ToolResultMessage(
+                        tool_call_id=tc.id, tool_name=tc.name,
+                        content=[TextContent(f"{type(e).__name__}: {e}")],
+                        is_error=True,
+                    )
+
+            # 代理工具：tool_execute 请求委托宿主
             req_id = f"proxy-{uuid4().hex[:8]}"
             future = asyncio.get_running_loop().create_future()
             proxy_pending[req_id] = future
@@ -346,6 +376,9 @@ class AgentServer:
         return executor
 
     async def _run_agent(self, context: Context) -> None:
+        # P4.1 会话元数据：run 结束后回流一条 episode（系统记得你做过什么）
+        run_meta: Dict[str, Any] = {"turns": 0, "tools": [], "error": None,
+                                    "started": time.time()}
         try:
             loop = self._build_loop(context)
             async for ev in loop.run(context):
@@ -353,15 +386,23 @@ class AgentServer:
                 if payload is not None:
                     await self._send_await(payload)
                 self._mirror_event(ev)
+                etype = type(ev).__name__
+                if etype == "TurnEnd":
+                    run_meta["turns"] += 1
+                elif etype == "ToolExecutionStart" and ev.tool_name not in run_meta["tools"]:
+                    run_meta["tools"].append(ev.tool_name)
         except asyncio.CancelledError:
+            run_meta["error"] = "aborted"
             raise
         except Exception as e:
+            run_meta["error"] = f"{type(e).__name__}: {e}"
             self._send({
                 "type": "agent_end",
-                "error": f"{type(e).__name__}: {e}",
+                "error": run_meta["error"],
             })
         finally:
             self.abort_event.clear()
+            self._record_session_episode(context, run_meta)
             if self._auto_compaction and self.session is not None and self.stream_fn is not None:
                 try:
                     result = await compact_session(self.session, self.stream_fn, self.model)
@@ -378,6 +419,33 @@ class AgentServer:
                         "error": f"{type(e).__name__}: {e}",
                     })
             self._send({"type": "agent_settled"})
+
+    def _record_session_episode(self, context: "Context", meta: Dict[str, Any]) -> None:
+        """P4.1 会话回流：一次 agent run 完成后记一条 episode（尽力而为）。"""
+        try:
+            if meta.get("turns", 0) <= 0:
+                return  # 空转（无 LLM 输出）不记录
+            first_user = ""
+            for m in context.messages:
+                if type(m).__name__ == "UserMessage":
+                    first_user = getattr(m, "text", lambda: str(m))()[:120].replace("\n", " ")
+                    break
+            tools = meta.get("tools") or []
+            tool_part = f"，工具 {','.join(tools[:6])}" + ("…" if len(tools) > 6 else "")
+            err = meta.get("error")
+            content = (f"会话：{first_user or '(无文本任务)'}"
+                       f"（{meta['turns']} 轮{tool_part}"
+                       f"{('，异常退出: ' + str(err)[:60]) if err else ''}）")
+            from ...core.paths import SkillStateManager
+            duration_ms = int((time.time() - meta.get("started", time.time())) * 1000)
+            SkillStateManager("zenskill-core").record_episode(
+                action="agent_session",
+                content=content,
+                success=err is None,
+                duration_ms=duration_ms,
+            )
+        except Exception:
+            pass  # 回流失败绝不影响 agent 主流程
 
     def start_prompt(self, message: str) -> None:
         session = self._ensure_session()
@@ -558,7 +626,11 @@ class AgentServer:
                 if self.session is None:
                     respond(None, success=False, error="no active session")
                     return
-                self.session.branch_from(entry_id)
+                label = cmd.get("label")
+                if label:
+                    self.session.set_branch_label(entry_id, str(label))
+                else:
+                    self.session.branch_from(entry_id)
                 respond({"leaf": self.session.leaf_id})
 
             elif ctype == "mini_completion":

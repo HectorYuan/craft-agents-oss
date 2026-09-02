@@ -111,10 +111,17 @@ class AgentChatSession:
         try:
             from zenskill.runtime.agent.providers import resolve_model, create_stream
             from zenskill.runtime.agent.agent_loop import AgentLoop, AgentLoopConfig
+            from zenskill.runtime.agent.delegate_tool import DelegateTool
 
             self._model_config = resolve_model(self._model_name)
             stream_fn = create_stream(self._model_config)
             host_hooks = self._host.hooks()
+
+            # SubAgent delegate：子任务隔离子上下文执行，进度经 on_update 流出
+            self._tools.append(DelegateTool(
+                stream_fn, self._model_config, cwd=self._cwd,
+                system_prompt=self._base_prompt,
+            ))
 
             config = AgentLoopConfig(
                 stream=stream_fn,

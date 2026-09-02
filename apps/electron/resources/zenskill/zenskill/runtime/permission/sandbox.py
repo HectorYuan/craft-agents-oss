@@ -119,15 +119,91 @@ class Sandbox:
 
         return False, f"Path not in sandbox whitelist: {path}"
 
-    # 复合命令分隔符（&& || ; |）
-    _COMPOUND_RE = re.compile(r"&&|\|\||;|\|")
     # 输出重定向（> >> 2> 2>> &> &>>），捕获目标路径
     _REDIRECT_RE = re.compile(r"\d*&?>{1,2}\s*(\S+)")
+    # 输入重定向（< <<）不需要检查目标写入，此处只关注输出方向
     # 命令替换（$(...) / 反引号）——可绕过首词白名单，沙箱内直接禁止
     _SUBSTITUTION_RE = re.compile(r"\$\(|`")
 
+    def _find_redirect_targets(self, command: str) -> list[str]:
+        """引号感知地提取输出重定向目标（引号内的 > 是比较运算符，忽略）。"""
+        # 先剥离引号段，只留引号外文本
+        outside: list[str] = []
+        quote_char: str | None = None
+        i = 0
+        n = len(command)
+        while i < n:
+            ch = command[i]
+            if quote_char:
+                if ch == "\\" and i + 1 < n:
+                    i += 2
+                    continue
+                if ch == quote_char:
+                    quote_char = None
+                i += 1
+                continue
+            if ch in ("'", '"'):
+                quote_char = ch
+                outside.append(" ")  # 引号段留空占位
+                i += 1
+                continue
+            outside.append(ch)
+            i += 1
+        return self._REDIRECT_RE.findall("".join(outside))
+
+    def _split_command_segments(self, command: str) -> list[str]:
+        """引号感知的复合命令分割（&& || ; |）。
+
+        引号内/转义后的分隔符不切分——`python3 -c "a; b"` 必须保持为一段。
+        """
+        segments: list[str] = []
+        current: list[str] = []
+        quote_char: str | None = None
+        i = 0
+        n = len(command)
+        while i < n:
+            ch = command[i]
+            if quote_char:
+                current.append(ch)
+                if ch == "\\" and i + 1 < n:  # 转义：跳过下一字符
+                    current.append(command[i + 1])
+                    i += 2
+                    continue
+                if ch == quote_char:
+                    quote_char = None
+                i += 1
+                continue
+            if ch in ("'", '"'):
+                quote_char = ch
+                current.append(ch)
+                i += 1
+                continue
+            if ch == "\\":  # 转义：跳过下一字符
+                current.append(ch)
+                if i + 1 < n:
+                    current.append(command[i + 1])
+                    i += 2
+                    continue
+                i += 1
+                continue
+            two = command[i:i + 2]
+            if two in ("&&", "||"):
+                segments.append("".join(current))
+                current = []
+                i += 2
+                continue
+            if ch in (";", "|"):
+                segments.append("".join(current))
+                current = []
+                i += 1
+                continue
+            current.append(ch)
+            i += 1
+        segments.append("".join(current))
+        return [s.strip() for s in segments if s.strip()]
+
     def _check_command(self, command: str) -> tuple[bool, str]:
-        """检查命令权限：拆分复合命令逐段检查 + 重定向目标路径校验。
+        """检查命令权限：引号感知拆分复合命令逐段检查 + 重定向目标路径校验。
 
         Returns:
             (allowed, reason)
@@ -140,14 +216,13 @@ class Sandbox:
             return False, "Command substitution not allowed in sandbox: use direct commands"
 
         # 拆分复合命令，逐段检查
-        segments = [s.strip() for s in self._COMPOUND_RE.split(command) if s.strip()]
-        for seg in segments:
+        for seg in self._split_command_segments(command):
             ok, reason = self._check_single_command(seg)
             if not ok:
                 return False, reason
 
-        # 重定向目标必须在路径白名单内
-        for target in self._REDIRECT_RE.findall(command):
+        # 重定向目标必须在路径白名单内（引号内 > 是比较符，不误判）
+        for target in self._find_redirect_targets(command):
             ok, reason = self._check_path(target)
             if not ok:
                 return False, f"Redirect target denied: {reason}"
@@ -182,10 +257,23 @@ class Sandbox:
 
         # basename 归一化：/bin/python3 与 python3 等价
         effective_name = os.path.basename(effective)
-        if effective_name in self._config.allowed_commands:
-            return True, ""
+        if effective_name not in self._config.allowed_commands:
+            return False, f"Command not in sandbox whitelist: {effective_name}"
 
-        return False, f"Command not in sandbox whitelist: {effective_name}"
+        # 路径型参数检查：绝对路径或 ../ 相对路径必须落在白名单内。
+        # bash 以 workspace 为 cwd 运行，纯相对名（file.txt）天然在沙箱内；
+        # 含空格/以 - 开头的 token 不是路径（commit message、flag）。
+        for token in cmd_parts[1:]:
+            if token.startswith("-") or " " in token or "=" in token:
+                continue
+            looks_like_path = token.startswith("/") or token.startswith("..") or token.startswith("./")
+            if not looks_like_path:
+                continue
+            ok, reason = self._check_path(token)
+            if not ok:
+                return False, f"Path argument denied by sandbox: {token}"
+
+        return True, ""
 
     async def check(
         self,

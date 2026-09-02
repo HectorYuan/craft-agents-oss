@@ -159,6 +159,36 @@ class Session:
             raise ValueError(f"entry not found: {entry_id}")
         self._leaf_override = entry_id
 
+    def set_branch_label(self, entry_id: str, label: str) -> SessionEntry:
+        """给历史 entry 打命名分支标签并切到该分支（持久化，reload 自动恢复）。
+
+        落盘为 custom entry（{tag: "branch", targetEntryId, label}），
+        collect_pairs/build_context 天然跳过，不影响上下文重建。
+        """
+        if not label or not label.strip():
+            raise ValueError("branch label must be non-empty")
+        if not any(e.id == entry_id for e in self.entries):
+            raise ValueError(f"entry not found: {entry_id}")
+        entry = self.append("custom", {
+            "tag": "branch",
+            "targetEntryId": entry_id,
+            "label": label.strip(),
+        })
+        # append 会把 _leaf_override 重置回主干叶子，分支切换需在其后指向
+        self._leaf_override = entry_id
+        return entry
+
+    def get_branch_labels(self) -> Dict[str, str]:
+        """聚合分支标签：{targetEntryId: label}（同目标后写覆盖先写）。"""
+        labels: Dict[str, str] = {}
+        for e in self.entries:
+            if e.type == "custom" and e.data.get("tag") == "branch":
+                target = e.data.get("targetEntryId")
+                label = e.data.get("label")
+                if target and label:
+                    labels[target] = label
+        return labels
+
     # ------------------------------------------------------------------
     # 重建上下文
     # ------------------------------------------------------------------
@@ -286,7 +316,16 @@ class SessionManager:
         entries = [SessionEntry.from_dict(d) for d in parsed if d is not header]
         if corrupted:
             header["corruptedLines"] = corrupted
-        return Session(path, header, entries)
+        session = Session(path, header, entries)
+        # 恢复分支选择：最后一条 branch 标记的 target 即当前分支点
+        # （branch_from/set_branch_label 的选择原本只存内存，reload 即丢失）
+        for e in reversed(entries):
+            if e.type == "custom" and e.data.get("tag") == "branch":
+                target = e.data.get("targetEntryId")
+                if target and any(x.id == target for x in entries):
+                    session._leaf_override = target
+                break
+        return session
 
     def list_sessions(self) -> List[Dict[str, Any]]:
         if not self.root.is_dir():
@@ -300,6 +339,7 @@ class SessionManager:
                     "cwd": s.cwd,
                     "created": s.header.get("created"),
                     "entries": len(s.entries),
+                    "branches": len(s.get_branch_labels()),
                 })
             except (ValueError, KeyError, json.JSONDecodeError):
                 continue

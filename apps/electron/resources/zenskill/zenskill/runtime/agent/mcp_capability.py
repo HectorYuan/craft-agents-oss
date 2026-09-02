@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 import json
+import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -18,11 +19,14 @@ from .types import AgentTool, AgentToolResult, FunctionTool, TextContent
 DEFAULT_TOOL_THRESHOLD = 30
 
 
-def _mcp_tool_wrapper(client, server_name: str, mcp_tool) -> AgentTool:
+def _mcp_tool_wrapper(client, server_name: str, mcp_tool, is_pool: bool = False) -> AgentTool:
     prefixed = f"mcp__{server_name}__{mcp_tool.name}"
 
     async def run(tool_call_id: str, params: Dict[str, Any], on_update=None) -> AgentToolResult:
-        result = await client.call_tool(mcp_tool.name, params)
+        if is_pool:
+            result = await client.call_tool(server_name, mcp_tool.name, params)
+        else:
+            result = await client.call_tool(mcp_tool.name, params)
         text = str(result.content if result.content is not None else "")
         if result.is_error or not result.success:
             text = text or (result.error or "mcp tool failed")
@@ -45,21 +49,35 @@ class McpCapability(AgentCapability):
     priority = 40
 
     def __init__(self, client, server_name: str = "server",
-                 tool_threshold: int = DEFAULT_TOOL_THRESHOLD) -> None:
+                 tool_threshold: int = DEFAULT_TOOL_THRESHOLD,
+                 discover_ttl: float = 300.0) -> None:
+        # client 可为单个 MCPClient 或多服务器 MCPClientPool（list_all_tools 接口）
+        self._pool = client if hasattr(client, "list_all_tools") else None
         self._client = client
         self._server = server_name
         self._threshold = tool_threshold
         self._tools: Optional[List[AgentTool]] = None
         self._folded = False
+        self._ttl = discover_ttl  # 工具目录缓存秒数；MCP 服务器热更新工具后自动重发现
+        self._discovered_at: float = -1e18
 
-    async def discover(self) -> List[AgentTool]:
-        """列出并转换 MCP 工具（折叠判定在此时做）"""
-        if self._tools is not None:
+    async def discover(self, force: bool = False) -> List[AgentTool]:
+        """列出并转换 MCP 工具（折叠判定在此时做；TTL 内缓存，超时或 force 重发现）"""
+        if (self._tools is not None and not force
+                and time.monotonic() - self._discovered_at < self._ttl):
             return self._folded_tools()
-        mcp_tools = await self._client.list_tools()
-        wrapped = [_mcp_tool_wrapper(self._client, self._server, t) for t in mcp_tools]
+        if self._pool is not None:
+            pairs = await self._pool.list_all_tools()
+            wrapped = [
+                _mcp_tool_wrapper(self._pool, server, t, is_pool=True)
+                for server, t in pairs
+            ]
+        else:
+            mcp_tools = await self._client.list_tools()
+            wrapped = [_mcp_tool_wrapper(self._client, self._server, t) for t in mcp_tools]
         self._folded = len(wrapped) > self._threshold
         self._tools = wrapped
+        self._discovered_at = time.monotonic()
         return self._folded_tools()
 
     def _folded_tools(self) -> List[AgentTool]:

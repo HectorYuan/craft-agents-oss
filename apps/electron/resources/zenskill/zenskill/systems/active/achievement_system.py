@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Any, Dict, List
 
-from zenskill.core.paths import SkillStateManager
+from zenskill.core.paths import SkillStateManager, atomic_write_json, get_user_data_dir
 from zenskill.mirroring.event_collector import EventCollector
 from zenskill.mirroring.models import EventType
 from zenskill.systems.active.habit_tracker import HabitTracker
@@ -37,6 +38,37 @@ class AchievementSystem:
     def __init__(self, skill_id: str = "zenskill-core"):
         self.skill_id = skill_id
         self.collector = EventCollector()
+        self._history_path = get_user_data_dir() / "growth" / "achievements.json"
+
+    def _load_history(self) -> Dict[str, Dict[str, str]]:
+        """解锁历史（终身制）：{badge_id: {title, unlocked_at}}"""
+        try:
+            data = json.loads(self._history_path.read_text(encoding="utf-8"))
+            return data.get(self.skill_id, {})
+        except Exception:
+            return {}
+
+    def _record_unlocks(self, realtime_unlocked: List[Badge],
+                        history: Dict[str, Dict[str, str]]) -> List[str]:
+        """新解锁落盘（惰性，覆盖 CLI/TUI/MCP 全部入口）。返回本次新解锁 id。"""
+        new_ids = [b.badge_id for b in realtime_unlocked if b.badge_id not in history]
+        if not new_ids:
+            return []
+        now = datetime.now().isoformat()
+        merged = dict(history)
+        for b in realtime_unlocked:
+            if b.badge_id in new_ids:
+                merged[b.badge_id] = {"title": b.title, "unlocked_at": now}
+        try:
+            all_data: Dict[str, Any] = {}
+            if self._history_path.exists():
+                all_data = json.loads(self._history_path.read_text(encoding="utf-8"))
+            all_data[self.skill_id] = merged
+            self._history_path.parent.mkdir(parents=True, exist_ok=True)
+            atomic_write_json(self._history_path, all_data)
+        except Exception:
+            pass
+        return new_ids
 
     def evaluate(self) -> Dict[str, Any]:
         state = SkillStateManager(self.skill_id).load()
@@ -44,12 +76,28 @@ class AchievementSystem:
         recent_start = (datetime.now() - timedelta(days=7)).timestamp()
         recent_events = [event for event in events if event.timestamp >= recent_start]
         habit_data = HabitTracker(self.skill_id).analyze(days=28)
+        # 反思活动记录在 episodes（zenloop 不写 EventCollector）——供两源合并
+        episode_reflections = sum(
+            1 for ep in state.get("episodes", [])
+            if "reflection" in str(ep.get("action", "")).lower()
+        )
         badges = []
         badges.extend(self._level_badges(state))
         badges.extend(self._usage_badges(state))
         badges.extend(self._activity_badges(recent_events))
         badges.extend(self._habit_badges(habit_data))
-        badges.extend(self._quality_badges(events))
+        badges.extend(self._quality_badges(events, episode_reflections=episode_reflections))
+
+        # 终身制：历史 ∪ 实时——进度可回落，解锁不回落
+        history = self._load_history()
+        new_ids = [b.badge_id for b in badges if b.unlocked and b.badge_id not in history]
+        if new_ids:
+            history = self._record_unlocks(
+                [b for b in badges if b.unlocked], history)
+        for badge in badges:
+            if not badge.unlocked and badge.badge_id in history:
+                badge.unlocked = True
+
         unlocked = [badge for badge in badges if badge.unlocked]
         locked = [badge for badge in badges if not badge.unlocked]
         locked.sort(key=lambda badge: badge.progress, reverse=True)
@@ -60,6 +108,7 @@ class AchievementSystem:
             "total": len(badges),
             "unlocked_count": len(unlocked),
             "completion_rate": len(unlocked) / max(1, len(badges)),
+            "new_unlocks": new_ids,
             "generated_at": datetime.now().isoformat(),
         }
 
@@ -126,11 +175,13 @@ class AchievementSystem:
             Badge("habit_multi", "多线养成", "习惯", "🧩", "同时保持 2 个习惯", active >= 2, min(1.0, active / 2), f"当前活跃习惯 {active}/2"),
         ]
 
-    def _quality_badges(self, events: List[Any]) -> List[Badge]:
+    def _quality_badges(self, events: List[Any], episode_reflections: int = 0) -> List[Badge]:
         total = len(events)
         success = sum(1 for event in events if event.success)
         errors = sum(1 for event in events if event.event_type == EventType.ERROR or not event.success)
         reflections = sum(1 for event in events if event.event_type == EventType.REFLECTION or "reflection" in str(event.action).lower())
+        # 反思活动记录在 episodes（zenloop 不写 EventCollector）——两源合并
+        reflections += episode_reflections
         success_rate = success / max(1, total)
         return [
             Badge("quality_stable", "稳定执行者", "质量", "🛡️", "成功率达到 90% 且事件不少于 20", total >= 20 and success_rate >= 0.9, min(1.0, success_rate / 0.9) if total >= 20 else min(0.8, total / 20), f"成功率 {success_rate:.0%}，事件 {total}/20"),

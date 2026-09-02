@@ -624,7 +624,7 @@ class SkillStateManager:
                         except (json.JSONDecodeError, OSError):
                             pass
 
-                    return {
+                    state = {
                         "schema_version": self.CURRENT_SCHEMA_VERSION,
                         "skill_id": self.skill_id,
                         "skill_name": profile.name,
@@ -644,6 +644,10 @@ class SkillStateManager:
                             "success_rate": profile.success_rate,
                         },
                     }
+                    # SQLite 的 level 是只读旧值（SkillProfile 无 level 写回），
+                    # 与 JSON 路径同样按 usage 重算，否则对外永远 NOVICE
+                    self._normalize_level(state)
+                    return state
             except Exception:
                 pass
 
@@ -830,6 +834,19 @@ class SkillStateManager:
     def _save_unlocked(self, state: dict[str, Any], action: str = "save", write_history: bool = True) -> None:
         state["last_updated"] = datetime.now().isoformat()
         self._normalize_level(state)
+        # 境界变化时产出 level_up_at / milestones（此前只有只读展示、无产生者）
+        if state.get("_old_level") and state["_old_level"] != state.get("level"):
+            now = datetime.now().isoformat()
+            if not state.get("level_up_at"):
+                state["level_up_at"] = now
+            milestones = state.setdefault("milestones", [])
+            milestones.append({
+                "type": "level_up",
+                "from": state["_old_level"],
+                "to": state["level"],
+                "at": now,
+            })
+        state.pop("_old_level", None)
         atomic_write_json(self.state_path, state)
 
         if write_history:

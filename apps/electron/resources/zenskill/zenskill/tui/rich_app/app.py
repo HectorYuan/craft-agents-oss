@@ -82,6 +82,8 @@ class ZenRichTUI:
         self._pages: Dict[str, object] = {}
         self._total_cost = 0.0
         self._agent_session = None  # lazy AgentChatSession
+        self._last_feedback = ("", 0.0)  # T3 微反馈频控 (text, timestamp)
+        self._shown_milestones = 0  # T5 已展示的 level_up 里程碑游标
 
     def _get_agent_session(self):
         """懒加载 AgentChatSession。"""
@@ -311,6 +313,12 @@ class ZenRichTUI:
             page = self._pages.get("status")
             if page:
                 page.render()
+            return
+
+        if parsed.resource == "growth" and parsed.action == "achievements":
+            page = self._pages.get("growth")
+            if page:
+                page.render(action="achievements")
             return
 
         if parsed.resource == "history":
@@ -574,6 +582,9 @@ class ZenRichTUI:
                 self.session.receive("assistant", full_content)
                 self._total_cost += self._estimate_turn_cost(user_input, full_content)
 
+            # T3 微反馈（5 分钟同文频控）+ T5 升级仪式
+            self._post_chat_companion()
+
         except KeyboardInterrupt:
             cancelled = True
             agent.abort()
@@ -586,6 +597,40 @@ class ZenRichTUI:
             # 降级到直接 LLM 路径
             self.console.print("[dim]降级到直接 LLM 路径...[/dim]")
             await self._handle_chat_direct(user_input)
+
+    def _post_chat_companion(self):
+        """T3 微反馈 + T5 升级仪式——均为尽力而为，静默失败。"""
+        import time as _time
+
+        # T3: 一句话微反馈，同一内容 5 分钟内不重复
+        try:
+            from ..data import TuiDataAdapter
+            data = self._get_data()
+            if not isinstance(data, TuiDataAdapter):
+                data = TuiDataAdapter()
+                self.data = data
+            fb = data.get_instant_feedback_line("zenskill-core").strip()
+            if fb:
+                text, ts = self._last_feedback
+                if fb != text or (_time.time() - ts) > 300:
+                    self.console.print(f"[dim]{fb}[/dim]")
+                    self._last_feedback = (fb, _time.time())
+        except Exception:
+            pass
+
+        # T5: 境界突破仪式（新里程碑出现时展示一次）
+        try:
+            from ...core.paths import SkillStateManager
+            milestones = SkillStateManager("zenskill-core").load().get("milestones", [])
+            level_ups = [m for m in milestones if m.get("type") == "level_up"]
+            if len(level_ups) > self._shown_milestones:
+                self._shown_milestones = len(level_ups)
+                from ...systems.visualization.level_up_ceremony import LevelUpCeremony
+                text = LevelUpCeremony("zenskill-core").get_latest_ceremony()
+                if text:
+                    self.console.print(text)
+        except Exception:
+            pass
 
     async def _handle_agent_command(self, parsed):
         """处理 /agent 子命令。"""
@@ -735,17 +780,36 @@ class ZenRichTUI:
     # 特殊页面
     # ═══════════════════════════════════════════════════════════════
 
+    def _companion_line(self) -> str:
+        """T1 启动陪伴问候：动态一行（失败返回空，永不阻塞启动）。"""
+        try:
+            data = self._get_data().get_companion_summary()
+            energy = data.get("energy") or {}
+            icon = {"critical": "🔴", "low": "🟠", "medium": "🟡", "high": "🟢"}.get(
+                energy.get("level"), "🟡")
+            line = (f"{data.get('greeting', '')}——{data.get('mood', '')}"
+                    f"  {icon} {energy.get('current', 0)}/{energy.get('max', 0)}")
+            return line
+        except Exception:
+            return ""
+
     def _show_landing(self):
         """显示 Landing Page。"""
         self.console.print()
-        self.console.print(Panel(
-            Text("🧘 ZenSkill TUI", style="bold cyan", justify="center") +
-            "\n\n" +
+        body = Text("🧘 ZenSkill TUI", style="bold cyan", justify="center") + "\n\n"
+        # T1 陪伴问候：动态一行（认识你），失败静默降级
+        companion = self._companion_line()
+        if companion:
+            body += Text(companion, style="magenta", justify="center") + "\n\n"
+        body += (
             Text("技能成长引擎 · AI 助手", style="dim", justify="center") +
             "\n" +
             Text("输入消息开始对话，或输入 / 查看命令", style="dim", justify="center") +
             "\n" +
-            Text("1=仪表盘 2=成长 3=技能 4=GTD 5=设置 6=帮助", style="dim", justify="center"),
+            Text("1=仪表盘 2=成长 3=技能 4=GTD 5=设置 6=帮助 7=Agent", style="dim", justify="center")
+        )
+        self.console.print(Panel(
+            body,
             title="[bold cyan]ZenSkill[/bold cyan]",
             border_style="cyan",
         ))

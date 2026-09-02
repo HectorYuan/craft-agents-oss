@@ -22,7 +22,7 @@ from .protocol import (
     ToolResult,
     negotiate_version,
 )
-from .transport import StdioTransport, TransportError
+from .transport import HttpStreamTransport, StdioTransport, TransportError
 
 
 class MCPClient:
@@ -34,7 +34,7 @@ class MCPClient:
         read_timeout: float = 30.0,
         max_reconnects: int = 2,
     ):
-        self._transport: Optional[StdioTransport] = None
+        self._transport: Optional[StdioTransport | HttpStreamTransport] = None
         self._connected: bool = False
         self._connect_timeout: float = connect_timeout
         self._read_timeout: float = read_timeout
@@ -53,8 +53,9 @@ class MCPClient:
         连接 MCP Server
 
         Args:
-            server_path: MCP Server 可执行文件路径或命令数组
-                         例如: "mcp-server" 或 ["npx", "@modelcontextprotocol/server-filesystem", "/tmp"]
+            server_path: MCP Server 可执行文件路径/命令数组，或 http(s):// URL
+                         （Streamable HTTP 传输）
+                         例如: "mcp-server"、"http://localhost:8080/mcp"
 
         Raises:
             ConnectionError: 连接失败
@@ -66,7 +67,7 @@ class MCPClient:
             self._server_command = list(server_path)
             self._server_path = " ".join(server_path)
         else:
-            self._server_command = [server_path]
+            self._server_command = None if server_path.startswith(("http://", "https://")) else [server_path]
             self._server_path = server_path
 
         try:
@@ -76,10 +77,17 @@ class MCPClient:
             raise ConnectionError(f"Failed to connect to MCP server: {e}")
 
     async def _do_connect(self) -> None:
-        if self._server_command is None:
+        if self._server_path is None:
             raise ConnectionError("No server path configured")
 
-        self._transport = StdioTransport(self._server_command)
+        if self._server_command is None:
+            # Streamable HTTP：URL 直连（无子进程，重连 = 重建 transport）
+            from .transport import HttpStreamTransport
+            self._transport = HttpStreamTransport(
+                self._server_path, timeout=self._read_timeout,
+            )
+        else:
+            self._transport = StdioTransport(self._server_command)
         await self._transport.start()
         self._connected = True
         self._reconnect_count = 0

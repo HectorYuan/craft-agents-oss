@@ -514,9 +514,8 @@ export function setBrowserToolEnabled(enabled: boolean): void {
   config.browserToolEnabled = enabled;
   saveConfig(config);
 
-  // Clear session tool caches so all sessions pick up the change immediately.
-  // Lazy import to avoid circular dependency (storage ← session-scoped-tools ← storage).
-  import('../agent/session-scoped-tools.ts').then(m => m.invalidateAllSessionToolsCaches()).catch(() => {});
+  // (Session tool caches were removed with the Claude backend — no-op retained
+  //  for API compatibility.)
 }
 
 /**

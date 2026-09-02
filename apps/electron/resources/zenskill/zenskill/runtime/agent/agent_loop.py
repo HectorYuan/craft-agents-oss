@@ -54,6 +54,7 @@ from .types import (
     total_usage,
     estimate_context_tokens,
     estimate_tool_result_tokens,
+    record_usage_sample,
 )
 from .validation import ToolValidationError, validate_tool_arguments
 
@@ -278,6 +279,15 @@ class AgentLoop:
                     continue
                 break
 
+            # 真实 input tokens 回报 → token 估算自动校准（无样本时无行为差异）。
+            # 必须在 final_msg 追加进 context 前调用：llm_messages 与
+            # context.messages 是同一列表引用，追加后估算基准会被污染。
+            if final_msg.usage is not None and final_msg.usage.input > 0:
+                try:
+                    record_usage_sample(llm_messages, final_msg.usage.input)
+                except Exception:
+                    pass
+
             yield MessageEnd(final_msg)
             context.messages.append(final_msg)
             new_messages.append(final_msg)
@@ -300,7 +310,9 @@ class AgentLoop:
                     self._emit_entry(r)
             elif tool_calls:
                 produced: List[ToolResultMessage] = []
-                async for ev in self._invoke_tool_calls(context, tool_calls, produced):
+                async for ev in self._invoke_tool_calls(
+                    context, tool_calls, produced, new_messages=new_messages
+                ):
                     yield ev
                 results = produced
 
@@ -425,7 +437,8 @@ class AgentLoop:
     # ------------------------------------------------------------------
 
     async def _invoke_tool_calls(
-        self, context: Context, tool_calls: List[ToolCall], produced: List[ToolResultMessage]
+        self, context: Context, tool_calls: List[ToolCall], produced: List[ToolResultMessage],
+        new_messages: Optional[List[Message]] = None,
     ) -> AsyncIterator[AgentEvent]:
         tool_map = {t.name: t for t in context.tools}
         results: List[Optional[ToolResultMessage]] = [None] * len(tool_calls)
@@ -466,7 +479,12 @@ class AgentLoop:
         # per-tool 并发分类（P1-5）：连续 concurrency_safe 工具成并行段，
         # unsafe 工具（bash/write/edit）单独成 barrier 段串行，段间等待。
         if pending and self.config.parallel_tools and len(pending) > 1:
+            first_segment = True
             for segment in _split_by_concurrency_safety(pending):
+                if not first_segment:
+                    # barrier 段间 drain steering（P1-4）：长批执行中用户指令即时可见
+                    await self._drain_steering_mid_batch(context, new_messages)
+                first_segment = False
                 if len(segment) > 1:
                     async for ev in self._run_tools_parallel(tool_calls, segment, results):
                         yield ev
@@ -484,7 +502,12 @@ class AgentLoop:
                         tc, "tool produced no result"
                     )
         else:
+            first_tool = True
             for i, tool, params in pending:
+                if not first_tool:
+                    # 串行工具间 drain steering（P1-4）
+                    await self._drain_steering_mid_batch(context, new_messages)
+                first_tool = False
                 tc = tool_calls[i]
                 holder: List[ToolResultMessage] = []
                 if self.config.tool_executor is not None:
@@ -510,6 +533,24 @@ class AgentLoop:
             produced.append(result_msg)
             self._emit_entry(result_msg)
             yield ToolExecutionEnd(tc.id, tc.name, result_msg.is_error, result_msg)
+
+    async def _drain_steering_mid_batch(
+        self, context: Context, new_messages: Optional[List[Message]] = None
+    ) -> List[Message]:
+        """工具批间消费 steering：长批执行中用户指令即时入队，下一轮可见。
+
+        返回注入的消息（追加进 context.messages / new_messages 并 emit）。
+        """
+        injected: List[Message] = []
+        if self.config.get_steering_messages is not None:
+            injected = list((await _maybe_call(self.config.get_steering_messages)) or [])
+        if injected:
+            context.messages.extend(injected)
+            if new_messages is not None:
+                new_messages.extend(injected)
+            for m in injected:
+                self._emit_entry(m)
+        return injected
 
     async def _run_tools_parallel(
         self, tool_calls: List[ToolCall], pending: List[Any],

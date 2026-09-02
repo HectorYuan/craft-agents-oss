@@ -34,15 +34,26 @@ class ServerToolRegistry:
         "habit_analyze": 45.0,
         "skill_browse": 120.0,
     }
-    # 写工具：调用即清缓存（保证后续读拿到新数据）
-    WRITE_TOOLS = frozenset({
-        "gtd_capture", "inbox_clarify", "inbox_archive",
-        "action_add", "action_done", "action_mark_next",
-        "action_update", "action_delete",
-        "project_done", "incubating_promote",
-        "memory_remember", "habit_check",
-        "goal_set", "skill_install", "skill_uninstall",
+    # 写工具：调用即清缓存（保证后续读拿到新数据）。
+    # 前缀规则对齐 TS 侧 sources.ts——新增同族写工具自动覆盖。
+    # READ 前缀族下的读工具（list/review/analyze 等）显式排除——
+    # 否则 gtd_inbox_list 等命中前缀被误判为写，TTL 缓存永不命中。
+    _WRITE_TOOL_PREFIXES = ("gtd_", "inbox_", "action_", "project_", "incubating_")
+    _WRITE_TOOLS_EXACT = frozenset({
+        "memory_remember", "goal_set", "habit_check",
+        "skill_install", "skill_uninstall",
     })
+    _READ_TOOLS = frozenset({
+        "gtd_inbox_list", "gtd_review",
+        "action_list", "project_list",
+        "incubating_list",
+    })
+
+    @classmethod
+    def is_write_tool(cls, name: str) -> bool:
+        if name in cls._READ_TOOLS:
+            return False
+        return name in cls._WRITE_TOOLS_EXACT or name.startswith(cls._WRITE_TOOL_PREFIXES)
 
     def __init__(self):
         self._tools: dict[str, ServerToolSpec] = {}
@@ -98,7 +109,7 @@ class ServerToolRegistry:
             raise KeyError(f"Unknown tool: {name}")
         arguments = arguments or {}
 
-        if name in self.WRITE_TOOLS:
+        if self.is_write_tool(name):
             self._cache.clear()
 
         cache_key = None
@@ -427,7 +438,7 @@ def build_default_registry() -> ServerToolRegistry:
         from ...tui.data import TuiDataAdapter
         from ...core.paths import SkillStateManager
 
-        skill_id = a.get("skill_id", "zenskill")
+        skill_id = a.get("skill_id", "zenskill-core")
         adapter = TuiDataAdapter()
 
         # 获取当前状态
@@ -710,6 +721,59 @@ def build_default_registry() -> ServerToolRegistry:
             "message": f"当前能量：{status.get('level', '?')}（{int(status.get('pct', 0)*100)}%）",
         }
 
+    def _zenloop_run(a: dict[str, Any]) -> Any:
+        """触发 ZenLoop 循环（WP-B：automation/无人值守场景的工具入口）"""
+        import asyncio
+        import concurrent.futures
+        from ...systems.zenloop.zenloop_system import ZenLoopSystem
+        from ...systems.zenloop.loop_base import LoopType
+
+        name = (a.get("loop_type") or "reflection").upper()
+        try:
+            loop_type = LoopType[name]
+        except KeyError:
+            valid = [t.name.lower() for t in LoopType]
+            return {"ok": False,
+                    "message": f"未知循环类型 {name}，可选: {', '.join(valid)}"}
+
+        zl = ZenLoopSystem()
+        # handler 可能跑在 serve 的 asyncio loop 内——独立线程开新 loop 执行
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as ex:
+            future = ex.submit(asyncio.run, zl.trigger_loop(
+                loop_type, {"source": "mcp"}))
+            try:
+                results = future.result(timeout=90.0)
+            except concurrent.futures.TimeoutError:
+                return {"ok": False,
+                        "message": f"ZenLoop {name} 执行超时（90s）"}
+
+        summaries = []
+        for r in results:
+            summaries.append({
+                "loop": getattr(r, "loop_type", name),
+                "summary": getattr(r, "summary", "")[:200],
+                "success": getattr(r, "success", True),
+            })
+        if not results:
+            return {"ok": True, "executed": 0, "results": [],
+                    "message": f"ZenLoop {name} 未触发（插件触发条件未满足，如交互数/间隔/错误数）"}
+        return {"ok": True, "executed": len(results), "results": summaries,
+                "message": f"ZenLoop {name} 执行 {len(results)} 个插件"}
+
+    def _session_summary(a: dict[str, Any]) -> Any:
+        """会话摘要回流（WP-C：SessionManager complete 钩子经 MCP 写入）"""
+        from ...core.paths import SkillStateManager
+
+        skill_id = a.get("skill_id", "zenskill-core")
+        message_count = int(a.get("message_count") or 0)
+        tool_count = int(a.get("tool_count") or 0)
+        first_message = (a.get("first_message") or "")[:80]
+        content = (f"会话摘要: {message_count} 条消息 / {tool_count} 次工具调用"
+                   + (f" | {first_message}" if first_message else ""))
+        SkillStateManager(skill_id).record_episode("session_summary", content)
+        return {"ok": True,
+                "message": f"会话摘要已记录（{message_count} 条消息 / {tool_count} 次工具调用）"}
+
     def _daily_review(a: dict[str, Any]) -> Any:
         """每日复盘：今日 inbox 处理、action 完成、能量变化、成就、习惯"""
         import time
@@ -789,6 +853,23 @@ def build_default_registry() -> ServerToolRegistry:
         "daily_review",
         "每日复盘：今日 inbox/action/energy/成就/习惯汇总",
         _daily_review,
+    )
+    registry.register(
+        "session_summary",
+        "会话摘要回流：消息数/工具调用数/首条消息 → episodes",
+        _session_summary,
+    )
+    registry.register(
+        "zenloop_run",
+        "触发 ZenLoop 循环（reflection/consolidation/insight/purification）——"
+        "定时自动化/无人值守反思入口",
+        _zenloop_run,
+        {
+            "type": "object",
+            "properties": {"loop_type": {
+                "type": "string",
+                "description": "循环类型，默认 reflection"}},
+        },
     )
 
     def _action_add(a: dict[str, Any]) -> Any:
@@ -1096,30 +1177,75 @@ def build_default_registry() -> ServerToolRegistry:
         }
 
     def _goal_set(a: dict[str, Any]) -> Any:
-        """设置技能成长目标"""
+        """设置技能成长目标（真引擎：ActiveGoalEngine.create_goal / suggest_goals）"""
         from ...systems.active.goal_engine import ActiveGoalEngine
-        engine = ActiveGoalEngine()
         skill_id = a.get("skill_id", "zenskill-core")
+        engine = ActiveGoalEngine(skill_id)
+
+        # suggest 模式：引擎按短板自动推荐
+        if a.get("suggest"):
+            suggestions = engine.suggest_goals(n_goals=int(a.get("n", 2)))
+            return {
+                "skill_id": skill_id,
+                "suggestions": [g.to_dict() for g in suggestions],
+                "message": "推荐目标（按当前短板生成），确认后用 goal_set 带 dimension+target_score 落设",
+            }
+
         dimension = a.get("dimension", "proficiency")
-        target = a.get("target_score", 80)
-        # 设置目标
+        target = int(a.get("target_score") or 0)
+        if not target:
+            return {"success": False,
+                    "error": "需要 target_score（0-100），或传 suggest=true 让引擎推荐"}
+        try:
+            goal = engine.create_goal(
+                dimension, target,
+                deadline_interactions=a.get("deadline_interactions"),
+            )
+        except ValueError as e:
+            return {"success": False, "error": str(e),
+                    "hint": "维度可选: proficiency/stability/satisfaction/responsiveness/memory/composite"}
+        prog = engine.get_goal_progress(goal)
         return {
+            "success": True,
             "skill_id": skill_id,
-            "dimension": dimension,
-            "target_score": target,
-            "message": f"已设置目标：{skill_id} 的 {dimension} 达到 {target} 分",
+            "goal": goal.to_dict(),
+            "progress_pct": round(prog.progress_pct, 1),
+            "message": (f"已设置目标：{skill_id} 的 {goal.dimension} "
+                        f"{prog.current_score} → {goal.target_score} 分"
+                        f"（预计约 {goal.deadline_interactions} 次交互）"),
         }
 
     def _goal_progress(a: dict[str, Any]) -> Any:
-        """检查目标进度"""
+        """检查目标进度（真引擎：update_goal_status + get_goal_progress）"""
         from ...systems.active.goal_engine import ActiveGoalEngine
-        engine = ActiveGoalEngine()
         skill_id = a.get("skill_id", "zenskill-core")
-        # 获取目标进度
-        return {
-            "skill_id": skill_id,
-            "message": f"{skill_id} 目标进度查询完成",
-        }
+        engine = ActiveGoalEngine(skill_id)
+        engine.update_goal_status()
+
+        active = engine.get_active_goals()
+        items = []
+        for g in active:
+            prog = engine.get_goal_progress(g)
+            items.append({
+                "goal_id": g.goal_id,
+                "dimension": g.dimension,
+                "start_score": prog.start_score,
+                "current_score": prog.current_score,
+                "target_score": prog.target_score,
+                "progress_pct": round(prog.progress_pct, 1),
+                "deadline_interactions": g.deadline_interactions,
+            })
+        completed = [g.to_dict() for g in engine.get_all_goals() if g.status == "completed"]
+        if items:
+            top = items[0]
+            msg = (f"活跃目标 {len(items)} 个：{top['dimension']} "
+                   f"{top['current_score']}/{top['target_score']}（{top['progress_pct']}%）")
+        elif completed:
+            msg = f"暂无活跃目标，已完成 {len(completed)} 个（可用 goal_set suggest=true 推荐新目标）"
+        else:
+            msg = "尚无目标（goal_set suggest=true 可按短板自动推荐）"
+        return {"skill_id": skill_id, "active": items,
+                "completed_count": len(completed), "message": msg}
 
     def _proactive_insight(a: dict[str, Any]) -> Any:
         """获取主动洞察（先检测生成，再按类型筛选）"""
@@ -1210,8 +1336,57 @@ def build_default_registry() -> ServerToolRegistry:
         elif inbox > 0:
             parts.append(f"收件箱有 {inbox} 条待处理")
 
+        # P4.2 多源化：时间感知问候 + proactive_insight 顶级洞察 + 微反馈
+        if 5 <= hour < 12:
+            greeting = "早上好"
+        elif 12 <= hour < 14:
+            greeting = "中午好"
+        elif 14 <= hour < 18:
+            greeting = "下午好"
+        elif 18 <= hour < 23:
+            greeting = "晚上好"
+        else:
+            greeting = "夜深了"
+
+        top_insight = None
+        try:
+            from ...systems.active.proactive_insight import ProactiveInsightEngine
+            engine = ProactiveInsightEngine(skill_id="zenskill-core")
+            # WP-A：先懒生成（幂等，同类型 unread 去重由引擎保证）——
+            # 否则无人调过 proactive_insight 时 companion 永远拿不到洞察
+            try:
+                engine.check_and_generate_insights()
+            except Exception:
+                pass
+            insights = engine.get_unread_insights()
+            top_insights = [
+                {
+                    "type": getattr(i, "insight_type", getattr(i, "type", "info")),
+                    "title": getattr(i, "title", ""),
+                    "content": str(getattr(i, "content", ""))[:160],
+                }
+                for i in insights[:3]
+            ]
+            if top_insights:
+                parts.append(f"洞察：{top_insights[0]['title']}")
+        except Exception:
+            pass
+
+        one_line = ""
+        try:
+            from ...systems.active.instant_feedback import InstantFeedbackEngine
+            one_line = InstantFeedbackEngine("zenskill-core").generate_one_line()
+            if one_line:
+                parts.append(one_line)
+        except Exception:
+            pass
+
         return {
-            "mood": "；".join(parts) + "。",
+            "mood": f"{greeting}——" + "；".join(parts) + "。",
+            "greeting": greeting,
+            "top_insight": top_insights[0] if top_insights else None,
+            "top_insights": top_insights,
+            "micro_feedback": one_line,
             "energy": {"level": level, "pct": energy.get("pct"),
                        "current": energy.get("current_energy"), "max": energy.get("max_energy")},
             "inbox_pending": inbox,
@@ -1220,17 +1395,82 @@ def build_default_registry() -> ServerToolRegistry:
             "overdue": len(overdue),
         }
 
+    def _level_ceremony(a: dict[str, Any]) -> Any:
+        """境界突破仪式（latest=最近一次 / list=历史 / celebrate=即时祝贺）"""
+        from ...systems.visualization.level_up_ceremony import LevelUpCeremony
+        skill_id = a.get("skill_id", "zenskill-core")
+        cer = LevelUpCeremony(skill_id)
+        action = a.get("action", "latest")
+
+        if action == "list":
+            items = cer.list_ceremonies(limit=int(a.get("limit") or 10))
+            return {"action": "list", "ceremonies": items,
+                    "message": f"共 {len(items)} 次境界突破记录"}
+
+        if action == "celebrate":
+            frm = (a.get("from_level") or "").upper()
+            to = (a.get("to_level") or "").upper()
+            if not frm or not to:
+                return {"success": False,
+                        "error": "celebrate 需要 from_level/to_level（如 NOVICE→APPRENTICE）"}
+            class _Lvl:
+                def __init__(self, name: str):
+                    self.name = name
+            text = cer.generate_quick_celebration(_Lvl(frm), _Lvl(to))
+            return {"action": "celebrate", "text": text, "message": text}
+
+        latest = cer.get_latest_ceremony()
+        if not latest:
+            return {"action": "latest", "text": "",
+                    "message": "尚无境界突破仪式记录（升级时自动生成）"}
+        return {"action": "latest", "text": latest, "message": "最近一次境界突破仪式"}
+
+    def _instant_feedback(a: dict[str, Any]) -> Any:
+        """微反馈/连击（本会话节奏感知，适合 Hook 或间隙提醒）"""
+        from ...systems.active.instant_feedback import InstantFeedbackEngine
+        skill_id = a.get("skill_id", "zenskill-core")
+        eng = InstantFeedbackEngine(skill_id)
+        items = eng.generate()
+        one_line = eng.generate_one_line()
+        return {"feedback": items, "one_line": one_line,
+                "message": one_line or "节奏平稳，继续保持"}
+
     def _learning_path(a: dict[str, Any]) -> Any:
-        """生成学习路径（从当前水平到目标）"""
+        """生成学习路径（真引擎：SkillSearchEngine.path，按难度排序 + 已有技能前置）"""
         from ...skills.search_engine import SkillSearchEngine
         engine = SkillSearchEngine()
-        target = a.get("target_skill", "")
-        current = a.get("current_level", "NOVICE")
-        return {
-            "target": target,
-            "current_level": current,
-            "message": f"学习路径：从 {current} 到 {target}",
-        }
+        target = a.get("target_skill") or a.get("target_goal") or ""
+        if not target.strip():
+            return {"success": False, "error": "需要 target_skill（目标描述）"}
+
+        owned = a.get("owned_skills")
+        if owned is None:
+            owned = []
+            try:
+                from ...core.paths import get_user_data_dir
+                states = get_user_data_dir() / "states"
+                if states.is_dir():
+                    owned = [f.stem for f in sorted(states.glob("*.json"))
+                             if not f.name.endswith(".history.jsonl")]
+            except Exception:
+                pass
+
+        result = engine.path(
+            target_goal=target,
+            owned_skills=list(owned),
+            top_k=int(a.get("top_k") or 5),
+        )
+        steps = result.get("steps", [])
+        if not steps:
+            msg = f"未找到与「{target}」相关技能（索引可能为空，检查 installed_skills）"
+        else:
+            head = steps[0]
+            msg = (f"路径共 {len(steps)} 步、约 {result.get('estimated_total_interactions', 0)} 次交互，"
+                   f"首步：{head['name']}（{head['difficulty']}）")
+        return {"target": target, "owned_skills": list(owned),
+                "steps": steps,
+                "estimated_total_interactions": result.get("estimated_total_interactions", 0),
+                "message": msg}
 
     # 注册第一梯队工具
     registry.register("energy_level", "获取当前能量等级", _energy_level)
@@ -1354,13 +1594,16 @@ def build_default_registry() -> ServerToolRegistry:
             "properties": {"skill_id": {"type": "string", "description": "默认 zenskill-core"}},
         },
     )
-    registry.register("goal_set", "设置技能成长目标", _goal_set,
+    registry.register("goal_set", "设置技能成长目标（suggest=true 自动推荐短板目标）", _goal_set,
         {
             "type": "object",
             "properties": {
-                "skill_id": {"type": "string", "description": "技能 ID"},
-                "dimension": {"type": "string", "description": "维度：proficiency/stability/satisfaction"},
-                "target_score": {"type": "integer", "description": "目标分数，默认 80"},
+                "skill_id": {"type": "string", "description": "技能 ID，默认 zenskill-core"},
+                "dimension": {"type": "string", "description": "维度：proficiency/stability/satisfaction/responsiveness/memory/composite"},
+                "target_score": {"type": "integer", "description": "目标分数 0-100（须高于当前分）"},
+                "suggest": {"type": "boolean", "description": "true=引擎按短板自动推荐，不落设"},
+                "n": {"type": "integer", "description": "suggest 模式推荐数量，默认 2"},
+                "deadline_interactions": {"type": "integer", "description": "预计交互次数（可选，默认自动估算）"},
             },
         },
     )
@@ -1377,11 +1620,55 @@ def build_default_registry() -> ServerToolRegistry:
         },
     )
     registry.register("context_guide", "获取当前上下文指南", _context_guide)
+    def _zenloop_bridge_run(a: dict[str, Any]) -> Any:
+        """运行 GTD × ZenLoop 联动周期（reflect/consolidate/insight/purify）"""
+        from ...systems.gtd.zenloop_bridge import GTDZenLoopBridge
+        result = GTDZenLoopBridge().run_all_cycles()
+        return {"ok": True, "cycles": result,
+                "message": "ZenLoop 周期完成: " + "；".join(
+                    f"{k}={json.dumps(v, ensure_ascii=False, default=str)[:60]}"
+                    for k, v in result.items() if isinstance(v, dict) and v.get("message"))}
+
+    def _zenloop_status(a: dict[str, Any]) -> Any:
+        """孵化池概览（按通道分组）"""
+        from ...systems.gtd.incubating import IncubatingEngine
+        engine = IncubatingEngine()
+        items = engine.list(status="active", limit=50)
+        by_channel: dict[str, int] = {}
+        for i in items:
+            by_channel[i.channel] = by_channel.get(i.channel, 0) + 1
+        return {"active": len(items), "by_channel": by_channel,
+                "top": [{"id": i.id, "channel": i.channel,
+                         "maturity": round(i.maturity, 2),
+                         "concept": i.raw_concept[:60]} for i in items[:5]],
+                "message": f"孵化池: {len(items)} 活跃"}
+
     registry.register("companion_summary", "陪伴感摘要：一句话状态 + 能量 + 待办 + 建议", _companion_summary)
-    registry.register("learning_path", "生成学习路径", _learning_path,
+    registry.register("zenloop_bridge_run", "运行 GTD × ZenLoop 联动周期（reflect/consolidate/insight/purify）", _zenloop_bridge_run)
+    registry.register("zenloop_status", "孵化池概览（按通道分组）", _zenloop_status)
+    registry.register("level_ceremony", "境界突破仪式：latest 最近仪式 / list 历史 / celebrate 即时祝贺", _level_ceremony,
         {
             "type": "object",
             "properties": {
+                "action": {"type": "string", "enum": ["latest", "list", "celebrate"],
+                           "description": "默认 latest"},
+                "skill_id": {"type": "string"},
+                "from_level": {"type": "string", "description": "celebrate 模式：旧境界"},
+                "to_level": {"type": "string", "description": "celebrate 模式：新境界"},
+                "limit": {"type": "integer", "description": "list 模式条数，默认 10"},
+            },
+        },)
+    registry.register("instant_feedback", "微反馈：会话连击/节奏/每日小成就（一句话）", _instant_feedback,
+        {
+            "type": "object",
+            "properties": {"skill_id": {"type": "string"}},
+        },)
+    registry.register("learning_path", "生成学习路径（技能索引真检索，已有技能前置、按难度递增）", _learning_path,
+        {
+            "type": "object",
+            "properties": {
+                "owned_skills": {"type": "array", "items": {"type": "string"}, "description": "已有技能 ID（缺省自动扫描 states）"},
+                "top_k": {"type": "integer", "description": "路径步骤上限，默认 5"},
                 "target_skill": {"type": "string", "description": "目标技能"},
                 "current_level": {"type": "string", "description": "当前水平，默认 NOVICE"},
             },

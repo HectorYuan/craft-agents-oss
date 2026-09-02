@@ -45,6 +45,12 @@ def register_agent_engine_parser(subparsers) -> None:
     show_p.add_argument("--session-id", help="会话 ID")
     tree_p = agent_session_sub.add_parser("tree", help="查看会话分支树")
     tree_p.add_argument("--session-id", help="会话 ID")
+    prune_p = agent_session_sub.add_parser("prune",
+        help="清理会话（默认仅预览；--delete 才真删）")
+    prune_p.add_argument("--older-than", type=int, default=30, metavar="DAYS",
+        help="清理 N 天前的会话（按文件 mtime，默认 30）")
+    prune_p.add_argument("--delete", action="store_true",
+        help="真删（缺省仅预览）")
     agent_session_parser.set_defaults(func=lambda args: (
         __import__("zenskill.runtime.agent.cli", fromlist=["cmd_agent_session"]).cmd_agent_session(args)
     ))

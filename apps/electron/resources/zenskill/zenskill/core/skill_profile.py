@@ -349,7 +349,7 @@ class SkillProfile:
         if not isinstance(tags_raw, list):
             tags_raw = []
 
-        return cls(
+        profile = cls(
             skill_id=d.get("skill_id", ""),
             name=d.get("name", ""),
             display_name=d.get("display_name", ""),
@@ -390,6 +390,14 @@ class SkillProfile:
             updated_at=d.get("updated_at", ""),
             installed_at=d.get("installed_at", ""),
         )
+        # SQLite 的 level 是只读旧值（无写回路径）——按 usage 统一重算，
+        # 使 SkillProfile 直接调用方与 SkillStateManager.load 口径一致
+        try:
+            from .paths import SkillStateManager
+            profile.level = SkillStateManager._recalc_level(profile.total_interactions)
+        except Exception:
+            pass
+        return profile
 
     # ═══════════════════════════════════════════════════════
     # 桥接 — 兼容现有 SearchEngine / RatingEngine

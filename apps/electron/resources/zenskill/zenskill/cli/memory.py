@@ -4,7 +4,8 @@ from __future__ import annotations
 import argparse
 
 from ..cli_utils import output as cli_output
-from ..core.paths import SkillStateManager
+from ..core.paths import SkillStateManager, normalize_tags
+from datetime import datetime
 
 def cmd_memory_add(args: argparse.Namespace) -> None:
     """添加记忆"""

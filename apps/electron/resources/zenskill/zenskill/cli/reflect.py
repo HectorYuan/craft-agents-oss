@@ -5,6 +5,8 @@ import argparse
 
 from ..cli_utils import output as cli_output
 from ..core.paths import SkillStateManager, get_zenloop_dir
+from datetime import datetime
+
 
 def cmd_reflect_store(args: argparse.Namespace) -> None:
     """存储宿主 Claude 完成的反思结果"""
@@ -438,3 +440,91 @@ def register_reflect_parser(subparsers) -> None:
     reflect_purify_parser.set_defaults(func=cmd_reflect_purify)
 
     # perceive 命令
+
+
+def generate_reflection_report(state: dict) -> str:
+    """生成详细的反思报告内容"""
+    usage_count = state.get('usage_count', 0)
+    episodes = state.get('episodes', [])
+    level = state.get('level', 'NOVICE')
+    metrics = state.get('metrics', {})
+
+    # 生成洞见
+    insights = []
+    if usage_count >= 5:
+        insights.append("✓ 已达到学徒境界门槛，开始积累实践经验")
+    if usage_count >= 15:
+        insights.append("✓ 使用频率稳定，系统已成为日常工具的一部分")
+    if metrics.get('success_rate', 0) >= 0.8:
+        insights.append("✓ 执行成功率较高，系统稳定性良好")
+    if len(episodes) >= 5:
+        insights.append("✓ 记忆库正在增长，开始形成历史沉淀")
+
+    # 改进建议
+    suggestions = []
+    if level == "NOVICE":
+        suggestions.append("→ 继续保持使用频率，尽快突破到学徒境界")
+    elif level == "APPRENTICE":
+        suggestions.append("→ 尝试更复杂的任务，向熟手境界迈进")
+    if metrics.get('success_rate', 1) < 0.7:
+        suggestions.append("→ 近期失败率偏高，建议检查参数或简化任务")
+
+    # 生成报告
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    report_lines = [
+        "# ZenSkill 禅思反思报告",
+        "",
+        f"> 生成时间: {timestamp}",
+        f"> 当前境界: {level}",
+        "",
+        "---",
+        "",
+        "## 📊 周期统计",
+        "",
+        f"- **使用次数**: {usage_count} 次",
+        f"- **成长事件**: {len(episodes)} 条",
+        f"- **成功率**: {metrics.get('success_rate', 0):.2%}",
+        f"- **平均耗时**: {metrics.get('avg_duration_ms', 0):.1f}ms",
+        "",
+        "## 💡 洞见与发现",
+        "",
+    ]
+
+    if insights:
+        for insight in insights:
+            report_lines.append(insight)
+    else:
+        report_lines.append("（积累更多数据后将产生洞见）")
+
+    report_lines.extend([
+        "",
+        "## 🎯 改进建议",
+        "",
+    ])
+
+    if suggestions:
+        for suggestion in suggestions:
+            report_lines.append(suggestion)
+    else:
+        report_lines.append("系统运行良好，继续保持！")
+
+    report_lines.extend([
+        "",
+        "## 📝 最近记忆",
+        "",
+    ])
+
+    for ep in reversed(episodes[-5:]):
+        date = ep.get('date', 'N/A')
+        action = ep.get('action', 'N/A')
+        content = ep.get('content', 'N/A')
+        report_lines.append(f"- [{date}] **{action}**: {content}")
+
+    report_lines.extend([
+        "",
+        "---",
+        "",
+        "*此报告由 ZenSkill 禅思系统自动生成*",
+    ])
+
+    return "\n".join(report_lines)

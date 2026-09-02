@@ -19,9 +19,55 @@ class DashboardPage:
         self.console = console
         self.data = data
 
+    def _render_companion(self) -> None:
+        """T2 陪伴卡片：能量条 + 待办 + 微反馈 + 洞察。失败静默跳过。"""
+        try:
+            data = self.data.get_companion_summary()
+        except Exception:
+            return
+
+        energy = data.get("energy") or {}
+        cur, mx = energy.get("current", 0), energy.get("max", 0)
+        pct = energy.get("pct") or (cur / mx if mx else 0)
+        icon = {"critical": "🔴", "low": "🟠", "medium": "🟡", "high": "🟢"}.get(
+            energy.get("level"), "🟡")
+        filled = int(min(pct, 1) * 20)
+        bar = "█" * filled + "░" * (20 - filled)
+
+        lines = [f"{icon} 能量  [bold]{cur}/{mx}[/bold]  {bar}  {pct:.0%}"]
+
+        overdue, due = data.get("overdue", 0), data.get("due_today", 0)
+        if overdue:
+            lines.append(f"⏰ [red]{overdue} 个行动已逾期[/red]")
+        elif due:
+            lines.append(f"📅 今天有 [bold]{due}[/bold] 个待办到期")
+        inbox = data.get("inbox_pending", 0)
+        if inbox:
+            lines.append(f"📥 收件箱 {inbox} 条待处理")
+
+        insight = data.get("top_insight")
+        if insight:
+            lines.append(f"💡 {insight.get('title', '')}")
+
+        try:
+            fb = self.data.get_instant_feedback_line("zenskill-core").strip()
+            if fb:
+                lines.append(f"💬 {fb}")
+        except Exception:
+            pass
+
+        self.console.print(Panel(
+            "\n".join(lines),
+            title="🤝 陪伴",
+            border_style="magenta",
+        ))
+
     def render(self, **kwargs) -> None:
         """渲染仪表盘。"""
         summary = self.data.get_dashboard_summary()
+
+        # T2 陪伴卡片（失败静默跳过）
+        self._render_companion()
 
         # 核心指标卡片
         stats_text = (

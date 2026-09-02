@@ -21,7 +21,7 @@ READ_CHUNK = 65536
 
 
 class TransportError(ConnectionError):
-    """传输层错误（连接断开、对端无响应等）"""
+    """传输层错误（连接断开、对端无响应等）"""""
 
 
 class StdioTransport:
@@ -206,3 +206,160 @@ class StdioTransport:
             raise
         except Exception:
             pass
+
+
+class HttpStreamTransport:
+    """MCP Streamable HTTP 传输（POST JSON，兼容 JSON 或 SSE data: 响应）。
+
+    与 StdioTransport 同契约：start/request/send_notification/stop/running。
+    - request(): POST 请求体 = MCPRequest.to_json()；响应解析单 JSON 对象
+      或 SSE `data:` 行，按 id 路由到 pending future（乱序免疫同 stdio）
+    - send_notification(): POST，期待 202/204
+    - 不实现服务端→客户端 GET SSE 下行流（对端请求 v1 同样忽略）
+    """
+
+    def __init__(
+        self,
+        url: str,
+        *,
+        headers: Optional[dict[str, str]] = None,
+        on_notification: Optional[Callable[[dict[str, Any]], None]] = None,
+        timeout: float = 30.0,
+    ):
+        self._url = url
+        self._headers = dict(headers or {})
+        self._on_notification = on_notification
+        self._timeout = timeout
+        self._pending: dict[int, asyncio.Future] = {}
+        self._request_id = 0
+        self._started = False
+        self._closing = False
+
+    @property
+    def running(self) -> bool:
+        return self._started and not self._closing
+
+    async def start(self) -> None:
+        if self._closing:
+            raise TransportError("Transport already closed")
+        self._started = True
+
+    async def request(
+        self,
+        method: str,
+        params: dict[str, Any],
+        timeout: float = 30.0,
+    ) -> Any:
+        if not self.running:
+            raise TransportError("Transport not running")
+
+        import aiohttp
+
+        self._request_id += 1
+        request_id = self._request_id
+        loop = asyncio.get_running_loop()
+        future: asyncio.Future = loop.create_future()
+        self._pending[request_id] = future
+
+        headers = {
+            "Content-Type": "application/json",
+            "Accept": "application/json, text/event-stream",
+            **self._headers,
+        }
+        body = make_request_line(request_id, method, params)
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.post(
+                    self._url, data=body.encode("utf-8"),
+                    headers=headers,
+                    timeout=aiohttp.ClientTimeout(total=timeout or self._timeout),
+                ) as resp:
+                    if resp.status != 200:
+                        raise TransportError(f"HTTP {resp.status}: {(await resp.text())[:300]}")
+                    content_type = resp.headers.get("Content-Type", "")
+                    raw = await resp.read()
+            self._consume_response(raw, content_type)
+            return await asyncio.wait_for(future, timeout=timeout)
+        except asyncio.CancelledError:
+            raise
+        except TransportError:
+            raise
+        except asyncio.TimeoutError:
+            raise TransportError(f"MCP request timeout after {timeout}s: {method}")
+        except Exception as e:
+            # 网络层异常归一化：连接拒绝/DNS 失败等对调用方统一为 TransportError
+            raise TransportError(f"{type(e).__name__}: {e}")
+        finally:
+            self._pending.pop(request_id, None)
+
+    def _consume_response(self, raw: bytes, content_type: str) -> None:
+        """解析响应体：单 JSON 对象或 SSE data: 行序列。"""
+        text = raw.decode("utf-8", errors="replace")
+        if "text/event-stream" in content_type:
+            for line in text.splitlines():
+                line = line.strip()
+                if line.startswith("data:"):
+                    self._dispatch_text(line[5:].strip())
+        else:
+            self._dispatch_text(text.strip())
+
+    def _dispatch_text(self, text: str) -> None:
+        from .protocol import parse_message_line
+
+        if not text:
+            return
+        obj = parse_message_line(text)
+        if obj is None:
+            return
+        kind = classify_message(obj)
+        if kind == "response":
+            self._resolve_response(obj)
+        elif kind == "notification" and self._on_notification is not None:
+            try:
+                self._on_notification(obj)
+            except Exception:
+                pass
+        # 对端请求（server→client）：v1 忽略
+
+    def _resolve_response(self, obj: dict[str, Any]) -> None:
+        request_id = obj.get("id")
+        future = self._pending.get(request_id)
+        if future is None or future.done():
+            return
+        if obj.get("error") is not None:
+            future.set_exception(TransportError(f"MCP error: {obj['error']}"))
+        else:
+            future.set_result(obj.get("result"))
+
+    async def send_notification(self, method: str, params: dict[str, Any] | None = None) -> None:
+        if not self.running:
+            raise TransportError("Transport not running")
+
+        import aiohttp
+
+        headers = {
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+            **self._headers,
+        }
+        body = make_notification_line(method, params)
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.post(
+                    self._url, data=body.encode("utf-8"), headers=headers,
+                    timeout=aiohttp.ClientTimeout(total=self._timeout),
+                ) as resp:
+                    if resp.status not in (200, 202, 204):
+                        raise TransportError(f"HTTP {resp.status} on notification")
+        except TransportError:
+            raise
+        except Exception as e:
+            raise TransportError(f"notification failed: {type(e).__name__}: {e}")
+
+    async def stop(self) -> None:
+        self._closing = True
+        for future in self._pending.values():
+            if not future.done():
+                future.set_exception(TransportError("Transport closed"))
+        self._pending.clear()
+        self._started = False

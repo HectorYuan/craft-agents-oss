@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 
 from ..cli_utils import output as cli_output
+from ..core.paths import get_data_layout
 
 def cmd_doctor_snapshot(args: argparse.Namespace) -> None:
     """创建/管理数据快照"""

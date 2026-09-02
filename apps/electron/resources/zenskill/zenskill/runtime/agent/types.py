@@ -7,6 +7,7 @@
 """
 from __future__ import annotations
 
+import threading
 import time
 import uuid
 from dataclasses import dataclass, field
@@ -112,9 +113,57 @@ def total_usage(messages: List["Message"]) -> Usage:
 
 
 # CJK 感知估算系数：1 汉字 ≈ 0.7 token，其他字符 ≈ 0.25（等价 char/4）。
-# 系数为启发式估计值；如需精确校准，用真实 API usage 数据回归。
+# 系数为启发式估计值；运行期由真实 API usage 自动校准（见 _UsageCalibrator）。
 _CJK_TOKEN_RATIO = 0.7
 _OTHER_TOKEN_RATIO = 0.25
+
+
+class _UsageCalibrator:
+    """用真实 API usage 对估算值做乘法校正（滚动窗口均值）。
+
+    真实 input tokens / 启发式估算 的比值随样本累积收敛；校正因子
+    夹在 [0.5, 2.0] 防止病态样本破坏估算。进程内存活，重启归位。
+    """
+
+    def __init__(self, max_samples: int = 64) -> None:
+        self._samples: List[float] = []
+        self._max_samples = max_samples
+        self._lock = threading.Lock()
+        self._correction = 1.0
+
+    def observe(self, estimated: int, real: int) -> None:
+        if estimated <= 0 or real <= 0:
+            return
+        ratio = real / estimated
+        with self._lock:
+            self._samples.append(ratio)
+            if len(self._samples) > self._max_samples:
+                self._samples.pop(0)
+            mean = sum(self._samples) / len(self._samples)
+            self._correction = min(2.0, max(0.5, mean))
+
+    @property
+    def correction(self) -> float:
+        with self._lock:
+            return self._correction
+
+    def reset(self) -> None:
+        with self._lock:
+            self._samples.clear()
+            self._correction = 1.0
+
+
+_calibrator = _UsageCalibrator()
+
+
+def record_usage_sample(messages: List["Message"], real_input_tokens: int) -> None:
+    """真实 LLM 响应返回后回报 input tokens，校准后续估算。"""
+    _calibrator.observe(_estimate_context_tokens_raw(messages), real_input_tokens)
+
+
+def reset_token_calibration() -> None:
+    """重置校准（测试用）。"""
+    _calibrator.reset()
 
 
 def _is_cjk_char(c: str) -> bool:
@@ -138,7 +187,16 @@ def estimate_text_tokens(text: str) -> int:
 
 
 def estimate_context_tokens(messages: List["Message"]) -> int:
-    """估算全部消息的 token 数（含系统提示词/用户消息/工具结果/assistant）。
+    """估算全部消息的 token 数（启发式 × 运行期校准因子）。
+
+    校准由 record_usage_sample 在真实响应后自动喂样本；无样本时校正因子
+    为 1.0，行为与纯启发式一致。
+    """
+    return int(_estimate_context_tokens_raw(messages) * _calibrator.correction)
+
+
+def _estimate_context_tokens_raw(messages: List["Message"]) -> int:
+    """纯启发式估算（不含校准因子）。
 
     CJK 感知启发式 + 每消息 200 token 协议开销。
     Assistant 消息额外计入 thinking 内容和工具调用名。
