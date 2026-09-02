@@ -113,8 +113,6 @@ import { OAuthFlowStore } from '@craft-agent/shared/auth'
 import { registerThumbnailScheme, registerThumbnailHandler } from './thumbnail-protocol'
 import log, { isDebugMode, mainLog, getLogFilePath, getMessagingGatewayLogFilePath, messagingGatewayLog, autoUpdateLog } from './logger'
 import { setPerfEnabled, enableDebug } from '@craft-agent/shared/utils'
-import { registerPiModelResolver } from '@craft-agent/shared/config'
-import { getPiModelsForAuthProvider, getAllPiModels } from '@craft-agent/shared/config'
 import { initNotificationService, initBadgeIcon, initInstanceBadge, updateBadgeCount } from './notifications'
 import { checkForUpdatesOnLaunch, setAutoUpdateEventSink, isUpdating, setBeforeUpdateQuitHook, setBeforeUpdateInstallHook, setInstallQuitFailedHook } from './auto-update'
 import type { EventSink } from '@craft-agent/server-core/transport'
@@ -197,11 +195,9 @@ if (isDebugMode) {
   }
 }
 
-// Register Pi model resolver so llm-connections.ts can resolve Pi models
-// without importing @earendil-works/pi-ai (which breaks the Vite renderer build)
-registerPiModelResolver((piAuthProvider) =>
-  piAuthProvider ? getPiModelsForAuthProvider(piAuthProvider) : getAllPiModels()
-)
+// Pi model resolver registration removed (P1b): Pi backend deleted, the
+// shared-side default resolver returns [] for the dead providerType==='pi'
+// branch, and the pi-ai SDK is no longer a dependency.
 
 // Custom URL scheme for deeplinks (e.g., craftagents://auth-complete)
 // Supports multi-instance dev: CRAFT_DEEPLINK_SCHEME env var (craftagents1, craftagents2, etc.)

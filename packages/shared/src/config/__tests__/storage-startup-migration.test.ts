@@ -3,11 +3,11 @@ import { mkdtempSync, mkdirSync, readFileSync, writeFileSync } from 'fs'
 import { join } from 'path'
 import { tmpdir } from 'os'
 import { pathToFileURL } from 'url'
-import { getPiModelsForAuthProvider } from '../models-pi.ts'
 
-const PI_ANTHROPIC_OPUS_DEFAULT = getPiModelsForAuthProvider('anthropic').some(m => m.id === 'pi/claude-opus-4-8')
-  ? 'pi/claude-opus-4-8'
-  : 'pi/claude-opus-4-7'
+// P1b: pi-ai SDK removed — the test resolver (tests/setup/register-pi-model-resolver.ts)
+// serves a static catalog, so assertion IDs are stable literals.
+const PI_ANTHROPIC_OPUS_DEFAULT = 'pi/claude-opus-4-8'
+const PI_OPENROUTER_IDS = ['pi/openrouter/auto', 'pi/openrouter/claude-sonnet-4.6']
 
 const STORAGE_MODULE_PATH = pathToFileURL(join(import.meta.dir, '..', 'storage.ts')).href
 const PI_RESOLVER_SETUP_PATH = pathToFileURL(join(import.meta.dir, '..', '..', '..', 'tests', 'setup', 'register-pi-model-resolver.ts')).href
@@ -232,15 +232,9 @@ describe('startup migration (integration)', () => {
   it('normalizes legacy unprefixed userDefined3Tier model IDs instead of resetting', () => {
     const { configDir, workspaceRoot, configPath } = setupWorkspaceConfigDir()
 
-    // Derive currently-valid OpenRouter IDs from the live Pi catalog. The migration
-    // normalizes (pi/-prefixes) known IDs and drops unknown ones, so hardcoding a
-    // specific model here makes the test brittle when models.dev drifts across Pi
-    // SDK uplifts (e.g. x-ai/grok-4 aged out by 0.79.x).
-    const openrouterIds = getPiModelsForAuthProvider('openrouter').map(m => m.id)
-    expect(openrouterIds).toContain('pi/openrouter/auto')
-    const otherPrefixed = openrouterIds.find(id => id !== 'pi/openrouter/auto')
-    if (!otherPrefixed) throw new Error('expected at least two OpenRouter models in catalog')
-    const expectedPrefixed = ['pi/openrouter/auto', otherPrefixed]
+    // P1b: the live Pi catalog is gone with the SDK — the test resolver serves
+    // a static catalog, so the IDs are stable literals (no models.dev drift).
+    const expectedPrefixed = PI_OPENROUTER_IDS
     const legacyUnprefixed = expectedPrefixed.map(id => id.slice('pi/'.length))
 
     writeRootConfig(configPath, workspaceRoot, [

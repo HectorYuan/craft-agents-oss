@@ -369,40 +369,8 @@ export function registerLlmConnectionsHandlers(server: RpcServer, deps: HandlerD
     }
   })
 
-  // ============================================================
-  // Pi Provider Discovery (main process only — Pi SDK can't run in renderer)
-  // ============================================================
-
-  server.handle(RPC_CHANNELS.pi.GET_API_KEY_PROVIDERS, async () => {
-    const { getPiApiKeyProviders } = await import('@craft-agent/shared/config')
-    return getPiApiKeyProviders()
-  })
-
-  server.handle(RPC_CHANNELS.pi.GET_PROVIDER_BASE_URL, async (_ctx, provider: string) => {
-    const { getPiProviderBaseUrl } = await import('@craft-agent/shared/config')
-    return getPiProviderBaseUrl(provider)
-  })
-
-  server.handle(RPC_CHANNELS.pi.GET_PROVIDER_MODELS, async (_ctx, provider: string) => {
-    const { getModels } = await import('@earendil-works/pi-ai/compat')
-    try {
-      const models = getModels(provider as Parameters<typeof getModels>[0])
-      const sorted = [...models].sort((a, b) => b.cost.output - a.cost.output || b.cost.input - a.cost.input)
-      return {
-        models: sorted.map(m => ({
-          id: m.id.startsWith('pi/') ? m.id : `pi/${m.id}`,
-          name: m.name,
-          costInput: m.cost.input,
-          costOutput: m.cost.output,
-          contextWindow: m.contextWindow,
-          reasoning: m.reasoning,
-        })),
-        totalCount: models.length,
-      }
-    } catch {
-      return { models: [], totalCount: 0 }
-    }
-  })
+  // Pi Provider Discovery handlers removed (P1b): Pi backend deleted —
+  // getAvailableProviders() only returns zenskill, so no client calls these.
 
   // ============================================================
   // LLM Connections (provider configurations)
