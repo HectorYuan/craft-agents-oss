@@ -2,7 +2,6 @@ import { existsSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { dirname, join, resolve } from 'node:path';
 import type { BackendHostRuntimeContext } from '../types.ts';
-import { setPathToClaudeCodeExecutable } from '../../options.ts';
 
 /**
  * When set, the resolver walks further up from the .app bundle to find SDK,
@@ -236,28 +235,3 @@ export function resolveBackendHostTooling(hostRuntime: BackendHostRuntimeContext
   };
 }
 
-/**
- * Configure SDK globals from host runtime context.
- *
- * Since SDK 0.2.113 the SDK spawns a native binary; the only override we
- * need is `pathToClaudeCodeExecutable`. The Bun executable / `--preload`
- * interceptor mechanism that used to live here no longer applies — the
- * binary doesn't accept Bun-specific flags.
- *
- * When `strict` is true (default), throws if the SDK binary can't be found.
- * When `strict` is false, missing paths are silently skipped (the SDK will
- * try its own auto-discovery via optional-dep node_modules resolution).
- */
-export function applyAnthropicRuntimeBootstrap(
-  hostRuntime: BackendHostRuntimeContext,
-  paths: ResolvedBackendRuntimePaths,
-  options?: { strict?: boolean },
-): void {
-  const strict = options?.strict ?? true;
-
-  if (paths.claudeCliPath) {
-    setPathToClaudeCodeExecutable(paths.claudeCliPath);
-  } else if (strict) {
-    throw new Error('Claude Agent SDK native binary not found. The app package may be corrupted.');
-  }
-}

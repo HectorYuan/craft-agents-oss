@@ -78,3 +78,16 @@
 ### 收益
 - server bundle 27.19MB → 4.55MB（-83%）
 - 源码 -8,500+ 行
+
+## P2 收尾（2026-09-02 晚，同日第二阶段）
+
+- `runtime-resolver.ts`：resolveClaudeBinaryPath / applyAnthropicRuntimeBootstrap
+  删除（零调用）；`options.ts` 整文件删除（Claude CLI 子进程 ~/.claude.json
+  修复逻辑，zenskill 后端零消费）——claude-agent-sdk 的**最后一个 type import**
+  已清零
+- `llm-connections.test.ts`：3 个 Pi 默认模型死用例删除（Pi 已删）
+- `config-defaults.json`（~/.craft-agent）：配置迁移余震数据补齐，
+  prompts 6 测试修复
+- postinstall 钩子（root package.json）：bun install 后自动删除 8 平台
+  claude 二进制包——optionalDeps 声明仍在（packages/core 上游结构），
+  磁盘残留即时清理

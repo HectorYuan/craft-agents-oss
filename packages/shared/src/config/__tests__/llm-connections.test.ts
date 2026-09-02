@@ -67,29 +67,8 @@ describe('getDefaultModelForConnection', () => {
     expect(modelIds).toContain(defaultModel)
   })
 
-  it('Pi openai default is in its own model list', () => {
-    const defaultModel = getDefaultModelForConnection('pi', 'openai')
-    const models = getDefaultModelsForConnection('pi', 'openai')
-    const modelIds = models.map(m => typeof m === 'string' ? m : m.id)
-    expect(modelIds).toContain(defaultModel)
-  })
 
-  it('Pi deepseek default is in its own model list', () => {
-    const defaultModel = getDefaultModelForConnection('pi', 'deepseek')
-    const models = getDefaultModelsForConnection('pi', 'deepseek')
-    const modelIds = models.map(m => typeof m === 'string' ? m : m.id)
-    expect(modelIds).toContain(defaultModel)
-  })
 
-  it('Pi moonshotai defaults to Kimi K3 from its own model list', () => {
-    for (const provider of ['moonshotai', 'moonshotai-cn'] as const) {
-      const defaultModel = getDefaultModelForConnection('pi', provider)
-      expect(defaultModel).toBe('pi/kimi-k3')
-      const models = getDefaultModelsForConnection('pi', provider)
-      const modelIds = models.map(m => typeof m === 'string' ? m : m.id)
-      expect(modelIds).toContain(defaultModel)
-    }
-  })
 
   it('returns empty string for pi_compat (dynamic provider)', () => {
     const defaultModel = getDefaultModelForConnection('pi_compat')
