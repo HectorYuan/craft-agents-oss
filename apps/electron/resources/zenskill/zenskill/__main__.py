@@ -42,7 +42,7 @@ def _str_box_footer() -> str:
 
 # 版本信息（与 __init__.py 同步
 __title__ = "ZenSkill"
-__version__ = "2.6.7"
+__version__ = "2.7.0"
 __version_info__ = (1, 9, 0)
 __author__ = "ZenSkill Team"
 

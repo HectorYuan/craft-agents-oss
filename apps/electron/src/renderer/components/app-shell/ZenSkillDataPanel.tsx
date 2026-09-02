@@ -70,6 +70,7 @@ interface CompanionSummary {
   pending_actions: number
   due_today: number
   overdue: number
+  top_insight?: { type: string; title: string; content: string } | null
 }
 
 interface SkillCategory {
@@ -114,6 +115,7 @@ export function ZenSkillDataPanel({ workspaceId, sourceSlug, onGtdItemClick }: Z
   const [doneActions, setDoneActions] = useState<GtdAction[]>([])
   const [growth, setGrowth] = useState<GrowthSkill[]>([])
   const [companion, setCompanion] = useState<CompanionSummary | null>(null)
+  const [dailyReviewMsg, setDailyReviewMsg] = useState<string | null>(null)
   const [skillCategories, setSkillCategories] = useState<SkillCategory[]>([])
   const [totalSkills, setTotalSkills] = useState(0)
   const [expandedCats, setExpandedCats] = useState<Set<string>>(new Set())
@@ -141,7 +143,7 @@ export function ZenSkillDataPanel({ workspaceId, sourceSlug, onGtdItemClick }: Z
     setLoading(true)
     setError(null)
     try {
-      const [gtdResult, memResult, dashResult, energyResult, achieveResult, habitResult, actionResult, doneResult, growthResult, companionResult, skillBrowseResult] = await Promise.allSettled([
+      const [gtdResult, memResult, dashResult, energyResult, achieveResult, habitResult, actionResult, doneResult, growthResult, companionResult, skillBrowseResult, dailyReviewResult] = await Promise.allSettled([
         window.electronAPI.callMcpTool(workspaceId, sourceSlug, 'gtd_inbox_list', { limit: 10 }),
         window.electronAPI.callMcpTool(workspaceId, sourceSlug, 'memory_list', { skill_id: 'all', n: 10 }),
         window.electronAPI.callMcpTool(workspaceId, sourceSlug, 'dashboard_summary', {}),
@@ -153,6 +155,7 @@ export function ZenSkillDataPanel({ workspaceId, sourceSlug, onGtdItemClick }: Z
         window.electronAPI.callMcpTool(workspaceId, sourceSlug, 'growth_dashboard', {}),
         window.electronAPI.callMcpTool(workspaceId, sourceSlug, 'companion_summary', {}),
         window.electronAPI.callMcpTool(workspaceId, sourceSlug, 'skill_browse', { limit: 3 }),
+        window.electronAPI.callMcpTool(workspaceId, sourceSlug, 'daily_review', {}),
       ])
 
       const gtdData = extractJson(gtdResult.status === 'fulfilled' ? gtdResult.value : null)
@@ -213,6 +216,9 @@ export function ZenSkillDataPanel({ workspaceId, sourceSlug, onGtdItemClick }: Z
         setSkillCategories(skillBrowseData.categories || [])
         setTotalSkills(skillBrowseData.total || 0)
       }
+
+      const reviewData = extractJson(dailyReviewResult.status === 'fulfilled' ? dailyReviewResult.value : null)
+      if (reviewData?.message) setDailyReviewMsg(reviewData.message)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load data')
     } finally {
@@ -311,10 +317,22 @@ export function ZenSkillDataPanel({ workspaceId, sourceSlug, onGtdItemClick }: Z
               )}
             </div>
           )}
+          {companion.top_insight && (
+            <div className="flex items-start gap-1.5 text-[10px] text-muted-foreground/70">
+              <Lightbulb className="h-3 w-3 mt-px shrink-0 text-yellow-500/60" />
+              <span>💡 {companion.top_insight.title}</span>
+            </div>
+          )}
           {suggestions.length > 0 && (
             <div className="flex items-start gap-1.5 text-[10px] text-muted-foreground/70">
               <Lightbulb className="h-3 w-3 mt-px shrink-0 text-yellow-500/60" />
               <span>{suggestions[0]}</span>
+            </div>
+          )}
+          {dailyReviewMsg && (
+            <div className="flex items-start gap-1.5 text-[10px] text-muted-foreground/70 border-t border-border/30 pt-1.5 mt-1.5">
+              <span className="shrink-0">📊</span>
+              <span className="truncate" title={dailyReviewMsg}>{dailyReviewMsg}</span>
             </div>
           )}
         </div>

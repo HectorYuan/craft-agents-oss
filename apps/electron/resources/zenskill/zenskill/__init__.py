@@ -55,7 +55,7 @@ from .mirroring import (
     PrivacyLayer,
 )
 
-__version__ = "2.6.7"
+__version__ = "2.7.0"
 __author__ = "ZenSkill Team"
 
 __all__ = [

@@ -42,6 +42,11 @@ export default defineConfig({
       '@webui': resolve(__dirname, 'src'),
       // Config alias (same as Electron)
       '@config': resolve(__dirname, '../../packages/shared/src/config'),
+      // Workspace packages: bun install 后 rollup 对 symlink 的 exports 子路径
+      // 解析偶发失效——精确映射到源码。注意：只映射确认为解析失败的包；
+      // 带 alias 的包不能再有更深的子路径 import（前缀替换会拼坏路径）
+      '@craft-agent/server-core/transport': resolve(__dirname, '../../packages/server-core/src/transport/index.ts'),
+      '@craft-agent/server-core': resolve(__dirname, '../../packages/server-core/src/index.ts'),
       // Force single React copy from root node_modules
       'react': resolve(__dirname, '../../node_modules/react'),
       'react-dom': resolve(__dirname, '../../node_modules/react-dom'),
