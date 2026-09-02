@@ -347,12 +347,24 @@ export function registerSourcesHandlers(server: RpcServer, deps: HandlerDeps): v
         !READ_TOOLS.includes(n) &&
         (WRITE_TOOLS_EXACT.includes(n) || WRITE_TOOL_PREFIXES.some((p) => n.startsWith(p)))
       if (isWriteTool(toolName)) {
+        // Achievement unlocks ride in the event payload so automation rules
+        // and webhooks can react (action_done/habit_check return them).
+        const payload: Record<string, unknown> = { type: toolName, sourceSlug }
         try {
-          server.push('zenskill:changed', { to: 'workspace', workspaceId }, { type: toolName, sourceSlug })
+          const text = (result as any)?.result?.content?.[0]?.text
+          if (typeof text === 'string') {
+            const parsed = JSON.parse(text)
+            if (Array.isArray(parsed?.new_achievements) && parsed.new_achievements.length > 0) {
+              payload.newAchievements = parsed.new_achievements
+            }
+          }
+        } catch { /* payload enrichment is best-effort */ }
+        try {
+          server.push('zenskill:changed', { to: 'workspace', workspaceId }, payload)
         } catch { /* broadcast is best-effort */ }
         // Feed the automation event bus so rules can react to ZenSkill data changes
         try {
-          await deps.sessionManager.emitZenSkillChanged(workspaceId, { type: toolName, sourceSlug })
+          await deps.sessionManager.emitZenSkillChanged(workspaceId, payload)
         } catch { /* automation emit is best-effort */ }
       }
 
