@@ -238,7 +238,15 @@ export class ZenskillAgent extends BaseAgent {
   // ============================================================
 
   private async ensureSubprocess(): Promise<void> {
-    if (this.subprocess && !this.subprocess.killed) return;
+    if (this.subprocess && !this.subprocess.killed) {
+      // Reuse path: re-send register_tools defensively (idempotent on the
+      // subprocess side — dict assignment). Covers any case where the
+      // subprocess lost its proxy registrations (internal session reset,
+      // post-crash-restart edge) — otherwise MCP tools go invisible to the
+      // model and every call returns Unknown tool.
+      this.registerPoolTools();
+      return;
+    }
     await this.spawnSubprocess();
     this.crashRestartCount = 0; // fresh instance, fresh crash budget (G3)
   }
