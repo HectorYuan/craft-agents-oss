@@ -10,10 +10,6 @@ export * from './options.ts';
 // Export session-scoped-tools - tools scoped to a specific session
 export {
   // Plan file management
-  getSessionPlansDir,
-  getLastPlanFilePath,
-  clearPlanFileState,
-  isPathInPlansDir,
   // Callback registry for session-scoped tool notifications
   registerSessionScopedToolCallbacks,
   unregisterSessionScopedToolCallbacks,
