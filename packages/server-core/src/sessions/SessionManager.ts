@@ -1178,6 +1178,13 @@ export interface SessionCompletionEvent {
   finalText?: string
   /** The session's cumulative token usage, so the Conductor can meter token_budget without re-fetching. */
   tokenUsage?: TokenUsage
+  /** WP-C session-summary seam: turn stats for the ZenSkill episode writer. */
+  messageCount?: number
+  toolUseCount?: number
+  firstUserMessage?: string
+  /** Session's MCP pool (process-local reference) — lets listeners call
+   *  proxy tools (e.g. zenskill-4 session_summary) without re-resolving sources. */
+  mcpPool?: McpClientPool
 }
 
 export interface MidStreamDeliveryOutcome {
@@ -6691,6 +6698,11 @@ export class SessionManager implements ISessionManager {
           ? managed.messages.find(m => m.id === currentFinalMessageId)?.content
           : undefined,
         tokenUsage: managed.tokenUsage,
+        // WP-C session-summary seam: turn stats for ZenSkill episode writer
+        messageCount: managed.messages.length,
+        toolUseCount: managed.messages.filter(m => (m as { toolName?: string }).toolName).length,
+        firstUserMessage: managed.messages.find(m => m.role === 'user')?.content?.slice(0, 80),
+        mcpPool: managed.mcpPool,
       })
     }
 

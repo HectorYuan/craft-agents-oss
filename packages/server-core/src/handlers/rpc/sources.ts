@@ -374,4 +374,27 @@ export function registerSourcesHandlers(server: RpcServer, deps: HandlerDeps): v
       return { success: false, error: error instanceof Error ? error.message : 'Tool call failed' }
     }
   })
+
+  // WP-C: session summary → ZenSkill episodes. Fire-and-forget on complete:
+  // the stop path is hot, so failures only warn and never block completion.
+  // Uses the session's own mcpPool (process-local reference on the event) —
+  // no workspace/source re-resolution needed here.
+  try {
+    deps.sessionManager.onSessionComplete(async (evt) => {
+      if (evt.reason !== 'complete' || !evt.mcpPool) return
+      try {
+        const def = evt.mcpPool.getProxyToolDefs(['zenskill-4'])
+          .find(d => d.name.endsWith('__session_summary'))
+        if (!def) return
+        await evt.mcpPool.callTool(def.name, {
+          message_count: evt.messageCount ?? 0,
+          tool_count: evt.toolUseCount ?? 0,
+          first_message: evt.firstUserMessage ?? '',
+        })
+        log.info(`Session summary written for ${evt.sessionId}`)
+      } catch (err) {
+        log.warn(`session_summary write failed for ${evt.sessionId} (best-effort):`, err)
+      }
+    })
+  } catch { /* completion seam unavailable — best-effort only */ }
 }
