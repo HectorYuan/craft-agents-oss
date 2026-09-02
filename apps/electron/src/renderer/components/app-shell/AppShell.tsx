@@ -1035,6 +1035,20 @@ function AppShellContent({
     return cleanup
   }, [activeWorkspaceId])
 
+  // Achievement unlock toast — global so unlocks surface even when the user
+  // is in the chat view (the main unlock scene) where ZenSkillDataPanel
+  // is not mounted. Toast-only; data refresh stays in ZenSkillDataPanel.
+  React.useEffect(() => {
+    if (!window.electronAPI?.onZenSkillChanged) return
+    const cleanup = window.electronAPI.onZenSkillChanged((_wsId, data) => {
+      const unlocks = (data as { newAchievements?: string[] })?.newAchievements
+      if (Array.isArray(unlocks) && unlocks.length > 0) {
+        toast.success(`🏆 解锁成就：${unlocks.join('、')}`)
+      }
+    })
+    return cleanup
+  }, [])
+
   // Handle session source selection changes
   const handleSessionSourcesChange = React.useCallback(async (sessionId: string, sourceSlugs: string[]) => {
     try {
