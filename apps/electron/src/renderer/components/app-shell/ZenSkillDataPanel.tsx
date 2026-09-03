@@ -5,7 +5,7 @@
  */
 
 import React, { useState, useEffect, useCallback, useRef } from 'react'
-import { Inbox, Brain, Zap, RefreshCw, ChevronRight, Trophy, Target, Activity, Flame, Check, ArrowRight, Trash2, Archive, Wand2, Circle, Search, TrendingUp, Lightbulb } from 'lucide-react'
+import { Inbox, Brain, Zap, RefreshCw, ChevronRight, Trophy, Target, Activity, Flame, Check, ArrowRight, Trash2, Archive, Wand2, Circle, Search, TrendingUp, Lightbulb, CalendarDays, FolderKanban } from 'lucide-react'
 
 interface ZenSkillDataPanelProps {
   workspaceId: string
@@ -116,6 +116,10 @@ export function ZenSkillDataPanel({ workspaceId, sourceSlug, onGtdItemClick }: Z
   const [growth, setGrowth] = useState<GrowthSkill[]>([])
   const [companion, setCompanion] = useState<CompanionSummary | null>(null)
   const [dailyReviewMsg, setDailyReviewMsg] = useState<string | null>(null)
+  const [projects, setProjects] = useState<{ id: string; name: string; status?: string; progress?: number }[]>([])
+  const [calendarEvents, setCalendarEvents] = useState<{ date: string; time: string; title: string }[]>([])
+  const [calendarCount, setCalendarCount] = useState(0)
+  const [goals, setGoals] = useState<{ dimension?: string; target?: number; current?: number }[]>([])
   const [skillCategories, setSkillCategories] = useState<SkillCategory[]>([])
   const [totalSkills, setTotalSkills] = useState(0)
   const [expandedCats, setExpandedCats] = useState<Set<string>>(new Set())
@@ -127,6 +131,7 @@ export function ZenSkillDataPanel({ workspaceId, sourceSlug, onGtdItemClick }: Z
   const [memQuery, setMemQuery] = useState('')
   const [memResults, setMemResults] = useState<MemoryItem[] | null>(null)
   const memSearchRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [activeTab, setActiveTab] = useState<'today' | 'gtd' | 'memory' | 'skills'>('today')
 
   const extractJson = (result: any): any => {
     if (!result?.success) return null
@@ -143,7 +148,7 @@ export function ZenSkillDataPanel({ workspaceId, sourceSlug, onGtdItemClick }: Z
     setLoading(true)
     setError(null)
     try {
-      const [gtdResult, memResult, dashResult, energyResult, achieveResult, habitResult, actionResult, doneResult, growthResult, companionResult, skillBrowseResult, dailyReviewResult] = await Promise.allSettled([
+      const [gtdResult, memResult, dashResult, energyResult, achieveResult, habitResult, actionResult, doneResult, growthResult, companionResult, skillBrowseResult, dailyReviewResult, projectResult, calendarResult, goalResult] = await Promise.allSettled([
         window.electronAPI.callMcpTool(workspaceId, sourceSlug, 'gtd_inbox_list', { limit: 10 }),
         window.electronAPI.callMcpTool(workspaceId, sourceSlug, 'memory_list', { skill_id: 'all', n: 10 }),
         window.electronAPI.callMcpTool(workspaceId, sourceSlug, 'dashboard_summary', {}),
@@ -156,6 +161,9 @@ export function ZenSkillDataPanel({ workspaceId, sourceSlug, onGtdItemClick }: Z
         window.electronAPI.callMcpTool(workspaceId, sourceSlug, 'companion_summary', {}),
         window.electronAPI.callMcpTool(workspaceId, sourceSlug, 'skill_browse', { limit: 3 }),
         window.electronAPI.callMcpTool(workspaceId, sourceSlug, 'daily_review', {}),
+        window.electronAPI.callMcpTool(workspaceId, sourceSlug, "project_list", { status: "active" }),
+        window.electronAPI.callMcpTool(workspaceId, sourceSlug, "calendar_list", { scope: "today" }),
+        window.electronAPI.callMcpTool(workspaceId, sourceSlug, "goal_progress", {}),
       ])
 
       const gtdData = extractJson(gtdResult.status === 'fulfilled' ? gtdResult.value : null)
@@ -219,6 +227,12 @@ export function ZenSkillDataPanel({ workspaceId, sourceSlug, onGtdItemClick }: Z
 
       const reviewData = extractJson(dailyReviewResult.status === 'fulfilled' ? dailyReviewResult.value : null)
       if (reviewData?.message) setDailyReviewMsg(reviewData.message)
+      const projectData = extractJson(projectResult.status === "fulfilled" ? projectResult.value : null)
+      if (projectData) setProjects((projectData.items || []).slice(0, 5))
+      const calendarData = extractJson(calendarResult.status === "fulfilled" ? calendarResult.value : null)
+      if (calendarData) { setCalendarEvents((calendarData.events || []).slice(0, 5)); setCalendarCount(calendarData.count || 0) }
+      const goalData = extractJson(goalResult.status === "fulfilled" ? goalResult.value : null)
+      if (goalData) setGoals((goalData.items || goalData.goals || []).slice(0, 5))
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load data')
     } finally {
@@ -296,6 +310,32 @@ export function ZenSkillDataPanel({ workspaceId, sourceSlug, onGtdItemClick }: Z
       {error && (
         <div className="text-xs text-destructive bg-destructive/5 rounded p-2">{error}</div>
       )}
+
+      {/* Tab Bar */}
+      <div className="flex gap-0.5 border-b border-border/30 -mx-3 px-3">
+        {([
+          { key: 'today', label: 'Today', icon: Zap },
+          { key: 'gtd', label: 'GTD', icon: Inbox },
+          { key: 'memory', label: 'Memory', icon: Brain },
+          { key: 'skills', label: 'Skills', icon: TrendingUp },
+        ] as const).map(({ key, label, icon: Icon }) => (
+          <button
+            key={key}
+            onClick={() => setActiveTab(key)}
+            className={`flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium border-b-2 transition-colors ${
+              activeTab === key
+                ? 'border-accent text-accent'
+                : 'border-transparent text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <Icon className="h-3 w-3" />
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {/* === TODAY TAB === */}
+      {activeTab === 'today' && (<div className="space-y-4">
 
       {/* Companion: mood + energy bar + urgency */}
       {companion && (
@@ -409,6 +449,12 @@ export function ZenSkillDataPanel({ workspaceId, sourceSlug, onGtdItemClick }: Z
           </div>
         </div>
       )}
+
+      </div>)}
+
+
+      {/* === GTD TAB === */}
+      {activeTab === 'gtd' && (<div className="space-y-4">
 
       {/* GTD Inbox */}
       <div>
@@ -541,6 +587,51 @@ export function ZenSkillDataPanel({ workspaceId, sourceSlug, onGtdItemClick }: Z
         )}
       </div>
 
+
+      {/* Calendar */}
+      <div>
+        <div className="flex items-center gap-1.5 mb-1.5">
+          <span className="text-xs font-medium text-muted-foreground">Calendar ({calendarCount})</span>
+        </div>
+        {calendarEvents.length === 0 ? (
+          <div className="text-xs text-muted-foreground italic pl-5">No events today</div>
+        ) : (
+          <div className="space-y-0.5">
+            {calendarEvents.map((e, i) => (
+              <div key={i} className="flex items-center gap-1.5 text-xs rounded px-2 py-0.5">
+                {e.time && <span className="text-[10px] text-muted-foreground shrink-0">{e.time}</span>}
+                <span className="truncate">{e.title}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Projects */}
+      <div>
+        <div className="flex items-center gap-1.5 mb-1.5">
+          <span className="text-xs font-medium text-muted-foreground">Projects ({projects.length})</span>
+        </div>
+        {projects.length === 0 ? (
+          <div className="text-xs text-muted-foreground italic pl-5">No active projects</div>
+        ) : (
+          <div className="space-y-0.5">
+            {projects.map((p) => (
+              <div key={p.id} className="text-xs rounded px-2 py-0.5 flex items-center gap-1.5">
+                <span className="truncate flex-1">{p.name}</span>
+                {p.status && <span className="text-[9px] text-muted-foreground/60 shrink-0">{p.status}</span>}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+
+      </div>)}
+
+      {/* === MEMORY TAB === */}
+      {activeTab === 'memory' && (<div className="space-y-4">
+
       {/* Memory */}
       <div>
         <div className="flex items-center gap-1.5 mb-1.5">
@@ -626,6 +717,34 @@ export function ZenSkillDataPanel({ workspaceId, sourceSlug, onGtdItemClick }: Z
           )}
         </div>
       )}
+
+
+
+      </div>)}
+
+      {/* === SKILLS TAB === */}
+      {activeTab === 'skills' && (<div className="space-y-4">
+
+      {/* Goals */}
+      <div>
+        <div className="flex items-center gap-1.5 mb-1.5">
+          <Target className="h-3.5 w-3.5 text-muted-foreground" />
+          <span className="text-xs font-medium text-muted-foreground">Goals ({goals.length})</span>
+        </div>
+        {goals.length === 0 ? (
+          <div className="text-xs text-muted-foreground italic pl-5">暂无目标</div>
+        ) : (
+          <div className="space-y-0.5">
+            {goals.slice(0, 5).map((g, i) => (
+              <div key={i} className="text-xs rounded px-2 py-0.5 flex items-center gap-1.5">
+                <Target className="h-3 w-3 text-accent/60 shrink-0" />
+                <span className="truncate flex-1">{g.dimension || "goal"}</span>
+                <span className="text-[10px] text-muted-foreground shrink-0">{g.current ?? 0}/{g.target ?? "-"}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
 
       {/* Skills Browse */}
       {skillCategories.length > 0 && (
@@ -725,6 +844,8 @@ export function ZenSkillDataPanel({ workspaceId, sourceSlug, onGtdItemClick }: Z
           </div>
         </div>
       )}
+
+      </div>)}
     </div>
   )
 }
