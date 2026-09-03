@@ -265,6 +265,16 @@ export function ZenSkillDataPanel({ workspaceId, sourceSlug, onGtdItemClick }: Z
     return cleanup
   }, [fetchData, sourceSlug])
 
+
+  // zenskill:navigate handler
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail
+      if (detail?.message && onGtdItemClick) onGtdItemClick(detail.message)
+    }
+    window.addEventListener("zenskill:navigate", handler)
+    return () => window.removeEventListener("zenskill:navigate", handler)
+  }, [onGtdItemClick])
   return (
     <div className="space-y-4 p-3">
       {/* Header */}
