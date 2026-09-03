@@ -269,6 +269,37 @@ if (Test-Path $ZenSkillDir) {
         }
     }
     Write-Host "  ZenSkill copied to resources/zenskill"
+
+    # 5.6. Copy uv binary to packaging resources (G1 必需件)
+    $UvSource = "$ElectronDir\resources\bin\win32-x64\uv.exe"
+    if (-not (Test-Path $UvSource)) {
+        # 尝试从系统 PATH 获取
+        $UvBin = Get-Command uv -ErrorAction SilentlyContinue
+        if ($UvBin) {
+            Copy-Item $UvBin.Source "$UvSource" -Force
+            Write-Host "  uv binary copied to resources/bin/win32-x64/"
+        } else {
+            Write-Host "  WARNING: uv not found, skipping" -ForegroundColor Yellow
+        }
+    } else {
+        Write-Host "  uv binary already in resources/bin/win32-x64/"
+    }
+
+    # 5.7. Bundle CPython 3.12 (S5: offline first-run)
+    $PyTarget = "$ZenSkillTarget\python"
+    $UvPython = "$ElectronDir\resources\bin\win32-x64\uv.exe"
+    if (Test-Path $UvPython) {
+        $PySrc = & $UvPython python find 3.12 2>$null
+        if ($PySrc) {
+            Write-Host "  Bundling CPython: $PySrc"
+            if (Test-Path $PyTarget) { Remove-Item -Recurse -Force $PyTarget }
+            New-Item -ItemType Directory -Force -Path $PyTarget | Out-Null
+            robocopy $PySrc $PyTarget /E /XD __pycache__ test /XF *.pyc /NFL /NDL /NJH /NJS /NC /NS
+            Write-Host "  CPython bundled: $((Get-ChildItem $PyTarget -Recurse | Measure-Object).Count) files"
+        } else {
+            Write-Host "  WARNING: uv python find failed, skipping CPython bundling" -ForegroundColor Yellow
+        }
+    }
 } else {
     Write-Host "WARNING: ZenSkill directory not found at $ZenSkillDir, skipping" -ForegroundColor Yellow
 }
