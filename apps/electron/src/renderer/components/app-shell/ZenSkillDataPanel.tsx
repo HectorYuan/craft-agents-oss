@@ -5,6 +5,7 @@
  */
 
 import React, { useState, useEffect, useCallback, useRef } from 'react'
+import { toast } from 'sonner'
 import { Inbox, Brain, Zap, RefreshCw, ChevronRight, Trophy, Target, Activity, Flame, Check, ArrowRight, Trash2, Archive, Wand2, Circle, Search, TrendingUp, Lightbulb, CalendarDays, FolderKanban } from 'lucide-react'
 
 interface ZenSkillDataPanelProps {
@@ -212,6 +213,21 @@ export function ZenSkillDataPanel({ workspaceId, sourceSlug, onGtdItemClick }: Z
       const companionData = extractJson(companionResult.status === 'fulfilled' ? companionResult.value : null)
       if (companionData) {
         setCompanion(companionData)
+        // 陪伴感主动推送（频控：同类 24h 内只推一次）
+        const alertKey = `companion-alert-${companionData.mood?.slice(0, 8) ?? 'default'}`
+        const lastAlert = sessionStorage.getItem(alertKey)
+        if (!lastAlert || Date.now() - Number(lastAlert) > 24 * 3600 * 1000) {
+          sessionStorage.setItem(alertKey, String(Date.now()))
+          if (companionData.overdue > 0) {
+            toast.warning(`⚠ ${companionData.overdue} 个行动已逾期`, {
+              description: companionData.mood,
+            })
+          } else if (companionData.energy.level === 'critical') {
+            toast.info('⚡ 能量不足，建议休息一下', {
+              description: companionData.mood,
+            })
+          }
+        }
         // Extract suggestions from energy_level advice
         const eAdvice = energyData?.advice
         if (eAdvice?.suggestions?.length) setSuggestions(eAdvice.suggestions.slice(0, 2))
