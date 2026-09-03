@@ -13,12 +13,47 @@
 from __future__ import annotations
 
 import asyncio
+import os
 import logging
+from pathlib import Path
 from collections.abc import AsyncIterator
 from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
+
+
+
+def _tui_session_id_file() -> Path:
+    return Path.home() / ".zenskill" / "tui_agent_session_id"
+
+
+def _load_last_session_id() -> Optional[str]:
+    f = _tui_session_id_file()
+    if f.exists():
+        try:
+            sid = f.read_text(encoding="utf-8").strip()
+            if sid:
+                return sid
+        except Exception:
+            pass
+    return None
+
+
+def _save_session_id(sid: str) -> None:
+    try:
+        f = _tui_session_id_file()
+        f.parent.mkdir(parents=True, exist_ok=True)
+        f.write_text(sid, encoding="utf-8")
+    except Exception:
+        pass
+
+
+def _clear_session_id() -> None:
+    try:
+        _tui_session_id_file().unlink(missing_ok=True)
+    except Exception:
+        pass
 
 class AgentChatSession:
     """TUI 用的 agent 会话封装。"""
@@ -76,7 +111,17 @@ class AgentChatSession:
 
         # Phase 1: tools + caps + session（不依赖模型）
         self._session_manager = SessionManager()
-        self._session = self._session_manager.create(cwd=self._cwd)
+        # X1: 尝试加载上次 TUI session（跨启动续聊）
+        last_sid = _load_last_session_id()
+        if last_sid:
+            try:
+                self._session = self._session_manager.load(last_sid)
+            except Exception:
+                self._session = self._session_manager.create(cwd=self._cwd)
+        else:
+            self._session = self._session_manager.create(cwd=self._cwd)
+        # X1: session 创建/加载后立即保存 ID（无论后续 chat 是否成功）
+        _save_session_id(self._session.id)
 
         caps = [TaskTypeCapability()]
         if self._with_memory:
@@ -113,7 +158,35 @@ class AgentChatSession:
             from zenskill.runtime.agent.agent_loop import AgentLoop, AgentLoopConfig
             from zenskill.runtime.agent.delegate_tool import DelegateTool
 
-            self._model_config = resolve_model(self._model_name)
+            # 占位模型名消毒：旧托管 provider 会返回 "DeepSeek/test-model" 这类
+            # 字符串，形似 provider/model 但 leaf 是占位符——当作未指定，
+            # 让 resolve_model 走环境变量/配置自动探测
+            model_name = self._model_name
+            if model_name:
+                leaf = (model_name.split("/", 1)[1] if "/" in model_name else model_name)
+                if leaf.strip().lower() in ("test-model", "mock-gpt", "mock",
+                                            "unknown", "未配置"):
+                    model_name = None
+            # DeepSeek key 注入（与 TUI streaming.py 同源：model-switcher DB）
+            model_name = model_name or os.environ.get("ZENSKILL_AGENT_MODEL")
+            if model_name is None and not os.environ.get("DEEPSEEK_API_KEY"):
+                try:
+                    import sqlite3
+                    db = Path.home() / ".model-switch" / "modelswitcher.db"
+                    if db.exists():
+                        conn = sqlite3.connect(str(db))
+                        rows = conn.execute(
+                            "SELECT es.var_value FROM key_accounts ka "
+                            "JOIN env_vars es ON ka.key_env = es.var_name "
+                            "WHERE ka.pool_name = 'deepseek'"
+                        ).fetchall()
+                        conn.close()
+                        if rows:
+                            os.environ.setdefault("DEEPSEEK_API_KEY", rows[0][0])
+                except Exception:
+                    pass
+
+            self._model_config = resolve_model(model_name)
             stream_fn = create_stream(self._model_config)
             host_hooks = self._host.hooks()
 
@@ -206,6 +279,9 @@ class AgentChatSession:
 
             yield {"type": "done", "content": ""}
 
+            # X4: daily_review 兜底——run 结束时如有 2+ 行动完成，自动触发一次
+            self._maybe_auto_daily_review()
+
         except asyncio.CancelledError:
             self._abort_event.set()
             yield {"type": "done", "content": ""}
@@ -215,6 +291,7 @@ class AgentChatSession:
 
     def clear(self) -> str:
         """新建 session，返回新 session ID。"""
+        _clear_session_id()
         if self._session_manager:
             self._session = self._session_manager.create(cwd=self._cwd)
             return self._session.id
@@ -234,6 +311,28 @@ class AgentChatSession:
             "tool_count": len(self._tools) if self._tools else 0,
             "capabilities": [c.name for c in self._host.capabilities] if self._host else [],
         }
+
+    def _maybe_auto_daily_review(self) -> None:
+        """X4: run 结束后如有 2+ 行动完成，自动记一条 daily_review episode。"""
+        try:
+            from zenskill.core.paths import SkillStateManager
+            state = SkillStateManager("zenskill-core").load()
+            episodes = state.get("episodes", [])
+            today = __import__("datetime").datetime.now().strftime("%Y-%m-%d")
+            today_actions = [e for e in episodes
+                             if e.get("date") == today and e.get("action") in ("action_done", "agent_session")]
+            if len(today_actions) >= 2:
+                # 生成简短复盘并记为 episode
+                actions_summary = ", ".join(
+                    (e.get("content") or "")[:30] for e in today_actions[:5]
+                )
+                SkillStateManager("zenskill-core").record_episode(
+                    action="daily_review",
+                    content=f"今日完成 {len(today_actions)} 项：{actions_summary[:120]}",
+                    success=True,
+                )
+        except Exception:
+            pass  # 自动复盘失败不影响主流程
 
     def abort(self) -> None:
         """中止当前运行。"""

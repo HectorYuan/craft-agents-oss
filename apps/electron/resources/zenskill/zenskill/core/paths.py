@@ -614,13 +614,15 @@ class SkillStateManager:
                 from zenskill.core.skill_profile import SkillProfile
                 profile = SkillProfile.load(self.skill_id)
                 if profile:
-                    # 从 JSON 文件加载 episodes（SQLite 不存储 episodes）
+                    # 从 JSON 文件加载 episodes/milestones（SQLite 均不存储）
                     json_episodes = []
+                    json_milestones = []
                     if self.state_path.exists():
                         try:
                             with open(self.state_path, "r", encoding="utf-8") as f:
                                 json_state = json.load(f)
                                 json_episodes = json_state.get("episodes", [])
+                                json_milestones = json_state.get("milestones", [])
                         except (json.JSONDecodeError, OSError):
                             pass
 
@@ -635,7 +637,7 @@ class SkillStateManager:
                         "last_used": profile.last_interaction_at,
                         "level_up_at": None,
                         "episodes": json_episodes,
-                        "milestones": [],
+                        "milestones": json_milestones,
                         "metrics": {
                             "total_executions": profile.total_interactions,
                             "successful_executions": profile.success_count,

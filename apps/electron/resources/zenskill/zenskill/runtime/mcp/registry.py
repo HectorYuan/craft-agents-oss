@@ -760,6 +760,34 @@ def build_default_registry() -> ServerToolRegistry:
         return {"ok": True, "executed": len(results), "results": summaries,
                 "message": f"ZenLoop {name} 执行 {len(results)} 个插件"}
 
+    def _calendar_list(a: dict[str, Any]) -> Any:
+        """日程列表：今日或本周（GTD CalendarEngine）"""
+        from ...systems.gtd.calendar import CalendarEngine
+
+        cal = CalendarEngine()
+        scope = a.get("scope", "today")
+        if scope == "week":
+            weeks = cal.week()
+            events = []
+            for i, day_events in enumerate(weeks):
+                for e in day_events:
+                    events.append(e)
+            label = "本周"
+        else:
+            events = cal.today()
+            label = "今日"
+
+        return {
+            "scope": scope,
+            "count": len(events),
+            "events": [
+                {"date": e.date, "time": getattr(e, "time_str", "") or "",
+                 "title": e.title, "action_id": getattr(e, "action_id", "") or ""}
+                for e in events[:20]
+            ],
+            "message": f"{label}日程 {len(events)} 条",
+        }
+
     def _session_summary(a: dict[str, Any]) -> Any:
         """会话摘要回流（WP-C：SessionManager complete 钩子经 MCP 写入）"""
         from ...core.paths import SkillStateManager
@@ -858,6 +886,18 @@ def build_default_registry() -> ServerToolRegistry:
         "session_summary",
         "会话摘要回流：消息数/工具调用数/首条消息 → episodes",
         _session_summary,
+    )
+    registry.register(
+        "calendar_list",
+        "日程列表：今日/本周的 GTD 日程（CalendarEngine）",
+        _calendar_list,
+        {
+            "type": "object",
+            "properties": {"scope": {
+                "type": "string",
+                "enum": ["today", "week"],
+                "description": "范围，默认 today"}},
+        },
     )
     registry.register(
         "zenloop_run",
