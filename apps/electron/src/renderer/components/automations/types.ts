@@ -28,6 +28,7 @@ export type AppEvent =
   | 'TodoStateChange'
   | 'SessionStatusChange'
   | 'SchedulerTick'
+  | 'ZenSkillChanged'
 
 export type AgentEvent =
   | 'PreToolUse'
@@ -48,7 +49,8 @@ export type AutomationTrigger = AppEvent | AgentEvent
 
 export const APP_EVENTS: AppEvent[] = [
   'LabelAdd', 'LabelRemove', 'LabelConfigChange',
-  'PermissionModeChange', 'FlagChange', 'TodoStateChange', 'SessionStatusChange', 'SchedulerTick'
+  'PermissionModeChange', 'FlagChange', 'TodoStateChange', 'SessionStatusChange', 'SchedulerTick',
+  'ZenSkillChanged'
 ]
 
 export const AGENT_EVENTS: AgentEvent[] = [
@@ -312,6 +314,7 @@ export const EVENT_DISPLAY_NAMES: Record<AutomationTrigger, string> = {
   TodoStateChange:      'Task Updated',
   SessionStatusChange:  'Status Changed',
   SchedulerTick:        'Scheduled',
+  ZenSkillChanged:      'ZenSkill Data Changed',
 
   // Agent events
   PreToolUse:           'Before Tool Runs',
