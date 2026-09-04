@@ -8,13 +8,14 @@
 import { resolveZenSkillPage } from './zenskill-registry'
 
 interface ZenSkillPageMountProps {
-  pageSlug?: string
+  pageSlug?: string;
+  tab?: string
   workspaceId?: string
 }
 
-export function ZenSkillPageMount({ pageSlug, workspaceId }: ZenSkillPageMountProps) {
+export function ZenSkillPageMount({ pageSlug, tab, workspaceId }: ZenSkillPageMountProps) {
   const registration = resolveZenSkillPage(pageSlug)
   if (!registration) return null
   const Page = registration.component
-  return <Page workspaceId={workspaceId} />
+  return <Page workspaceId={workspaceId} initialTab={tab} />
 }

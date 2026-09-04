@@ -2130,11 +2130,12 @@ function AppShellContent({
     }
     flattenTree(labelTree)
 
-    // 3. Sources, Skills, Projects, Pages, Automations, Settings (visual order)
+    // 3. Sources, Skills, Projects, Pages, ZenSkill, Automations, Settings (visual order)
     result.push({ id: 'nav:sources', type: 'nav', action: handleSourcesClick })
     result.push({ id: 'nav:skills', type: 'nav', action: handleSkillsClick })
     result.push({ id: 'nav:projects', type: 'nav', action: handleProjectsClick })
     result.push({ id: 'nav:pages', type: 'nav', action: handlePagesClick })
+    result.push({ id: 'nav:zenskill', type: 'nav', action: () => navigate(routes.view.zenskillGtd()) })
     result.push({ id: 'nav:automations', type: 'nav', action: handleAutomationsClick })
     result.push({ id: 'nav:settings', type: 'nav', action: () => handleSettingsClick() })
     result.push({ id: 'nav:whats-new', type: 'nav', action: handleWhatsNewClick })

@@ -20,6 +20,7 @@ export const ZENSKILL_SOURCE_SLUG = 'zenskill-4'
 
 export interface ZenSkillPageProps {
   workspaceId?: string
+  initialTab?: string
 }
 
 export interface ZenSkillPageRegistration {

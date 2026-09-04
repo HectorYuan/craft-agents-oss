@@ -25,6 +25,7 @@ interface CalendarData { count?: number; events?: { date: string; time: string; 
 interface ProjectData { count?: number; items?: { id: string; name: string; status?: string; progress?: number }[] }
 
 interface GtdWorkspaceProps {
+  initialTab?: string
   workspaceId?: string
 }
 
@@ -42,9 +43,9 @@ function TabSkeleton({ rows }: { rows: number }) {
   )
 }
 
-export function GtdWorkspace({ workspaceId }: GtdWorkspaceProps) {
+export function GtdWorkspace({ workspaceId, initialTab }: GtdWorkspaceProps) {
   const { t } = useTranslation()
-  const [activeTab, setActiveTab] = useState<GtdTab>('inbox')
+  const validTabs: GtdTab[] = ['inbox','actions','calendar','projects']; const [activeTab, setActiveTab] = useState<GtdTab>(validTabs.includes(initialTab as GtdTab) ? (initialTab as GtdTab) : 'inbox')
   const [actionStatus, setActionStatus] = useState<ActionStatusFilter>('pending')
   const [calendarScope, setCalendarScope] = useState<CalendarScope>('today')
   const [busyId, setBusyId] = useState<string | null>(null)

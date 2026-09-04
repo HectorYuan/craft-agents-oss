@@ -26,7 +26,8 @@ export function parseZenSkillCompoundRoute(segments: string[]): ParsedCompoundRo
   if (!page) {
     return { navigator: 'zenskill', details: null }
   }
-  return { navigator: 'zenskill', details: { type: ZENSKILL_PAGE_TYPE, id: page } }
+  const tab = segments[2] || undefined
+  return { navigator: 'zenskill', details: { type: ZENSKILL_PAGE_TYPE, id: tab ? `${page}/${tab}` : page } }
 }
 
 /** Build a zenskill route string from a parsed compound route. */
@@ -40,7 +41,7 @@ export function zenskillCompoundToNavigationState(compound: ParsedCompoundRoute)
   return {
     navigator: 'zenskill',
     details: compound.details
-      ? { type: ZENSKILL_PAGE_TYPE, pageSlug: compound.details.id }
+      ? (() => { const [pageSlug, ...rest] = compound.details.id.split('/'); return { type: ZENSKILL_PAGE_TYPE, pageSlug, tab: rest.join('/') || undefined } })()
       : null,
   }
 }
@@ -50,7 +51,7 @@ export function zenskillNavigationStateToCompoundRoute(state: ZenSkillNavigation
   return {
     navigator: 'zenskill',
     details: state.details
-      ? { type: state.details.type, id: state.details.pageSlug }
+      ? { type: state.details.type, id: state.details.tab ? `${state.details.pageSlug}/${state.details.tab}` : state.details.pageSlug }
       : null,
   }
 }

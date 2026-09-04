@@ -954,7 +954,7 @@ export interface PagesNavigationState {
  */
 export interface ZenSkillNavigationState {
   navigator: 'zenskill'
-  details: { type: 'zenskill-page'; pageSlug: string } | null
+  details: { type: 'zenskill-page'; pageSlug: string; tab?: string } | null
   rightSidebar?: RightSidebarPanel
 }
 
