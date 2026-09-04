@@ -6,6 +6,11 @@
  * fetched through the useMcpTool L3 hook (JSON extraction + zenskill:changed
  * auto-refresh); write tools are called directly and rely on the
  * zenskill:changed broadcast to refresh, never manual refetches.
+ *
+ * Calendar: real month grid via calendar_month (defensive reads — the
+ * shape is contract-pending), selected-day detail with calendar_add /
+ * calendar_delete, and calendar_suggest slots (hook parked until the user
+ * asks for suggestions, mirroring MemoryBrowser's parked search pattern).
  */
 import React, { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -15,18 +20,34 @@ import { InboxPanel } from '../panels/InboxPanel'
 import { ActionsPanel, type ActionStatusFilter } from '../panels/ActionsPanel'
 import { CalendarPanel, type CalendarScope } from '../panels/CalendarPanel'
 import { ProjectsPanel } from '../panels/ProjectsPanel'
+import type {
+  GtdAction,
+  GtdCalendarEvent,
+  GtdCalendarMonthData,
+  GtdCalendarSuggestion,
+} from '../panels/types'
 import { ZENSKILL_SOURCE_SLUG } from '../zenskill-registry'
 
 type GtdTab = 'inbox' | 'actions' | 'calendar' | 'projects'
 
 interface InboxData { count?: number; items?: { id: string; text?: string; raw_text?: string; status?: string }[] }
-interface ActionData { count?: number; items?: { id: string; title: string; priority?: string; status?: string; due_date?: string }[] }
-interface CalendarData { count?: number; events?: { date: string; time: string; title: string }[] }
+interface ActionData { count?: number; items?: GtdAction[] }
+interface CalendarListData { count?: number; events?: GtdCalendarEvent[] }
+interface SuggestData { items?: GtdCalendarSuggestion[] }
 interface ProjectData { count?: number; items?: { id: string; name: string; status?: string; progress?: number }[] }
 
 interface GtdWorkspaceProps {
   initialTab?: string
   workspaceId?: string
+}
+
+function pad2(n: number): string {
+  return n < 10 ? `0${n}` : String(n)
+}
+
+function localTodayIso(): string {
+  const d = new Date()
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`
 }
 
 function TabSkeleton({ rows }: { rows: number }) {
@@ -47,18 +68,40 @@ export function GtdWorkspace({ workspaceId, initialTab }: GtdWorkspaceProps) {
   const { t } = useTranslation()
   const validTabs: GtdTab[] = ['inbox','actions','calendar','projects']; const [activeTab, setActiveTab] = useState<GtdTab>(validTabs.includes(initialTab as GtdTab) ? (initialTab as GtdTab) : 'inbox')
   const [actionStatus, setActionStatus] = useState<ActionStatusFilter>('pending')
-  const [calendarScope, setCalendarScope] = useState<CalendarScope>('today')
+  const [calendarScope, setCalendarScope] = useState<CalendarScope>('month')
+  const [monthCursor, setMonthCursor] = useState(() => {
+    const d = new Date()
+    return { year: d.getFullYear(), month: d.getMonth() + 1 }
+  })
+  const [selectedDate, setSelectedDate] = useState(localTodayIso)
+  const [suggestActive, setSuggestActive] = useState(false)
   const [busyId, setBusyId] = useState<string | null>(null)
 
   const sourceSlug = ZENSKILL_SOURCE_SLUG
   const inbox = useMcpTool<InboxData>(workspaceId, sourceSlug, 'gtd_inbox_list', { limit: 50 })
   const actions = useMcpTool<ActionData>(workspaceId, sourceSlug, 'action_list', { status: actionStatus, limit: 50 })
-  const calendar = useMcpTool<CalendarData>(workspaceId, sourceSlug, 'calendar_list', { scope: calendarScope })
+  // Pending actions feed the calendar sidebar (filtered by due_date client-side)
+  const dueActions = useMcpTool<ActionData>(workspaceId, sourceSlug, 'action_list', { status: 'pending', limit: 100 })
+  const calendarToday = useMcpTool<CalendarListData>(workspaceId, sourceSlug, 'calendar_list', { scope: 'today' })
+  // Month payload for the grid — parked while the today flat list is shown
+  const calendarMonth = useMcpTool<GtdCalendarMonthData>(
+    calendarScope === 'today' ? undefined : workspaceId,
+    sourceSlug,
+    'calendar_month',
+    { year: monthCursor.year, month: monthCursor.month },
+  )
+  // Suggestion slots — parked until "suggest slots" is toggled on
+  const suggest = useMcpTool<SuggestData>(
+    suggestActive ? workspaceId : undefined,
+    sourceSlug,
+    'calendar_suggest',
+    {},
+  )
   const projects = useMcpTool<ProjectData>(workspaceId, sourceSlug, 'project_list', { status: 'active' })
 
   const runTool = useCallback(async (tool: string, args: Record<string, unknown>) => {
     if (!workspaceId) return
-    setBusyId(String(args.action_id ?? args.item_id ?? args.project_id ?? tool))
+    setBusyId(String(args.action_id ?? args.item_id ?? args.event_id ?? args.project_id ?? tool))
     try {
       // Refresh is driven by the zenskill:changed broadcast (subscribed in
       // useMcpTool) — no manual refetch here, mirroring DataPanel behavior.
@@ -78,7 +121,47 @@ export function GtdWorkspace({ workspaceId, initialTab }: GtdWorkspaceProps) {
     void runTool('action_add', args)
   }, [runTool])
 
-  const error = inbox.error ?? actions.error ?? calendar.error ?? projects.error
+  const editAction = useCallback(({ actionId, title, priority, dueDate }: { actionId: string; title: string; priority: string; dueDate: string }) => {
+    const args: Record<string, unknown> = { action_id: actionId, title, priority }
+    if (dueDate) args.due_date = dueDate
+    void runTool('action_update', args)
+  }, [runTool])
+
+  const addEvent = useCallback(({ date, title, timeStr }: { date: string; title: string; timeStr: string }) => {
+    const args: Record<string, unknown> = { date, title }
+    if (timeStr) args.time_str = timeStr
+    void runTool('calendar_add', args)
+  }, [runTool])
+
+  const deleteEvent = useCallback((eventId: string) => {
+    void runTool('calendar_delete', { event_id: eventId })
+  }, [runTool])
+
+  const prevMonth = useCallback(() => {
+    setMonthCursor((c) => (c.month === 1 ? { year: c.year - 1, month: 12 } : { ...c, month: c.month - 1 }))
+  }, [])
+  const nextMonth = useCallback(() => {
+    setMonthCursor((c) => (c.month === 12 ? { year: c.year + 1, month: 1 } : { ...c, month: c.month + 1 }))
+  }, [])
+
+  // Derived calendar data — every read defensive (contract pending)
+  const todayIso = localTodayIso()
+  const monthData = calendarMonth.data
+  const monthEvents = monthData?.events ?? []
+  const dayEvents = monthEvents.filter((e) => e?.date === selectedDate)
+  const dayActions = (dueActions.data?.items ?? []).filter((a) => a?.due_date === selectedDate)
+  const suggestRaw = suggest.data as unknown
+  const suggestions: GtdCalendarSuggestion[] = Array.isArray(suggestRaw)
+    ? (suggestRaw as GtdCalendarSuggestion[])
+    : ((suggestRaw as SuggestData | null)?.items ?? [])
+  const monthTotal = monthData?.days
+    ? Object.values(monthData.days).reduce((sum, n) => sum + (typeof n === 'number' ? n : 0), 0)
+    : monthEvents.length
+  const calendarCount = calendarScope === 'today'
+    ? (calendarToday.data?.count ?? (calendarToday.data?.events ?? []).length)
+    : monthTotal
+
+  const error = inbox.error ?? actions.error ?? calendarToday.error ?? calendarMonth.error ?? projects.error
 
   const tabs: { key: GtdTab; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
     { key: 'inbox', label: t('zenskill.gtd.tab.inbox'), icon: Inbox },
@@ -87,7 +170,7 @@ export function GtdWorkspace({ workspaceId, initialTab }: GtdWorkspaceProps) {
     { key: 'projects', label: t('zenskill.gtd.tab.projects'), icon: FolderKanban },
   ]
 
-  const busy = inbox.loading || actions.loading || calendar.loading || projects.loading
+  const busy = inbox.loading || actions.loading || calendarToday.loading || calendarMonth.loading || projects.loading
 
   return (
     <div className="flex flex-col h-full">
@@ -131,7 +214,7 @@ export function GtdWorkspace({ workspaceId, initialTab }: GtdWorkspaceProps) {
 
       {/* Tab content */}
       <div className="flex-1 overflow-y-auto px-5 py-4">
-        <div className="max-w-2xl space-y-4">
+        <div className={`space-y-4 ${activeTab === 'calendar' ? 'max-w-4xl' : 'max-w-2xl'}`}>
           {activeTab === 'inbox' && (
             inbox.loading && !inbox.data ? <TabSkeleton rows={4} /> : (
               <InboxPanel
@@ -162,6 +245,9 @@ export function GtdWorkspace({ workspaceId, initialTab }: GtdWorkspaceProps) {
                 onDone={(actionId) => runTool('action_done', { action_id: actionId })}
                 onMarkNext={(actionId) => runTool('action_mark_next', { action_id: actionId })}
                 onDelete={(actionId) => runTool('action_delete', { action_id: actionId })}
+                onEdit={editAction}
+                editDisabled={!workspaceId}
+                projects={projects.data?.items ?? []}
                 statusLabels={{
                   pending: t('zenskill.gtd.actions.status.pending'),
                   next: t('zenskill.gtd.actions.status.next'),
@@ -172,17 +258,36 @@ export function GtdWorkspace({ workspaceId, initialTab }: GtdWorkspaceProps) {
           )}
 
           {activeTab === 'calendar' && (
-            calendar.loading && !calendar.data ? <TabSkeleton rows={3} /> : (
+            (calendarScope === 'today'
+              ? calendarToday.loading && !calendarToday.data
+              : calendarMonth.loading && !calendarMonth.data) ? <TabSkeleton rows={6} /> : (
               <CalendarPanel
                 variant="full"
-                events={calendar.data?.events ?? []}
-                count={calendar.data?.count}
+                events={calendarToday.data?.events ?? []}
+                count={calendarCount}
                 scope={calendarScope}
                 onScopeChange={setCalendarScope}
                 scopeLabels={{
+                  month: t('zenskill.gtd.calendar.scope.month'),
                   today: t('zenskill.gtd.calendar.scope.today'),
                   week: t('zenskill.gtd.calendar.scope.week'),
                 }}
+                monthData={monthData}
+                monthYear={monthCursor}
+                onPrevMonth={prevMonth}
+                onNextMonth={nextMonth}
+                selectedDate={selectedDate}
+                onSelectDate={setSelectedDate}
+                dayEvents={dayEvents}
+                dayActions={dayActions}
+                onAddEvent={addEvent}
+                addEventDisabled={!workspaceId || busyId === 'calendar_add'}
+                onDeleteEvent={deleteEvent}
+                suggestions={suggestions}
+                suggestActive={suggestActive}
+                suggestLoading={suggest.loading}
+                onToggleSuggest={() => setSuggestActive((v) => !v)}
+                busyId={busyId}
               />
             )
           )}
@@ -195,6 +300,8 @@ export function GtdWorkspace({ workspaceId, initialTab }: GtdWorkspaceProps) {
                 busyId={busyId}
                 maxItems={100}
                 onDone={(projectId) => runTool('project_done', { project_id: projectId })}
+                workspaceId={workspaceId}
+                sourceSlug={sourceSlug}
               />
             )
           )}
