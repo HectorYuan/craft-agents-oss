@@ -199,7 +199,10 @@ export class ZenskillAgent extends BaseAgent {
   private static RESTART_BACKOFF_MS = [1000, 4000, 16000];
 
   constructor(config: BackendConfig) {
-    super(config, 'deepseek/deepseek-v4-flash');
+    // 模型优先级：GUI 连接/会话配置(config.model) > zenskill llm_config.json（spawn
+    // 时不带 --model，由 Python resolve_model 兜底解析）。禁止硬编码具体模型名——
+    // 发布后用户环境各异，硬编码会让 GUI 永远覆盖用户配置。
+    super(config, '');
     this._faux = !!(config as any).faux || false;
     this._supportsBranching = true;
     this.startConfigWatcher();
@@ -695,7 +698,7 @@ export class ZenskillAgent extends BaseAgent {
 
       const parts: string[] = [];
       parts.push(`You are running in workspace: ${workspaceRoot}`);
-      parts.push(`Model: ${this._model || 'deepseek/deepseek-v4-flash'}`);
+      parts.push(`Model: ${this._model || 'provider default (resolved by zenskill engine)'}`);
       parts.push('');
       parts.push(guideContent);
 
