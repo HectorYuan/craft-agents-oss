@@ -1355,6 +1355,7 @@
   "sidebar.unknownProject": "Proyecto desconocido",
   "sidebar.views": "Vistas",
   "sidebar.whatsNew": "Novedades",
+  "sidebar.zenskill": "ZenSkill",
   "sidebarMenu.addAutomation": "Añadir automatización",
   "sidebarMenu.addNewLabel": "Añadir nueva etiqueta",
   "sidebarMenu.addProject": "Añadir proyecto",
@@ -1739,5 +1740,18 @@
   "workspace.selectWorkspaceDesc": "Elige un Workspace en este servidor o crea uno nuevo.",
   "workspace.selectWorkspacePlaceholder": "Selecciona un Workspace...",
   "workspace.serverAuthToken": "Token de autenticación del servidor",
-  "workspace.underDefaultFolder": "bajo la carpeta .craft-agent"
+  "workspace.underDefaultFolder": "bajo la carpeta .craft-agent",
+  "zenskill.gtd.actions.status.done": "Hecho",
+  "zenskill.gtd.actions.status.next": "Siguiente",
+  "zenskill.gtd.actions.status.pending": "Pendiente",
+  "zenskill.gtd.calendar.scope.today": "Hoy",
+  "zenskill.gtd.calendar.scope.week": "Esta semana",
+  "zenskill.gtd.capture.placeholder": "Captura una idea... (Enter)",
+  "zenskill.gtd.loading": "Sincronizando...",
+  "zenskill.gtd.subtitle": "Bandeja de entrada, acciones, calendario y proyectos",
+  "zenskill.gtd.tab.actions": "Acciones",
+  "zenskill.gtd.tab.calendar": "Calendario",
+  "zenskill.gtd.tab.inbox": "Entrada",
+  "zenskill.gtd.tab.projects": "Proyectos",
+  "zenskill.gtd.title": "Espacio de trabajo GTD"
 }

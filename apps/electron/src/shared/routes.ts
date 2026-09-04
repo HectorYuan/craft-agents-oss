@@ -196,6 +196,12 @@ export const routes = {
         ? `pages/page/${pageSlug}` as const
         : 'pages' as const,
 
+    /** ZenSkill workspace view (zenskill navigator). Pass a tab key for the GTD workspace sub-view. */
+    zenskillGtd: (tab?: string) =>
+      tab
+        ? `zenskill/gtd?tab=${encodeURIComponent(tab)}` as const
+        : 'zenskill/gtd' as const,
+
     /** Kanban board view (sessions navigator, board view mode, all sessions) */
     board: () => 'board' as const,
   },

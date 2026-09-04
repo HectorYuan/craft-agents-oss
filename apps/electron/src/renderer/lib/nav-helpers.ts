@@ -35,6 +35,8 @@ export function isDetailNavState(navState: NavigationState | null): boolean {
     case 'projects':
       return navState.details !== null
     case 'pages':
+    case 'zenskill':
+      // Full-page views render directly in the content panel (no navigator list)
       return true
   }
 }

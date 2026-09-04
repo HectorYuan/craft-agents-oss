@@ -120,6 +120,7 @@ import {
   isAutomationsNavigation,
   isProjectsNavigation,
   isPagesNavigation,
+  isZenSkillNavigation,
   type NavigationState,
 } from "@/contexts/NavigationContext"
 import type { SettingsSubpage } from "../../../shared/types"
@@ -2652,6 +2653,13 @@ function AppShellContent({
                         variant: (isPagesNavigation(navState) && navState.details?.pageSlug === p.config.slug) ? "default" as const : "ghost" as const,
                         onClick: () => navigate(routes.view.pages(p.config.slug)),
                       })),
+                    },
+                    {
+                      id: "nav:zenskill",
+                      title: t("sidebar.zenskill"),
+                      icon: Zap,
+                      variant: isZenSkillNavigation(navState) ? "default" as const : "ghost" as const,
+                      onClick: () => navigate(routes.view.zenskillGtd()),
                     },
                     {
                       id: "nav:automations",

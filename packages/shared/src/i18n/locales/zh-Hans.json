@@ -1355,6 +1355,7 @@
   "sidebar.unknownProject": "未知项目",
   "sidebar.views": "视图",
   "sidebar.whatsNew": "最新动态",
+  "sidebar.zenskill": "ZenSkill",
   "sidebarMenu.addAutomation": "添加自动化",
   "sidebarMenu.addNewLabel": "添加新标签",
   "sidebarMenu.addProject": "添加项目",
@@ -1739,5 +1740,18 @@
   "workspace.selectWorkspaceDesc": "选择此服务器上的 Workspace 或创建新的。",
   "workspace.selectWorkspacePlaceholder": "选择 Workspace...",
   "workspace.serverAuthToken": "服务器认证令牌",
-  "workspace.underDefaultFolder": ".craft-agent 文件夹下"
+  "workspace.underDefaultFolder": ".craft-agent 文件夹下",
+  "zenskill.gtd.actions.status.done": "已完成",
+  "zenskill.gtd.actions.status.next": "下一步",
+  "zenskill.gtd.actions.status.pending": "待办",
+  "zenskill.gtd.calendar.scope.today": "今天",
+  "zenskill.gtd.calendar.scope.week": "本周",
+  "zenskill.gtd.capture.placeholder": "收集一个想法...（回车）",
+  "zenskill.gtd.loading": "同步中...",
+  "zenskill.gtd.subtitle": "收件箱、行动、日历与项目",
+  "zenskill.gtd.tab.actions": "行动",
+  "zenskill.gtd.tab.calendar": "日历",
+  "zenskill.gtd.tab.inbox": "收件箱",
+  "zenskill.gtd.tab.projects": "项目",
+  "zenskill.gtd.title": "GTD 工作台"
 }

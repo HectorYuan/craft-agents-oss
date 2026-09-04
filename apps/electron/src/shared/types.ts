@@ -947,6 +947,18 @@ export interface PagesNavigationState {
 }
 
 /**
+ * ZenSkill navigation state
+ *
+ * Bare `zenskill` (details: null) renders the first page in the zenskill
+ * registry. Page selection mirrors the pages navigator.
+ */
+export interface ZenSkillNavigationState {
+  navigator: 'zenskill'
+  details: { type: 'zenskill-page'; pageSlug: string } | null
+  rightSidebar?: RightSidebarPanel
+}
+
+/**
  * Unified navigation state
  */
 export type NavigationState =
@@ -957,6 +969,7 @@ export type NavigationState =
   | AutomationsNavigationState
   | ProjectsNavigationState
   | PagesNavigationState
+  | ZenSkillNavigationState
 
 export const isSessionsNavigation = (
   state: NavigationState
@@ -985,6 +998,10 @@ export const isProjectsNavigation = (
 export const isPagesNavigation = (
   state: NavigationState
 ): state is PagesNavigationState => state.navigator === 'pages'
+
+export const isZenSkillNavigation = (
+  state: NavigationState
+): state is ZenSkillNavigationState => state.navigator === 'zenskill'
 
 export const DEFAULT_NAVIGATION_STATE: NavigationState = {
   navigator: 'sessions',
@@ -1026,6 +1043,12 @@ export const getNavigationStateKey = (state: NavigationState): string => {
   if (state.navigator === 'settings') {
     if (state.subpage === null) return 'settings'
     return `settings:${state.subpage}`
+  }
+  if (state.navigator === 'zenskill') {
+    if (state.details) {
+      return `zenskill/${state.details.pageSlug}`
+    }
+    return 'zenskill'
   }
   // Chats
   const f = state.filter
@@ -1089,6 +1112,16 @@ export const parseNavigationStateKey = (key: string): NavigationState | null => 
       return { navigator: 'pages', details: { type: 'page', pageSlug } }
     }
     return { navigator: 'pages', details: null }
+  }
+
+  // Handle zenskill
+  if (key === 'zenskill') return { navigator: 'zenskill', details: null }
+  if (key.startsWith('zenskill/')) {
+    const pageSlug = key.slice(9)
+    if (pageSlug) {
+      return { navigator: 'zenskill', details: { type: 'zenskill-page', pageSlug } }
+    }
+    return { navigator: 'zenskill', details: null }
   }
 
   // Handle settings

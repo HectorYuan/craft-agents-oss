@@ -1355,6 +1355,7 @@
   "sidebar.unknownProject": "不明なプロジェクト",
   "sidebar.views": "ビュー",
   "sidebar.whatsNew": "新着情報",
+  "sidebar.zenskill": "ZenSkill",
   "sidebarMenu.addAutomation": "自動化を追加",
   "sidebarMenu.addNewLabel": "新規ラベルを追加",
   "sidebarMenu.addProject": "プロジェクトを追加",
@@ -1739,5 +1740,18 @@
   "workspace.selectWorkspaceDesc": "このサーバー上のWorkspaceを選択するか、新規作成してください。",
   "workspace.selectWorkspacePlaceholder": "Workspaceを選択...",
   "workspace.serverAuthToken": "サーバー認証トークン",
-  "workspace.underDefaultFolder": ".craft-agentフォルダ内"
+  "workspace.underDefaultFolder": ".craft-agentフォルダ内",
+  "zenskill.gtd.actions.status.done": "完了",
+  "zenskill.gtd.actions.status.next": "次へ",
+  "zenskill.gtd.actions.status.pending": "未処理",
+  "zenskill.gtd.calendar.scope.today": "今日",
+  "zenskill.gtd.calendar.scope.week": "今週",
+  "zenskill.gtd.capture.placeholder": "アイデアを入力... (Enter)",
+  "zenskill.gtd.loading": "同期中...",
+  "zenskill.gtd.subtitle": "インボックス・アクション・カレンダー・プロジェクト",
+  "zenskill.gtd.tab.actions": "アクション",
+  "zenskill.gtd.tab.calendar": "カレンダー",
+  "zenskill.gtd.tab.inbox": "インボックス",
+  "zenskill.gtd.tab.projects": "プロジェクト",
+  "zenskill.gtd.title": "GTD ワークスペース"
 }

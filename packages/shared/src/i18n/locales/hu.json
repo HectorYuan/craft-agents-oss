@@ -1355,6 +1355,7 @@
   "sidebar.unknownProject": "Ismeretlen projekt",
   "sidebar.views": "Nézetek",
   "sidebar.whatsNew": "Újdonságok",
+  "sidebar.zenskill": "ZenSkill",
   "sidebarMenu.addAutomation": "Automatizáció hozzáadása",
   "sidebarMenu.addNewLabel": "Új címke hozzáadása",
   "sidebarMenu.addProject": "Projekt hozzáadása",
@@ -1739,5 +1740,18 @@
   "workspace.selectWorkspaceDesc": "Válassz egy munkaterületet ezen a szerveren, vagy hozz létre újat.",
   "workspace.selectWorkspacePlaceholder": "Válassz munkaterületet...",
   "workspace.serverAuthToken": "Szerver hitelesítési token",
-  "workspace.underDefaultFolder": "a .craft-agent mappában"
+  "workspace.underDefaultFolder": "a .craft-agent mappában",
+  "zenskill.gtd.actions.status.done": "Kész",
+  "zenskill.gtd.actions.status.next": "Következő",
+  "zenskill.gtd.actions.status.pending": "Függőben",
+  "zenskill.gtd.calendar.scope.today": "Ma",
+  "zenskill.gtd.calendar.scope.week": "Ezen a héten",
+  "zenskill.gtd.capture.placeholder": "Rögzíts egy gondolatot... (Enter)",
+  "zenskill.gtd.loading": "Szinkronizálás...",
+  "zenskill.gtd.subtitle": "Gyűjtő, teendők, naptár és projektek",
+  "zenskill.gtd.tab.actions": "Teendők",
+  "zenskill.gtd.tab.calendar": "Naptár",
+  "zenskill.gtd.tab.inbox": "Gyűjtő",
+  "zenskill.gtd.tab.projects": "Projektek",
+  "zenskill.gtd.title": "GTD munkaterület"
 }

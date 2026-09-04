@@ -6,20 +6,17 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { toast } from 'sonner'
-import { Inbox, Brain, Zap, RefreshCw, ChevronRight, Trophy, Target, Activity, Flame, Check, ArrowRight, Trash2, Archive, Wand2, Circle, Search, TrendingUp, Lightbulb, CalendarDays, FolderKanban } from 'lucide-react'
+import { Inbox, Brain, Zap, RefreshCw, ChevronRight, Trophy, Target, Activity, Flame, Check, Search, TrendingUp, Lightbulb } from 'lucide-react'
+import { InboxPanel } from './panels/InboxPanel'
+import { ActionsPanel } from './panels/ActionsPanel'
+import { CalendarPanel } from './panels/CalendarPanel'
+import { ProjectsPanel } from './panels/ProjectsPanel'
+import type { GtdItem, GtdAction } from './panels/types'
 
 interface ZenSkillDataPanelProps {
   workspaceId: string
   sourceSlug: string
   onGtdItemClick?: (text: string) => void
-}
-
-interface GtdItem {
-  id: string
-  text: string
-  raw_text?: string
-  status: string
-  created_at?: string
 }
 
 interface MemoryItem {
@@ -80,27 +77,12 @@ interface SkillCategory {
   skills: { skill_id: string; name: string; description: string; usage_count: number; level: string }[]
 }
 
-interface GtdAction {
-  id: string
-  title: string
-  priority?: string
-  status?: string
-  due_date?: string
-}
-
 interface GrowthSkill {
   skill_id: string
   level?: string
   usage_count?: number
   success_rate?: number
   scores?: Record<string, number>
-}
-
-const PRIORITY_COLOR: Record<string, string> = {
-  P0: 'bg-red-500/15 text-red-400',
-  P1: 'bg-orange-500/15 text-orange-400',
-  P2: 'bg-yellow-500/15 text-yellow-400',
-  P3: 'bg-muted text-muted-foreground',
 }
 
 export function ZenSkillDataPanel({ workspaceId, sourceSlug, onGtdItemClick }: ZenSkillDataPanelProps) {
@@ -473,175 +455,34 @@ export function ZenSkillDataPanel({ workspaceId, sourceSlug, onGtdItemClick }: Z
       {activeTab === 'gtd' && (<div className="space-y-4">
 
       {/* GTD Inbox */}
-      <div>
-        <div className="flex items-center gap-1.5 mb-1.5">
-          <Inbox className="h-3.5 w-3.5 text-muted-foreground" />
-          <span className="text-xs font-medium text-muted-foreground">
-            GTD Inbox ({gtdItems.length})
-          </span>
-        </div>
-        {gtdItems.length === 0 ? (
-          <div className="text-xs text-muted-foreground italic pl-5">No pending items</div>
-        ) : (
-          <div className="space-y-1">
-            {gtdItems.slice(0, 5).map((item) => (
-              <div
-                key={item.id}
-                className="flex items-center gap-1 text-xs rounded px-2 py-1 hover:bg-muted/50 group"
-              >
-                <button
-                  className="flex items-center gap-2 flex-1 truncate text-left"
-                  onClick={() => onGtdItemClick?.(item.text || item.raw_text || '')}
-                  title="Click to discuss in chat"
-                >
-                  <ChevronRight className="h-3 w-3 text-muted-foreground shrink-0" />
-                  <span className="truncate flex-1">{item.text || item.raw_text}</span>
-                </button>
-                <button
-                  className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-accent/20 text-muted-foreground hover:text-accent shrink-0"
-                  title="Clarify (auto-classify)"
-                  disabled={busyId === item.id}
-                  onClick={() => runTool('inbox_clarify', { item_id: item.id })}
-                >
-                  <Wand2 className="h-3 w-3" />
-                </button>
-                <button
-                  className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-accent/20 text-muted-foreground hover:text-accent shrink-0"
-                  title="Archive"
-                  disabled={busyId === item.id}
-                  onClick={() => runTool('inbox_archive', { item_id: item.id })}
-                >
-                  <Archive className="h-3 w-3" />
-                </button>
-              </div>
-            ))}
-            {gtdItems.length > 5 && (
-              <div className="text-xs text-muted-foreground pl-5">+{gtdItems.length - 5} more</div>
-            )}
-          </div>
-        )}
-      </div>
+      <InboxPanel
+        items={gtdItems}
+        busyId={busyId}
+        maxItems={5}
+        onItemClick={onGtdItemClick}
+        onClarify={(itemId) => runTool('inbox_clarify', { item_id: itemId })}
+        onArchive={(itemId) => runTool('inbox_archive', { item_id: itemId })}
+      />
 
       {/* Actions */}
-      <div>
-        <div className="flex items-center gap-1.5 mb-1.5">
-          <Circle className="h-3.5 w-3.5 text-muted-foreground" />
-          <span className="text-xs font-medium text-muted-foreground">
-            Actions ({actions.length})
-          </span>
-        </div>
-        {actions.length === 0 ? (
-          <div className="text-xs text-muted-foreground italic pl-5">No pending actions</div>
-        ) : (
-          <div className="space-y-1">
-            {actions.slice(0, 8).map((a) => (
-              <div
-                key={a.id}
-                className="flex items-center gap-1.5 text-xs rounded px-2 py-1 hover:bg-muted/50 group"
-              >
-                <span
-                  className={`text-[9px] px-1 py-px rounded shrink-0 ${PRIORITY_COLOR[a.priority || 'P2'] || PRIORITY_COLOR.P2}`}
-                >
-                  {a.priority || 'P2'}
-                </span>
-                <span className="truncate flex-1">{a.title}</span>
-                {a.due_date && (
-                  <span className="text-[10px] text-muted-foreground shrink-0">{a.due_date.slice(5)}</span>
-                )}
-                <button
-                  className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-green-500/20 text-muted-foreground hover:text-green-400 shrink-0"
-                  title="Done"
-                  disabled={busyId === a.id}
-                  onClick={() => runTool('action_done', { action_id: a.id })}
-                >
-                  <Check className="h-3 w-3" />
-                </button>
-                <button
-                  className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-accent/20 text-muted-foreground hover:text-accent shrink-0"
-                  title="Mark as next"
-                  disabled={busyId === a.id}
-                  onClick={() => runTool('action_mark_next', { action_id: a.id })}
-                >
-                  <ArrowRight className="h-3 w-3" />
-                </button>
-                <button
-                  className={`opacity-0 group-hover:opacity-100 p-0.5 rounded shrink-0 ${
-                    confirmDeleteId === a.id
-                      ? 'bg-red-500/25 text-red-400'
-                      : 'hover:bg-red-500/20 text-muted-foreground hover:text-red-400'
-                  }`}
-                  title={confirmDeleteId === a.id ? '点击再次确认删除' : 'Delete'}
-                  disabled={busyId === a.id}
-                  onClick={() => {
-                    if (confirmDeleteId === a.id) {
-                      setConfirmDeleteId(null)
-                      runTool('action_delete', { action_id: a.id })
-                    } else {
-                      setConfirmDeleteId(a.id)
-                      setTimeout(() => setConfirmDeleteId((cur) => (cur === a.id ? null : cur)), 3000)
-                    }
-                  }}
-                >
-                  <Trash2 className="h-3 w-3" />
-                </button>
-              </div>
-            ))}
-            {actions.length > 8 && (
-              <div className="text-xs text-muted-foreground pl-5">+{actions.length - 8} more</div>
-            )}
-          </div>
-        )}
-        {doneActions.length > 0 && (
-          <div className="mt-1.5 pl-5 space-y-0.5">
-            {doneActions.slice(0, 3).map((a) => (
-              <div key={a.id} className="flex items-center gap-1.5 text-[11px] text-muted-foreground/70">
-                <Check className="h-2.5 w-2.5 text-green-500/60 shrink-0" />
-                <span className="truncate line-through decoration-muted-foreground/40">{a.title}</span>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
+      <ActionsPanel
+        actions={actions}
+        doneActions={doneActions}
+        busyId={busyId}
+        maxItems={8}
+        doneMaxItems={3}
+        onDone={(actionId) => runTool('action_done', { action_id: actionId })}
+        onMarkNext={(actionId) => runTool('action_mark_next', { action_id: actionId })}
+        onDelete={(actionId) => runTool('action_delete', { action_id: actionId })}
+        confirmDeleteId={confirmDeleteId}
+        onConfirmDeleteIdChange={setConfirmDeleteId}
+      />
 
       {/* Calendar */}
-      <div>
-        <div className="flex items-center gap-1.5 mb-1.5">
-          <span className="text-xs font-medium text-muted-foreground">Calendar ({calendarCount})</span>
-        </div>
-        {calendarEvents.length === 0 ? (
-          <div className="text-xs text-muted-foreground italic pl-5">No events today</div>
-        ) : (
-          <div className="space-y-0.5">
-            {calendarEvents.map((e, i) => (
-              <div key={i} className="flex items-center gap-1.5 text-xs rounded px-2 py-0.5">
-                {e.time && <span className="text-[10px] text-muted-foreground shrink-0">{e.time}</span>}
-                <span className="truncate">{e.title}</span>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+      <CalendarPanel events={calendarEvents} count={calendarCount} />
 
       {/* Projects */}
-      <div>
-        <div className="flex items-center gap-1.5 mb-1.5">
-          <span className="text-xs font-medium text-muted-foreground">Projects ({projects.length})</span>
-        </div>
-        {projects.length === 0 ? (
-          <div className="text-xs text-muted-foreground italic pl-5">No active projects</div>
-        ) : (
-          <div className="space-y-0.5">
-            {projects.map((p) => (
-              <div key={p.id} className="text-xs rounded px-2 py-0.5 flex items-center gap-1.5">
-                <span className="truncate flex-1">{p.name}</span>
-                {p.status && <span className="text-[9px] text-muted-foreground/60 shrink-0">{p.status}</span>}
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
+      <ProjectsPanel projects={projects} maxItems={5} />
 
       </div>)}
 
