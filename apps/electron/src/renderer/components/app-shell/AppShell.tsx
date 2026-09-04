@@ -108,6 +108,7 @@ import type { LabelConfig, LabelTreeNode } from "@craft-agent/shared/labels"
 import { resolveEntityColor } from "@craft-agent/shared/colors"
 import * as storage from "@/lib/local-storage"
 import { toast } from "sonner"
+import { ZenSkillToastMount } from "@/components/zenskill/ZenSkillToastMount"
 import { navigate, routes } from "@/lib/navigate"
 import {
   useNavigation,
@@ -1042,20 +1043,6 @@ function AppShellContent({
     })
     return cleanup
   }, [activeWorkspaceId])
-
-  // Achievement unlock toast — global so unlocks surface even when the user
-  // is in the chat view (the main unlock scene) where ZenSkillDataPanel
-  // is not mounted. Toast-only; data refresh stays in ZenSkillDataPanel.
-  React.useEffect(() => {
-    if (!window.electronAPI?.onZenSkillChanged) return
-    const cleanup = window.electronAPI.onZenSkillChanged((_wsId, data) => {
-      const unlocks = (data as { newAchievements?: string[] })?.newAchievements
-      if (Array.isArray(unlocks) && unlocks.length > 0) {
-        toast.success(`🏆 解锁成就：${unlocks.join('、')}`)
-      }
-    })
-    return cleanup
-  }, [])
 
   // Handle session source selection changes
   const handleSessionSourcesChange = React.useCallback(async (sessionId: string, sourceSlugs: string[]) => {
@@ -2372,6 +2359,8 @@ function AppShellContent({
 
   return (
     <AppShellProvider value={appShellContextValue}>
+        {/* ZenSkill mount point (L0): achievement unlock toast listener */}
+        <ZenSkillToastMount />
         {/* === TOP BAR === */}
         <TopBar
           workspaces={workspaces}

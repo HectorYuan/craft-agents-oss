@@ -13,7 +13,7 @@ import { EditPopover, EditButton, getEditConfig } from '@/components/ui/EditPopo
 import { SourceAvatar } from '@/components/ui/source-avatar'
 import { SourceMenu } from '@/components/app-shell/SourceMenu'
 import { cn } from '@/lib/utils'
-import { ZenSkillDataPanel } from '@/components/app-shell/ZenSkillDataPanel'
+import { ZenSkillSourceMount } from '@/components/zenskill/ZenSkillSourceMount'
 import { routes, navigate } from '@/lib/navigate'
 import { useNavigation } from '@/contexts/NavigationContext'
 import { toast } from 'sonner'
@@ -483,23 +483,8 @@ export default function SourceInfoPage({ sourceSlug, workspaceId, onDelete }: So
             </Info_Section>
           )}
 
-          {/* ZenSkill Data - for zenskill-4 MCP source */}
-          {source.config.type === 'mcp' && sourceSlug === 'zenskill-4' && workspaceId && (
-            <Info_Section
-              title="ZenSkill Data"
-              description="GTD inbox, memory, and system status"
-            >
-              <ZenSkillDataPanel
-                workspaceId={workspaceId}
-                sourceSlug={sourceSlug}
-                onGtdItemClick={(text) => {
-                  // Navigate to a new session with the GTD item as context
-                  const msg = `关于这个待办: "${text}" — 帮我分析一下`
-                  window.dispatchEvent(new CustomEvent('zenskill:navigate', { detail: { action: 'new-session', message: msg } }))
-                }}
-              />
-            </Info_Section>
-          )}
+          {/* ZenSkill mount point (L0): Data panel for the zenskill-4 MCP source */}
+          <ZenSkillSourceMount sourceType={source.config.type} sourceSlug={sourceSlug} workspaceId={workspaceId} />
 
           {/* Permissions - for MCP sources */}
           {source.config.type === 'mcp' && permissionsConfig && mcpPermissionsData.length > 0 && (
