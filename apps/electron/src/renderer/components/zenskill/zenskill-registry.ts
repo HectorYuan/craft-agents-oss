@@ -12,8 +12,9 @@
  */
 import type { ComponentType } from 'react'
 import type { LucideIcon } from 'lucide-react'
-import { Inbox } from 'lucide-react'
+import { Brain, Inbox } from 'lucide-react'
 import { GtdWorkspace } from './pages/GtdWorkspace'
+import { MemoryBrowser } from './pages/MemoryBrowser'
 
 /** The ZenSkill MCP source slug all ZenSkill pages talk to. */
 export const ZENSKILL_SOURCE_SLUG = 'zenskill-4'
@@ -37,6 +38,12 @@ export const ZENSKILL_PAGES: ZenSkillPageRegistration[] = [
     component: GtdWorkspace,
     icon: Inbox,
     i18nLabelKey: 'zenskill.gtd.title',
+  },
+  {
+    slug: 'memory',
+    component: MemoryBrowser,
+    icon: Brain,
+    i18nLabelKey: 'zenskill.memory.title',
   },
 ]
 

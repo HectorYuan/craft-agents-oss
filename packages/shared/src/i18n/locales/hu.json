@@ -1753,5 +1753,9 @@
   "zenskill.gtd.tab.calendar": "Naptár",
   "zenskill.gtd.tab.inbox": "Gyűjtő",
   "zenskill.gtd.tab.projects": "Projektek",
-  "zenskill.gtd.title": "GTD munkaterület"
+  "zenskill.gtd.title": "GTD munkaterület",
+  "zenskill.memory.empty": "Még nincsenek emlékek",
+  "zenskill.memory.error": "Nem sikerült betölteni az emlékeket",
+  "zenskill.memory.searchPlaceholder": "Emlékek keresése...",
+  "zenskill.memory.title": "Emlékböngésző"
 }

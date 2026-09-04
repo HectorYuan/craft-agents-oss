@@ -1753,5 +1753,9 @@
   "zenskill.gtd.tab.calendar": "Kalender",
   "zenskill.gtd.tab.inbox": "Eingang",
   "zenskill.gtd.tab.projects": "Projekte",
-  "zenskill.gtd.title": "GTD-Arbeitsbereich"
+  "zenskill.gtd.title": "GTD-Arbeitsbereich",
+  "zenskill.memory.empty": "Noch keine Erinnerungen",
+  "zenskill.memory.error": "Fehler beim Laden der Erinnerungen",
+  "zenskill.memory.searchPlaceholder": "Erinnerungen durchsuchen...",
+  "zenskill.memory.title": "Speicher-Browser"
 }

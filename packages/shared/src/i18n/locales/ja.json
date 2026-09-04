@@ -1753,5 +1753,9 @@
   "zenskill.gtd.tab.calendar": "カレンダー",
   "zenskill.gtd.tab.inbox": "インボックス",
   "zenskill.gtd.tab.projects": "プロジェクト",
-  "zenskill.gtd.title": "GTD ワークスペース"
+  "zenskill.gtd.title": "GTD ワークスペース",
+  "zenskill.memory.empty": "記憶はまだありません",
+  "zenskill.memory.error": "記憶の読み込みに失敗しました",
+  "zenskill.memory.searchPlaceholder": "記憶を検索...",
+  "zenskill.memory.title": "メモリブラウザ"
 }

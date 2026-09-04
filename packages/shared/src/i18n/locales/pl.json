@@ -1753,5 +1753,9 @@
   "zenskill.gtd.tab.calendar": "Kalendarz",
   "zenskill.gtd.tab.inbox": "Skrzynka",
   "zenskill.gtd.tab.projects": "Projekty",
-  "zenskill.gtd.title": "Obszar roboczy GTD"
+  "zenskill.gtd.title": "Obszar roboczy GTD",
+  "zenskill.memory.empty": "Brak zapisanych wspomnień",
+  "zenskill.memory.error": "Nie udało się wczytać wspomnień",
+  "zenskill.memory.searchPlaceholder": "Szukaj wspomnień...",
+  "zenskill.memory.title": "Przeglądarka wspomnień"
 }
