@@ -214,7 +214,7 @@ export function GtdWorkspace({ workspaceId, initialTab }: GtdWorkspaceProps) {
 
       {/* Tab content */}
       <div className="flex-1 overflow-y-auto px-5 py-4">
-        <div className={`space-y-4 ${activeTab === 'calendar' ? 'max-w-4xl' : 'max-w-2xl'}`}>
+        <div className="space-y-4">
           {activeTab === 'inbox' && (
             inbox.loading && !inbox.data ? <TabSkeleton rows={4} /> : (
               <InboxPanel
