@@ -14,6 +14,7 @@ import os
 import re
 import signal
 import time
+import subprocess
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -395,12 +396,18 @@ class BashTool(AgentTool):
         started = time.monotonic()
 
         try:
+            import platform as _plat
+            _kwargs: dict = {}
+            if _plat.system() == "Windows":
+                _kwargs["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP
+            else:
+                _kwargs["start_new_session"] = True
             proc = await asyncio.create_subprocess_shell(
                 command,
                 cwd=self.cwd,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.STDOUT,
-                start_new_session=True,
+                **_kwargs,
             )
         except OSError as e:
             return AgentToolResult(
@@ -695,7 +702,14 @@ def _kill_process_tree(proc: asyncio.subprocess.Process) -> None:
     if proc.returncode is not None:
         return
     try:
-        if hasattr(os, "killpg"):
+        import platform as _plat
+        if _plat.system() == "Windows":
+            # Windows: taskkill /F /T 杀整棵进程树
+            subprocess.run(
+                ["taskkill", "/F", "/T", "/PID", str(proc.pid)],
+                capture_output=True, timeout=10,
+            )
+        elif hasattr(os, "killpg"):
             os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
         else:  # pragma: no cover - 非 POSIX 平台退化
             proc.kill()

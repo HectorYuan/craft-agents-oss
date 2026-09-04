@@ -164,6 +164,8 @@ class AgentServer:
         stateless: bool = False,
         max_steps: Optional[int] = None,
         max_total_tokens: Optional[int] = None,
+        with_memory: bool = False,
+        with_skills: bool = True,
     ) -> None:
         self.model = model
         self.stream_fn = stream_fn
@@ -188,6 +190,10 @@ class AgentServer:
         self._thinking_level: str = "medium"  # 思考深度
         self._auto_compaction: bool = True  # 自动压缩开关
         self._config: Dict[str, Any] = {}  # 运行时配置
+        self._with_memory = with_memory
+        self._with_skills = with_skills
+        # CapabilityHost（能力注入 + 系统提示词增强）
+        self._capability_host = None
         # 记忆桥接（统一模式方案：brain 层公共能力，craft/python 两种运行
         # 模式共享；上移自 ws_server 的 Mode C 专用实现）
         self._event_collector = None
@@ -275,11 +281,34 @@ class AgentServer:
                 self._send({"type": "queue_update", "steering": len(self.steering), "followUp": len(self.follow_up)})
             return taken
 
+        # CapabilityHost hooks（transform_context / before_tool_call / after_tool_call / prepare_next_turn）
+        cap_hooks = {}
+        if self._capability_host is not None:
+            try:
+                cap_hooks = self._capability_host.hooks()
+            except Exception:
+                pass
+
+        # PermissionGate 与 capability before_tool_call 合并
+        perm_gate = PermissionGate(self.permission, cwd=self.cwd) if self.permission != "full" else None
+        cap_before = cap_hooks.get("before_tool_call")
+        def merged_before_tool(tc, params):
+            if perm_gate is not None:
+                veto = perm_gate(tc, params)
+                if isinstance(veto, dict) and veto.get("block"):
+                    return veto
+            if cap_before is not None:
+                return cap_before(tc, params)
+            return None
+
         config = AgentLoopConfig(
             stream=self.stream_fn,
             model=self.model,
             abort_event=self.abort_event,
-            before_tool_call=PermissionGate(self.permission, cwd=self.cwd) if self.permission != "full" else None,
+            before_tool_call=merged_before_tool if (perm_gate or cap_before) else None,
+            transform_context=cap_hooks.get("transform_context"),
+            after_tool_call=cap_hooks.get("after_tool_call"),
+            prepare_next_turn=cap_hooks.get("prepare_next_turn"),
             get_steering_messages=take_steering,
             get_follow_up_messages=take_follow_up,
             on_entry=on_entry,
@@ -447,6 +476,23 @@ class AgentServer:
         except Exception:
             pass  # 回流失败绝不影响 agent 主流程
 
+    def _init_capabilities(self) -> None:
+        """初始化 CapabilityHost（一次性，幂等）。"""
+        if self._capability_host is not None:
+            return
+        from .builtin_capabilities import (
+            MemoryCapability, SummaryCapability, ReflectionCapability, TaskTypeCapability,
+        )
+        from .capability import CapabilityHost
+
+        caps = [TaskTypeCapability()]
+        if self._with_memory:
+            caps.append(MemoryCapability())
+        caps.append(ReflectionCapability())
+        caps.append(SummaryCapability())
+        self._capability_host = CapabilityHost(caps)
+        self._capability_host.initialize()
+
     def start_prompt(self, message: str) -> None:
         session = self._ensure_session()
         # 记忆桥接：宿主/GUI 用户输入进 mirroring 生态（模式无关）
@@ -457,7 +503,28 @@ class AgentServer:
                 )
             except Exception:
                 pass
+        # 初始化能力（幂等）
+        self._init_capabilities()
         tools = create_default_tools(self.cwd)
+        # skill_tools
+        try:
+            from .skill_tools import load_skill_tools
+            tools.extend(load_skill_tools())
+        except Exception:
+            pass
+        # capability extra tools（memory_remember/memory_recall 等）
+        if self._capability_host is not None:
+            tools.extend(self._capability_host.extra_tools)
+        # delegate（子 agent）
+        try:
+            from .delegate_tool import DelegateTool
+            if self.stream_fn and self.model:
+                tools.append(DelegateTool(
+                    self.stream_fn, self.model, cwd=self.cwd,
+                    system_prompt=self._host_system_prompt or DEFAULT_SYSTEM_PROMPT,
+                ))
+        except Exception:
+            pass
         # 把代理工具追加到 context 的 tool 列表
         for name, spec in self._proxy_tools.items():
             from .types import AgentTool, AgentToolResult, TextContent as TC
@@ -468,15 +535,24 @@ class AgentServer:
             pt.name = name
             pt.description = proxy_spec.get("description", "")
             pt.parameters = proxy_spec.get("inputSchema", {"type": "object"})
-            # run 不会被调用（代理模式走 tool_executor），但保留兜底
             async def _fallback_run(tc_id, params, **kw):
                 return AgentToolResult(content=[TC("proxy tool: execution delegated to host")], is_error=True)
             pt.run = _fallback_run
             tools.append(pt)
-        # 合并 system prompt：Craft 注入的 + ZenSkill 默认的
+        # 合并 system prompt：Craft 注入的 + 能力提示词 + 技能提示词 + 默认
         final_system_prompt = DEFAULT_SYSTEM_PROMPT
+        if self._capability_host is not None:
+            final_system_prompt = self._capability_host.build_system_prompt(final_system_prompt)
+        if self._with_skills:
+            try:
+                from .mcp_capability import format_skills_prompt
+                section = format_skills_prompt()
+                if section:
+                    final_system_prompt += "\n\n" + section
+            except Exception:
+                pass
         if self._host_system_prompt:
-            final_system_prompt = self._host_system_prompt + "\n\n" + DEFAULT_SYSTEM_PROMPT
+            final_system_prompt = self._host_system_prompt + "\n\n" + final_system_prompt
         context = Context(
             messages=session.build_context()["messages"] + [UserMessage(content=message)],
             system_prompt=final_system_prompt,

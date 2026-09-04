@@ -789,18 +789,51 @@ def build_default_registry() -> ServerToolRegistry:
         }
 
     def _session_summary(a: dict[str, Any]) -> Any:
-        """会话摘要回流（WP-C：SessionManager complete 钩子经 MCP 写入）"""
+        """会话摘要回流（WP-C：SessionManager complete 钩子经 MCP 写入）。
+
+        detail_level:
+        - "summary"（默认）: 一条 episode 摘要
+        - "full": 逐条消息写入 episodes（每条截断 500 字符），跨会话记忆搜索可命中
+        """
         from ...core.paths import SkillStateManager
 
         skill_id = a.get("skill_id", "zenskill-core")
+        detail_level = a.get("detail_level", "summary")
+        mgr = SkillStateManager(skill_id)
+        from pathlib import Path
+
         message_count = int(a.get("message_count") or 0)
         tool_count = int(a.get("tool_count") or 0)
         first_message = (a.get("first_message") or "")[:80]
         content = (f"会话摘要: {message_count} 条消息 / {tool_count} 次工具调用"
                    + (f" | {first_message}" if first_message else ""))
-        SkillStateManager(skill_id).record_episode("session_summary", content)
+
+        if detail_level == "full" and a.get("session_path"):
+            session_file = Path(a["session_path"])
+            if session_file.exists():
+                import json as _json
+                for line in session_file.read_text(encoding="utf-8").splitlines():
+                    if not line.strip():
+                        continue
+                    try:
+                        msg = _json.loads(line)
+                    except Exception:
+                        continue
+                    role = msg.get("type", "")
+                    if role not in ("user", "assistant"):
+                        continue
+                    text = str(msg.get("content", ""))[:500]
+                    if not text.strip():
+                        continue
+                    mgr.record_episode(f"session_{role}", text)
+            else:
+                SkillStateManager(skill_id).record_episode("session_summary", content)
+        else:
+            mgr.record_episode("session_summary", content)
+
         return {"ok": True,
-                "message": f"会话摘要已记录（{message_count} 条消息 / {tool_count} 次工具调用）"}
+                "detail_level": detail_level,
+                "message": f"会话摘要已记录（{message_count} 条消息 / {tool_count} 次工具调用，detail={detail_level}）"}
 
     def _daily_review(a: dict[str, Any]) -> Any:
         """每日复盘：今日 inbox 处理、action 完成、能量变化、成就、习惯"""
@@ -886,6 +919,16 @@ def build_default_registry() -> ServerToolRegistry:
         "session_summary",
         "会话摘要回流：消息数/工具调用数/首条消息 → episodes",
         _session_summary,
+        {
+            "type": "object",
+            "properties": {
+                "detail_level": {"type": "string",
+                                 "enum": ["summary", "full"],
+                                 "description": "summary=一条摘要（默认）；full=逐条消息写入 episodes"},
+                "session_path": {"type": "string",
+                                 "description": "session.jsonl 路径（full 模式必填）"},
+            },
+        },
     )
     registry.register(
         "calendar_list",

@@ -37,6 +37,9 @@ class AgentPage:
         # 4. 成长面板（T4）
         self._render_growth()
 
+        # 5. 工具日志（X7）
+        self._render_tool_log(agent_session)
+
     def _render_status(self, info: dict) -> None:
         """渲染模型/会话状态。"""
         table = Table(title="Agent Status", show_header=False, box=None, padding=(0, 2))
@@ -140,3 +143,50 @@ class AgentPage:
             ))
         except Exception:
             pass  # 成长数据失败不影响 agent 页核心信息
+
+    def _render_tool_log(self, agent_session) -> None:
+        """X7 工具日志：从 session 收集最近 10 条工具执行记录。"""
+        try:
+            if not agent_session._session:
+                return
+            entries = agent_session._session.entries
+            tool_logs = []
+            for e in reversed(entries):
+                if e.type == "custom" and e.data.get("tool_name"):
+                    tool_logs.append(e)
+                    if len(tool_logs) >= 10:
+                        break
+            if not tool_logs:
+                return
+
+            table = Table(title="Tool Log (recent)", show_lines=False)
+            table.add_column("Tool", style="bold", width=16)
+            table.add_column("Status", width=8)
+            table.add_column("Result", max_width=60)
+
+            # 工具类型→颜色/图标映射（X2）
+            tool_styles = {
+                "read": ("📖", "[blue]read[/blue]"),
+                "write": ("✏️", "[green]write[/green]"),
+                "edit": ("✏️", "[green]edit[/green]"),
+                "bash": ("⚡", "[yellow]bash[/yellow]"),
+                "grep": ("🔍", "[cyan]grep[/cyan]"),
+                "find": ("🔍", "[cyan]find[/cyan]"),
+                "ls": ("📂", "[blue]ls[/blue]"),
+                "web_fetch": ("🌐", "[magenta]web_fetch[/magenta]"),
+                "web_search": ("🌐", "[magenta]web_search[/magenta]"),
+                "git": ("🔧", "[yellow]git[/yellow]"),
+                "delegate": ("🤖", "[red]delegate[/red]"),
+            }
+
+            for log in tool_logs:
+                name = log.data.get("tool_name", "?")
+                success = log.data.get("success", True)
+                icon, styled = tool_styles.get(name, ("🔧", name))
+                status = f"{icon} ✓" if success else "✗"
+                result = str(log.data.get("result", ""))[:60]
+                table.add_row(styled, status, result)
+
+            self.console.print(Panel(table, border_style="dim"))
+        except Exception:
+            pass  # 日志失败不影响 agent 页核心信息

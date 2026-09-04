@@ -1225,7 +1225,10 @@ def cmd_tui(args: argparse.Namespace) -> None:
             try:
                 from .tui.rich_app import ZenRichTUI
                 print(f"\n  ℹ️  TUI 模式: Rich App (Rich + prompt_toolkit)")
-                app = ZenRichTUI()
+                use_agent = getattr(args, "use_agent", None)
+                if use_agent is None:
+                    use_agent = os.environ.get("ZENSKILL_TUI_AGENT", "1") == "1"
+                app = ZenRichTUI(use_agent=use_agent)
                 asyncio.run(app.run())
                 return
             except Exception as e:
@@ -2235,16 +2238,24 @@ def _run_background(args: argparse.Namespace) -> None:
         cmd.append("--debug")
 
     with open(log_file, "w") as log:
+        import platform as _plat
+        _popen_kwargs: dict = {}
+        if _plat.system() == "Windows":
+            _popen_kwargs["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP
+        else:
+            _popen_kwargs["start_new_session"] = True
         proc = subprocess.Popen(
             cmd, stdout=log, stderr=subprocess.STDOUT,
-            start_new_session=True,
+            **_popen_kwargs,
         )
 
     pid_file.write_text(str(proc.pid))
     print(f"后台任务已启动")
     print(f"  PID: {proc.pid}")
-    print(f"  日志: {log_file}")
-    print(f"  查看: tail -f {log_file}")
+    if platform.system() == "Windows":
+        print(f"  日志: Get-Content {log_file} -Wait")
+    else:
+        print(f"  日志: tail -f {log_file}")
     print(f"  停止: kill {proc.pid}")
 
 
@@ -2571,6 +2582,14 @@ def main() -> int:
     tui_parser.add_argument(
         "--install-deps", action="store_true",
         help="一键安装缺失的 TUI 依赖 (textual, rich)",
+    )
+    tui_parser.add_argument(
+        "--agent", dest="use_agent", action="store_true", default=None,
+        help="启用 Agent Engine（工具执行/能力/会话持久化）",
+    )
+    tui_parser.add_argument(
+        "--no-agent", dest="use_agent", action="store_false",
+        help="禁用 Agent Engine（纯 LLM 对话，更快）",
     )
     tui_parser.set_defaults(func=cmd_tui)
 

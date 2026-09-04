@@ -23,19 +23,29 @@ def _is_port_free(port: int) -> bool:
 
 
 def _kill_port_process(port: int):
-    """尝试终止占用端口的进程"""
-    import subprocess, signal, time
+    """尝试终止占用端口的进程（跨平台兼容）"""
+    import subprocess, signal, time, platform
     try:
-        result = subprocess.run(
-            ["lsof", "-ti", f":{port}"],
-            capture_output=True, text=True, timeout=5
-        )
+        if platform.system() == "Windows":
+            result = subprocess.run(
+                ["powershell", "-Command",
+                 f"(Get-NetTCPConnection -LocalPort {port} -ErrorAction SilentlyContinue).OwningProcess"],
+                capture_output=True, text=True, timeout=10
+            )
+        else:
+            result = subprocess.run(
+                ["lsof", "-ti", f":{port}"],
+                capture_output=True, text=True, timeout=5
+            )
         for pid_str in result.stdout.strip().splitlines():
             pid = int(pid_str.strip())
             try:
-                os.kill(pid, signal.SIGKILL)
+                if platform.system() == "Windows":
+                    subprocess.run(["taskkill", "/F", "/PID", str(pid)], capture_output=True)
+                else:
+                    os.kill(pid, signal.SIGKILL)
                 print(f"  Stopped old process (PID {pid}) on port {port}")
-            except (ProcessLookupError, PermissionError):
+            except (ProcessLookupError, PermissionError, OSError):
                 pass
         time.sleep(1)
     except Exception:
@@ -77,6 +87,12 @@ def cmd_serve(args) -> int:
         print("  ZenSkill GUI — craft 模式（vendor TS server）")
         print("=" * 50)
         try:
+            import platform as _plat
+            if _plat.system() == "Windows":
+                # Windows: 通过 bun 直接启动 craft server（bash 不可用）
+                return subprocess.call(["cmd", "/c", "bun", "run",
+                                        str(vendor / "packages" / "server" / "src" / "index.ts")]
+                                       ).returncode or 0
             return subprocess.call(["bash", str(script)]).returncode or 0
         except KeyboardInterrupt:
             return 0

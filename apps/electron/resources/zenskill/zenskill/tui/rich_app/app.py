@@ -67,13 +67,40 @@ PAGE_SHORTCUTS = {
 }
 
 
+def _tool_style(text: str) -> tuple:
+    """X2: 按工具名返回 (icon, color_prefix)。"""
+    if "[read" in text or "read" in text[:10]:
+        return "📖", "[blue]"
+    elif "[write" in text or "write" in text[:10]:
+        return "✏️", "[green]"
+    elif "[edit" in text or "edit" in text[:10]:
+        return "✏️", "[green]"
+    elif "[bash" in text or "bash" in text[:10]:
+        return "⚡", "[yellow]"
+    elif "[grep" in text or "grep" in text[:10]:
+        return "🔍", "[cyan]"
+    elif "[find" in text or "find" in text[:10]:
+        return "🔍", "[cyan]"
+    elif "[ls" in text or "ls" in text[:10]:
+        return "📂", "[blue]"
+    elif "web_fetch" in text or "web_search" in text:
+        return "🌐", "[magenta]"
+    elif "[git" in text or "git" in text[:10]:
+        return "🔧", "[yellow]"
+    elif "[delegate" in text or "delegate" in text[:10]:
+        return "🤖", "[red]"
+    elif "[skill" in text or "skill" in text[:10]:
+        return "📚", "[magenta]"
+    return "🔧", "[dim]"
+
+
 class ZenRichTUI:
     """ZenSkill Rich TUI 主类。
 
     核心循环: while(true) + prompt_toolkit 输入 + rich 输出。
     """
 
-    def __init__(self, console: Optional[Console] = None, skill_id: str = "zenskill-core"):
+    def __init__(self, console: Optional[Console] = None, skill_id: str = "zenskill-core", use_agent: Optional[bool] = None):
         self.console = console or Console()
         self.session = ChatSession(skill_id=skill_id)
         self.data = None  # lazy init
@@ -82,29 +109,62 @@ class ZenRichTUI:
         self._pages: Dict[str, object] = {}
         self._total_cost = 0.0
         self._agent_session = None  # lazy AgentChatSession
+        self._use_agent = use_agent
         self._last_feedback = ("", 0.0)  # T3 微反馈频控 (text, timestamp)
         self._shown_milestones = 0  # T5 已展示的 level_up 里程碑游标
+        self._dirty_pages: set = set()  # X3: 需要重渲染的页面
 
     def _get_agent_session(self):
-        """懒加载 AgentChatSession。"""
+        """懒加载 AgentSession（优先 AgentServerSession，fallback AgentChatSession）。"""
         if self._agent_session is None:
+            model = self.session.model if self.session.model != "未配置" else None
             try:
-                from ..core.agent_session import AgentChatSession
-                self._agent_session = AgentChatSession(
-                    model=self.session.model if self.session.model != "未配置" else None,
-                    with_memory=True,
-                    with_skills=True,
+                from ..core.agent_server_session import AgentServerSession
+                self._agent_session = AgentServerSession(
+                    model=model, with_memory=True, with_skills=True,
                 )
-            except Exception as e:
-                self.console.print(f"[yellow]Agent engine 不可用: {e}，使用直接 LLM 路径[/yellow]")
-                return None
+            except Exception:
+                try:
+                    from ..core.agent_session import AgentChatSession
+                    self._agent_session = AgentChatSession(
+                        model=model, with_memory=True, with_skills=True,
+                    )
+                except Exception as e:
+                    self.console.print(f"[yellow]Agent engine 不可用: {e}，使用直接 LLM 路径[/yellow]")
+                    return None
+            # 会话健康检查提示（仅首次加载时触发一次）
+            self._show_session_health_hints()
         return self._agent_session
+
+    def _show_session_health_hints(self):
+        """检查 sessions 目录健康状态并打印清理提示（首次启动时一次）。"""
+        try:
+            from ...runtime.agent.session import SessionManager, session_health_hints
+            manager = SessionManager()
+            for hint in session_health_hints(manager):
+                self.console.print(f"[yellow]提示: {hint}[/yellow]")
+        except Exception:
+            pass
 
     def _get_data(self):
         if self.data is None:
             from ..data import TuiDataAdapter
             self.data = TuiDataAdapter()
         return self.data
+
+    def mark_dirty(self, pages: list = None) -> None:
+        """X3: 写操作后标记页面脏（下次输入前重渲染）。"""
+        self._dirty_pages.update(pages or ["dashboard"])
+
+    def _check_and_refresh(self) -> None:
+        """X3: 输入间隙检查脏页面并重渲染。"""
+        if not self._dirty_pages or self._current_page not in self._dirty_pages:
+            return
+        try:
+            self._render_page()
+        except Exception:
+            pass
+        self._dirty_pages.clear()
 
     def _init_pages(self):
         """懒加载页面组件。"""
@@ -180,6 +240,9 @@ class ZenRichTUI:
                     await self._handle_file_ref(user_input)
                 else:
                     await self._handle_chat(user_input)
+                    # X3: chat 完成后标记脏页面 + 检查刷新
+                    self.mark_dirty(["dashboard", "gtd", "growth", "agent"])
+                    self._check_and_refresh()
 
                 # 更新状态栏
                 self._show_status_bar()
@@ -495,9 +558,7 @@ class ZenRichTUI:
             self.console.print("[yellow]⚠ 对话历史较长，建议 /clear 清除后开始新话题[/yellow]")
 
         # 选择 LLM 路径：agent engine（默认）或直接 provider
-        force_direct = os.environ.get("ZENSKILL_TUI_AGENT", "1") == "0"
-
-        if force_direct:
+        if self._use_agent is False:
             await self._handle_chat_direct(user_input)
         else:
             agent = self._get_agent_session()
@@ -556,17 +617,19 @@ class ZenRichTUI:
                         _md_render()
 
                     elif ctype == "tool_start":
-                        tool_status = f"[dim]🔧 {ctext}[/dim]"
+                        icon, color = _tool_style(ctext)
+                        tool_status = f"[dim]{icon} {ctext}[/dim]"
                         _md_render(force=True)
 
                     elif ctype == "tool_progress":
                         # 实时进度：截断显示最后 80 字符
                         tail = ctext[-80:] if len(ctext) > 80 else ctext
-                        tool_status = f"[dim]🔧 {tail}[/dim]"
+                        tool_status = f"[dim]{icon} {tail}[/dim]"
                         _md_render(force=True)
 
                     elif ctype == "tool_end":
-                        tool_status = f"[dim]🔧 {ctext}[/dim]"
+                        icon, color = _tool_style(ctext)
+                        tool_status = f"[dim]{icon} {ctext}[/dim]"
                         _md_render(force=True)
 
                     elif ctype == "error":
@@ -801,6 +864,18 @@ class ZenRichTUI:
         companion = self._companion_line()
         if companion:
             body += Text(companion, style="magenta", justify="center") + "\n\n"
+        # X8: 续聊提示
+        last_sid = None
+        try:
+            from ..core.agent_session import _load_last_session_id
+            last_sid = _load_last_session_id()
+        except Exception:
+            pass
+        if last_sid:
+            body += Text(
+                f"  ↩ 上次对话 session: {last_sid[:8]}…（输入 /clear 开始新对话）",
+                style="dim yellow", justify="center") + "\n"
+
         body += (
             Text("技能成长引擎 · AI 助手", style="dim", justify="center") +
             "\n" +

@@ -552,6 +552,65 @@ def cmd_agent_session(args: Any) -> int:
         print(f"已删除 {len(victims)} 个会话（{total_size // 1024} KB），保留 {keep} 个")
         return 0
 
+    if action == "search":
+        query = getattr(args, "query", "") or ""
+        limit = getattr(args, "limit", 20) or 20
+        json_out = getattr(args, "json", False)
+        if not query:
+            print("错误: 需要搜索关键词", file=sys.stderr)
+            return 2
+        query_lower = query.lower()
+        results = []
+        for s_info in manager.list_sessions():
+            sid = s_info["id"]
+            try:
+                sess = manager.load(sid)
+            except (ValueError, KeyError, json.JSONDecodeError):
+                continue
+            for entry in sess.entries:
+                if entry.type != "message":
+                    continue
+                msg_dict = entry.data.get("message") or {}
+                content = msg_dict.get("content")
+                if content is None:
+                    continue
+                text_parts = []
+                if isinstance(content, str):
+                    text_parts.append(content)
+                elif isinstance(content, list):
+                    for block in content:
+                        if isinstance(block, dict):
+                            if block.get("type") == "text":
+                                text_parts.append(block.get("text", ""))
+                            elif block.get("type") == "thinking":
+                                text_parts.append(block.get("thinking", ""))
+                full_text = " ".join(text_parts)
+                if query_lower not in full_text.lower():
+                    continue
+                preview = full_text[:120].replace("\n", " ")
+                results.append({
+                    "session_id": sid,
+                    "entry_id": entry.id,
+                    "timestamp": entry.timestamp,
+                    "content_preview": preview,
+                })
+                if len(results) >= limit:
+                    break
+            if len(results) >= limit:
+                break
+        if json_out:
+            print(_json.dumps({"results": results, "total": len(results)}, ensure_ascii=False, indent=2))
+        elif not results:
+            print(f"未找到匹配 \"{query}\" 的消息")
+        else:
+            for r in results:
+                from datetime import datetime
+                try:
+                    ts_str = datetime.fromtimestamp(r["timestamp"] / 1000).strftime("%Y-%m-%d %H:%M")
+                except (OSError, ValueError):
+                    ts_str = str(r["timestamp"])
+                print(f"[{r['session_id']}] {ts_str}  {r['content_preview']}")
+        return 0
 
     if not args.session_id:
         print("错误: 需要 --session-id", file=sys.stderr)
@@ -647,7 +706,7 @@ def cmd_agent_chat(args: Any) -> int:
     from .capability import CapabilityHost
     from .mcp_capability import format_skills_prompt
     from .project_context import load_project_instructions
-    from .session import SessionManager
+    from .session import SessionManager, session_health_hints
 
     # 初始化能力
     caps = [TaskTypeCapability()]
@@ -673,6 +732,10 @@ def cmd_agent_chat(args: Any) -> int:
             session = manager.create(session_id=session_id)
     else:
         session = manager.create()
+
+    # 会话健康检查提示
+    for hint in session_health_hints(manager):
+        print(f"[提示] {hint}")
 
     stream_fn = create_stream(model)
 

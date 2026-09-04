@@ -56,6 +56,14 @@ class DashboardPage:
         except Exception:
             pass
 
+        # X5: 会话上下文
+        recent = data.get("recent_actions") or []
+        if recent:
+            items = " → ".join(
+                f"[dim]{a.get('content', '')[:30]}[/dim]" for a in recent
+            )
+            lines.append(f"📋 {items}")
+
         self.console.print(Panel(
             "\n".join(lines),
             title="🤝 陪伴",

@@ -51,6 +51,10 @@ def register_agent_engine_parser(subparsers) -> None:
         help="清理 N 天前的会话（按文件 mtime，默认 30）")
     prune_p.add_argument("--delete", action="store_true",
         help="真删（缺省仅预览）")
+    search_p = agent_session_sub.add_parser("search", help="搜索会话消息")
+    search_p.add_argument("query", help="搜索关键词")
+    search_p.add_argument("--limit", type=int, default=20, help="最多返回条数")
+    search_p.add_argument("--json", action="store_true", help="JSON 输出")
     agent_session_parser.set_defaults(func=lambda args: (
         __import__("zenskill.runtime.agent.cli", fromlist=["cmd_agent_session"]).cmd_agent_session(args)
     ))

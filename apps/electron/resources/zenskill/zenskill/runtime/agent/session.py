@@ -242,6 +242,60 @@ class Session:
         return {"messages": [m for _, m in collected], "model": model}
 
 
+_health_hint_shown = False
+
+
+def session_health_hints(manager: "SessionManager", *, force: bool = False) -> list[str]:
+    """扫描 sessions 目录，返回需要打印的清理提示列表。
+
+    触发条件：
+    - 目录总大小 > 100MB
+    - 有超过 30 天的会话文件
+
+    同一进程内默认只提示一次（force=True 强制重新检查）。
+    """
+    global _health_hint_shown
+    if _health_hint_shown and not force:
+        return []
+    _health_hint_shown = True
+
+    root = manager.root
+    if not root.is_dir():
+        return []
+
+    import time as _time
+
+    hints: list[str] = []
+    cutoff = _time.time() - 30 * 86400
+    total_size = 0
+    stale_count = 0
+    stale_size = 0
+
+    for p in root.glob("*.jsonl"):
+        try:
+            st = p.stat()
+        except OSError:
+            continue
+        total_size += st.st_size
+        if st.st_mtime < cutoff:
+            stale_count += 1
+            stale_size += st.st_size
+
+    if total_size > 100 * 1024 * 1024:
+        mb = total_size / (1024 * 1024)
+        hints.append(
+            f"sessions/ 占用 {mb:.0f}MB（超过 100MB），"
+            "运行 zenskill agent-engine session prune 清理"
+        )
+    if stale_count > 0:
+        mb = stale_size / (1024 * 1024)
+        hints.append(
+            f"有 {stale_count} 个超过 30 天的会话（{mb:.1f}MB），"
+            "运行 zenskill agent-engine session prune --older-than 30 --delete 清理"
+        )
+    return hints
+
+
 class SessionManager:
     def __init__(self, root: Optional[str] = None, stateless: bool = False) -> None:
         self.root = Path(root) if root else (

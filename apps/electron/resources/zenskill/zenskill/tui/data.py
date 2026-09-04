@@ -219,9 +219,23 @@ class TuiDataAdapter:
         except Exception:
             pass
 
+        # 会话上下文：今日最近 3 条 action_done / agent_session episodes
+        recent_actions = []
+        try:
+            from ..core.paths import SkillStateManager
+            state = SkillStateManager("zenskill-core").load()
+            today = __import__("datetime").datetime.now().strftime("%Y-%m-%d")
+            episodes = state.get("episodes", [])
+            recent = [e for e in episodes[-10:]
+                      if e.get("date") == today and e.get("action") in ("action_done", "agent_session", "daily_review")]
+            recent_actions = [{"action": e.get("action"), "content": (e.get("content") or "")[:60]} for e in recent[-3:]]
+        except Exception:
+            pass
+
         return {
             "greeting": greeting,
             "mood": "；".join(parts) + "。",
+            "recent_actions": recent_actions,
             "energy": {"level": level, "pct": energy.get("pct"),
                        "current": energy.get("current_energy"), "max": energy.get("max_energy")},
             "inbox_pending": inbox,
