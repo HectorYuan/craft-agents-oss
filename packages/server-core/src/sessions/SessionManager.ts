@@ -24,6 +24,7 @@ import { getLlmConnection, getLlmConnections, getDefaultLlmConnection, getDefaul
 import type { MidStreamBehavior } from '@craft-agent/shared/config'
 import { PrivilegedExecutionBroker } from '@craft-agent/server-core/services'
 import { isValidWorkingDirectory } from '../utils/path-validation'
+import { emitZenSkillChangedEvent } from './zenskill-events'
 import { InitGate } from '@craft-agent/server-core/domain'
 import { i18n } from '@craft-agent/shared/i18n'
 import {
@@ -2318,19 +2319,7 @@ export class SessionManager implements ISessionManager {
    * letting automation rules (prompt/webhook) react to data changes.
    */
   async emitZenSkillChanged(workspaceId: string, detail: Record<string, unknown> = {}): Promise<void> {
-    try {
-      const workspace = getWorkspaceByNameOrId(workspaceId)
-      if (!workspace) return
-      const automationSystem = this.automationSystems.get(workspace.rootPath)
-      if (!automationSystem) return
-      await automationSystem.emit('ZenSkillChanged', {
-        workspaceId: workspace.id,
-        timestamp: Date.now(),
-        data: detail,
-      })
-    } catch (error) {
-      sessionLog.error('[Automations] Failed to emit ZenSkillChanged:', error)
-    }
+    await emitZenSkillChangedEvent({ workspaceId, detail, automationSystems: this.automationSystems, logError: (m, e) => sessionLog.error(m, e) })
   }
 
   getWorkspaceAutomationSummary(workspaceId: string): { automationCount: number; schedulerRunning: boolean } {
