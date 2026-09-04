@@ -109,6 +109,8 @@ import { resolveEntityColor } from "@craft-agent/shared/colors"
 import * as storage from "@/lib/local-storage"
 import { toast } from "sonner"
 import { ZenSkillToastMount } from "@/components/zenskill/ZenSkillToastMount"
+import { ZENSKILL_PAGES, sortPagesForSidebar } from "@/components/zenskill/zenskill-registry"
+import { pageIcon } from "@/components/pages/page-visuals"
 import { navigate, routes } from "@/lib/navigate"
 import {
   useNavigation,
@@ -2647,10 +2649,10 @@ function AppShellContent({
                       expandable: pages.length > 0,
                       expanded: isExpanded('nav:pages'),
                       onToggle: () => toggleExpanded('nav:pages'),
-                      items: pages.map(p => ({
+                      items: sortPagesForSidebar(pages).map(p => ({
                         id: `nav:pages:${p.config.id}`,
                         title: p.config.name,
-                        icon: PanelsTopLeft,
+                        icon: pageIcon(p.config),
                         variant: (isPagesNavigation(navState) && navState.details?.pageSlug === p.config.slug) ? "default" as const : "ghost" as const,
                         onClick: () => navigate(routes.view.pages(p.config.slug)),
                       })),
@@ -2661,6 +2663,16 @@ function AppShellContent({
                       icon: Zap,
                       variant: isZenSkillNavigation(navState) ? "default" as const : "ghost" as const,
                       onClick: () => navigate(routes.view.zenskillGtd()),
+                      expandable: ZENSKILL_PAGES.length > 0,
+                      expanded: isExpanded('nav:zenskill'),
+                      onToggle: () => toggleExpanded('nav:zenskill'),
+                      items: ZENSKILL_PAGES.map(page => ({
+                        id: `nav:zenskill:${page.slug}`,
+                        title: t(page.i18nLabelKey),
+                        icon: page.icon,
+                        variant: (isZenSkillNavigation(navState) && navState.details?.type === 'zenskill-page' && navState.details.pageSlug === page.slug) ? "default" as const : "ghost" as const,
+                        onClick: () => navigate(page.slug === 'memory' ? routes.view.zenskillMemory() : routes.view.zenskillGtd()),
+                      })),
                     },
                     {
                       id: "nav:automations",

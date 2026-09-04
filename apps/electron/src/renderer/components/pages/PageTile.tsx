@@ -10,7 +10,7 @@ import {
   StyledContextMenuItem,
 } from '@/components/ui/styled-context-menu'
 import type { LoadedPage } from '@craft-agent/shared/pages/types'
-import { PAGE_KIND_ICONS, PageFreshness, PageKindBadge } from './page-visuals'
+import { PageFreshness, PageKindBadge, pageIcon } from './page-visuals'
 import { useInView } from '@/hooks/useInView'
 
 export interface PageTileProject {
@@ -37,7 +37,7 @@ interface PageTileProps {
 export function PageTile({ page, project, onOpen, onDelete }: PageTileProps) {
   const { t } = useTranslation()
   const { config } = page
-  const KindIcon = PAGE_KIND_ICONS[config.kind]
+  const KindIcon = pageIcon(config)
   const monogram = (config.name.trim()[0] ?? '?').toUpperCase()
   const accent = project?.color
 

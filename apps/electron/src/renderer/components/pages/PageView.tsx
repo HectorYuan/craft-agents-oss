@@ -22,7 +22,7 @@ import {
 import { useProjects } from '@/hooks/useProjects'
 import type { LoadedPage, PageDataSnapshot, PageRenderLease } from '@craft-agent/shared/pages/types'
 import { PageFrame } from './PageFrame'
-import { PageFreshness, PageKindBadge } from './page-visuals'
+import { PageFreshness, PageKindBadge, pageIcon } from './page-visuals'
 import { DeletePageDialog } from './DeletePageDialog'
 import { PageGrantsDialog } from './PageGrantsDialog'
 import { PageSourceAuthBanner } from './PageSourceAuthBanner'
@@ -240,6 +240,7 @@ export function PageView({ pageSlug }: PageViewProps) {
 
   const { config } = page
   const refreshFailed = config.lastRefresh && !config.lastRefresh.ok
+  const PageIcon = pageIcon(config)
 
   return (
     <div className="flex h-full flex-col bg-background">
@@ -268,11 +269,12 @@ export function PageView({ pageSlug }: PageViewProps) {
           />
         ) : (
           <span
-            className="min-w-0 truncate text-sm font-medium"
+            className="flex min-w-0 flex-1 items-center gap-1.5 text-sm font-medium"
             title={t('pages.renamePage')}
             onDoubleClick={() => setNameDraft(config.name)}
           >
-            {config.name}
+            <PageIcon className="h-3.5 w-3.5 shrink-0 text-foreground/45" strokeWidth={1.75} aria-hidden />
+            <span className="min-w-0 truncate">{config.name}</span>
           </span>
         )}
         <PageKindBadge kind={config.kind} />

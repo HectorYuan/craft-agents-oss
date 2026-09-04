@@ -1757,5 +1757,5 @@
   "zenskill.memory.empty": "記憶はまだありません",
   "zenskill.memory.error": "記憶の読み込みに失敗しました",
   "zenskill.memory.searchPlaceholder": "記憶を検索...",
-  "zenskill.memory.title": "メモリブラウザ"
+  "zenskill.memory.title": "メモリライブラリ"
 }

@@ -4,7 +4,17 @@
  */
 
 import * as React from 'react'
-import { Activity, FileText, MousePointerClick, type LucideIcon } from 'lucide-react'
+import {
+  Activity,
+  FileText,
+  LayoutDashboard,
+  MousePointerClick,
+  NotebookPen,
+  RefreshCw,
+  TrendingUp,
+  Waypoints,
+  type LucideIcon,
+} from 'lucide-react'
 import { formatDistanceToNowStrict, type Locale } from 'date-fns'
 import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
@@ -15,6 +25,24 @@ export const PAGE_KIND_ICONS: Record<PageKind, LucideIcon> = {
   static: FileText,
   interactive: MousePointerClick,
   live: Activity,
+}
+
+/**
+ * ZenSkill page-specific glyphs, keyed by page slug (overrides the kind icon).
+ * Slugs come from the ZenSkill MCP bundled Pages resources; unknown slugs
+ * fall back to the kind glyph.
+ */
+export const PAGE_SLUG_ICONS: Record<string, LucideIcon> = {
+  'zenskill-dashboard': LayoutDashboard,
+  'zenskill-daily-review': NotebookPen,
+  'zenskill-growth': TrendingUp,
+  'zenskill-skill-graph': Waypoints,
+  'zenskill-zenloop': RefreshCw,
+}
+
+/** Icon for a page: slug-specific glyph when defined, else the kind glyph. */
+export function pageIcon(config: PageConfig): LucideIcon {
+  return PAGE_SLUG_ICONS[config.slug] ?? PAGE_KIND_ICONS[config.kind]
 }
 
 export function relativeTime(epochMs: number): string {

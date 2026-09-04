@@ -1757,5 +1757,5 @@
   "zenskill.memory.empty": "No memories yet",
   "zenskill.memory.error": "Failed to load memories",
   "zenskill.memory.searchPlaceholder": "Search memories...",
-  "zenskill.memory.title": "Memory Browser"
+  "zenskill.memory.title": "Memory Library"
 }

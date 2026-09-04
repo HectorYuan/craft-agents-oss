@@ -202,6 +202,9 @@ export const routes = {
         ? `zenskill/gtd/${encodeURIComponent(tab)}` as const
         : 'zenskill/gtd' as const,
 
+    /** ZenSkill memory browser view (zenskill navigator) */
+    zenskillMemory: () => 'zenskill/memory' as const,
+
     /** Kanban board view (sessions navigator, board view mode, all sessions) */
     board: () => 'board' as const,
   },
