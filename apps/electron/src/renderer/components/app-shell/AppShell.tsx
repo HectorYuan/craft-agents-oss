@@ -638,9 +638,9 @@ function AppShellContent({
   // so the navigator (and its resize handle) collapse to zero width while it's active.
   const isBoardView = isSessionsNavigation(navState) && navState.viewMode === 'board'
 
-  // Pages behaves the same way: both the library grid and an open page render
-  // full-width in the content area — there is no pages navigator list.
-  const isPagesView = isPagesNavigation(navState)
+  // Pages and ZenSkill navigators both render full-width in the content area
+  // — there is no navigator list; hide the session list panel for both.
+  const isPagesView = isPagesNavigation(navState) || isZenSkillNavigation(navState)
 
   // Derive source filter from navigation state (only when in sources navigator)
   const sourceFilter: SourceFilter | null = isSourcesNavigation(navState) ? navState.filter ?? null : null
