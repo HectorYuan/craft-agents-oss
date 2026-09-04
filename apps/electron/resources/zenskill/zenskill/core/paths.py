@@ -25,9 +25,10 @@ from pathlib import Path
 from typing import Any, Iterator, Optional
 
 try:
-    import fcntl
-except ImportError:  # Windows: POSIX 文件锁不可用
-    fcntl = None
+    from filelock import FileLock as _FileLock, Timeout as _FileLockTimeout
+except ImportError:
+    _FileLock = None
+    _FileLockTimeout = None
 
 # ============================================================
 # Profile 管理常量
@@ -49,25 +50,17 @@ LOCK_TELEMETRY = 1.0   # 遥测写入：事件采集、指标采样
 def file_lock(path: Path, timeout: float = LOCK_NORMAL) -> Iterator[None]:
     lock_path = Path(path).with_suffix(Path(path).suffix + ".lock")
     lock_path.parent.mkdir(parents=True, exist_ok=True)
-    start = time.monotonic()
-    with open(lock_path, "a+", encoding="utf-8") as lock_file:
-        while True:
-            if fcntl is None:
-                break
-            try:
-                fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
-                break
-            except BlockingIOError:
-                if time.monotonic() - start >= timeout:
-                    from .diagnostics import log_diagnostic
-                    log_diagnostic("lock_timeout", path=str(path), timeout=timeout)
-                    raise TimeoutError(f"获取文件锁超时: {lock_path}")
-                time.sleep(0.05)
+    if _FileLock is not None:
+        lock = _FileLock(str(lock_path), timeout=timeout)
         try:
-            yield
-        finally:
-            if fcntl is not None:
-                fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
+            with lock:
+                yield
+        except _FileLockTimeout:
+            from .diagnostics import log_diagnostic
+            log_diagnostic("lock_timeout", path=str(path), timeout=timeout)
+            raise TimeoutError(f"获取文件锁超时: {lock_path}")
+    else:
+        yield
 
 
 def _fsync_dir(path: Path) -> None:

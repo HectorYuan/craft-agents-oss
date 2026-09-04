@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "id": "page_6f2b8e41",
+  "slug": "zenskill-growth",
+  "name": "成长中心",
+  "description": "ZenSkill Growth 成长中心：五维能力雷达、境界进度、成就墙、习惯打卡热力与能量/目标（每 2 小时自动刷新）",
+  "kind": "interactive",
+  "createdAt": 1788220800000,
+  "updatedAt": 1788220800000,
+  "refresh": {
+    "cron": "0 */2 * * *",
+    "script": "pages/zenskill-growth/scripts/refresh.py",
+    "runtime": "python3",
+    "timeoutMs": 60000,
+    "enabled": true
+  }
+}

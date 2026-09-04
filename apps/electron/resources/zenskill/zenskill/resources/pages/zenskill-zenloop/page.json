@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "id": "page_a5c7d9f2",
+  "slug": "zenskill-zenloop",
+  "name": "ZenLoop 循环",
+  "description": "ZenSkill ZenLoop 孵化池：反思/整合/洞察/净化四通道条目、成熟度进度与建议检查日（每小时自动刷新）",
+  "kind": "interactive",
+  "createdAt": 1788220800000,
+  "updatedAt": 1788220800000,
+  "refresh": {
+    "cron": "15 * * * *",
+    "script": "pages/zenskill-zenloop/scripts/refresh.py",
+    "runtime": "python3",
+    "timeoutMs": 60000,
+    "enabled": true
+  }
+}

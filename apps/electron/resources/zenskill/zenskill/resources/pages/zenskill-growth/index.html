@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>成长中心</title>
+<style>
+  :root {
+    --bg: #16161e;
+    --card: #1f2030;
+    --card-border: #2a2c42;
+    --text: #c8d0e8;
+    --text-dim: #7c8598;
+    --accent: #7aa2f7;
+    --accent-soft: rgba(122, 162, 247, 0.15);
+    --good: #9ece6a;
+    --warn: #e0af68;
+    --bad: #f7768e;
+    --gold: #e0af68;
+    --gold-soft: rgba(224, 175, 104, 0.12);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: "PingFang SC", "Microsoft YaHei", "Noto Sans SC", sans-serif;
+    padding: 20px;
+    min-height: 100vh;
+  }
+  .header {
+    display: flex; align-items: baseline; justify-content: space-between;
+    margin-bottom: 16px;
+  }
+  .header h1 { font-size: 18px; font-weight: 600; color: #e6ecfb; }
+  .updated { font-size: 12px; color: var(--text-dim); }
+  .grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--card-border);
+    border-radius: 10px;
+    padding: 16px;
+  }
+  .card h2 {
+    font-size: 12px; font-weight: 500; color: var(--text-dim);
+    margin-bottom: 10px; letter-spacing: 1px;
+  }
+  .card.wide { grid-column: 1 / -1; }
+  .empty { color: var(--text-dim); font-size: 12px; line-height: 1.6; }
+  .footer {
+    margin-top: 14px; text-align: center;
+    font-size: 11px; color: var(--text-dim);
+  }
+  /* 境界卡片 */
+  .level-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .level-name { font-size: 24px; font-weight: 600; color: var(--gold); }
+  .level-sub { font-size: 12px; color: var(--text-dim); margin-top: 4px; }
+  .level-stats { text-align: right; }
+  .level-stats .num { font-size: 22px; font-weight: 600; color: var(--accent); }
+  .level-stats .lbl { font-size: 11px; color: var(--text-dim); display: block; margin-top: 2px; }
+  .level-progress {
+    height: 6px; background: var(--accent-soft); border-radius: 3px;
+    margin-top: 12px; overflow: hidden;
+  }
+  .level-progress .fill {
+    height: 100%; background: var(--accent); border-radius: 3px;
+    transition: width 0.4s ease;
+  }
+  .level-progress-label { font-size: 11px; color: var(--text-dim); margin-top: 6px; }
+  /* 雷达图 */
+  .radar-wrap { display: flex; align-items: center; gap: 16px; }
+  .radar-legend { display: flex; flex-direction: column; gap: 8px; }
+  .radar-legend .dim {
+    display: flex; justify-content: space-between; gap: 14px; font-size: 12px;
+  }
+  .radar-legend .dim .v { color: var(--accent); font-weight: 600; }
+  .radar-legend .dim .n { color: var(--text-dim); }
+  .composite-big { font-size: 26px; font-weight: 600; color: #e6ecfb; }
+  .composite-lbl { font-size: 11px; color: var(--text-dim); }
+  /* 成就墙 */
+  .badge-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: 8px; margin-bottom: 14px;
+  }
+  .badge {
+    display: flex; align-items: center; gap: 8px;
+    background: var(--gold-soft);
+    border: 1px solid rgba(224, 175, 104, 0.35);
+    border-radius: 8px; padding: 8px 10px;
+    font-size: 12px; color: var(--gold);
+    overflow: hidden; white-space: nowrap;
+  }
+  .badge .icon { font-size: 18px; }
+  .badge .title { overflow: hidden; text-overflow: ellipsis; }
+  .next-list { display: flex; flex-direction: column; gap: 10px; }
+  .next-row { display: flex; align-items: center; gap: 10px; font-size: 12px; }
+  .next-row .name { width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .next-row .bar {
+    flex: 1; height: 8px; background: var(--accent-soft);
+    border-radius: 4px; overflow: hidden;
+  }
+  .next-row .bar .fill {
+    height: 100%; background: var(--accent); border-radius: 4px;
+  }
+  .next-row .pct { width: 40px; text-align: right; color: var(--text-dim); }
+  .section-sub { font-size: 11px; color: var(--text-dim); margin: 4px 0 8px; }
+  /* 习惯打卡 */
+  .habit { margin-bottom: 14px; }
+  .habit:last-child { margin-bottom: 0; }
+  .habit-head {
+    display: flex; align-items: baseline; gap: 12px; font-size: 13px;
+    margin-bottom: 6px;
+  }
+  .habit-head .title { color: #e6ecfb; font-weight: 500; }
+  .habit-head .streak { color: var(--warn); font-size: 12px; }
+  .habit-head .rate { margin-left: auto; color: var(--text-dim); font-size: 12px; }
+  .cells { display: flex; gap: 3px; flex-wrap: wrap; }
+  .cells .cell {
+    width: 12px; height: 12px; border-radius: 2px;
+    background: #26283a;
+  }
+  .cells .cell.on { background: var(--good); }
+  /* 能量 + 目标 */
+  .duo { display: flex; gap: 24px; flex-wrap: wrap; }
+  .duo > div { flex: 1; min-width: 240px; }
+  .ring-wrap { display: flex; align-items: center; gap: 16px; }
+  .ring-label { font-size: 20px; font-weight: 600; color: #e6ecfb; }
+  .ring-level { font-size: 12px; color: var(--text-dim); margin-top: 4px; }
+  .advice { font-size: 12px; color: var(--text-dim); margin-top: 10px; line-height: 1.6; }
+  .goal-list { display: flex; flex-direction: column; gap: 10px; }
+  .goal-row { font-size: 12px; }
+  .goal-row .head {
+    display: flex; justify-content: space-between; margin-bottom: 4px;
+  }
+  .goal-row .head .score { color: var(--text-dim); }
+  .goal-row .bar {
+    height: 8px; background: var(--accent-soft);
+    border-radius: 4px; overflow: hidden;
+  }
+  .goal-row .bar .fill {
+    height: 100%; background: var(--accent); border-radius: 4px;
+    transition: width 0.4s ease;
+  }
+</style>
+</head>
+<body>
+  <div class="header">
+    <h1>成长中心</h1>
+    <span class="updated" id="updated"></span>
+  </div>
+
+  <div class="grid">
+    <div class="card">
+      <h2>境界</h2>
+      <div class="level-row">
+        <div>
+          <div class="level-name" id="level-name">--</div>
+          <div class="level-sub" id="level-sub">当前境界</div>
+        </div>
+        <div class="level-stats">
+          <span class="num" id="usage-count">-</span>
+          <span class="lbl">累计使用次数</span>
+          <span class="num" id="success-rate">-</span>
+          <span class="lbl">成功率</span>
+        </div>
+      </div>
+      <div class="level-progress"><div class="fill" id="level-fill" style="width:0%"></div></div>
+      <div class="level-progress-label" id="level-progress-label">升级进度</div>
+    </div>
+
+    <div class="card">
+      <h2>五维能力</h2>
+      <div class="radar-wrap">
+        <svg id="radar" width="170" height="170" viewBox="0 0 220 220"></svg>
+        <div class="radar-legend" id="radar-legend"></div>
+      </div>
+      <div style="margin-top:10px">
+        <span class="composite-big" id="composite">--</span>
+        <span class="composite-lbl"> 综合能力分</span>
+      </div>
+    </div>
+
+    <div class="card wide">
+      <h2>成就墙</h2>
+      <div class="badge-grid" id="badge-grid"></div>
+      <div class="section-sub" id="badge-summary"></div>
+      <div class="section-sub">即将解锁</div>
+      <div class="next-list" id="next-list"></div>
+    </div>
+
+    <div class="card wide">
+      <h2>习惯打卡（近 28 天）</h2>
+      <div id="habit-list"></div>
+    </div>
+
+    <div class="card wide">
+      <h2>能量与目标</h2>
+      <div class="duo">
+        <div>
+          <div class="ring-wrap">
+            <svg width="84" height="84" viewBox="0 0 84 84">
+              <circle cx="42" cy="42" r="34" fill="none" stroke="#2a2c42" stroke-width="9"></circle>
+              <circle id="ring-fg" cx="42" cy="42" r="34" fill="none" stroke="var(--accent)"
+                      stroke-width="9" stroke-linecap="round"
+                      transform="rotate(-90 42 42)"
+                      stroke-dasharray="0 999"></circle>
+              <text id="ring-pct" x="42" y="47" text-anchor="middle"
+                    font-size="17" font-weight="600" fill="#e6ecfb">--</text>
+            </svg>
+            <div>
+              <div class="ring-label" id="energy-level">--</div>
+              <div class="ring-level" id="energy-sub">能量状态</div>
+            </div>
+          </div>
+          <div class="advice" id="energy-advice"></div>
+        </div>
+        <div>
+          <div class="goal-list" id="goal-list"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer">ZenSkill · 每 2 小时自动刷新</div>
+
+<script>
+(function () {
+  'use strict';
+
+  var LEVEL_TEXT = {
+    NOVICE: '新手', APPRENTICE: '学徒', ADEPT: '熟手', EXPERT: '专家', MASTER: '大师'
+  };
+  var ENERGY_TEXT = {
+    high: '精力充沛', medium: '状态不错', low: '能量偏低', critical: '需要休息'
+  };
+  var ENERGY_COLOR = {
+    high: '#9ece6a', medium: '#7aa2f7', low: '#e0af68', critical: '#f7768e'
+  };
+  var DIMS = [
+    ['proficiency', '熟练度'],
+    ['stability', '稳定性'],
+    ['satisfaction', '满意度'],
+    ['responsiveness', '响应力'],
+    ['memory', '记忆力']
+  ];
+  var DIM_COLOR = '#7aa2f7';
+  var GRID_COLOR = '#2a2c42';
+
+  function setText(id, text) {
+    var el = document.getElementById(id);
+    if (el) el.textContent = text == null ? '-' : String(text);
+  }
+
+  function showEmpty(container, message) {
+    container.innerHTML = '';
+    var el = document.createElement('div');
+    el.className = 'empty';
+    el.textContent = message || '暂无数据';
+    container.appendChild(el);
+  }
+
+  function fmtPct(v, digits) {
+    if (v == null || isNaN(v)) return '-';
+    return (Math.round(v * Math.pow(10, digits == null ? 0 : digits)) /
+      Math.pow(10, digits == null ? 0 : digits)) + '%';
+  }
+
+  // ---------- 五维雷达（纯内联 SVG polygon） ----------
+  function radarPoint(cx, cy, r, i, n) {
+    var angle = -Math.PI / 2 + i * 2 * Math.PI / n;
+    return [cx + r * Math.cos(angle), cy + r * Math.sin(angle)];
+  }
+
+  function svgEl(tag, attrs) {
+    var el = document.createElementNS('http://www.w3.org/2000/svg', tag);
+    for (var k in attrs) el.setAttribute(k, attrs[k]);
+    return el;
+  }
+
+  function renderRadar(ability) {
+    var svg = document.getElementById('radar');
+    var legend = document.getElementById('radar-legend');
+    svg.innerHTML = '';
+    legend.innerHTML = '';
+
+    var cx = 110, cy = 110, rMax = 88, n = DIMS.length;
+    var values = DIMS.map(function (d) {
+      var v = ability ? ability[d[0]] : null;
+      return (v == null || isNaN(v)) ? 0 : Math.max(0, Math.min(100, v));
+    });
+    var hasData = ability && DIMS.some(function (d) {
+      var v = ability[d[0]];
+      return v != null && !isNaN(v) && v > 0;
+    });
+
+    // 五层五边形网格
+    for (var ring = 1; ring <= 4; ring++) {
+      var pts = [];
+      for (var i = 0; i < n; i++) {
+        var p = radarPoint(cx, cy, rMax * ring / 4, i, n);
+        pts.push(p[0].toFixed(1) + ',' + p[1].toFixed(1));
+      }
+      svg.appendChild(svgEl('polygon', {
+        points: pts.join(' '), fill: 'none', stroke: GRID_COLOR,
+        'stroke-width': ring === 4 ? 1.5 : 1
+      }));
+    }
+    // 轴线 + 顶点标签（维度名 + 数值）
+    for (var j = 0; j < n; j++) {
+      var p2 = radarPoint(cx, cy, rMax, j, n);
+      svg.appendChild(svgEl('line', {
+        x1: cx, y1: cy, x2: p2[0].toFixed(1), y2: p2[1].toFixed(1),
+        stroke: GRID_COLOR, 'stroke-width': 1
+      }));
+      var lp = radarPoint(cx, cy, rMax + 18, j, n);
+      var label = svgEl('text', {
+        x: lp[0].toFixed(1), y: (lp[1] + 4).toFixed(1),
+        'text-anchor': 'middle', 'font-size': 11,
+        fill: hasData ? '#7c8598' : '#4a5068'
+      });
+      label.textContent = DIMS[j][1] + ' ' + (hasData ? values[j] : '-');
+      svg.appendChild(label);
+    }
+    // 数据多边形
+    if (hasData) {
+      var dataPts = [];
+      for (var k = 0; k < n; k++) {
+        var dp = radarPoint(cx, cy, rMax * values[k] / 100, k, n);
+        dataPts.push(dp[0].toFixed(1) + ',' + dp[1].toFixed(1));
+      }
+      svg.appendChild(svgEl('polygon', {
+        points: dataPts.join(' '),
+        fill: 'rgba(122, 162, 247, 0.25)', stroke: DIM_COLOR,
+        'stroke-width': 2, 'stroke-linejoin': 'round'
+      }));
+      for (var m = 0; m < n; m++) {
+        var vp = radarPoint(cx, cy, rMax * values[m] / 100, m, n);
+        svg.appendChild(svgEl('circle', {
+          cx: vp[0].toFixed(1), cy: vp[1].toFixed(1), r: 3, fill: DIM_COLOR
+        }));
+      }
+    }
+    // 侧栏图例
+    DIMS.forEach(function (d, idx) {
+      var row = document.createElement('div');
+      row.className = 'dim';
+      var name = document.createElement('span');
+      name.className = 'n';
+      name.textContent = d[1];
+      var val = document.createElement('span');
+      val.className = 'v';
+      val.textContent = hasData ? values[idx] : '-';
+      row.appendChild(name);
+      row.appendChild(val);
+      legend.appendChild(row);
+    });
+  }
+
+  // ---------- 成就墙 ----------
+  function renderAchievements(ach) {
+    var grid = document.getElementById('badge-grid');
+    var summary = document.getElementById('badge-summary');
+    var nextList = document.getElementById('next-list');
+    grid.innerHTML = '';
+    summary.textContent = '';
+    nextList.innerHTML = '';
+    if (!ach) { showEmpty(grid, '暂无数据'); return; }
+
+    var unlocked = ach.recent || [];
+    var count = ach.unlocked_count == null ? null : ach.unlocked_count;
+    var total = (count == null ? 0 : count) + (ach.locked_total || 0);
+    if (count != null && total > 0) {
+      summary.textContent = '已解锁 ' + count + ' / ' + total +
+        '（完成率 ' + fmtPct((ach.completion_rate || 0) * 100) + '）· 展示最近解锁';
+    }
+    if (!unlocked.length) {
+      showEmpty(grid, '暂无已解锁成就');
+    } else {
+      unlocked.forEach(function (b) {
+        var el = document.createElement('div');
+        el.className = 'badge';
+        var icon = document.createElement('span');
+        icon.className = 'icon';
+        icon.textContent = b.icon || '🏅';
+        var title = document.createElement('span');
+        title.className = 'title';
+        title.textContent = b.title || '';
+        el.appendChild(icon);
+        el.appendChild(title);
+        grid.appendChild(el);
+      });
+    }
+
+    var next = ach.next || [];
+    if (!next.length) {
+      showEmpty(nextList, '暂无可推进的成就');
+      return;
+    }
+    next.forEach(function (b) {
+      var row = document.createElement('div');
+      row.className = 'next-row';
+      var name = document.createElement('span');
+      name.className = 'name';
+      name.textContent = (b.icon || '🔒') + ' ' + (b.title || '');
+      var bar = document.createElement('div');
+      bar.className = 'bar';
+      var fill = document.createElement('div');
+      fill.className = 'fill';
+      var pct = Math.max(0, Math.min(100, (b.progress || 0) * 100));
+      fill.style.width = pct.toFixed(0) + '%';
+      bar.appendChild(fill);
+      var pctEl = document.createElement('span');
+      pctEl.className = 'pct';
+      pctEl.textContent = pct.toFixed(0) + '%';
+      row.appendChild(name);
+      row.appendChild(bar);
+      row.appendChild(pctEl);
+      nextList.appendChild(row);
+    });
+  }
+
+  // ---------- 习惯打卡 ----------
+  function renderHabits(habits) {
+    var box = document.getElementById('habit-list');
+    box.innerHTML = '';
+    if (!habits || !habits.length) {
+      showEmpty(box, '暂无习惯数据');
+      return;
+    }
+    habits.forEach(function (h) {
+      var item = document.createElement('div');
+      item.className = 'habit';
+      var head = document.createElement('div');
+      head.className = 'habit-head';
+      var title = document.createElement('span');
+      title.className = 'title';
+      title.textContent = h.title || '未命名习惯';
+      var streak = document.createElement('span');
+      streak.className = 'streak';
+      streak.textContent = '连续 ' + (h.streak || 0) + ' 天 · 最佳 ' + (h.best_streak || 0) + ' 天';
+      var rate = document.createElement('span');
+      rate.className = 'rate';
+      rate.textContent = '完成率 ' + (h.completion_rate == null ? '-' : h.completion_rate + '%');
+      head.appendChild(title);
+      head.appendChild(streak);
+      head.appendChild(rate);
+      item.appendChild(head);
+
+      var cells = document.createElement('div');
+      cells.className = 'cells';
+      var daily = h.daily || {};
+      var days = Object.keys(daily).sort();
+      if (!days.length) {
+        showEmpty(cells, '暂无打卡记录');
+      } else {
+        days.forEach(function (day) {
+          var cell = document.createElement('div');
+          cell.className = 'cell' + (daily[day] ? ' on' : '');
+          cell.title = day + '：' + (daily[day] ? '已完成' : '未完成');
+          cells.appendChild(cell);
+        });
+      }
+      item.appendChild(cells);
+      box.appendChild(item);
+    });
+  }
+
+  // ---------- 能量环 + 目标 ----------
+  function renderRing(pct) {
+    var r = 34, c = 2 * Math.PI * r;
+    var ring = document.getElementById('ring-fg');
+    var shown = (pct == null) ? 0 : Math.max(0, Math.min(100, pct));
+    ring.setAttribute('stroke-dasharray', (shown / 100 * c).toFixed(1) + ' ' + c.toFixed(1));
+    var color = pct == null ? 'var(--accent)' :
+      (pct >= 70 ? ENERGY_COLOR.high : pct >= 40 ? ENERGY_COLOR.medium :
+        pct >= 15 ? ENERGY_COLOR.low : ENERGY_COLOR.critical);
+    ring.setAttribute('stroke', color);
+    setText('ring-pct', pct == null ? '--' : Math.round(pct) + '%');
+  }
+
+  function renderGoals(goals) {
+    var box = document.getElementById('goal-list');
+    box.innerHTML = '';
+    if (!goals || !goals.length) {
+      showEmpty(box, '暂无进行中的目标');
+      return;
+    }
+    goals.forEach(function (g) {
+      var row = document.createElement('div');
+      row.className = 'goal-row';
+      var head = document.createElement('div');
+      head.className = 'head';
+      var name = document.createElement('span');
+      name.textContent = g.dimension || '目标';
+      var score = document.createElement('span');
+      score.className = 'score';
+      score.textContent = (g.current == null ? '-' : g.current) + ' → ' +
+        (g.target == null ? '-' : g.target);
+      head.appendChild(name);
+      head.appendChild(score);
+      var bar = document.createElement('div');
+      bar.className = 'bar';
+      var fill = document.createElement('div');
+      fill.className = 'fill';
+      var pct = Math.max(0, Math.min(100, g.pct == null ? 0 : g.pct));
+      fill.style.width = pct.toFixed(1) + '%';
+      bar.appendChild(fill);
+      row.appendChild(head);
+      row.appendChild(bar);
+      box.appendChild(row);
+    });
+  }
+
+  function fmtTime(ms) {
+    try {
+      var d = new Date(ms);
+      return d.toLocaleDateString('zh-CN') + ' ' +
+        d.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+    } catch (e) { return ''; }
+  }
+
+  function applySnapshot(snapshot) {
+    if (!snapshot || typeof snapshot !== 'object') return;
+    var kv = snapshot.kv || {};
+
+    // 境界
+    setText('level-name', LEVEL_TEXT[kv.level] || kv.level || '--');
+    setText('usage-count', kv.usage_count == null ? '-' : kv.usage_count);
+    setText('success-rate', fmtPct((kv.success_rate || 0) * 100));
+    var lp = kv.level_progress;
+    if (lp == null) {
+      setText('level-progress-label', kv.level === 'MASTER' ? '已达最高境界' : '升级进度不可用');
+      document.getElementById('level-fill').style.width =
+        kv.level === 'MASTER' ? '100%' : '0%';
+    } else {
+      document.getElementById('level-fill').style.width =
+        Math.max(0, Math.min(100, lp * 100)).toFixed(1) + '%';
+      setText('level-progress-label', '距下一境界 ' + (lp * 100).toFixed(0) + '%');
+    }
+
+    // 五维雷达 + 综合分
+    renderRadar(kv.ability);
+    setText('composite', kv.composite == null ? '--' : kv.composite);
+
+    renderAchievements(kv.achievements);
+    renderHabits(kv.habits);
+
+    // 能量
+    var energy = kv.energy || {};
+    renderRing(energy.pct);
+    setText('energy-level', ENERGY_TEXT[energy.level] || energy.level || '--');
+    setText('energy-advice', energy.advice || '');
+    setText('energy-sub',
+      (energy.current != null && energy.max != null)
+        ? energy.current + ' / ' + energy.max : '能量状态');
+
+    renderGoals(kv.goals);
+    setText('updated', '更新于 ' + fmtTime(snapshot.generatedAt || kv.generated_at));
+  }
+
+  // craft Pages 协议：宿主经 postMessage 注入 init/data（protocol craft-pages/v1）
+  window.addEventListener('message', function (event) {
+    var msg = event.data;
+    if (!msg || msg.protocol !== 'craft-pages/v1') return;
+    if (msg.type === 'init' && msg.payload && msg.payload.snapshot) {
+      applySnapshot(msg.payload.snapshot);
+    } else if (msg.type === 'data' && msg.payload) {
+      applySnapshot(msg.payload.snapshot);
+    }
+  });
+
+  // 保守兼容：直接以全局变量注入时也可渲染（本地开发 / 纯浏览器打开）
+  if (window.__PAGE_SNAPSHOT__) applySnapshot(window.__PAGE_SNAPSHOT__);
+})();
+</script>
+</body>
+</html>

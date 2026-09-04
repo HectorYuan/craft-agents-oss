@@ -55,6 +55,7 @@ class AgentPage:
         table.add_row("Session", sid[:16] + "..." if len(sid) > 16 else sid)
         table.add_row("Messages", str(info.get("message_count", 0)))
         table.add_row("Tools", str(info.get("tool_count", 0)))
+        table.add_row("Thinking", info.get("thinking_level", "medium"))
 
         error = info.get("error")
         if error:

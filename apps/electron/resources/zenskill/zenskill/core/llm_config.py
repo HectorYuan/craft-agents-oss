@@ -75,9 +75,29 @@ class LLMConfigManager:
     """LLM 配置管理器（多来源优先链）"""
 
     def __init__(self):
-        self._config_dir = Path.home() / ".zenskill"
-        self._config_file = self._config_dir / "llm_config.json"
         self._config: Optional[LLMConfig] = None
+        self._config_dir_override: Optional[Path] = None
+        self._config_file_override: Optional[Path] = None
+
+    # 路径动态解析（不用 import 时固化的 Path.home()）：单例在模块导入时创建，
+    # 若此处固化 HOME，测试的 HOME 隔离与用户改 HOME 都对 save/load 失效，
+    # 曾导致测试把 lm-service/test-model 写进真实 ~/.zenskill/llm_config.json。
+    # setter 保留属性赋值式覆写（测试定向重定向用），覆写优先于动态 HOME。
+    @property
+    def _config_dir(self) -> Path:
+        return self._config_dir_override or (Path.home() / ".zenskill")
+
+    @_config_dir.setter
+    def _config_dir(self, value: Path) -> None:
+        self._config_dir_override = value
+
+    @property
+    def _config_file(self) -> Path:
+        return self._config_file_override or (self._config_dir / "llm_config.json")
+
+    @_config_file.setter
+    def _config_file(self, value: Path) -> None:
+        self._config_file_override = value
 
     def _ensure_dir(self) -> None:
         """确保配置目录存在"""

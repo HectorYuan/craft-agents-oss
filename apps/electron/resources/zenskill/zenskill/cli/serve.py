@@ -23,30 +23,13 @@ def _is_port_free(port: int) -> bool:
 
 
 def _kill_port_process(port: int):
-    """尝试终止占用端口的进程（跨平台兼容）"""
-    import subprocess, signal, time, platform
+    """尝试终止占用端口的进程（跨平台）"""
+    import time
+    from ..runtime.platform_utils import kill_port
     try:
-        if platform.system() == "Windows":
-            result = subprocess.run(
-                ["powershell", "-Command",
-                 f"(Get-NetTCPConnection -LocalPort {port} -ErrorAction SilentlyContinue).OwningProcess"],
-                capture_output=True, text=True, timeout=10
-            )
-        else:
-            result = subprocess.run(
-                ["lsof", "-ti", f":{port}"],
-                capture_output=True, text=True, timeout=5
-            )
-        for pid_str in result.stdout.strip().splitlines():
-            pid = int(pid_str.strip())
-            try:
-                if platform.system() == "Windows":
-                    subprocess.run(["taskkill", "/F", "/PID", str(pid)], capture_output=True)
-                else:
-                    os.kill(pid, signal.SIGKILL)
-                print(f"  Stopped old process (PID {pid}) on port {port}")
-            except (ProcessLookupError, PermissionError, OSError):
-                pass
+        killed = kill_port(port)
+        if killed:
+            print(f"  Stopped {killed} process(es) on port {port}")
         time.sleep(1)
     except Exception:
         pass

@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ZenLoop 循环</title>
+<style>
+  :root {
+    --bg: #16161e;
+    --card: #1f2030;
+    --card-border: #2a2c42;
+    --text: #c8d0e8;
+    --text-dim: #7c8598;
+    --accent: #7aa2f7;
+    --accent-soft: rgba(122, 162, 247, 0.15);
+    --good: #9ece6a;
+    --warn: #e0af68;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: "PingFang SC", "Microsoft YaHei", "Noto Sans SC", sans-serif;
+    padding: 20px;
+    min-height: 100vh;
+  }
+  .header {
+    display: flex; align-items: baseline; justify-content: space-between;
+    margin-bottom: 16px;
+  }
+  .header h1 { font-size: 18px; font-weight: 600; color: #e6ecfb; }
+  .updated { font-size: 12px; color: var(--text-dim); }
+  .grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--card-border);
+    border-radius: 10px;
+    padding: 16px;
+  }
+  .card h2 {
+    font-size: 12px; font-weight: 500; color: var(--text-dim);
+    margin-bottom: 10px; letter-spacing: 1px;
+    display: flex; align-items: baseline; justify-content: space-between;
+  }
+  .card h2 .en { font-size: 10px; color: #4a5068; letter-spacing: 0; }
+  .card h2 .count {
+    font-size: 11px; color: var(--accent);
+    background: var(--accent-soft); border-radius: 8px; padding: 1px 8px;
+  }
+  .card.wide { grid-column: 1 / -1; }
+  .empty { color: var(--text-dim); font-size: 12px; line-height: 1.6; }
+  .footer {
+    margin-top: 14px; text-align: center;
+    font-size: 11px; color: var(--text-dim);
+  }
+  /* 循环概览 */
+  .summary { font-size: 14px; color: #e6ecfb; line-height: 1.6; }
+  .sub { font-size: 12px; color: var(--text-dim); margin-top: 6px; line-height: 1.6; }
+  .stat-chips { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+  .chip {
+    font-size: 11px; color: var(--text-dim);
+    background: var(--accent-soft); border-radius: 8px; padding: 3px 10px;
+  }
+  .chip b { color: var(--accent); font-weight: 600; }
+  /* 通道条目 */
+  .item { margin-bottom: 12px; }
+  .item:last-child { margin-bottom: 0; }
+  .item-head { display: flex; align-items: baseline; gap: 10px; }
+  .item-head .concept {
+    flex: 1; font-size: 13px; color: #e6ecfb;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .item-head .pct { font-size: 12px; color: var(--accent); font-weight: 600; }
+  .bar {
+    height: 6px; background: var(--accent-soft); border-radius: 3px;
+    margin-top: 5px; overflow: hidden;
+  }
+  .bar .fill {
+    height: 100%; background: var(--accent); border-radius: 3px;
+    transition: width 0.4s ease;
+  }
+  .bar .fill.mature { background: var(--good); }
+  .check { font-size: 11px; color: var(--text-dim); margin-top: 4px; }
+</style>
+</head>
+<body>
+  <div class="header">
+    <h1>ZenLoop 循环</h1>
+    <span class="updated" id="updated"></span>
+  </div>
+
+  <div class="card wide">
+    <h2>循环概览</h2>
+    <div class="summary" id="summary">--</div>
+    <div class="sub" id="review-message"></div>
+    <div class="stat-chips" id="stat-chips"></div>
+  </div>
+
+  <div class="grid">
+    <div class="card">
+      <h2>反思 <span class="en">reflect</span><span class="count" id="cnt-reflect">0</span></h2>
+      <div id="ch-reflect"></div>
+    </div>
+    <div class="card">
+      <h2>整合 <span class="en">consolidate</span><span class="count" id="cnt-consolidate">0</span></h2>
+      <div id="ch-consolidate"></div>
+    </div>
+    <div class="card">
+      <h2>洞察 <span class="en">insight</span><span class="count" id="cnt-insight">0</span></h2>
+      <div id="ch-insight"></div>
+    </div>
+    <div class="card">
+      <h2>净化 <span class="en">purify</span><span class="count" id="cnt-purify">0</span></h2>
+      <div id="ch-purify"></div>
+    </div>
+  </div>
+
+  <div class="footer">ZenSkill · 每小时自动刷新</div>
+
+<script>
+(function () {
+  'use strict';
+
+  var CHANNELS = ['reflect', 'consolidate', 'insight', 'purify'];
+
+  function setText(id, text) {
+    var el = document.getElementById(id);
+    if (el) el.textContent = text == null ? '-' : String(text);
+  }
+
+  function showEmpty(container, message) {
+    container.innerHTML = '';
+    var el = document.createElement('div');
+    el.className = 'empty';
+    el.textContent = message || '暂无数据';
+    container.appendChild(el);
+  }
+
+  function fmtTime(ms) {
+    try {
+      var d = new Date(ms);
+      return d.toLocaleDateString('zh-CN') + ' ' +
+        d.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+    } catch (e) { return ''; }
+  }
+
+  // ---------- 循环概览 ----------
+  function renderOverview(kv) {
+    setText('summary', kv.summary || '暂无数据');
+    setText('review-message', kv.review_message || '');
+
+    var chips = document.getElementById('stat-chips');
+    chips.innerHTML = '';
+    var stats = kv.loop_stats;
+    if (stats && stats.active != null) {
+      var active = document.createElement('span');
+      active.className = 'chip';
+      active.innerHTML = '活跃条目 <b></b>';
+      active.querySelector('b').textContent = stats.active;
+      chips.appendChild(active);
+      var by = stats.by_channel || {};
+      CHANNELS.forEach(function (ch) {
+        if (by[ch] == null) return;
+        var chip = document.createElement('span');
+        chip.className = 'chip';
+        chip.innerHTML = ' <b></b>';
+        chip.insertBefore(document.createTextNode(ch), chip.querySelector('b'));
+        chip.querySelector('b').textContent = by[ch];
+        chips.appendChild(chip);
+      });
+    }
+  }
+
+  // ---------- 四通道条目 ----------
+  function renderChannel(channel, items) {
+    var box = document.getElementById('ch-' + channel);
+    setText('cnt-' + channel, items ? items.length : 0);
+    box.innerHTML = '';
+    if (!items || !items.length) {
+      showEmpty(box, '暂无条目');
+      return;
+    }
+    items.forEach(function (it) {
+      var maturity = Math.max(0, Math.min(100,
+        (it.maturity == null ? 0 : it.maturity) * 100));
+
+      var item = document.createElement('div');
+      item.className = 'item';
+
+      var head = document.createElement('div');
+      head.className = 'item-head';
+      var concept = document.createElement('span');
+      concept.className = 'concept';
+      concept.textContent = it.concept || '（无内容）';
+      concept.title = it.concept || '';
+      var pct = document.createElement('span');
+      pct.className = 'pct';
+      pct.textContent = maturity.toFixed(0) + '%';
+      head.appendChild(concept);
+      head.appendChild(pct);
+      item.appendChild(head);
+
+      var bar = document.createElement('div');
+      bar.className = 'bar';
+      var fill = document.createElement('div');
+      fill.className = 'fill' + (maturity >= 80 ? ' mature' : '');
+      fill.style.width = maturity.toFixed(1) + '%';
+      bar.appendChild(fill);
+      item.appendChild(bar);
+
+      var check = document.createElement('div');
+      check.className = 'check';
+      check.textContent = it.check_after
+        ? '建议检查 ' + it.check_after
+        : '建议检查日未设置';
+      item.appendChild(check);
+
+      box.appendChild(item);
+    });
+  }
+
+  function applySnapshot(snapshot) {
+    if (!snapshot || typeof snapshot !== 'object') return;
+    var kv = snapshot.kv || {};
+
+    renderOverview(kv);
+    var channels = kv.channels || {};
+    CHANNELS.forEach(function (ch) {
+      renderChannel(ch, channels[ch]);
+    });
+    setText('updated', '更新于 ' + fmtTime(snapshot.generatedAt || kv.generated_at));
+  }
+
+  // craft Pages 协议：宿主经 postMessage 注入 init/data（protocol craft-pages/v1）
+  window.addEventListener('message', function (event) {
+    var msg = event.data;
+    if (!msg || msg.protocol !== 'craft-pages/v1') return;
+    if (msg.type === 'init' && msg.payload && msg.payload.snapshot) {
+      applySnapshot(msg.payload.snapshot);
+    } else if (msg.type === 'data' && msg.payload) {
+      applySnapshot(msg.payload.snapshot);
+    }
+  });
+
+  // 保守兼容：直接以全局变量注入时也可渲染（本地开发 / 纯浏览器打开）
+  if (window.__PAGE_SNAPSHOT__) applySnapshot(window.__PAGE_SNAPSHOT__);
+})();
+</script>
+</body>
+</html>

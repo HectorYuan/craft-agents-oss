@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "id": "page_9d3a1c7e",
+  "slug": "zenskill-daily-review",
+  "name": "每日复盘",
+  "description": "ZenSkill 每日复盘仪表盘：复盘摘要、能量环形指示、待办/收件箱统计与最近成就（每日 07:00 自动刷新）",
+  "kind": "interactive",
+  "createdAt": 1788220800000,
+  "updatedAt": 1788220800000,
+  "refresh": {
+    "cron": "0 7 * * *",
+    "script": "pages/zenskill-daily-review/scripts/refresh.py",
+    "runtime": "python3",
+    "timeoutMs": 60000,
+    "enabled": true
+  }
+}

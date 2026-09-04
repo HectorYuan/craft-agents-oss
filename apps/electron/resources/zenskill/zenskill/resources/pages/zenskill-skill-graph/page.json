@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "id": "page_c4e8b2d7",
+  "slug": "zenskill-skill-graph",
+  "name": "技能图谱",
+  "description": "ZenSkill 技能依赖图谱：技能节点环形布局、五类关系边可视化与统计（每日 04:00 自动刷新）",
+  "kind": "interactive",
+  "createdAt": 1788220800000,
+  "updatedAt": 1788220800000,
+  "refresh": {
+    "cron": "0 4 * * *",
+    "script": "pages/zenskill-skill-graph/scripts/refresh.py",
+    "runtime": "python3",
+    "timeoutMs": 60000,
+    "enabled": true
+  }
+}

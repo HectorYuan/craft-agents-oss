@@ -810,17 +810,22 @@ class DeepSeekLLMProvider(BaseLLMProvider):
     def __init__(
         self,
         api_key: Optional[str] = None,
-        model: str = "deepseek-chat",
+        model: Optional[str] = None,
         base_url: Optional[str] = None,
     ) -> None:
         import os
+        config_model = None
         try:
             from .llm_config import llm_config
-            config_api_key = llm_config.get().api_key
+            cfg = llm_config.get()
+            config_api_key = cfg.api_key
+            if cfg.provider == "deepseek":
+                config_model = cfg.model
         except Exception:
             config_api_key = None
         self._api_key = api_key or config_api_key or os.getenv("DEEPSEEK_API_KEY")
-        self._model = model
+        # 未显式指定时优先用户配置，最后回退注册表默认 v4-flash
+        self._model = model or config_model or "deepseek-v4-flash"
         self._base_url = base_url or self.BASE_URL
         self._session = None
 

@@ -71,6 +71,7 @@ class AgentChatSession:
         self._with_memory = with_memory
         self._with_skills = with_skills
         self._max_steps = max_steps
+        self._thinking_level = "medium"
 
         # Lazy init — 首次 chat() 时创建
         self._loop = None
@@ -310,6 +311,7 @@ class AgentChatSession:
             "provider": self._model_config.provider if self._model_config else "unknown",
             "tool_count": len(self._tools) if self._tools else 0,
             "capabilities": [c.name for c in self._host.capabilities] if self._host else [],
+            "thinking_level": getattr(self, "_thinking_level", "medium"),
         }
 
     def _maybe_auto_daily_review(self) -> None:
@@ -361,6 +363,33 @@ class AgentChatSession:
             return self._model_config.id
         except Exception as e:
             return f"切换失败: {e}"
+
+    def switch_thinking(self, level: str) -> str:
+        """切换 thinking level，返回生效值。"""
+        if level not in ("low", "medium", "high"):
+            return f"无效 level: {level}"
+        self._thinking_level = level
+        return level
+
+    async def compact(self) -> str:
+        """手动压缩上下文，返回结果摘要。"""
+        if not self._session:
+            return "无活动会话"
+        try:
+            from zenskill.runtime.agent.compaction import (
+                compact_session,
+            )
+            result = await compact_session(
+                self._session, self._stream_fn, self._model_config,
+            )
+            if result is None:
+                return "未达压缩阈值"
+            return (
+                f"压缩完成: {result.tokens_before} → {result.tokens_after} tokens "
+                f"(裁剪 {result.cut_index} 条)"
+            )
+        except Exception as e:
+            return f"压缩失败: {e}"
 
 
 def _format_args(args: Any) -> str:

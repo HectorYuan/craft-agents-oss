@@ -84,13 +84,13 @@ class ChatSession:
     @property
     def model(self) -> str:
         if self._model:
-            return self._model
+            return self._display_model(self._model)
         provider = self._get_provider()
         if provider:
             try:
                 name = provider.get_model_name()
                 if name and name.lower() != "unknown":
-                    return name
+                    return self._display_model(name)
             except Exception:
                 pass
             # fallback: 从 LLMConfig 读取
@@ -98,10 +98,15 @@ class ChatSession:
                 from zenskill.core.llm_config import LLMConfig
                 cfg = LLMConfig()
                 if cfg.model:
-                    return cfg.model
+                    return self._display_model(cfg.model)
             except Exception:
                 pass
         return "未配置"
+
+    @staticmethod
+    def _display_model(name: str) -> str:
+        """provider 拼接的 'DeepSeek/xxx' 前缀对 TUI 显示是冗余的，只保留模型名。"""
+        return name.split("/", 1)[1] if "/" in name else name
 
     @model.setter
     def model(self, value: str):

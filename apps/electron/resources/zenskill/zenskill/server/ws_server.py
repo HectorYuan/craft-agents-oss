@@ -671,6 +671,15 @@ class SessionManager:
             except Exception:
                 pass
 
+            # craft Pages 播种：zenskill-* 页面包幂等同步进活跃 workspace
+            try:
+                from .core.update_pages import resolve_active_workspace_root, sync_pages
+                _ws_root = resolve_active_workspace_root()
+                if _ws_root is not None:
+                    sync_pages(_ws_root)
+            except Exception:
+                pass
+
         return session
 
     def get_messages(self, session_id: str) -> dict:

@@ -396,18 +396,13 @@ class BashTool(AgentTool):
         started = time.monotonic()
 
         try:
-            import platform as _plat
-            _kwargs: dict = {}
-            if _plat.system() == "Windows":
-                _kwargs["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP
-            else:
-                _kwargs["start_new_session"] = True
+            from ..platform_utils import get_new_process_kwargs
             proc = await asyncio.create_subprocess_shell(
                 command,
                 cwd=self.cwd,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.STDOUT,
-                **_kwargs,
+                **get_new_process_kwargs(),
             )
         except OSError as e:
             return AgentToolResult(
@@ -701,23 +696,8 @@ def _glob_to_regex(glob: str) -> str:
 def _kill_process_tree(proc: asyncio.subprocess.Process) -> None:
     if proc.returncode is not None:
         return
-    try:
-        import platform as _plat
-        if _plat.system() == "Windows":
-            # Windows: taskkill /F /T 杀整棵进程树
-            subprocess.run(
-                ["taskkill", "/F", "/T", "/PID", str(proc.pid)],
-                capture_output=True, timeout=10,
-            )
-        elif hasattr(os, "killpg"):
-            os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
-        else:  # pragma: no cover - 非 POSIX 平台退化
-            proc.kill()
-    except (ProcessLookupError, PermissionError, OSError):
-        try:
-            proc.kill()
-        except ProcessLookupError:
-            pass
+    from ..platform_utils import kill_process_tree
+    kill_process_tree(proc.pid)
 
 
 DEFAULT_WEB_FETCH_MAX_CHARS = 15000

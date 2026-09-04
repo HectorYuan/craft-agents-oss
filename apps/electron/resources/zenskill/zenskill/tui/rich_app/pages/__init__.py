@@ -6,12 +6,14 @@
 """
 
 from .dashboard import DashboardPage
+from .diff import DiffPage
 from .doctor import DoctorPage
 from .growth import GrowthPage
 from .gtd import GTDPage
 from .help import HelpPage
 from .knowledge import KnowledgePage
 from .mirror import MirrorPage
+from .review import ReviewPage
 from .search import SearchPage
 from .settings import SettingsPage
 from .skills import SkillsPage
@@ -19,12 +21,14 @@ from .status import StatusPage
 
 __all__ = [
     "DashboardPage",
+    "DiffPage",
     "DoctorPage",
     "GrowthPage",
     "GTDPage",
     "HelpPage",
     "KnowledgePage",
     "MirrorPage",
+    "ReviewPage",
     "SearchPage",
     "SettingsPage",
     "SkillsPage",

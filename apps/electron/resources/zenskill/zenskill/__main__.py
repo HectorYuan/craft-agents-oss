@@ -2238,15 +2238,10 @@ def _run_background(args: argparse.Namespace) -> None:
         cmd.append("--debug")
 
     with open(log_file, "w") as log:
-        import platform as _plat
-        _popen_kwargs: dict = {}
-        if _plat.system() == "Windows":
-            _popen_kwargs["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP
-        else:
-            _popen_kwargs["start_new_session"] = True
+        from .runtime.platform_utils import get_new_process_kwargs
         proc = subprocess.Popen(
             cmd, stdout=log, stderr=subprocess.STDOUT,
-            **_popen_kwargs,
+            **get_new_process_kwargs(),
         )
 
     pid_file.write_text(str(proc.pid))
@@ -2596,6 +2591,10 @@ def main() -> int:
     # mcp 命令组（实现位于 zenskill/cli/mcp.py，渐进拆分试点）
     from .cli.mcp import register_mcp_parser
     register_mcp_parser(subparsers)
+
+    # pages 命令组（craft Pages 页面包播种，实现位于 zenskill/cli/pages.py）
+    from .cli.pages import register_pages_parser
+    register_pages_parser(subparsers)
 
     # serve 命令（WebUI server）
     from .cli.serve import register_serve_parser

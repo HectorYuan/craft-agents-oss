@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import importlib
 import os
 from datetime import datetime
 from pathlib import Path
@@ -47,6 +48,7 @@ COMMAND_LIST = [
     "/dashboard", "/chat", "/growth", "/skills", "/mirror",
     "/knowledge", "/system", "/doctor", "/llm",
     "/help", "/clear", "/quit", "/version", "/history", "/agent",
+    "/diff", "/export", "/review", "/thinking", "/compact", "/theme", "/status",
     "/d", "/c", "/g", "/s", "/m", "/k", "/h", "/q",
     "/skills list", "/growth report", "/growth compare",
     "/growth replay", "/growth errors", "/growth feedback",
@@ -64,6 +66,8 @@ PAGE_SHORTCUTS = {
     "5": "settings",
     "6": "help",
     "7": "agent",
+    "8": "knowledge",
+    "9": "mirror",
 }
 
 
@@ -169,7 +173,9 @@ class ZenRichTUI:
     def _init_pages(self):
         """懒加载页面组件。"""
         from .pages.dashboard import DashboardPage
+        from .pages.diff import DiffPage
         from .pages.doctor import DoctorPage
+        from .pages.review import ReviewPage
         from .pages.skills import SkillsPage
         from .pages.growth import GrowthPage
         from .pages.gtd import GTDPage
@@ -184,7 +190,9 @@ class ZenRichTUI:
         data = self._get_data()
         self._pages = {
             "dashboard": DashboardPage(self.console, data),
+            "diff": DiffPage(self.console, data),
             "doctor": DoctorPage(self.console, data),
+            "review": ReviewPage(self.console, data),
             "skills": SkillsPage(self.console, data),
             "growth": GrowthPage(self.console, data),
             "gtd": GTDPage(self.console, data),
@@ -394,6 +402,7 @@ class ZenRichTUI:
 
         if parsed.resource == "export":
             self._export_history()
+            self.mark_dirty(["dashboard"])
             return
 
         if parsed.resource == "search":
@@ -403,9 +412,34 @@ class ZenRichTUI:
                 page.render(query=query)
             return
 
+        if parsed.resource == "diff":
+            page = self._pages.get("diff")
+            if page:
+                file_path = parsed.args[0] if parsed.args else ""
+                page.render(file_path=file_path)
+            return
+
+        if parsed.resource == "review":
+            page = self._pages.get("review")
+            if page:
+                scope = parsed.action or parsed.args[0] if parsed.args else ""
+                base = parsed.args[1] if len(parsed.args) > 1 else ""
+                page.render(scope=scope, base=base)
+            return
+
+        if parsed.resource == "thinking":
+            self._run_thinking(parsed)
+            return
+
+        if parsed.resource == "compact":
+            self._run_compact()
+            return
+
         if parsed.resource == "theme":
-            theme_name = parsed.args[0] if parsed.args else "rich"
+            # "/theme zen" 时主题名落在 action；"/theme set zen" 时落在 args
+            theme_name = parsed.args[0] if parsed.args else (parsed.action or "rich")
             self._run_theme(theme_name)
+            self.mark_dirty(["settings"])
             return
 
         if parsed.resource == "version":
@@ -466,9 +500,21 @@ class ZenRichTUI:
                 self.console.print(f"[dim]/{entry.qualified_name} -- {entry.help}[/dim]")
                 return
 
-            # 导入 handler 函数
+            # 导入 handler 函数：优先 __main__，miss 后回退 cli/ 拆分模块
+            # （CLI 渐进拆分后 graph/gtd/workflow 等 handler 在 zenskill/cli/*）
             import zenskill.__main__ as cli_module
             handler = getattr(cli_module, entry.handler_name, None)
+            if not handler:
+                import pkgutil
+                import zenskill.cli as cli_pkg
+                for mod_info in pkgutil.iter_modules(cli_pkg.__path__):
+                    try:
+                        mod = importlib.import_module(f"zenskill.cli.{mod_info.name}")
+                    except Exception:
+                        continue
+                    handler = getattr(mod, entry.handler_name, None)
+                    if handler:
+                        break
             if not handler:
                 self.console.print(f"[red]Handler {entry.handler_name} 不存在[/red]")
                 return
@@ -881,7 +927,7 @@ class ZenRichTUI:
             "\n" +
             Text("输入消息开始对话，或输入 / 查看命令", style="dim", justify="center") +
             "\n" +
-            Text("1=仪表盘 2=成长 3=技能 4=GTD 5=设置 6=帮助 7=Agent", style="dim", justify="center")
+            Text("1=仪表盘 2=成长 3=技能 4=GTD 5=设置 6=帮助 7=Agent 8=知识 9=镜像", style="dim", justify="center")
         )
         self.console.print(Panel(
             body,
@@ -956,18 +1002,71 @@ class ZenRichTUI:
         self.console.print(f"[{color}]{icon} {message}[/{color}]")
 
     def _run_theme(self, theme_name: str):
-        """切换主题（当前仅提示，Rich 主题通过 CONSOLE_THEME 设置）。"""
-        valid = ["clean", "rich"]
+        """切换主题：保存配置、应用 accent 色到 console 并刷新当前页面。"""
+        from rich.theme import Theme as RichTheme
+
+        from ..themes import get_theme, list_themes, save_theme
+
+        valid = list_themes()
         if theme_name not in valid:
             self.console.print(f"[yellow]未知主题: {theme_name}，可用: {', '.join(valid)}[/yellow]")
             return
         # 保存到配置
         try:
-            from ..themes import save_theme
             save_theme(theme_name)
+            theme = get_theme(theme_name)
+            # 替换上次 push 的主题，避免样式栈累积
+            if getattr(self, "_theme_pushed", False):
+                self.console.pop_theme()
+            styles = dict(theme.rich_styles)
+            if "background" in styles:
+                # 映射为命名样式 [background]，使 markup 可绘制背景色
+                styles["background"] = f"on {styles['background']}"
+            self.console.push_theme(RichTheme(styles))
+            self._theme_pushed = True
+            self._render_page()
             self._toast(f"主题已切换为 {theme_name}", "success")
         except Exception as e:
             self._toast(f"主题切换失败: {e}", "error")
+
+    def _run_thinking(self, parsed):
+        """切换 thinking level。"""
+        level = parsed.args[0] if parsed.args else (parsed.action or "medium")
+        valid_levels = ("low", "medium", "high")
+        if level not in valid_levels:
+            self._toast(f"无效 thinking level: {level}，可选: {', '.join(valid_levels)}", "warning")
+            return
+        try:
+            self._thinking_level = level
+            agent = getattr(self, "_agent_session", None)
+            if agent and hasattr(agent, "switch_thinking"):
+                result = agent.switch_thinking(level)
+                self._toast(f"thinking level → {result}", "success")
+            else:
+                self._toast(f"thinking level → {level}", "success")
+        except Exception as e:
+            self._toast(f"thinking level 设置失败: {e}", "error")
+
+    def _run_compact(self):
+        """手动压缩当前 agent 会话上下文。"""
+        try:
+            import asyncio
+            asyncio.create_task(self._do_compact())
+        except Exception as e:
+            self._toast(f"compact 失败: {e}", "error")
+
+    async def _do_compact(self):
+        """执行 compact（代理模式下委托 agent session；否则 CLI 透传）。"""
+        try:
+            agent = getattr(self, "_agent_session", None)
+            if agent and hasattr(agent, "compact"):
+                result = await agent.compact()
+                self._toast(f"compact: {result}", "success")
+            else:
+                # CLI 透传
+                self._execute_registry_command("/compact")
+        except Exception as e:
+            self._toast(f"compact 失败: {e}", "error")
 
     def _run_doctor(self):
         """运行诊断。"""

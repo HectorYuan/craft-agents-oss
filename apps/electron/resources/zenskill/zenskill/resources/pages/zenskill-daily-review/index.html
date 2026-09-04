@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>每日复盘</title>
+<style>
+  :root {
+    --bg: #16161e;
+    --card: #1f2030;
+    --card-border: #2a2c42;
+    --text: #c8d0e8;
+    --text-dim: #7c8598;
+    --accent: #7aa2f7;
+    --accent-soft: rgba(122, 162, 247, 0.15);
+    --good: #9ece6a;
+    --warn: #e0af68;
+    --bad: #f7768e;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: "PingFang SC", "Microsoft YaHei", "Noto Sans SC", sans-serif;
+    padding: 20px;
+    min-height: 100vh;
+  }
+  .header {
+    display: flex; align-items: baseline; justify-content: space-between;
+    margin-bottom: 16px;
+  }
+  .header h1 { font-size: 18px; font-weight: 600; color: #e6ecfb; }
+  .updated { font-size: 12px; color: var(--text-dim); }
+  .grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--card-border);
+    border-radius: 10px;
+    padding: 16px;
+  }
+  .card h2 {
+    font-size: 12px; font-weight: 500; color: var(--text-dim);
+    margin-bottom: 10px; letter-spacing: 1px;
+  }
+  .card.wide { grid-column: 1 / -1; }
+  .review-message { font-size: 14px; line-height: 1.7; }
+  .mood { font-size: 12px; color: var(--text-dim); margin-top: 8px; line-height: 1.5; }
+  .ring-wrap { display: flex; align-items: center; gap: 16px; }
+  .ring-label { font-size: 20px; font-weight: 600; color: #e6ecfb; }
+  .ring-level { font-size: 12px; color: var(--text-dim); margin-top: 4px; }
+  .stats { display: flex; flex-direction: column; gap: 10px; }
+  .stat { display: flex; justify-content: space-between; align-items: baseline; }
+  .stat .num { font-size: 22px; font-weight: 600; color: var(--accent); }
+  .stat .num.zero { color: var(--good); }
+  .stat .lbl { font-size: 12px; color: var(--text-dim); }
+  .spark { display: flex; align-items: flex-end; gap: 6px; height: 44px; margin-top: 10px; }
+  .spark .bar {
+    flex: 1; min-height: 3px;
+    background: var(--accent-soft);
+    border-top: 2px solid var(--accent);
+    border-radius: 2px 2px 0 0;
+    position: relative;
+  }
+  .achv-list { display: flex; flex-direction: column; gap: 8px; }
+  .achv { display: flex; align-items: center; gap: 10px; font-size: 13px; }
+  .achv .icon { font-size: 18px; }
+  .empty { color: var(--text-dim); font-size: 12px; line-height: 1.6; }
+  .footer {
+    margin-top: 14px; text-align: center;
+    font-size: 11px; color: var(--text-dim);
+  }
+</style>
+</head>
+<body>
+  <div class="header">
+    <h1>每日复盘</h1>
+    <span class="updated" id="updated"></span>
+  </div>
+
+  <div class="grid">
+    <div class="card wide">
+      <h2>今日复盘</h2>
+      <div class="review-message" id="review-message">等待数据…</div>
+      <div class="mood" id="mood"></div>
+    </div>
+
+    <div class="card">
+      <h2>能量</h2>
+      <div class="ring-wrap">
+        <svg width="84" height="84" viewBox="0 0 84 84" id="ring">
+          <circle cx="42" cy="42" r="34" fill="none" stroke="#2a2c42" stroke-width="9"></circle>
+          <circle id="ring-fg" cx="42" cy="42" r="34" fill="none" stroke="var(--accent)"
+                  stroke-width="9" stroke-linecap="round"
+                  transform="rotate(-90 42 42)"
+                  stroke-dasharray="0 999"></circle>
+          <text id="ring-pct" x="42" y="47" text-anchor="middle"
+                font-size="17" font-weight="600" fill="#e6ecfb">--</text>
+        </svg>
+        <div>
+          <div class="ring-label" id="energy-level">--</div>
+          <div class="ring-level" id="energy-sub">能量状态</div>
+        </div>
+      </div>
+      <div class="spark" id="spark"></div>
+    </div>
+
+    <div class="card">
+      <h2>待办与收件箱</h2>
+      <div class="stats">
+        <div class="stat">
+          <span class="num" id="pending-actions">-</span>
+          <span class="lbl">待办行动</span>
+        </div>
+        <div class="stat">
+          <span class="num" id="inbox-pending">-</span>
+          <span class="lbl">收件箱待处理</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="card wide">
+      <h2>最近成就</h2>
+      <div class="achv-list" id="achievements">
+        <div class="empty">最近 24 小时内没有新解锁的成就</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer">ZenSkill · 每日 07:00 自动刷新</div>
+
+<script>
+(function () {
+  'use strict';
+
+  var LEVEL_TEXT = {
+    high: '精力充沛', medium: '状态不错', low: '能量偏低', critical: '需要休息'
+  };
+  var LEVEL_COLOR = {
+    high: '#9ece6a', medium: '#7aa2f7', low: '#e0af68', critical: '#f7768e'
+  };
+
+  function setText(id, text) {
+    var el = document.getElementById(id);
+    if (el) el.textContent = text == null ? '-' : String(text);
+  }
+
+  function renderRing(pct) {
+    var r = 34, c = 2 * Math.PI * r;
+    var ring = document.getElementById('ring-fg');
+    var shown = (pct == null) ? 0 : Math.max(0, Math.min(100, pct));
+    ring.setAttribute('stroke-dasharray', (shown / 100 * c).toFixed(1) + ' ' + c.toFixed(1));
+    var color = pct == null ? 'var(--accent)' :
+      (pct >= 70 ? LEVEL_COLOR.high : pct >= 40 ? LEVEL_COLOR.medium :
+        pct >= 15 ? LEVEL_COLOR.low : LEVEL_COLOR.critical);
+    ring.setAttribute('stroke', color);
+    setText('ring-pct', pct == null ? '--' : Math.round(pct) + '%');
+  }
+
+  function renderSpark(points) {
+    var wrap = document.getElementById('spark');
+    wrap.innerHTML = '';
+    if (!points || !points.length) return;
+    points.slice(-7).forEach(function (p) {
+      var bar = document.createElement('div');
+      bar.className = 'bar';
+      var h = Math.max(3, Math.round((p.v / 100) * 44));
+      bar.style.height = h + 'px';
+      bar.title = new Date(p.t).toLocaleDateString('zh-CN') + '：' + p.v + '%';
+      wrap.appendChild(bar);
+    });
+  }
+
+  function renderAchievements(items) {
+    var box = document.getElementById('achievements');
+    box.innerHTML = '';
+    if (!items || !items.length) {
+      var empty = document.createElement('div');
+      empty.className = 'empty';
+      empty.textContent = '最近 24 小时内没有新解锁的成就';
+      box.appendChild(empty);
+      return;
+    }
+    items.forEach(function (a) {
+      var row = document.createElement('div');
+      row.className = 'achv';
+      var icon = document.createElement('span');
+      icon.className = 'icon';
+      icon.textContent = a.icon || '🏅';
+      var title = document.createElement('span');
+      title.textContent = a.title || '';
+      row.appendChild(icon);
+      row.appendChild(title);
+      box.appendChild(row);
+    });
+  }
+
+  function fmtTime(ms) {
+    try {
+      var d = new Date(ms);
+      return d.toLocaleDateString('zh-CN') + ' ' +
+        d.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+    } catch (e) { return ''; }
+  }
+
+  function applySnapshot(snapshot) {
+    if (!snapshot || typeof snapshot !== 'object') return;
+    var kv = snapshot.kv || {};
+    setText('review-message', kv.review_message || '暂无复盘数据');
+    setText('mood', kv.companion_mood || '');
+    renderRing(typeof kv.energy_pct === 'number' ? kv.energy_pct : null);
+    setText('energy-level', LEVEL_TEXT[kv.energy_level] || kv.energy_level || '--');
+    setText('energy-sub', '能量状态');
+    setText('pending-actions', kv.pending_actions);
+    setText('inbox-pending', kv.inbox_pending);
+    renderAchievements(kv.achievements_new);
+    renderSpark((snapshot.series || {}).energy_history);
+    setText('updated', '更新于 ' + fmtTime(snapshot.generatedAt || kv.generated_at));
+  }
+
+  // craft Pages 协议：宿主经 postMessage 注入 init/data（protocol craft-pages/v1）
+  window.addEventListener('message', function (event) {
+    var msg = event.data;
+    if (!msg || msg.protocol !== 'craft-pages/v1') return;
+    if (msg.type === 'init' && msg.payload && msg.payload.snapshot) {
+      applySnapshot(msg.payload.snapshot);
+    } else if (msg.type === 'data' && msg.payload) {
+      applySnapshot(msg.payload.snapshot);
+    }
+  });
+
+  // 保守兼容：直接以全局变量注入时也可渲染（本地开发 / 纯浏览器打开）
+  if (window.__PAGE_SNAPSHOT__) applySnapshot(window.__PAGE_SNAPSHOT__);
+})();
+</script>
+</body>
+</html>
