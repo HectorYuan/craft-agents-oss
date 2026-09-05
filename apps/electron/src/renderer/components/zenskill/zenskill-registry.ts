@@ -18,7 +18,7 @@ import { MemoryBrowser } from './pages/MemoryBrowser'
 import { ZenSkillOverview } from './pages/ZenSkillOverview'
 
 /** The ZenSkill MCP source slug all ZenSkill pages talk to. */
-export const ZENSKILL_SOURCE_SLUG = 'zenskill-4'
+export const ZENSKILL_SOURCE_SLUG = 'zenskill'
 
 export interface ZenSkillPageProps {
   workspaceId?: string

@@ -60,7 +60,7 @@ export function registerZenSkillSessionSummarySeam(args: {
     args.sessionManager.onSessionComplete(async (evt) => {
       if (evt.reason !== 'complete' || !evt.mcpPool) return
       try {
-        const def = evt.mcpPool.getProxyToolDefs(['zenskill-4'])
+        const def = evt.mcpPool.getProxyToolDefs(['zenskill'])
           .find(d => d.name.endsWith('__session_summary'))
         if (!def) return
         await evt.mcpPool.callTool(def.name, {

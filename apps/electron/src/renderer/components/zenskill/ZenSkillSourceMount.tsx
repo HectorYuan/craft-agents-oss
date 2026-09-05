@@ -13,7 +13,7 @@ interface ZenSkillSourceMountProps {
 }
 
 export function ZenSkillSourceMount({ sourceType, sourceSlug, workspaceId }: ZenSkillSourceMountProps) {
-  if (sourceType !== 'mcp' || sourceSlug !== 'zenskill-4' || !workspaceId) return null
+  if (sourceType !== 'mcp' || sourceSlug !== 'zenskill' || !workspaceId) return null
 
   return (
     <Info_Section

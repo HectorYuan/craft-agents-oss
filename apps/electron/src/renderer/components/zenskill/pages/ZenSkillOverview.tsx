@@ -13,7 +13,7 @@ import { EnergyBar } from '../panels/EnergyBar'
 import { HabitHeatmap } from '../panels/HabitHeatmap'
 import { ZS } from '../panels/tokens'
 
-const ZENSKILL_SOURCE_SLUG = 'zenskill-4'
+const ZENSKILL_SOURCE_SLUG = 'zenskill'
 
 interface DashboardData {
   active_skills?: number
