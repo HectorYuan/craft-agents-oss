@@ -42,6 +42,8 @@ import { ZENSKILL_SOURCE_SLUG } from '../zenskill-registry'
 type GtdTab = 'inbox' | 'actions' | 'calendar' | 'projects' | 'incubating'
 
 interface InboxData { count?: number; items?: { id: string; text?: string; raw_text?: string; status?: string }[] }
+/** inbox_suggest payload — B09: item_id → suggested classification */
+interface InboxSuggestData { count?: number; items?: { item_id: string; text?: string; suggested_type: string }[] }
 interface ActionData { count?: number; items?: GtdAction[] }
 interface CalendarListData { count?: number; events?: GtdCalendarEvent[] }
 /** calendar_suggest post-fix shape is {suggestions}; items kept as a pre-fix fallback */
@@ -172,6 +174,8 @@ export function GtdWorkspace({ workspaceId, initialTab }: GtdWorkspaceProps) {
   // B04+B15+B16: Review Bar data (energy + daily review), refreshed by zenskill:changed
   const energyLevel = useMcpTool<EnergyLevelData>(workspaceId, sourceSlug, 'energy_level', {})
   const dailyReview = useMcpTool<DailyReviewData>(workspaceId, sourceSlug, 'daily_review', {})
+  // B09: AI classification suggestions for unprocessed inbox items (read-only)
+  const inboxSuggest = useMcpTool<InboxSuggestData>(workspaceId, sourceSlug, 'inbox_suggest', { limit: 50 })
 
   const runTool = useCallback(async (tool: string, args: Record<string, unknown>) => {
     if (!workspaceId) return
@@ -240,6 +244,17 @@ export function GtdWorkspace({ workspaceId, initialTab }: GtdWorkspaceProps) {
     void runTool('calendar_add', { date, title, action_id: actionId })
   }, [runTool])
 
+  // B10: batch-classify every unprocessed inbox item by its AI suggestion.
+  // Sequential awaits keep busyId/toast feedback ordered; each clarify
+  // triggers a zenskill:changed refresh which is debounced by useMcpTool.
+  const batchClassify = useCallback(async () => {
+    const suggestions = inboxSuggest.data?.items ?? []
+    if (!workspaceId || suggestions.length === 0) return
+    for (const s of suggestions) {
+      await runTool('inbox_clarify', { item_id: s.item_id, result_type: s.suggested_type })
+    }
+  }, [inboxSuggest.data, workspaceId, runTool])
+
   // B01: two-step clarify confirm — target_id links an existing action,
   // omitting it lets the backend create the downstream object
   const confirmClarify = useCallback((itemId: string, resultType: ClarifyResultType, targetId?: string) => {
@@ -288,6 +303,12 @@ export function GtdWorkspace({ workspaceId, initialTab }: GtdWorkspaceProps) {
   const calendarCount = calendarScope === 'today'
     ? (calendarToday.data?.count ?? (calendarToday.data?.events ?? []).length)
     : monthTotal
+
+  // B09: item_id → suggested classification lookup for the inbox list
+  const suggestionMap: Record<string, string> = {}
+  for (const s of inboxSuggest.data?.items ?? []) {
+    suggestionMap[s.item_id] = s.suggested_type
+  }
 
   const error = inbox.error ?? actions.error ?? calendarToday.error ?? calendarMonth.error ?? projects.error
 
@@ -404,6 +425,9 @@ export function GtdWorkspace({ workspaceId, initialTab }: GtdWorkspaceProps) {
                 maxItems={100}
                 onClarifyRequest={(item) => setClarifyItem(item)}
                 onArchive={(itemId) => runTool('inbox_archive', { item_id: itemId })}
+                suggestions={suggestionMap}
+                onBatchClassify={() => void batchClassify()}
+                batchClassifyDisabled={!workspaceId || busyId !== null || (inboxSuggest.data?.count ?? 0) === 0}
                 onCaptureSubmit={capture}
                 captureDisabled={!workspaceId || busyId === 'gtd_capture'}
                 capturePlaceholder={t('zenskill.gtd.capture.placeholder')}

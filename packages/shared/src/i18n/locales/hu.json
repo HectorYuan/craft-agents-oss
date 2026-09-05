@@ -1828,6 +1828,8 @@
   "zenskill.gtd.tab.incubating": "Inkubálás",
   "zenskill.gtd.tab.projects": "Projektek",
   "zenskill.gtd.title": "GTD munkaterület",
+  "zenskill.inbox.batchClassify": "Kötegelt renderezés",
+  "zenskill.inbox.suggestBadge": "AI-javaslat, kattintson az elfogadáshoz",
   "zenskill.memory.empty": "Még nincsenek emlékek",
   "zenskill.memory.error": "Nem sikerült betölteni az emlékeket",
   "zenskill.memory.searchPlaceholder": "Emlékek keresése...",

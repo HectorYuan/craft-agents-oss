@@ -1828,6 +1828,8 @@
   "zenskill.gtd.tab.incubating": "Incubating",
   "zenskill.gtd.tab.projects": "Projects",
   "zenskill.gtd.title": "GTD Workspace",
+  "zenskill.inbox.batchClassify": "Batch Organize",
+  "zenskill.inbox.suggestBadge": "AI suggestion, click to adopt",
   "zenskill.memory.empty": "No memories yet",
   "zenskill.memory.error": "Failed to load memories",
   "zenskill.memory.searchPlaceholder": "Search memories...",

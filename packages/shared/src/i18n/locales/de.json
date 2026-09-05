@@ -1828,6 +1828,8 @@
   "zenskill.gtd.tab.incubating": "Inkubation",
   "zenskill.gtd.tab.projects": "Projekte",
   "zenskill.gtd.title": "GTD-Arbeitsbereich",
+  "zenskill.inbox.batchClassify": "Stapel sortieren",
+  "zenskill.inbox.suggestBadge": "KI-Vorschlag, zum Übernehmen klicken",
   "zenskill.memory.empty": "Noch keine Erinnerungen",
   "zenskill.memory.error": "Fehler beim Laden der Erinnerungen",
   "zenskill.memory.searchPlaceholder": "Erinnerungen durchsuchen...",

@@ -1828,6 +1828,8 @@
   "zenskill.gtd.tab.incubating": "Incubar",
   "zenskill.gtd.tab.projects": "Proyectos",
   "zenskill.gtd.title": "Espacio de trabajo GTD",
+  "zenskill.inbox.batchClassify": "Organizar en lote",
+  "zenskill.inbox.suggestBadge": "Sugerencia de IA, clic para adoptar",
   "zenskill.memory.empty": "Aún no hay recuerdos",
   "zenskill.memory.error": "Error al cargar los recuerdos",
   "zenskill.memory.searchPlaceholder": "Buscar recuerdos...",
