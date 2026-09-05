@@ -9,8 +9,10 @@
  * and calendar_suggest chips that prefill the add form. today/week stay
  * as quick scopes (week = current week row highlighted on the grid).
  *
- * calendar_month / calendar_suggest shapes are contract-pending (Python
- * side in sync) — every read goes through optional chaining.
+ * calendar_month keys days by full "YYYY-MM-DD" and groups events per day;
+ * calendar_suggest returns {suggestions: [{date, time, period}]}. The reads
+ * stay defensive (optional chaining + time_str fallback) so pre-fix backend
+ * payloads still render.
  */
 import React, { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -71,6 +73,7 @@ function pad2(n: number): string {
   return n < 10 ? `0${n}` : String(n)
 }
 
+/** calendar_list / calendar_month events carry `id` (post-fix); event_id kept for pre-fix payloads */
 function eventIdOf(e: GtdCalendarEventWithId): string | undefined {
   return e.event_id ?? e.id
 }
@@ -372,12 +375,12 @@ export function CalendarPanel({
                             onClick={() => {
                               if (!s.date) return
                               onSelectDate?.(s.date)
-                              setFormTime(s.time_str ?? '')
+                              setFormTime(s.time ?? s.time_str ?? '')
                             }}
                             className="px-1.5 py-0.5 text-[10px] rounded bg-accent/10 text-accent hover:bg-accent/20 transition-colors tabular-nums"
                           >
                             {d ? format(d, 'MM-dd', { locale: dateLocale }) : (s.date ?? '?')}
-                            {s.time_str ? ` ${s.time_str}` : ''}
+                            {(s.time ?? s.time_str) ? ` ${s.time ?? s.time_str}` : ''}
                           </button>
                         )
                       })}

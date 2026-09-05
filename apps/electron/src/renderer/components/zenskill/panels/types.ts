@@ -21,6 +21,8 @@ export interface GtdAction {
   due_date?: string
   project_id?: string
   energy_required?: number
+  /** Origin marker from the backend ("agent" | "user") — rendered as a source chip in full variant */
+  created_by?: string
 }
 
 export interface GtdCalendarEvent {
@@ -45,9 +47,10 @@ export interface GtdCalendarMonthData {
   events?: GtdCalendarEventWithId[]
 }
 
-/** calendar_suggest slot (contract pending) */
+/** calendar_suggest slot — backend contract: {date, time, period}; time_str kept for pre-fix payloads */
 export interface GtdCalendarSuggestion {
   date?: string
+  time?: string
   time_str?: string
   period?: string
   score?: number

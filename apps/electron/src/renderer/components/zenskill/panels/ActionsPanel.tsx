@@ -280,6 +280,14 @@ export function ActionsPanel({
                 ⚡{energy}
               </span>
             )}
+            {isFull && (a.created_by === 'agent' || a.created_by === 'user') && (
+              <span
+                className="text-[9px] px-1 py-px rounded shrink-0 bg-muted/60 text-muted-foreground/70"
+                title={t('zenskill.gtd.actions.source', { origin: a.created_by })}
+              >
+                {a.created_by}
+              </span>
+            )}
             {a.due_date && !isDoneView && (
               <span className="text-[10px] text-muted-foreground shrink-0">{a.due_date.slice(5)}</span>
             )}

@@ -17,7 +17,7 @@ interface GtdToolResultCardProps {
   resultText: string
 }
 
-type GtdTab = 'inbox' | 'actions' | 'calendar'
+type GtdTab = 'inbox' | 'actions' | 'calendar' | 'projects'
 
 /**
  * Loose GTD tool matching — Mode B (agent sessions) names carry the MCP
@@ -27,17 +27,18 @@ type GtdTab = 'inbox' | 'actions' | 'calendar'
 export function isGtdToolName(toolName?: string): boolean {
   if (!toolName) return false
   const n = toolName.toLowerCase()
-  return n.includes('gtd_') || n.includes('inbox_') || n.includes('action_') || n.includes('calendar_')
+  return n.includes('gtd_') || n.includes('inbox_') || n.includes('action_') || n.includes('calendar_') || n.includes('project_')
 }
 
 function gtdTabForTool(toolName: string): GtdTab {
   const n = toolName.toLowerCase()
   if (n.includes('calendar_')) return 'calendar'
+  if (n.includes('project_')) return 'projects'
   if (n.includes('action_')) return 'actions'
   return 'inbox'
 }
 
-type ToolKind = 'action_add' | 'action_done' | 'gtd_capture' | 'inbox_clarify' | 'calendar_add' | 'action_mark_next' | 'generic'
+type ToolKind = 'action_add' | 'action_done' | 'gtd_capture' | 'inbox_clarify' | 'calendar_add' | 'action_mark_next' | 'project_add' | 'generic'
 
 function toolKind(toolName: string): ToolKind {
   const n = toolName.toLowerCase()
@@ -47,6 +48,7 @@ function toolKind(toolName: string): ToolKind {
   if (n.includes('gtd_capture')) return 'gtd_capture'
   if (n.includes('inbox_clarify')) return 'inbox_clarify'
   if (n.includes('calendar_add')) return 'calendar_add'
+  if (n.includes('project_add')) return 'project_add'
   return 'generic'
 }
 
@@ -144,6 +146,14 @@ export function GtdToolResultCard({ toolName, resultText }: GtdToolResultCardPro
     const title = typeof event?.title === 'string' ? event.title : ''
     if (date || time) details.push({ value: [date, time].filter(Boolean).join(' ') })
     if (title) details.push({ value: truncate(title, 120) })
+  } else if (kind === 'project_add') {
+    icon = '📁'
+    headline = t('zenskill.card.projectCreated')
+    const project = data?.project as { name?: unknown } | undefined
+    const name = str(data ?? {}, 'name') || (typeof project?.name === 'string' ? project.name : '')
+    if (name) details.push({ value: truncate(name, 120) })
+    const outcome = str(data ?? {}, 'outcome')
+    if (outcome) details.push({ label: t('zenskill.card.projectOutcome'), value: truncate(outcome, 120) })
   } else if (kind === 'action_mark_next') {
     icon = '⏭'
     headline = t('zenskill.card.markedNext')

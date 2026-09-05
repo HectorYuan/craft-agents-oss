@@ -3,15 +3,16 @@
  *
  * compact variant (default): the JSX previously inlined in
  * ZenSkillDataPanel's GTD tab (name + status only). full variant
- * (GtdWorkspace): adds a progress bar, a hover project_done action, and an
+ * (GtdWorkspace): adds a progress bar, a hover project_done action, an
  * expandable chevron per row revealing the project's open actions —
  * fetched lazily through the useMcpTool L3 hook (action_list
  * {project_id}) only while the row is expanded, refreshed by the
- * zenskill:changed broadcast like every other read.
+ * zenskill:changed broadcast like every other read — and a "new project"
+ * inline form (name + optional outcome) calling project_add.
  */
 import React, { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Check, ChevronRight, CircleDashed } from 'lucide-react'
+import { Check, ChevronRight, CircleDashed, FolderKanban, Plus, X } from 'lucide-react'
 import { useMcpTool } from '@/hooks/zenskill/useMcpTool'
 import { PRIORITY_COLOR, type GtdProject } from './types'
 
@@ -22,6 +23,9 @@ export interface ProjectsPanelProps {
   variant?: 'compact' | 'full'
   showHeader?: boolean
   onDone?: (projectId: string) => void
+  /** full variant: project_add form submit */
+  onAddProject?: (input: { name: string; outcome?: string }) => void
+  addProjectDisabled?: boolean
   /** full variant: enable expandable per-project action lists */
   workspaceId?: string
   sourceSlug?: string
@@ -83,6 +87,8 @@ export function ProjectsPanel({
   variant = 'compact',
   showHeader = true,
   onDone,
+  onAddProject,
+  addProjectDisabled,
   workspaceId,
   sourceSlug,
 }: ProjectsPanelProps) {
@@ -90,6 +96,20 @@ export function ProjectsPanel({
   const { t } = useTranslation()
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
   const canExpand = isFull && !!workspaceId && !!sourceSlug
+
+  // full variant: project_add inline form
+  const [formOpen, setFormOpen] = useState(false)
+  const [formName, setFormName] = useState('')
+  const [formOutcome, setFormOutcome] = useState('')
+
+  const submitAddProject = () => {
+    const name = formName.trim()
+    if (!name || addProjectDisabled) return
+    onAddProject?.({ name, outcome: formOutcome.trim() || undefined })
+    setFormName('')
+    setFormOutcome('')
+    setFormOpen(false)
+  }
 
   const toggleExpand = (id: string) => {
     setExpandedIds((cur) => {
@@ -105,10 +125,79 @@ export function ProjectsPanel({
       {showHeader && (
         <div className="flex items-center gap-1.5 mb-1.5">
           <span className="text-xs font-medium text-muted-foreground">Projects ({projects.length})</span>
+          {isFull && onAddProject && (
+            <button
+              onClick={() => setFormOpen((v) => !v)}
+              disabled={addProjectDisabled}
+              className="ml-auto flex items-center gap-1 px-2 py-0.5 text-[11px] rounded text-accent hover:bg-accent/10 transition-colors disabled:opacity-40"
+              title={t('zenskill.gtd.projects.addTitle')}
+            >
+              <Plus className="h-3 w-3" />
+              {t('zenskill.gtd.projects.add')}
+            </button>
+          )}
+        </div>
+      )}
+      {isFull && formOpen && (
+        <div className="flex items-center gap-1.5 mb-1.5">
+          <input
+            value={formName}
+            autoFocus
+            onChange={(e) => setFormName(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.nativeEvent.isComposing) submitAddProject()
+              if (e.key === 'Escape') setFormOpen(false)
+            }}
+            placeholder={t('zenskill.gtd.projects.formName')}
+            disabled={addProjectDisabled}
+            className="flex-1 min-w-0 text-xs bg-muted/40 rounded px-2 py-1.5 outline-none focus:ring-1 focus:ring-accent/40 disabled:opacity-50"
+          />
+          <input
+            value={formOutcome}
+            onChange={(e) => setFormOutcome(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.nativeEvent.isComposing) submitAddProject()
+              if (e.key === 'Escape') setFormOpen(false)
+            }}
+            placeholder={t('zenskill.gtd.projects.formOutcome')}
+            disabled={addProjectDisabled}
+            className="w-40 shrink-0 text-xs bg-muted/40 rounded px-2 py-1.5 outline-none focus:ring-1 focus:ring-accent/40 text-muted-foreground disabled:opacity-50"
+          />
+          <button
+            onClick={submitAddProject}
+            disabled={addProjectDisabled || !formName.trim()}
+            className="p-1.5 rounded bg-accent/10 text-accent hover:bg-accent/20 disabled:opacity-40 shrink-0"
+            title={t('zenskill.gtd.projects.addTitle')}
+          >
+            <Check className="h-3.5 w-3.5" />
+          </button>
+          <button
+            onClick={() => setFormOpen(false)}
+            className="p-1.5 rounded text-muted-foreground hover:bg-muted/60 shrink-0"
+            title={t('zenskill.gtd.projects.cancel')}
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
         </div>
       )}
       {projects.length === 0 ? (
-        <div className="text-xs text-muted-foreground italic pl-5">No active projects</div>
+        isFull ? (
+          <div className="flex flex-col items-center gap-1 py-3 text-muted-foreground/60">
+            <FolderKanban className="h-4 w-4" />
+            <span className="text-[11px] italic">{t('zenskill.gtd.projects.empty')}</span>
+            {onAddProject && (
+              <button
+                onClick={() => setFormOpen(true)}
+                disabled={addProjectDisabled}
+                className="text-[11px] text-accent hover:underline disabled:opacity-40"
+              >
+                {t('zenskill.gtd.projects.createFirst')}
+              </button>
+            )}
+          </div>
+        ) : (
+          <div className="text-xs text-muted-foreground italic pl-5">No active projects</div>
+        )
       ) : (
         <div className="space-y-0.5">
           {projects.slice(0, maxItems).map((p) => {

@@ -35,8 +35,12 @@ type GtdTab = 'inbox' | 'actions' | 'calendar' | 'projects'
 interface InboxData { count?: number; items?: { id: string; text?: string; raw_text?: string; status?: string }[] }
 interface ActionData { count?: number; items?: GtdAction[] }
 interface CalendarListData { count?: number; events?: GtdCalendarEvent[] }
-interface SuggestData { items?: GtdCalendarSuggestion[] }
+/** calendar_suggest post-fix shape is {suggestions}; items kept as a pre-fix fallback */
+interface SuggestData { suggestions?: GtdCalendarSuggestion[]; items?: GtdCalendarSuggestion[] }
 interface ProjectData { count?: number; items?: { id: string; name: string; status?: string; progress?: number }[] }
+
+/** Write-tool payload — ok:false means the backend rejected the operation */
+interface WriteToolPayload { ok?: boolean; message?: string; result_type?: string }
 
 interface GtdWorkspaceProps {
   initialTab?: string
@@ -149,7 +153,30 @@ export function GtdWorkspace({ workspaceId, initialTab }: GtdWorkspaceProps) {
       // Refresh is driven by the zenskill:changed broadcast (subscribed in
       // useMcpTool) — no manual refetch here, mirroring DataPanel behavior.
       const result = await window.electronAPI.callMcpTool(workspaceId, sourceSlug, tool, args)
-      if (tool === 'action_done') notifyActionDone(result, t)
+      if (tool === 'action_done') {
+        notifyActionDone(result, t)
+        return
+      }
+      const data = extractMcpJson(result) as WriteToolPayload | null
+      if (data?.ok === false) {
+        toast.error(t('zenskill.toast.toolFailed'), {
+          description: typeof data.message === 'string' ? data.message : undefined,
+        })
+        return
+      }
+      // Lightweight success feedback for ops whose effect is only visible
+      // after the zenskill:changed refresh lands
+      if (tool === 'inbox_clarify') {
+        toast.success(t('zenskill.toast.clarified', {
+          type: typeof data?.result_type === 'string' && data.result_type ? data.result_type : '?',
+        }))
+      } else if (tool === 'inbox_archive') {
+        toast.success(t('zenskill.toast.archived'))
+      } else if (tool === 'action_delete') {
+        toast.success(t('zenskill.toast.deletedAction'))
+      } else if (tool === 'calendar_delete') {
+        toast.success(t('zenskill.toast.deletedEvent'))
+      }
     } finally {
       setBusyId(null)
     }
@@ -197,7 +224,7 @@ export function GtdWorkspace({ workspaceId, initialTab }: GtdWorkspaceProps) {
   const suggestRaw = suggest.data as unknown
   const suggestions: GtdCalendarSuggestion[] = Array.isArray(suggestRaw)
     ? (suggestRaw as GtdCalendarSuggestion[])
-    : ((suggestRaw as SuggestData | null)?.items ?? [])
+    : ((suggestRaw as SuggestData | null)?.suggestions ?? (suggestRaw as SuggestData | null)?.items ?? [])
   const monthTotal = monthData?.days
     ? Object.values(monthData.days).reduce((sum, n) => sum + (typeof n === 'number' ? n : 0), 0)
     : monthEvents.length
@@ -344,6 +371,8 @@ export function GtdWorkspace({ workspaceId, initialTab }: GtdWorkspaceProps) {
                 busyId={busyId}
                 maxItems={100}
                 onDone={(projectId) => runTool('project_done', { project_id: projectId })}
+                onAddProject={({ name, outcome }) => runTool('project_add', outcome ? { name, outcome } : { name })}
+                addProjectDisabled={!workspaceId || busyId === 'project_add'}
                 workspaceId={workspaceId}
                 sourceSlug={sourceSlug}
               />
