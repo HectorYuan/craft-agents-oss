@@ -10,6 +10,7 @@
  * zenskill:changed subscription.
  */
 import React, { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Inbox, ChevronRight, Archive, Wand2, Plus } from 'lucide-react'
 import type { GtdItem } from './types'
 
@@ -21,7 +22,10 @@ export interface InboxPanelProps {
   variant?: 'compact' | 'full'
   showHeader?: boolean
   onItemClick?: (text: string) => void
+  /** compact variant: one-shot clarify (auto-classify, no confirmation) */
   onClarify?: (itemId: string) => void
+  /** full variant: opens the ClarifyModal two-step flow for this item */
+  onClarifyRequest?: (item: GtdItem) => void
   onArchive?: (itemId: string) => void
   /** full variant: gtd_capture quick input (controlled when onCaptureValueChange is provided) */
   captureValue?: string
@@ -39,6 +43,7 @@ export function InboxPanel({
   showHeader = true,
   onItemClick,
   onClarify,
+  onClarifyRequest,
   onArchive,
   captureValue,
   onCaptureValueChange,
@@ -47,6 +52,7 @@ export function InboxPanel({
   capturePlaceholder,
 }: InboxPanelProps) {
   const isFull = variant === 'full'
+  const { t } = useTranslation()
   const [internalCapture, setInternalCapture] = useState('')
   const captureControlled = onCaptureValueChange !== undefined
   const captureText = captureControlled ? (captureValue ?? '') : internalCapture
@@ -113,9 +119,9 @@ export function InboxPanel({
               </button>
               <button
                 className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-accent/20 text-muted-foreground hover:text-accent shrink-0"
-                title="Clarify (auto-classify)"
+                title={onClarifyRequest ? t('zenskill.modal.clarify.open') : 'Clarify (auto-classify)'}
                 disabled={busyId === item.id}
-                onClick={() => onClarify?.(item.id)}
+                onClick={() => (onClarifyRequest ? onClarifyRequest(item) : onClarify?.(item.id))}
               >
                 <Wand2 className="h-3 w-3" />
               </button>

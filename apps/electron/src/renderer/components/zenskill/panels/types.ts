@@ -64,6 +64,16 @@ export interface GtdProject {
   progress?: number
 }
 
+/** incubating_list entry — maturity is a 0..1 fraction (backend rounds to 2 decimals) */
+export interface GtdIncubatingItem {
+  id: string
+  raw_concept?: string
+  channel?: string
+  maturity?: number
+  status?: string
+  check_after?: string
+}
+
 export const PRIORITY_COLOR: Record<string, string> = {
   P0: 'bg-red-500/15 text-red-400',
   P1: 'bg-orange-500/15 text-orange-400',

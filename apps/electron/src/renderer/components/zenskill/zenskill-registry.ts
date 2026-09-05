@@ -12,9 +12,10 @@
  */
 import type { ComponentType } from 'react'
 import type { LucideIcon } from 'lucide-react'
-import { Brain, Inbox } from 'lucide-react'
+import { Brain, Inbox, Zap } from 'lucide-react'
 import { GtdWorkspace } from './pages/GtdWorkspace'
 import { MemoryBrowser } from './pages/MemoryBrowser'
+import { ZenSkillOverview } from './pages/ZenSkillOverview'
 
 /** The ZenSkill MCP source slug all ZenSkill pages talk to. */
 export const ZENSKILL_SOURCE_SLUG = 'zenskill-4'
@@ -22,6 +23,7 @@ export const ZENSKILL_SOURCE_SLUG = 'zenskill-4'
 export interface ZenSkillPageProps {
   workspaceId?: string
   initialTab?: string
+  onNavigateToChat?: (message: string) => void
 }
 
 export interface ZenSkillPageRegistration {
@@ -30,9 +32,17 @@ export interface ZenSkillPageRegistration {
   component: ComponentType<ZenSkillPageProps>
   icon: LucideIcon
   i18nLabelKey: string
+  /** 自定义路由构建器；缺省使用 zenskill/{slug} */
+  routeBuilder?: () => string
 }
 
 export const ZENSKILL_PAGES: ZenSkillPageRegistration[] = [
+  {
+    slug: 'overview',
+    component: ZenSkillOverview,
+    icon: Zap,
+    i18nLabelKey: 'zenskill.overview.title',
+  },
   {
     slug: 'gtd',
     component: GtdWorkspace,

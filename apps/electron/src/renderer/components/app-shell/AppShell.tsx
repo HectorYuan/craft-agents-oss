@@ -2662,7 +2662,7 @@ function AppShellContent({
                       title: t("sidebar.zenskill"),
                       icon: Zap,
                       variant: isZenSkillNavigation(navState) ? "default" as const : "ghost" as const,
-                      onClick: () => navigate(routes.view.zenskillGtd()),
+                      onClick: () => navigate(routes.view.zenskillOverview()),
                       expandable: ZENSKILL_PAGES.length > 0,
                       expanded: isExpanded('nav:zenskill'),
                       onToggle: () => toggleExpanded('nav:zenskill'),
@@ -2671,7 +2671,7 @@ function AppShellContent({
                         title: t(page.i18nLabelKey),
                         icon: page.icon,
                         variant: (isZenSkillNavigation(navState) && navState.details?.type === 'zenskill-page' && navState.details.pageSlug === page.slug) ? "default" as const : "ghost" as const,
-                        onClick: () => navigate(page.slug === 'memory' ? routes.view.zenskillMemory() : routes.view.zenskillGtd()),
+                        onClick: () => navigate((page.routeBuilder?.() ?? `zenskill/${page.slug}`) as any),
                       })),
                     },
                     {

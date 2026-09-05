@@ -2,10 +2,16 @@
  * GtdWorkspace — ZenSkill top-level GTD workspace page (L2).
  *
  * Full-page counterpart of the ZenSkillDataPanel GTD tab: Inbox capture
- * flow / Actions / Calendar / Projects, switched by in-page tabs. Data is
- * fetched through the useMcpTool L3 hook (JSON extraction + zenskill:changed
- * auto-refresh); write tools are called directly and rely on the
- * zenskill:changed broadcast to refresh, never manual refetches.
+ * flow / Actions / Calendar / Projects / Incubating, switched by in-page
+ * tabs, with a compact Review Bar (energy + daily_review numbers) between
+ * the header and the tab bar. Data is fetched through the useMcpTool L3
+ * hook (JSON extraction + zenskill:changed auto-refresh); write tools are
+ * called directly and rely on the zenskill:changed broadcast to refresh,
+ * never manual refetches.
+ *
+ * Clarify is a two-step interaction: the InboxPanel Wand2 button opens the
+ * ClarifyModal, and the confirmed category (plus optional existing-action
+ * target) is sent to inbox_clarify, which creates the downstream object.
  *
  * Calendar: real month grid via calendar_month (defensive reads — the
  * shape is contract-pending), selected-day detail with calendar_add /
@@ -16,21 +22,24 @@ import React, { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { TFunction } from 'i18next'
 import { toast } from 'sonner'
-import { Zap, Inbox, Circle, CalendarDays, FolderKanban } from 'lucide-react'
+import { Zap, Inbox, Circle, CalendarDays, FolderKanban, Sprout } from 'lucide-react'
 import { useMcpTool, extractMcpJson } from '@/hooks/zenskill/useMcpTool'
 import { InboxPanel } from '../panels/InboxPanel'
 import { ActionsPanel, type ActionStatusFilter } from '../panels/ActionsPanel'
 import { CalendarPanel, type CalendarScope } from '../panels/CalendarPanel'
 import { ProjectsPanel } from '../panels/ProjectsPanel'
+import { IncubatingPanel } from '../panels/IncubatingPanel'
+import { ClarifyModal, type ClarifyResultType } from '../panels/ClarifyModal'
 import type {
   GtdAction,
   GtdCalendarEvent,
   GtdCalendarMonthData,
   GtdCalendarSuggestion,
+  GtdItem,
 } from '../panels/types'
 import { ZENSKILL_SOURCE_SLUG } from '../zenskill-registry'
 
-type GtdTab = 'inbox' | 'actions' | 'calendar' | 'projects'
+type GtdTab = 'inbox' | 'actions' | 'calendar' | 'projects' | 'incubating'
 
 interface InboxData { count?: number; items?: { id: string; text?: string; raw_text?: string; status?: string }[] }
 interface ActionData { count?: number; items?: GtdAction[] }
@@ -38,6 +47,17 @@ interface CalendarListData { count?: number; events?: GtdCalendarEvent[] }
 /** calendar_suggest post-fix shape is {suggestions}; items kept as a pre-fix fallback */
 interface SuggestData { suggestions?: GtdCalendarSuggestion[]; items?: GtdCalendarSuggestion[] }
 interface ProjectData { count?: number; items?: { id: string; name: string; status?: string; progress?: number }[] }
+/** energy_level payload — status.pct is a 0..1 fraction, all reads defensive */
+interface EnergyLevelData {
+  status?: { current_energy?: number; max_energy?: number; pct?: number; level?: string }
+  message?: string
+}
+/** daily_review payload (contract-pending, defensive reads) */
+interface DailyReviewData {
+  inbox?: { processed?: number; pending?: number }
+  actions?: { completed?: number; added?: number }
+  message?: string
+}
 
 /** Write-tool payload — ok:false means the backend rejected the operation */
 interface WriteToolPayload { ok?: boolean; message?: string; result_type?: string }
@@ -113,7 +133,7 @@ function notifyActionDone(result: unknown, t: TFunction): void {
 
 export function GtdWorkspace({ workspaceId, initialTab }: GtdWorkspaceProps) {
   const { t } = useTranslation()
-  const validTabs: GtdTab[] = ['inbox','actions','calendar','projects']; const [activeTab, setActiveTab] = useState<GtdTab>(validTabs.includes(initialTab as GtdTab) ? (initialTab as GtdTab) : 'inbox')
+  const validTabs: GtdTab[] = ['inbox','actions','calendar','projects','incubating']; const [activeTab, setActiveTab] = useState<GtdTab>(validTabs.includes(initialTab as GtdTab) ? (initialTab as GtdTab) : 'inbox')
   const [actionStatus, setActionStatus] = useState<ActionStatusFilter>('pending')
   const [calendarScope, setCalendarScope] = useState<CalendarScope>('month')
   const [monthCursor, setMonthCursor] = useState(() => {
@@ -123,12 +143,16 @@ export function GtdWorkspace({ workspaceId, initialTab }: GtdWorkspaceProps) {
   const [selectedDate, setSelectedDate] = useState(localTodayIso)
   const [suggestActive, setSuggestActive] = useState(false)
   const [busyId, setBusyId] = useState<string | null>(null)
+  /** B01: inbox item currently open in the ClarifyModal (null = closed) */
+  const [clarifyItem, setClarifyItem] = useState<GtdItem | null>(null)
 
   const sourceSlug = ZENSKILL_SOURCE_SLUG
   const inbox = useMcpTool<InboxData>(workspaceId, sourceSlug, 'gtd_inbox_list', { limit: 50 })
   const actions = useMcpTool<ActionData>(workspaceId, sourceSlug, 'action_list', { status: actionStatus, limit: 50 })
   // Pending actions feed the calendar sidebar (filtered by due_date client-side)
   const dueActions = useMcpTool<ActionData>(workspaceId, sourceSlug, 'action_list', { status: 'pending', limit: 100 })
+  // B06: suggested next actions (top of the pending view)
+  const nextActions = useMcpTool<ActionData>(workspaceId, sourceSlug, 'action_list', { status: 'next', limit: 3 })
   const calendarToday = useMcpTool<CalendarListData>(workspaceId, sourceSlug, 'calendar_list', { scope: 'today' })
   // Month payload for the grid — parked while the today flat list is shown
   const calendarMonth = useMcpTool<GtdCalendarMonthData>(
@@ -145,6 +169,9 @@ export function GtdWorkspace({ workspaceId, initialTab }: GtdWorkspaceProps) {
     {},
   )
   const projects = useMcpTool<ProjectData>(workspaceId, sourceSlug, 'project_list', { status: 'active' })
+  // B04+B15+B16: Review Bar data (energy + daily review), refreshed by zenskill:changed
+  const energyLevel = useMcpTool<EnergyLevelData>(workspaceId, sourceSlug, 'energy_level', {})
+  const dailyReview = useMcpTool<DailyReviewData>(workspaceId, sourceSlug, 'daily_review', {})
 
   const runTool = useCallback(async (tool: string, args: Record<string, unknown>) => {
     if (!workspaceId) return
@@ -167,8 +194,10 @@ export function GtdWorkspace({ workspaceId, initialTab }: GtdWorkspaceProps) {
       // Lightweight success feedback for ops whose effect is only visible
       // after the zenskill:changed refresh lands
       if (tool === 'inbox_clarify') {
+        const rawType = typeof data?.result_type === 'string' && data.result_type ? data.result_type : '?'
+        const knownType = (['action', 'project', 'calendar', 'reference'] as const).includes(rawType as ClarifyResultType)
         toast.success(t('zenskill.toast.clarified', {
-          type: typeof data?.result_type === 'string' && data.result_type ? data.result_type : '?',
+          type: knownType ? t(`zenskill.modal.clarify.type.${rawType}`) : rawType,
         }))
       } else if (tool === 'inbox_archive') {
         toast.success(t('zenskill.toast.archived'))
@@ -176,6 +205,12 @@ export function GtdWorkspace({ workspaceId, initialTab }: GtdWorkspaceProps) {
         toast.success(t('zenskill.toast.deletedAction'))
       } else if (tool === 'calendar_delete') {
         toast.success(t('zenskill.toast.deletedEvent'))
+      } else if (tool === 'calendar_add' && args.action_id) {
+        // B13: only the action-scheduling path toasts (plain calendar_add from
+        // the CalendarPanel form has its own visible row already)
+        toast.success(t('zenskill.toast.scheduled', { date: String(args.date ?? '') }))
+      } else if (tool === 'incubating_promote') {
+        toast.success(t('zenskill.toast.promoted'))
       }
     } finally {
       setBusyId(null)
@@ -186,10 +221,32 @@ export function GtdWorkspace({ workspaceId, initialTab }: GtdWorkspaceProps) {
     void runTool('gtd_capture', { text })
   }, [runTool])
 
-  const addAction = useCallback(({ title, priority, dueDate }: { title: string; priority: string; dueDate: string }) => {
+  const addAction = useCallback(({ title, priority, dueDate, energyRequired, projectId }: {
+    title: string
+    priority: string
+    dueDate: string
+    energyRequired?: number
+    projectId?: string
+  }) => {
     const args: Record<string, unknown> = { title, priority }
     if (dueDate) args.due_date = dueDate
+    if (typeof energyRequired === 'number') args.energy_required = energyRequired
+    if (projectId) args.project_id = projectId
     void runTool('action_add', args)
+  }, [runTool])
+
+  // B13: schedule an action to the calendar (backend links via action_id)
+  const scheduleAction = useCallback(({ actionId, title, date }: { actionId: string; title: string; date: string }) => {
+    void runTool('calendar_add', { date, title, action_id: actionId })
+  }, [runTool])
+
+  // B01: two-step clarify confirm — target_id links an existing action,
+  // omitting it lets the backend create the downstream object
+  const confirmClarify = useCallback((itemId: string, resultType: ClarifyResultType, targetId?: string) => {
+    const args: Record<string, unknown> = { item_id: itemId, result_type: resultType }
+    if (targetId) args.target_id = targetId
+    setClarifyItem(null)
+    void runTool('inbox_clarify', args)
   }, [runTool])
 
   const editAction = useCallback(({ actionId, title, priority, dueDate }: { actionId: string; title: string; priority: string; dueDate: string }) => {
@@ -239,9 +296,30 @@ export function GtdWorkspace({ workspaceId, initialTab }: GtdWorkspaceProps) {
     { key: 'actions', label: t('zenskill.gtd.tab.actions'), icon: Circle },
     { key: 'calendar', label: t('zenskill.gtd.tab.calendar'), icon: CalendarDays },
     { key: 'projects', label: t('zenskill.gtd.tab.projects'), icon: FolderKanban },
+    { key: 'incubating', label: t('zenskill.gtd.tab.incubating'), icon: Sprout },
   ]
 
   const busy = inbox.loading || actions.loading || calendarToday.loading || calendarMonth.loading || projects.loading
+
+  // Review Bar derived values — every read defensive (contract pending)
+  const energyStatus = energyLevel.data?.status
+  const currentEnergy = typeof energyStatus?.current_energy === 'number' ? energyStatus.current_energy : null
+  const maxEnergy = typeof energyStatus?.max_energy === 'number' ? energyStatus.max_energy : null
+  const energyPct = typeof energyStatus?.pct === 'number'
+    ? energyStatus.pct
+    : currentEnergy !== null && maxEnergy ? currentEnergy / Math.max(maxEnergy, 1) : null
+  const energyDotClass = energyPct === null
+    ? 'bg-muted-foreground/40'
+    : energyPct < 0.1 ? 'bg-red-500'
+      : energyPct < 0.3 ? 'bg-orange-500'
+        : energyPct <= 0.7 ? 'bg-yellow-500'
+          : 'bg-green-500'
+  const doneToday = dailyReview.data?.actions?.completed ?? 0
+  const pendingCount = dailyReview.data?.inbox?.pending ?? 0
+  const overdueCount = (dueActions.data?.items ?? []).filter(
+    (a) => a?.due_date && a.due_date < todayIso,
+  ).length
+  const reviewMessage = typeof dailyReview.data?.message === 'string' ? dailyReview.data.message.slice(0, 60) : ''
 
   return (
     <div className="flex flex-col h-full">
@@ -264,6 +342,37 @@ export function GtdWorkspace({ workspaceId, initialTab }: GtdWorkspaceProps) {
       {error && (
         <div className="mx-5 mt-3 text-xs text-destructive bg-destructive/5 rounded p-2">{error}</div>
       )}
+
+      {/* Review Bar — energy + daily review numbers + one-line summary (B04/B15/B16) */}
+      <div className="flex items-center gap-4 px-5 py-2 border-b border-border/30 bg-muted/5 text-xs shrink-0">
+        <span className="flex items-center gap-1.5 shrink-0" title={t('zenskill.gtd.actions.energy')}>
+          <span className={`h-2 w-2 rounded-full shrink-0 ${energyDotClass}`} />
+          <span className="tabular-nums">⚡ {currentEnergy ?? '?'}/{maxEnergy ?? '?'}</span>
+        </span>
+        <span className="h-3 w-px bg-border/60 shrink-0" />
+        <div className="flex items-center gap-3 shrink-0 tabular-nums">
+          <span className="text-muted-foreground">
+            {t('zenskill.gtd.review.doneToday')}{' '}
+            <span className={`font-medium ${doneToday > 0 ? 'text-green-400' : 'text-muted-foreground'}`}>{doneToday}</span>
+          </span>
+          <span className="text-muted-foreground">
+            {t('zenskill.gtd.review.pending')}{' '}
+            <span className={`font-medium ${pendingCount > 0 ? 'text-yellow-500' : 'text-muted-foreground'}`}>{pendingCount}</span>
+          </span>
+          <span className="text-muted-foreground">
+            {t('zenskill.gtd.review.overdue')}{' '}
+            <span className={`font-medium ${overdueCount > 0 ? 'text-red-400' : 'text-muted-foreground'}`}>{overdueCount}</span>
+          </span>
+        </div>
+        {reviewMessage && (
+          <>
+            <span className="h-3 w-px bg-border/60 shrink-0" />
+            <span className="truncate text-muted-foreground/70 min-w-0" title={dailyReview.data?.message}>
+              {reviewMessage}
+            </span>
+          </>
+        )}
+      </div>
 
       {/* Tab bar */}
       <div className="px-5 pt-2 border-b border-border/30 flex gap-1 shrink-0">
@@ -293,7 +402,7 @@ export function GtdWorkspace({ workspaceId, initialTab }: GtdWorkspaceProps) {
                 items={inbox.data?.items ?? []}
                 busyId={busyId}
                 maxItems={100}
-                onClarify={(itemId) => runTool('inbox_clarify', { item_id: itemId })}
+                onClarifyRequest={(item) => setClarifyItem(item)}
                 onArchive={(itemId) => runTool('inbox_archive', { item_id: itemId })}
                 onCaptureSubmit={capture}
                 captureDisabled={!workspaceId || busyId === 'gtd_capture'}
@@ -319,6 +428,8 @@ export function GtdWorkspace({ workspaceId, initialTab }: GtdWorkspaceProps) {
                 onEdit={editAction}
                 editDisabled={!workspaceId}
                 projects={projects.data?.items ?? []}
+                nextActions={nextActions.data?.items ?? []}
+                onSchedule={scheduleAction}
                 statusLabels={{
                   pending: t('zenskill.gtd.actions.status.pending'),
                   next: t('zenskill.gtd.actions.status.next'),
@@ -378,8 +489,27 @@ export function GtdWorkspace({ workspaceId, initialTab }: GtdWorkspaceProps) {
               />
             )
           )}
+
+          {activeTab === 'incubating' && (
+            <IncubatingPanel
+              variant="full"
+              workspaceId={workspaceId}
+              sourceSlug={sourceSlug}
+              busyId={busyId}
+              onPromote={(itemId) => runTool('incubating_promote', { item_id: itemId })}
+            />
+          )}
         </div>
       </div>
+
+      {/* B01: two-step inbox clarify modal */}
+      <ClarifyModal
+        item={clarifyItem}
+        pendingActions={dueActions.data?.items ?? []}
+        busy={busyId === clarifyItem?.id}
+        onConfirm={confirmClarify}
+        onClose={() => setClarifyItem(null)}
+      />
     </div>
   )
 }

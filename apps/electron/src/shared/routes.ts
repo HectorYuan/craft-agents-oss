@@ -196,6 +196,9 @@ export const routes = {
         ? `pages/page/${pageSlug}` as const
         : 'pages' as const,
 
+    /** ZenSkill overview view (zenskill navigator) */
+    zenskillOverview: () => 'zenskill/overview' as const,
+
     /** ZenSkill workspace view (zenskill navigator). Pass a tab key for the GTD workspace sub-view. */
     zenskillGtd: (tab?: string) =>
       tab

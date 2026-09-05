@@ -380,7 +380,9 @@ export function MainContentPanel({
   if (isZenSkillNavigation(navState)) {
     return wrapWithStoplight(
       <Panel variant="grow" className={className}>
-        <ZenSkillPageMount pageSlug={navState.details?.pageSlug} tab={navState.details?.tab} workspaceId={activeWorkspaceId || ''} />
+        <ZenSkillPageMount pageSlug={navState.details?.pageSlug} tab={navState.details?.tab} workspaceId={activeWorkspaceId || ''} onNavigateToChat={(msg) => {
+          window.dispatchEvent(new CustomEvent('zenskill:navigate', { detail: { action: 'new-session', message: msg } }))
+        }} />
       </Panel>
     )
   }

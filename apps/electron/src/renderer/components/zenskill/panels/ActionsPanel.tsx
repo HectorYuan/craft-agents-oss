@@ -13,7 +13,7 @@
  */
 import React, { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Circle, Check, ArrowRight, Trash2, Plus, Pencil, X, CircleDashed } from 'lucide-react'
+import { ArrowRight, CalendarPlus, Check, Circle, CircleDashed, Pencil, Plus, Trash2, X } from 'lucide-react'
 import { PRIORITY_COLOR, energyChipClass, parseIsoDate, weekKey, type GtdAction } from './types'
 
 export type ActionStatusFilter = 'pending' | 'next' | 'done'
@@ -41,19 +41,31 @@ export interface ActionsPanelProps {
   status?: ActionStatusFilter
   onStatusChange?: (status: ActionStatusFilter) => void
   /** full variant: action_add form submit */
-  onAdd?: (input: { title: string; priority: string; dueDate: string }) => void
+  onAdd?: (input: {
+    title: string
+    priority: string
+    dueDate: string
+    energyRequired?: number
+    projectId?: string
+  }) => void
   addDisabled?: boolean
   statusLabels?: Partial<Record<ActionStatusFilter, string>>
   /** full variant: inline edit submit (action_update) */
   onEdit?: (input: { actionId: string; title: string; priority: string; dueDate: string }) => void
   editDisabled?: boolean
-  /** full variant: project list for by-project grouping (name lookup) */
+  /** full variant: project list for by-project grouping + the add-form project selector */
   projects?: { id: string; name: string }[]
+  /** full variant pending view: suggested next actions rendered above the list */
+  nextActions?: GtdAction[]
+  /** full variant: schedule an action to the calendar (calendar_add with action_id) */
+  onSchedule?: (input: { actionId: string; title: string; date: string }) => void
 }
 
 const STATUS_FILTERS: ActionStatusFilter[] = ['pending', 'next', 'done']
 const GROUP_MODES: ActionGroupMode[] = ['none', 'due', 'project']
 const PRIORITIES = ['P0', 'P1', 'P2', 'P3'] as const
+/** Valid energy_required values (backend _VALID_ENERGY) */
+const ENERGY_LEVELS = [1, 3, 5, 8, 10] as const
 
 type DueBucket = 'overdue' | 'today' | 'tomorrow' | 'thisWeek' | 'later' | 'nodate'
 const DUE_BUCKETS: DueBucket[] = ['overdue', 'today', 'tomorrow', 'thisWeek', 'later', 'nodate']
@@ -129,6 +141,8 @@ export function ActionsPanel({
   onEdit,
   editDisabled,
   projects,
+  nextActions,
+  onSchedule,
 }: ActionsPanelProps) {
   const isFull = variant === 'full'
   const isDoneView = isFull && status === 'done'
@@ -155,18 +169,43 @@ export function ActionsPanel({
   const [formTitle, setFormTitle] = useState('')
   const [formPriority, setFormPriority] = useState('P2')
   const [formDueDate, setFormDueDate] = useState('')
+  const [formEnergy, setFormEnergy] = useState('')
+  const [formProjectId, setFormProjectId] = useState('')
 
   // full variant: priority filter + grouping + inline edit (client-side)
   const [priorityFilter, setPriorityFilter] = useState<ActionPriorityFilter>('all')
   const [groupMode, setGroupMode] = useState<ActionGroupMode>('none')
   const [editing, setEditing] = useState<{ id: string; title: string; priority: string; dueDate: string } | null>(null)
 
+  // full variant: inline schedule-to-calendar state (B13)
+  const [schedulingId, setSchedulingId] = useState<string | null>(null)
+  const [scheduleDate, setScheduleDate] = useState('')
+
   const submitAdd = () => {
     const title = formTitle.trim()
     if (!title || addDisabled) return
-    onAdd?.({ title, priority: formPriority, dueDate: formDueDate })
+    onAdd?.({
+      title,
+      priority: formPriority,
+      dueDate: formDueDate,
+      energyRequired: formEnergy ? Number(formEnergy) : undefined,
+      projectId: formProjectId || undefined,
+    })
     setFormTitle('')
     setFormDueDate('')
+    setFormEnergy('')
+    setFormProjectId('')
+  }
+
+  const startSchedule = (a: GtdAction, todayIso: string) => {
+    setScheduleDate(a.due_date || todayIso)
+    setSchedulingId(a.id)
+  }
+
+  const confirmSchedule = (a: GtdAction) => {
+    if (!scheduleDate) return
+    onSchedule?.({ actionId: a.id, title: a.title, date: scheduleDate })
+    setSchedulingId(null)
   }
 
   const startEdit = (a: GtdAction) => {
@@ -266,8 +305,8 @@ export function ActionsPanel({
               </span>
             )}
             <span
-              className={`truncate flex-1 ${isDoneView ? 'line-through decoration-muted-foreground/40 text-muted-foreground' : ''} ${isFull && !isDoneView ? 'cursor-text' : ''}`}
-              onClick={isFull && !isDoneView ? () => startEdit(a) : undefined}
+              className={`truncate flex-1 ${isDoneView ? 'line-through decoration-muted-foreground/40 text-muted-foreground' : ''} ${isFull && !isDoneView && schedulingId !== a.id ? 'cursor-text' : ''}`}
+              onClick={isFull && !isDoneView && schedulingId !== a.id ? () => startEdit(a) : undefined}
               title={a.title}
             >
               {a.title}
@@ -288,11 +327,53 @@ export function ActionsPanel({
                 {a.created_by}
               </span>
             )}
-            {a.due_date && !isDoneView && (
+            {a.due_date && !isDoneView && schedulingId !== a.id && (
               <span className="text-[10px] text-muted-foreground shrink-0">{a.due_date.slice(5)}</span>
             )}
-            {!isDoneView && (
+            {!isDoneView && isFull && schedulingId === a.id && (
+              <div className="flex items-center gap-1 shrink-0">
+                <input
+                  type="date"
+                  autoFocus
+                  value={scheduleDate}
+                  onChange={(e) => setScheduleDate(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.nativeEvent.isComposing) return
+                    if (e.key === 'Enter') confirmSchedule(a)
+                    if (e.key === 'Escape') setSchedulingId(null)
+                  }}
+                  className="text-xs bg-muted/40 rounded px-1 py-0.5 outline-none focus:ring-1 focus:ring-accent/40 text-muted-foreground"
+                  title={t('zenskill.gtd.actions.schedule')}
+                />
+                <button
+                  onClick={() => confirmSchedule(a)}
+                  disabled={!scheduleDate || busyId === a.id}
+                  className="p-0.5 rounded hover:bg-green-500/20 text-green-400 disabled:opacity-40 shrink-0"
+                  title={t('zenskill.gtd.actions.schedule')}
+                >
+                  <Check className="h-3 w-3" />
+                </button>
+                <button
+                  onClick={() => setSchedulingId(null)}
+                  className="p-0.5 rounded hover:bg-muted/60 text-muted-foreground shrink-0"
+                  title={t('zenskill.gtd.actions.editCancel')}
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </div>
+            )}
+            {!isDoneView && !(isFull && schedulingId === a.id) && (
               <>
+                {isFull && onSchedule && (
+                  <button
+                    className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-accent/20 text-muted-foreground hover:text-accent shrink-0"
+                    title={t('zenskill.gtd.actions.schedule')}
+                    disabled={busyId === a.id}
+                    onClick={() => startSchedule(a, todayIso)}
+                  >
+                    <CalendarPlus className="h-3 w-3" />
+                  </button>
+                )}
                 {isFull && onEdit && (
                   <button
                     className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-accent/20 text-muted-foreground hover:text-accent shrink-0"
@@ -452,6 +533,63 @@ export function ActionsPanel({
             >
               <Plus className="h-3.5 w-3.5" />
             </button>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <select
+              value={formEnergy}
+              onChange={(e) => setFormEnergy(e.target.value)}
+              disabled={addDisabled}
+              className="text-xs bg-muted/40 rounded px-1 py-1 outline-none focus:ring-1 focus:ring-accent/40 text-muted-foreground disabled:opacity-50"
+              title={t('zenskill.gtd.actions.energy')}
+            >
+              <option value="">{t('zenskill.gtd.actions.formEnergy')}</option>
+              {ENERGY_LEVELS.map((v) => (
+                <option key={v} value={v}>{t(`zenskill.gtd.actions.energyLevel.${v}`)}</option>
+              ))}
+            </select>
+            <select
+              value={formProjectId}
+              onChange={(e) => setFormProjectId(e.target.value)}
+              disabled={addDisabled || (projects?.length ?? 0) === 0}
+              className="flex-1 min-w-0 text-xs bg-muted/40 rounded px-1 py-1 outline-none focus:ring-1 focus:ring-accent/40 text-muted-foreground disabled:opacity-50"
+              title={t('zenskill.gtd.actions.formProject')}
+            >
+              <option value="">{t('zenskill.gtd.actions.formProjectNone')}</option>
+              {(projects ?? []).map((p) => (
+                <option key={p.id} value={p.id}>{p.name}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+      )}
+      {isFull && status === 'pending' && nextActions && nextActions.length > 0 && (
+        <div className="mb-1.5 pb-2 border-b border-border/30">
+          <div className="flex items-center gap-1 text-[10px] font-medium text-accent px-2 pb-1">
+            <ArrowRight className="h-3 w-3" />
+            {t('zenskill.gtd.actions.nextSection')}
+          </div>
+          <div className="space-y-0.5">
+            {nextActions.slice(0, 3).map((a) => (
+              <div
+                key={a.id}
+                className="flex items-center gap-1.5 text-xs rounded px-2 py-1 hover:bg-muted/50 group"
+              >
+                <span
+                  className={`text-[9px] px-1 py-px rounded shrink-0 ${PRIORITY_COLOR[a.priority || 'P2'] || PRIORITY_COLOR.P2}`}
+                >
+                  {a.priority || 'P2'}
+                </span>
+                <span className="truncate flex-1" title={a.title}>{a.title}</span>
+                <button
+                  className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-green-500/20 text-muted-foreground hover:text-green-400 shrink-0"
+                  title="Done"
+                  disabled={busyId === a.id}
+                  onClick={() => onDone?.(a.id)}
+                >
+                  <Check className="h-3 w-3" />
+                </button>
+              </div>
+            ))}
           </div>
         </div>
       )}

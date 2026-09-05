@@ -11,11 +11,12 @@ interface ZenSkillPageMountProps {
   pageSlug?: string;
   tab?: string
   workspaceId?: string
+  onNavigateToChat?: (message: string) => void
 }
 
-export function ZenSkillPageMount({ pageSlug, tab, workspaceId }: ZenSkillPageMountProps) {
+export function ZenSkillPageMount({ pageSlug, tab, workspaceId, onNavigateToChat }: ZenSkillPageMountProps) {
   const registration = resolveZenSkillPage(pageSlug)
   if (!registration) return null
   const Page = registration.component
-  return <Page workspaceId={workspaceId} initialTab={tab} />
+  return <Page workspaceId={workspaceId} initialTab={tab} onNavigateToChat={onNavigateToChat} />
 }
