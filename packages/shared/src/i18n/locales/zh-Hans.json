@@ -1741,6 +1741,16 @@
   "workspace.selectWorkspacePlaceholder": "选择 Workspace...",
   "workspace.serverAuthToken": "服务器认证令牌",
   "workspace.underDefaultFolder": ".craft-agent 文件夹下",
+  "zenskill.card.actionAdded": "行动已创建",
+  "zenskill.card.actionCompleted": "行动已完成",
+  "zenskill.card.captured": "已收集到收件箱",
+  "zenskill.card.clarified": "分类结果：{{type}}",
+  "zenskill.card.due": "到期",
+  "zenskill.card.energy": "⚡ -{{invested}}（{{remaining}}/{{max}}）",
+  "zenskill.card.eventCreated": "日程已创建",
+  "zenskill.card.markedNext": "已标记为下一步",
+  "zenskill.card.openInGtd": "在 GTD 中打开",
+  "zenskill.card.priority": "优先级",
   "zenskill.gtd.actions.edit": "编辑行动",
   "zenskill.gtd.actions.editCancel": "取消（Esc）",
   "zenskill.gtd.actions.editSave": "保存（回车）",
@@ -1789,5 +1799,9 @@
   "zenskill.memory.empty": "暂无记忆",
   "zenskill.memory.error": "记忆加载失败",
   "zenskill.memory.searchPlaceholder": "搜索记忆...",
-  "zenskill.memory.title": "记忆库"
+  "zenskill.memory.title": "记忆库",
+  "zenskill.toast.achievement": "🏅 解锁「{{name}}」",
+  "zenskill.toast.actionDone": "✓ 「{{title}}」已完成",
+  "zenskill.toast.actionFailed": "完成行动失败",
+  "zenskill.toast.energy": "⚡ -{{invested}}（{{remaining}}/{{max}}）"
 }

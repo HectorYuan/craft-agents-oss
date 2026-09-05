@@ -1741,6 +1741,16 @@
   "workspace.selectWorkspacePlaceholder": "Workspace auswählen...",
   "workspace.serverAuthToken": "Server-Authentifizierungstoken",
   "workspace.underDefaultFolder": "im .craft-agent-Ordner",
+  "zenskill.card.actionAdded": "Aktion erstellt",
+  "zenskill.card.actionCompleted": "Aktion abgeschlossen",
+  "zenskill.card.captured": "Im Posteingang erfasst",
+  "zenskill.card.clarified": "Klassifiziert: {{type}}",
+  "zenskill.card.due": "Fällig",
+  "zenskill.card.energy": "⚡ -{{invested}} ({{remaining}}/{{max}})",
+  "zenskill.card.eventCreated": "Termin erstellt",
+  "zenskill.card.markedNext": "Als nächsten Schritt markiert",
+  "zenskill.card.openInGtd": "In GTD öffnen",
+  "zenskill.card.priority": "Priorität",
   "zenskill.gtd.actions.edit": "Aktion bearbeiten",
   "zenskill.gtd.actions.editCancel": "Abbrechen (Esc)",
   "zenskill.gtd.actions.editSave": "Speichern (Enter)",
@@ -1789,5 +1799,9 @@
   "zenskill.memory.empty": "Noch keine Erinnerungen",
   "zenskill.memory.error": "Fehler beim Laden der Erinnerungen",
   "zenskill.memory.searchPlaceholder": "Erinnerungen durchsuchen...",
-  "zenskill.memory.title": "Speicherbibliothek"
+  "zenskill.memory.title": "Speicherbibliothek",
+  "zenskill.toast.achievement": "🏅 \"{{name}}\" freigeschaltet",
+  "zenskill.toast.actionDone": "✓ \"{{title}}\" abgeschlossen",
+  "zenskill.toast.actionFailed": "Aktion konnte nicht abgeschlossen werden",
+  "zenskill.toast.energy": "⚡ -{{invested}} ({{remaining}}/{{max}})"
 }

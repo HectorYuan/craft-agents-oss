@@ -14,8 +14,10 @@
  */
 import React, { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import type { TFunction } from 'i18next'
+import { toast } from 'sonner'
 import { Zap, Inbox, Circle, CalendarDays, FolderKanban } from 'lucide-react'
-import { useMcpTool } from '@/hooks/zenskill/useMcpTool'
+import { useMcpTool, extractMcpJson } from '@/hooks/zenskill/useMcpTool'
 import { InboxPanel } from '../panels/InboxPanel'
 import { ActionsPanel, type ActionStatusFilter } from '../panels/ActionsPanel'
 import { CalendarPanel, type CalendarScope } from '../panels/CalendarPanel'
@@ -64,6 +66,47 @@ function TabSkeleton({ rows }: { rows: number }) {
   )
 }
 
+interface ActionDonePayload {
+  ok?: boolean
+  title?: string
+  message?: string
+  energy_invested?: number
+  energy_pool?: { remaining?: number; max?: number }
+  new_achievements?: unknown[]
+}
+
+/** Strip a leading emoji/icon token from backend achievement strings ("🔥 首个行动") */
+function stripLeadingIcon(name: string): string {
+  return name.replace(/^[^\p{L}\p{N}]+\s*/u, '').trim()
+}
+
+/**
+ * Growth feedback toast for action_done — closes the cultivation loop by
+ * surfacing the completion, the energy spend, and any newly unlocked
+ * achievements right where the user clicked "done".
+ */
+function notifyActionDone(result: unknown, t: TFunction): void {
+  const data = extractMcpJson(result) as ActionDonePayload | null
+  if (!data) return
+  if (data.ok === false) {
+    toast.error(t('zenskill.toast.actionFailed'), { description: data.message })
+    return
+  }
+  const title = data.title || data.message
+  if (!title) return
+  const pool = data.energy_pool
+  const energyText = typeof data.energy_invested === 'number' && typeof pool?.remaining === 'number'
+    ? t('zenskill.toast.energy', { invested: data.energy_invested, remaining: pool.remaining, max: pool.max ?? '?' })
+    : undefined
+  toast.success(t('zenskill.toast.actionDone', { title }), energyText ? { description: energyText } : undefined)
+  const unlocks = Array.isArray(data.new_achievements) ? data.new_achievements : []
+  for (const unlock of unlocks) {
+    if (typeof unlock !== 'string' || !unlock.trim()) continue
+    const name = stripLeadingIcon(unlock)
+    toast.success(t('zenskill.toast.achievement', { name: name || unlock }))
+  }
+}
+
 export function GtdWorkspace({ workspaceId, initialTab }: GtdWorkspaceProps) {
   const { t } = useTranslation()
   const validTabs: GtdTab[] = ['inbox','actions','calendar','projects']; const [activeTab, setActiveTab] = useState<GtdTab>(validTabs.includes(initialTab as GtdTab) ? (initialTab as GtdTab) : 'inbox')
@@ -105,11 +148,12 @@ export function GtdWorkspace({ workspaceId, initialTab }: GtdWorkspaceProps) {
     try {
       // Refresh is driven by the zenskill:changed broadcast (subscribed in
       // useMcpTool) — no manual refetch here, mirroring DataPanel behavior.
-      await window.electronAPI.callMcpTool(workspaceId, sourceSlug, tool, args)
+      const result = await window.electronAPI.callMcpTool(workspaceId, sourceSlug, tool, args)
+      if (tool === 'action_done') notifyActionDone(result, t)
     } finally {
       setBusyId(null)
     }
-  }, [workspaceId, sourceSlug])
+  }, [workspaceId, sourceSlug, t])
 
   const capture = useCallback((text: string) => {
     void runTool('gtd_capture', { text })

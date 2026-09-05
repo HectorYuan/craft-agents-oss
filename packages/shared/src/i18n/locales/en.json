@@ -1741,6 +1741,16 @@
   "workspace.selectWorkspacePlaceholder": "Select a workspace...",
   "workspace.serverAuthToken": "Server authentication token",
   "workspace.underDefaultFolder": "under .craft-agent folder",
+  "zenskill.card.actionAdded": "Action created",
+  "zenskill.card.actionCompleted": "Action completed",
+  "zenskill.card.captured": "Captured to inbox",
+  "zenskill.card.clarified": "Classified: {{type}}",
+  "zenskill.card.due": "Due",
+  "zenskill.card.energy": "⚡ -{{invested}} ({{remaining}}/{{max}})",
+  "zenskill.card.eventCreated": "Event created",
+  "zenskill.card.markedNext": "Marked as Next",
+  "zenskill.card.openInGtd": "Open in GTD",
+  "zenskill.card.priority": "Priority",
   "zenskill.gtd.actions.edit": "Edit action",
   "zenskill.gtd.actions.editCancel": "Cancel (Esc)",
   "zenskill.gtd.actions.editSave": "Save (Enter)",
@@ -1789,5 +1799,9 @@
   "zenskill.memory.empty": "No memories yet",
   "zenskill.memory.error": "Failed to load memories",
   "zenskill.memory.searchPlaceholder": "Search memories...",
-  "zenskill.memory.title": "Memory Library"
+  "zenskill.memory.title": "Memory Library",
+  "zenskill.toast.achievement": "🏅 Unlocked \"{{name}}\"",
+  "zenskill.toast.actionDone": "✓ \"{{title}}\" completed",
+  "zenskill.toast.actionFailed": "Failed to complete the action",
+  "zenskill.toast.energy": "⚡ -{{invested}} ({{remaining}}/{{max}})"
 }

@@ -1741,6 +1741,16 @@
   "workspace.selectWorkspacePlaceholder": "Selecciona un Workspace...",
   "workspace.serverAuthToken": "Token de autenticación del servidor",
   "workspace.underDefaultFolder": "bajo la carpeta .craft-agent",
+  "zenskill.card.actionAdded": "Acción creada",
+  "zenskill.card.actionCompleted": "Acción completada",
+  "zenskill.card.captured": "Guardado en la bandeja de entrada",
+  "zenskill.card.clarified": "Clasificado: {{type}}",
+  "zenskill.card.due": "Vence",
+  "zenskill.card.energy": "⚡ -{{invested}} ({{remaining}}/{{max}})",
+  "zenskill.card.eventCreated": "Evento creado",
+  "zenskill.card.markedNext": "Marcado como siguiente",
+  "zenskill.card.openInGtd": "Abrir en GTD",
+  "zenskill.card.priority": "Prioridad",
   "zenskill.gtd.actions.edit": "Editar acción",
   "zenskill.gtd.actions.editCancel": "Cancelar (Esc)",
   "zenskill.gtd.actions.editSave": "Guardar (Intro)",
@@ -1789,5 +1799,9 @@
   "zenskill.memory.empty": "Aún no hay recuerdos",
   "zenskill.memory.error": "Error al cargar los recuerdos",
   "zenskill.memory.searchPlaceholder": "Buscar recuerdos...",
-  "zenskill.memory.title": "Biblioteca de memoria"
+  "zenskill.memory.title": "Biblioteca de memoria",
+  "zenskill.toast.achievement": "🏅 Logro desbloqueado: \"{{name}}\"",
+  "zenskill.toast.actionDone": "✓ \"{{title}}\" completada",
+  "zenskill.toast.actionFailed": "No se pudo completar la acción",
+  "zenskill.toast.energy": "⚡ -{{invested}} ({{remaining}}/{{max}})"
 }

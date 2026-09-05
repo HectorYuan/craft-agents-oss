@@ -366,6 +366,8 @@ export interface TurnCardProps {
   openAnnotationRequest?: OpenAnnotationRequest | null
   /** Annotation interaction mode (viewer uses tooltip-only to suppress the island) */
   annotationInteractionMode?: AnnotationInteractionMode
+  /** Optional render hook for tool result cards (e.g. GTD structured cards). Return null to skip. */
+  renderToolResultCard?: (activity: ActivityItem) => React.ReactNode
 }
 
 // ============================================================================
@@ -878,7 +880,9 @@ interface ActivityRowProps {
   /** Session folder path for stripping from file paths in tool display */
   sessionFolderPath?: string
   /** Display mode: 'detailed' shows all info, 'informative' hides MCP/API names and params */
-  displayMode?: 'informative' | 'detailed'
+  displayMode?: 'detailed' | 'informative'
+  /** Optional structured result card (e.g. GTD); rendered below the row when complete */
+  renderResultCard?: (activity: ActivityItem) => React.ReactNode
 }
 
 /**
@@ -900,7 +904,7 @@ function TreeViewConnector({ depth }: { depth: number; isLastChild?: boolean }) 
 }
 
 /** Single activity row in expanded view */
-function ActivityRow({ activity, onOpenDetails, isLastChild, sessionFolderPath, displayMode = 'detailed' }: ActivityRowProps) {
+function ActivityRow({ activity, onOpenDetails, isLastChild, sessionFolderPath, displayMode = 'detailed', renderResultCard }: ActivityRowProps) {
   const depth = activity.depth || 0
 
   // Intermediate messages (LLM commentary) - render with dashed circle icon
@@ -1023,8 +1027,11 @@ function ActivityRow({ activity, onOpenDetails, isLastChild, sessionFolderPath, 
         : null
     : null
 
+  const resultCard = activity.status === 'completed' ? renderResultCard?.(activity) : null
+
   return (
-    <div className="flex items-stretch">
+    <>
+      <div className="flex items-stretch">
       <TreeViewConnector depth={depth} isLastChild={isLastChild} />
       <div
         className={cn(
@@ -1202,7 +1209,13 @@ function ActivityRow({ activity, onOpenDetails, isLastChild, sessionFolderPath, 
           </div>
         )}
       </div>
-    </div>
+      </div>
+      {resultCard && (
+        <div className="pb-1" style={{ paddingLeft: depth * 16 + 20, paddingRight: 8 }}>
+          {resultCard}
+        </div>
+      )}
+    </>
   )
 }
 
@@ -1223,14 +1236,16 @@ interface ActivityGroupRowProps {
   /** Session folder path for stripping from file paths in tool display */
   sessionFolderPath?: string
   /** Display mode: 'detailed' shows all info, 'informative' hides MCP/API names and params */
-  displayMode?: 'informative' | 'detailed'
+  displayMode?: 'detailed' | 'informative'
+  /** Optional structured result card (e.g. GTD); rendered below the row when complete */
+  renderResultCard?: (activity: ActivityItem) => React.ReactNode
 }
 
 /**
  * Renders a Task subagent with its child activities grouped together.
  * Provides visual containment and collapsible children.
  */
-function ActivityGroupRow({ group, expandedGroups: externalExpandedGroups, onExpandedGroupsChange, onOpenActivityDetails, animationIndex = 0, sessionFolderPath, displayMode = 'detailed' }: ActivityGroupRowProps) {
+function ActivityGroupRow({ group, expandedGroups: externalExpandedGroups, onExpandedGroupsChange, onOpenActivityDetails, animationIndex = 0, sessionFolderPath, displayMode = 'detailed', renderResultCard }: ActivityGroupRowProps) {
   // Use local state if no controlled state provided
   const [localExpandedGroups, setLocalExpandedGroups] = useState<Set<string>>(new Set())
   const expandedGroups = externalExpandedGroups ?? localExpandedGroups
@@ -1370,6 +1385,7 @@ function ActivityGroupRow({ group, expandedGroups: externalExpandedGroups, onExp
                     isLastChild={idx === group.children.length - 1}
                     sessionFolderPath={sessionFolderPath}
                     displayMode={displayMode}
+                    renderResultCard={renderResultCard}
                   />
                 </motion.div>
               ))}
@@ -2801,6 +2817,7 @@ export const TurnCard = React.memo(function TurnCard({
   hasActiveFollowUpAnnotations = false,
   openAnnotationRequest,
   annotationInteractionMode = 'interactive',
+  renderToolResultCard,
 }: TurnCardProps) {
   // Derive the turn phase from props using the state machine.
   // This provides a single source of truth for lifecycle state,
@@ -3055,6 +3072,7 @@ export const TurnCard = React.memo(function TurnCard({
                           animationIndex={index}
                           sessionFolderPath={sessionFolderPath}
                           displayMode={displayMode}
+                          renderResultCard={renderToolResultCard}
                         />
                       ) : (
                         <motion.div
@@ -3072,6 +3090,7 @@ export const TurnCard = React.memo(function TurnCard({
                             onOpenDetails={onOpenActivityDetails ? () => onOpenActivityDetails(item) : undefined}
                             sessionFolderPath={sessionFolderPath}
                             displayMode={displayMode}
+                            renderResultCard={renderToolResultCard}
                           />
                         </motion.div>
                       )
@@ -3096,6 +3115,7 @@ export const TurnCard = React.memo(function TurnCard({
                           isLastChild={lastChildSet.has(activity.id)}
                           sessionFolderPath={sessionFolderPath}
                           displayMode={displayMode}
+                          renderResultCard={renderToolResultCard}
                         />
                       </motion.div>
                     ))

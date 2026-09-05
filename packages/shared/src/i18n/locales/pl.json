@@ -1741,6 +1741,16 @@
   "workspace.selectWorkspacePlaceholder": "Wybierz Workspace...",
   "workspace.serverAuthToken": "Token uwierzytelniający serwera",
   "workspace.underDefaultFolder": "w folderze .craft-agent",
+  "zenskill.card.actionAdded": "Utworzono czynność",
+  "zenskill.card.actionCompleted": "Ukończono czynność",
+  "zenskill.card.captured": "Zapisano w skrzynce",
+  "zenskill.card.clarified": "Skategoryzowano: {{type}}",
+  "zenskill.card.due": "Termin",
+  "zenskill.card.energy": "⚡ -{{invested}} ({{remaining}}/{{max}})",
+  "zenskill.card.eventCreated": "Utworzono wydarzenie",
+  "zenskill.card.markedNext": "Oznaczono jako następne",
+  "zenskill.card.openInGtd": "Otwórz w GTD",
+  "zenskill.card.priority": "Priorytet",
   "zenskill.gtd.actions.edit": "Edytuj zadanie",
   "zenskill.gtd.actions.editCancel": "Anuluj (Esc)",
   "zenskill.gtd.actions.editSave": "Zapisz (Enter)",
@@ -1789,5 +1799,9 @@
   "zenskill.memory.empty": "Brak zapisanych wspomnień",
   "zenskill.memory.error": "Nie udało się wczytać wspomnień",
   "zenskill.memory.searchPlaceholder": "Szukaj wspomnień...",
-  "zenskill.memory.title": "Biblioteka pamięci"
+  "zenskill.memory.title": "Biblioteka pamięci",
+  "zenskill.toast.achievement": "🏅 Odblokowano osiągnięcie „{{name}}”",
+  "zenskill.toast.actionDone": "✓ Ukończono: „{{title}}”",
+  "zenskill.toast.actionFailed": "Nie udało się ukończyć czynności",
+  "zenskill.toast.energy": "⚡ -{{invested}} ({{remaining}}/{{max}})"
 }

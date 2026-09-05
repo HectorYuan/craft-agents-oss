@@ -1741,6 +1741,16 @@
   "workspace.selectWorkspacePlaceholder": "Workspaceを選択...",
   "workspace.serverAuthToken": "サーバー認証トークン",
   "workspace.underDefaultFolder": ".craft-agentフォルダ内",
+  "zenskill.card.actionAdded": "アクションを作成しました",
+  "zenskill.card.actionCompleted": "アクションを完了しました",
+  "zenskill.card.captured": "受信箱に収集しました",
+  "zenskill.card.clarified": "分類結果：{{type}}",
+  "zenskill.card.due": "期限",
+  "zenskill.card.energy": "⚡ -{{invested}}（{{remaining}}/{{max}}）",
+  "zenskill.card.eventCreated": "予定を作成しました",
+  "zenskill.card.markedNext": "次のステップに設定しました",
+  "zenskill.card.openInGtd": "GTD で開く",
+  "zenskill.card.priority": "優先度",
   "zenskill.gtd.actions.edit": "アクションを編集",
   "zenskill.gtd.actions.editCancel": "キャンセル (Esc)",
   "zenskill.gtd.actions.editSave": "保存 (Enter)",
@@ -1789,5 +1799,9 @@
   "zenskill.memory.empty": "記憶はまだありません",
   "zenskill.memory.error": "記憶の読み込みに失敗しました",
   "zenskill.memory.searchPlaceholder": "記憶を検索...",
-  "zenskill.memory.title": "メモリライブラリ"
+  "zenskill.memory.title": "メモリライブラリ",
+  "zenskill.toast.achievement": "🏅「{{name}}」を解放しました",
+  "zenskill.toast.actionDone": "✓「{{title}}」を完了しました",
+  "zenskill.toast.actionFailed": "アクションの完了に失敗しました",
+  "zenskill.toast.energy": "⚡ -{{invested}}（{{remaining}}/{{max}}）"
 }

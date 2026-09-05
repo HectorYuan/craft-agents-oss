@@ -72,6 +72,7 @@ import { useNavigation } from "@/contexts/NavigationContext"
 import { useAppShellContext } from "@/context/AppShellContext"
 import { navigate, routes } from "@/lib/navigate"
 import { CHAT_LAYOUT } from "@/config/layout"
+import { GtdToolResultCard, isGtdToolName } from "@/components/zenskill/GtdToolResultCard"
 import { collectFileChangesFromActivities, getFirstFileChangeIdForActivity } from "@/lib/file-changes"
 import { resolveBranchNewPanelOption } from "./branching"
 import { handleErrorMessageAction } from "./error-message-actions"
@@ -1724,6 +1725,10 @@ export const ChatDisplay = React.forwardRef<ChatDisplayHandle, ChatDisplayProps>
                         todos={turn.todos}
                         onOpenFile={onOpenFile}
                         onOpenUrl={onOpenUrl}
+                        renderToolResultCard={(activity) => {
+                          if (!activity.content || !activity.toolName || !isGtdToolName(activity.toolName)) return null
+                          return <GtdToolResultCard toolName={activity.toolName} resultText={activity.content} />
+                        }}
                         isLastResponse={isLastResponse}
                         compactMode={compactMode}
                         sendMessageKey={sendMessageKey}

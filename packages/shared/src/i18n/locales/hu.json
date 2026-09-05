@@ -1741,6 +1741,16 @@
   "workspace.selectWorkspacePlaceholder": "Válassz munkaterületet...",
   "workspace.serverAuthToken": "Szerver hitelesítési token",
   "workspace.underDefaultFolder": "a .craft-agent mappában",
+  "zenskill.card.actionAdded": "Teendő létrehozva",
+  "zenskill.card.actionCompleted": "Teendő teljesítve",
+  "zenskill.card.captured": "Begyűjtve a gyűjtőbe",
+  "zenskill.card.clarified": "Kategória: {{type}}",
+  "zenskill.card.due": "Határidő",
+  "zenskill.card.energy": "⚡ -{{invested}} ({{remaining}}/{{max}})",
+  "zenskill.card.eventCreated": "Esemény létrehozva",
+  "zenskill.card.markedNext": "Következő lépésként megjelölve",
+  "zenskill.card.openInGtd": "Megnyitás GTD-ben",
+  "zenskill.card.priority": "Prioritás",
   "zenskill.gtd.actions.edit": "Teendő szerkesztése",
   "zenskill.gtd.actions.editCancel": "Mégse (Esc)",
   "zenskill.gtd.actions.editSave": "Mentés (Enter)",
@@ -1789,5 +1799,9 @@
   "zenskill.memory.empty": "Még nincsenek emlékek",
   "zenskill.memory.error": "Nem sikerült betölteni az emlékeket",
   "zenskill.memory.searchPlaceholder": "Emlékek keresése...",
-  "zenskill.memory.title": "Memóriakönyvtár"
+  "zenskill.memory.title": "Memóriakönyvtár",
+  "zenskill.toast.achievement": "🏅 \"{{name}}\" eredmény feloldva",
+  "zenskill.toast.actionDone": "✓ \"{{title}}\" teljesítve",
+  "zenskill.toast.actionFailed": "A teendő teljesítése nem sikerült",
+  "zenskill.toast.energy": "⚡ -{{invested}} ({{remaining}}/{{max}})"
 }
