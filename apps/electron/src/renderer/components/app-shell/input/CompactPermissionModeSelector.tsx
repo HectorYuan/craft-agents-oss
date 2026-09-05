@@ -92,7 +92,7 @@ export function CompactPermissionModeSelector({
     setOpen(false)
   }, [onPermissionModeChange])
 
-  const style = MODE_STYLES[optimisticMode]
+  const style = MODE_STYLES[optimisticMode] ?? MODE_STYLES['safe']
 
   return (
     <Drawer open={open} onOpenChange={setOpen}>

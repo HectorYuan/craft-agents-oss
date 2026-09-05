@@ -26,7 +26,7 @@ import { SessionInfoPopover } from './SessionInfoPopover'
 // ============================================================================
 
 function PermissionModeIcon({ mode, className }: { mode: PermissionMode; className?: string }) {
-  const config = PERMISSION_MODE_CONFIG[mode]
+  const config = PERMISSION_MODE_CONFIG[mode] ?? PERMISSION_MODE_CONFIG['safe']
   return (
     <svg
       viewBox="0 0 24 24"
@@ -459,7 +459,7 @@ function PermissionModeDropdown({ permissionMode, onPermissionModeChange, sessio
   }, [onPermissionModeChange])
 
   // Get config for current mode (use optimistic state for instant UI update)
-  const config = PERMISSION_MODE_CONFIG[optimisticMode]
+  const config = PERMISSION_MODE_CONFIG[optimisticMode] ?? PERMISSION_MODE_CONFIG['safe']
 
   // Mode-specific styling using CSS variables (theme-aware)
   // - safe (Explore): foreground at 60% opacity - subtle, read-only feel
@@ -479,7 +479,7 @@ function PermissionModeDropdown({ permissionMode, onPermissionModeChange, sessio
       shadowVar: 'var(--accent-rgb)',
     },
   }
-  const currentStyle = modeStyles[optimisticMode]
+  const currentStyle = modeStyles[optimisticMode] ?? modeStyles['safe']
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
