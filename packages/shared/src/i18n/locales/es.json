@@ -1830,6 +1830,7 @@
   "zenskill.gtd.title": "Espacio de trabajo GTD",
   "zenskill.inbox.batchClassify": "Organizar en lote",
   "zenskill.inbox.suggestBadge": "Sugerencia de IA, clic para adoptar",
+  "zenskill.insights.title": "Perspectivas",
   "zenskill.memory.empty": "Aún no hay recuerdos",
   "zenskill.memory.error": "Error al cargar los recuerdos",
   "zenskill.memory.searchPlaceholder": "Buscar recuerdos...",

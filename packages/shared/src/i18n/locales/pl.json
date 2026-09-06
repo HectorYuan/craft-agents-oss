@@ -1830,6 +1830,7 @@
   "zenskill.gtd.title": "Obszar roboczy GTD",
   "zenskill.inbox.batchClassify": "Porządkowanie wsadowe",
   "zenskill.inbox.suggestBadge": "Sugestia AI, kliknij, aby przyjąć",
+  "zenskill.insights.title": "Spostrzeżenia",
   "zenskill.memory.empty": "Brak zapisanych wspomnień",
   "zenskill.memory.error": "Nie udało się wczytać wspomnień",
   "zenskill.memory.searchPlaceholder": "Szukaj wspomnień...",

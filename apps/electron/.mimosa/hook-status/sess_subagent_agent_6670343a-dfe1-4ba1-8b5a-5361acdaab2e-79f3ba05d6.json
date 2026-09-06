@@ -1,0 +1,14 @@
+{
+  "schemaVersion": "mimosa-hook-status/v1",
+  "recordedAt": "2026-09-06T16:33:32.162Z",
+  "sessionId": "sess_subagent_agent_6670343a-dfe1-4ba1-8b5a-5361acdaab2e",
+  "event": "PostToolUse",
+  "toolName": "Edit",
+  "file": "/home/hector/DevSpace/ZenSkill/vendor/craft-agents/apps/electron/src/renderer/components/zenskill/panels/ReviewBar.tsx",
+  "outcome": "inconclusive",
+  "coverage": "partial",
+  "findingCount": 0,
+  "durationMs": 4,
+  "hostState": "hook_complete",
+  "reportHint": ".mimosa/reports/"
+}

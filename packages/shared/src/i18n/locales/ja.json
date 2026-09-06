@@ -1830,6 +1830,7 @@
   "zenskill.gtd.title": "GTD ワークスペース",
   "zenskill.inbox.batchClassify": "一括整理",
   "zenskill.inbox.suggestBadge": "AI提案、クリックで採用",
+  "zenskill.insights.title": "インサイト",
   "zenskill.memory.empty": "記憶はまだありません",
   "zenskill.memory.error": "記憶の読み込みに失敗しました",
   "zenskill.memory.searchPlaceholder": "記憶を検索...",

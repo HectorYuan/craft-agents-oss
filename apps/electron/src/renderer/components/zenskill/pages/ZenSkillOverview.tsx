@@ -13,6 +13,7 @@ import { EnergyBar } from '../panels/EnergyBar'
 import { HabitHeatmap } from '../panels/HabitHeatmap'
 import { RadarChart } from '../panels/RadarChart'
 import { filterScores } from '../panels/GrowthCard'
+import { InsightsPanel } from '../panels/InsightsPanel'
 import { ZS } from '../panels/tokens'
 
 const ZENSKILL_SOURCE_SLUG = 'zenskill'
@@ -213,24 +214,21 @@ export function ZenSkillOverview({ workspaceId, onNavigateToChat }: ZenSkillOver
             </div>
           )}
 
-          {/* Proactive insights — top 3 */}
+          {/* Proactive insights — 使用 InsightsPanel 组件 */}
           {insights.data && (insights.data.items?.length ?? 0) > 0 && (
             <div className={ZS.card}>
-              <div className={ZS.sectionHeader}>
-                <span className={ZS.body + ' font-medium text-muted-foreground'}>
-                  {t('zenskill.overview.insights', 'Insights')}
-                </span>
-              </div>
-              <div className="space-y-1.5">
-                {insights.data.items!.slice(0, 3).map((ins, i) => (
-                  <div key={i} className="text-[11px] text-muted-foreground/80 flex items-start gap-1.5">
-                    <span className="shrink-0 mt-px">
-                      {ins.level === 'high' ? '🔴' : ins.level === 'medium' ? '🟡' : '🟢'}
-                    </span>
-                    <span className="truncate" title={ins.content}>{ins.title}</span>
-                  </div>
-                ))}
-              </div>
+              <InsightsPanel
+                insights={insights.data.items!.map(item => ({
+                  type: item.type || 'info',
+                  title: item.title || '',
+                  content: item.content || '',
+                  level: item.level || 'low',
+                  id: item.title,
+                }))}
+                maxItems={5}
+                variant="compact"
+                showHeader={false}
+              />
             </div>
           )}
         </div>

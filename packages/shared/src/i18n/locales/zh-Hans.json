@@ -1830,6 +1830,7 @@
   "zenskill.gtd.title": "GTD 工作台",
   "zenskill.inbox.batchClassify": "批量整理",
   "zenskill.inbox.suggestBadge": "AI 分类建议，点击采纳",
+  "zenskill.insights.title": "洞察",
   "zenskill.memory.empty": "暂无记忆",
   "zenskill.memory.error": "记忆加载失败",
   "zenskill.memory.searchPlaceholder": "搜索记忆...",
