@@ -30,6 +30,7 @@ import { CalendarPanel, type CalendarScope } from '../panels/CalendarPanel'
 import { ProjectsPanel } from '../panels/ProjectsPanel'
 import { IncubatingPanel } from '../panels/IncubatingPanel'
 import { ClarifyModal, type ClarifyResultType } from '../panels/ClarifyModal'
+import { ReviewBar } from '../panels/ReviewBar'
 import type {
   GtdAction,
   GtdCalendarEvent,
@@ -329,12 +330,7 @@ export function GtdWorkspace({ workspaceId, initialTab }: GtdWorkspaceProps) {
   const energyPct = typeof energyStatus?.pct === 'number'
     ? energyStatus.pct
     : currentEnergy !== null && maxEnergy ? currentEnergy / Math.max(maxEnergy, 1) : null
-  const energyDotClass = energyPct === null
-    ? 'bg-muted-foreground/40'
-    : energyPct < 0.1 ? 'bg-red-500'
-      : energyPct < 0.3 ? 'bg-orange-500'
-        : energyPct <= 0.7 ? 'bg-yellow-500'
-          : 'bg-green-500'
+  const energyLevelLabel = typeof energyStatus?.level === 'string' ? energyStatus.level : undefined
   const doneToday = dailyReview.data?.actions?.completed ?? 0
   const pendingCount = dailyReview.data?.inbox?.pending ?? 0
   const overdueCount = (dueActions.data?.items ?? []).filter(
@@ -364,36 +360,17 @@ export function GtdWorkspace({ workspaceId, initialTab }: GtdWorkspaceProps) {
         <div className="mx-5 mt-3 text-xs text-destructive bg-destructive/5 rounded p-2">{error}</div>
       )}
 
-      {/* Review Bar — energy + daily review numbers + one-line summary (B04/B15/B16) */}
-      <div className="flex items-center gap-4 px-5 py-2 border-b border-border/30 bg-muted/5 text-xs shrink-0">
-        <span className="flex items-center gap-1.5 shrink-0" title={t('zenskill.gtd.actions.energy')}>
-          <span className={`h-2 w-2 rounded-full shrink-0 ${energyDotClass}`} />
-          <span className="tabular-nums">⚡ {currentEnergy ?? '?'}/{maxEnergy ?? '?'}</span>
-        </span>
-        <span className="h-3 w-px bg-border/60 shrink-0" />
-        <div className="flex items-center gap-3 shrink-0 tabular-nums">
-          <span className="text-muted-foreground">
-            {t('zenskill.gtd.review.doneToday')}{' '}
-            <span className={`font-medium ${doneToday > 0 ? 'text-green-400' : 'text-muted-foreground'}`}>{doneToday}</span>
-          </span>
-          <span className="text-muted-foreground">
-            {t('zenskill.gtd.review.pending')}{' '}
-            <span className={`font-medium ${pendingCount > 0 ? 'text-yellow-500' : 'text-muted-foreground'}`}>{pendingCount}</span>
-          </span>
-          <span className="text-muted-foreground">
-            {t('zenskill.gtd.review.overdue')}{' '}
-            <span className={`font-medium ${overdueCount > 0 ? 'text-red-400' : 'text-muted-foreground'}`}>{overdueCount}</span>
-          </span>
-        </div>
-        {reviewMessage && (
-          <>
-            <span className="h-3 w-px bg-border/60 shrink-0" />
-            <span className="truncate text-muted-foreground/70 min-w-0" title={dailyReview.data?.message}>
-              {reviewMessage}
-            </span>
-          </>
-        )}
-      </div>
+      {/* B04+B15+B16: ReviewBar — energy ring + daily review numbers */}
+      <ReviewBar
+        energyPct={energyPct}
+        energyLevel={energyLevelLabel}
+        currentEnergy={currentEnergy}
+        maxEnergy={maxEnergy}
+        doneToday={doneToday}
+        pendingCount={pendingCount}
+        overdueCount={overdueCount}
+        message={reviewMessage}
+      />
 
       {/* Tab bar */}
       <div className="px-5 pt-2 border-b border-border/30 flex gap-1 shrink-0">

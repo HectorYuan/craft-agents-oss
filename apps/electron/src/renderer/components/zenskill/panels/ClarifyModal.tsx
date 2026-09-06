@@ -19,6 +19,20 @@ import type { GtdAction, GtdItem } from './types'
 const RESULT_TYPES = ['action', 'project', 'calendar', 'reference'] as const
 export type ClarifyResultType = (typeof RESULT_TYPES)[number]
 
+/**
+ * Local keyword-based auto-classify heuristic.
+ * Mirrors the backend auto_classify logic: scans the raw text for
+ * action / project / calendar / reference keywords and returns the
+ * first matching type (or 'reference' as the default fallback).
+ */
+function inferDefaultType(text: string): ClarifyResultType {
+  const lower = text.toLowerCase()
+  if (/\b(todo|task|do|fix|build|create|write|send|email|call|review|pr|merge)\b/.test(lower)) return 'action'
+  if (/\b(project|initiative|epic|sprint|milestone|release)\b/.test(lower)) return 'project'
+  if (/\b(meeting|call|standup|sync|review|retro|calendar|schedule|tomorrow|today|next week|friday|monday)\b/.test(lower)) return 'calendar'
+  return 'reference'
+}
+
 export interface ClarifyModalProps {
   /** Inbox item being clarified; null closes the modal */
   item: GtdItem | null
@@ -35,10 +49,12 @@ export function ClarifyModal({ item, pendingActions, busy, onConfirm, onClose }:
   const [resultType, setResultType] = useState<ClarifyResultType>('action')
   const [targetId, setTargetId] = useState('')
 
-  // Fresh selection every time a different item is opened
+  // Fresh selection every time a different item is opened — pre-select via
+  // local keyword heuristic so the user only needs to confirm or adjust.
   useEffect(() => {
     if (item) {
-      setResultType('action')
+      const text = item.text || item.raw_text || ''
+      setResultType(inferDefaultType(text))
       setTargetId('')
     }
   }, [item])
@@ -85,19 +101,26 @@ export function ClarifyModal({ item, pendingActions, busy, onConfirm, onClose }:
           {itemText}
         </div>
 
-        <div className="grid grid-cols-2 gap-1 mb-2.5">
+        <div className="flex flex-col gap-1 mb-2.5">
           {RESULT_TYPES.map((type) => (
-            <button
+            <label
               key={type}
-              onClick={() => setResultType(type)}
-              className={`px-2 py-1.5 rounded transition-colors ${
+              className={`flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer transition-colors ${
                 resultType === type
                   ? 'bg-accent/15 text-accent'
-                  : 'bg-muted/40 text-muted-foreground hover:bg-muted/60 hover:text-foreground'
+                  : 'hover:bg-muted/60 text-muted-foreground hover:text-foreground'
               }`}
             >
+              <input
+                type="radio"
+                name="clarify-type"
+                value={type}
+                checked={resultType === type}
+                onChange={() => setResultType(type)}
+                className="accent-accent shrink-0"
+              />
               {t(`zenskill.modal.clarify.type.${type}`)}
-            </button>
+            </label>
           ))}
         </div>
 

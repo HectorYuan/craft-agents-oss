@@ -176,7 +176,7 @@ export function ZenSkillDataPanel({ workspaceId, sourceSlug, onGtdItemClick }: Z
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Zap className="h-4 w-4 text-accent" />
-          <span className={ZS.title}>ZenSkill Data</span>
+          <span className={ZS.title}>{t('zenskill.panel.header', 'ZenSkill Data')}</span>
         </div>
       </div>
 

@@ -6,11 +6,13 @@
  */
 import React from 'react'
 import { useTranslation } from 'react-i18next'
-import { Zap } from 'lucide-react'
+import { Zap, TrendingUp } from 'lucide-react'
 import { useMcpTool } from '@/hooks/zenskill/useMcpTool'
 import { CompanionCard, type CompanionSummary } from '../panels/CompanionCard'
 import { EnergyBar } from '../panels/EnergyBar'
 import { HabitHeatmap } from '../panels/HabitHeatmap'
+import { RadarChart } from '../panels/RadarChart'
+import { filterScores } from '../panels/GrowthCard'
 import { ZS } from '../panels/tokens'
 
 const ZENSKILL_SOURCE_SLUG = 'zenskill'
@@ -31,6 +33,18 @@ interface HabitsData {
   habits?: { completed?: Record<string, boolean> }[]
 }
 
+interface GrowthSkill {
+  skill_id: string
+  level?: string
+  usage_count?: number
+  success_rate?: number
+  scores?: Record<string, number>
+}
+
+interface GrowthData {
+  skills?: GrowthSkill[]
+}
+
 interface ZenSkillOverviewProps {
   workspaceId?: string
   initialTab?: string
@@ -45,6 +59,15 @@ export function ZenSkillOverview({ workspaceId, onNavigateToChat }: ZenSkillOver
   const habits = useMcpTool<HabitsData>(workspaceId, ZENSKILL_SOURCE_SLUG, 'habit_analyze', { days: 7 })
   const dashboard = useMcpTool<DashboardData>(workspaceId, ZENSKILL_SOURCE_SLUG, 'dashboard_summary', {})
   const energy = useMcpTool<{ status?: { level?: string; pct?: number } }>(workspaceId, ZENSKILL_SOURCE_SLUG, 'energy_level', {})
+  const growth = useMcpTool<GrowthData>(workspaceId, ZENSKILL_SOURCE_SLUG, 'growth_dashboard', {})
+  const achievements = useMcpTool<{
+    badges?: { id: string; icon?: string; title?: string; name?: string; progress?: number; detail?: string }[]
+    locked?: { id: string; icon?: string; title?: string; name?: string; progress?: number }[]
+    completion_rate?: number
+  }>(workspaceId, ZENSKILL_SOURCE_SLUG, 'achievement_list', {})
+  const insights = useMcpTool<{
+    items?: { type?: string; title?: string; content?: string; level?: string }[]
+  }>(workspaceId, ZENSKILL_SOURCE_SLUG, 'proactive_insight', {})
 
   const isLoading = companion.loading || review.loading || habits.loading || dashboard.loading || energy.loading
   const hasError = companion.error || review.error || habits.error || dashboard.error || energy.error
@@ -145,6 +168,69 @@ export function ZenSkillOverview({ workspaceId, onNavigateToChat }: ZenSkillOver
                 </span>
               </div>
               <HabitHeatmap completed={firstHabitCompleted} days={7} />
+            </div>
+          )}
+
+          {/* Growth radar chart — first skill with scores */}
+          {growth.data?.skills?.[0]?.scores && (
+            <div className={ZS.card}>
+              <div className={ZS.sectionHeader}>
+                <TrendingUp className="h-3.5 w-3.5 text-muted-foreground" />
+                <span className={ZS.body + ' font-medium text-muted-foreground'}>
+                  {t('zenskill.overview.growth', 'Growth')} — {growth.data.skills[0].skill_id}
+                </span>
+                <span className={ZS.micro + ' text-muted-foreground/60 ml-auto'}>
+                  {growth.data.skills[0].level}
+                </span>
+              </div>
+              <div className="flex justify-center">
+                <RadarChart scores={filterScores(growth.data.skills[0].scores)} size={180} />
+              </div>
+            </div>
+          )}
+
+          {/* Achievements — unlocked badges + next to unlock */}
+          {achievements.data && (achievements.data.badges?.length ?? 0) > 0 && (
+            <div className={ZS.card}>
+              <div className={ZS.sectionHeader}>
+                <span className={ZS.body + ' font-medium text-muted-foreground'}>
+                  {t('zenskill.overview.achievements', 'Achievements')} ({achievements.data.badges!.length}/{(achievements.data.badges?.length ?? 0) + (achievements.data.locked?.length ?? 0)})
+                </span>
+                {achievements.data.completion_rate != null && (
+                  <span className={ZS.micro + ' text-muted-foreground/60 ml-auto'}>
+                    {Math.round(achievements.data.completion_rate * 100)}%
+                  </span>
+                )}
+              </div>
+              <div className="flex flex-wrap gap-1">
+                {achievements.data.badges!.slice(0, 8).map((b) => (
+                  <span key={b.id} className="text-[10px] px-1.5 py-0.5 rounded bg-accent/10 text-accent inline-flex items-center gap-1"
+                    title={b.detail}>
+                    {b.icon || '🏅'} {b.title || b.name}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Proactive insights — top 3 */}
+          {insights.data && (insights.data.items?.length ?? 0) > 0 && (
+            <div className={ZS.card}>
+              <div className={ZS.sectionHeader}>
+                <span className={ZS.body + ' font-medium text-muted-foreground'}>
+                  {t('zenskill.overview.insights', 'Insights')}
+                </span>
+              </div>
+              <div className="space-y-1.5">
+                {insights.data.items!.slice(0, 3).map((ins, i) => (
+                  <div key={i} className="text-[11px] text-muted-foreground/80 flex items-start gap-1.5">
+                    <span className="shrink-0 mt-px">
+                      {ins.level === 'high' ? '🔴' : ins.level === 'medium' ? '🟡' : '🟢'}
+                    </span>
+                    <span className="truncate" title={ins.content}>{ins.title}</span>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
         </div>
