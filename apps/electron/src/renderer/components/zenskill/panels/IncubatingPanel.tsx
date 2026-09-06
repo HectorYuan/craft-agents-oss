@@ -38,6 +38,8 @@ export interface IncubatingPanelProps {
   sourceSlug?: string
   busyId?: string | null
   onPromote?: (itemId: string) => void
+  /** B2: 批量操作回调 */
+  onBatchPromote?: (itemIds: string[]) => void
 }
 
 function IncubatingEntry({
@@ -45,11 +47,15 @@ function IncubatingEntry({
   isFull,
   busyId,
   onPromote,
+  isSelected,
+  onSelect,
 }: {
   item: GtdIncubatingItem
   isFull: boolean
   busyId?: string | null
   onPromote?: (itemId: string) => void
+  isSelected?: boolean
+  onSelect?: (selected: boolean) => void
 }) {
   const { t } = useTranslation()
   const pct = Math.round(Math.min(Math.max(item.maturity ?? 0, 0), 1) * 100)
@@ -57,6 +63,14 @@ function IncubatingEntry({
   return (
     <div className="text-xs rounded px-2 py-1 hover:bg-muted/50 group">
       <div className="flex items-center gap-1.5">
+        {isFull && onSelect && (
+          <input
+            type="checkbox"
+            checked={isSelected}
+            onChange={(e) => onSelect(e.target.checked)}
+            className="h-3 w-3 rounded border-border"
+          />
+        )}
         <span className="truncate flex-1" title={item.raw_concept}>{item.raw_concept}</span>
         <span className="text-[9px] text-muted-foreground/60 tabular-nums shrink-0" title={t('zenskill.gtd.incubating.maturity')}>
           {pct}%
@@ -92,9 +106,13 @@ export function IncubatingPanel({
   sourceSlug,
   busyId,
   onPromote,
+  onBatchPromote,
 }: IncubatingPanelProps) {
   const { t } = useTranslation()
   const isFull = variant === 'full'
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [filterChannel, setFilterChannel] = useState<string | null>(null)
+
   // Parked while workspaceId is absent; sourceSlug '' is safe because the hook
   // short-circuits before using it (parked-hook pattern).
   const incubating = useMcpTool<IncubatingData>(
@@ -115,13 +133,32 @@ export function IncubatingPanel({
     groups.push({ key: 'other', label: 'other', items: other })
   }
 
+  const handleSelectAll = () => {
+    if (selectedIds.size === filteredItems.length) {
+      setSelectedIds(new Set())
+    } else {
+      setSelectedIds(new Set(filteredItems.map(i => i.id)))
+    }
+  }
+
+  const handleBatchPromote = () => {
+    if (onBatchPromote && selectedIds.size > 0) {
+      onBatchPromote(Array.from(selectedIds))
+      setSelectedIds(new Set())
+    }
+  }
+
+  const filteredItems = filterChannel
+    ? items.filter(i => i.channel === filterChannel)
+    : items
+
   return (
     <div>
       {showHeader && (
         <div className="flex items-center gap-1.5 mb-1.5">
           <Sprout className="h-3.5 w-3.5 text-muted-foreground" />
           <span className="text-xs font-medium text-muted-foreground">
-            {t('zenskill.gtd.tab.incubating')} ({items.length})
+            {t('zenskill.gtd.tab.incubating')} ({filteredItems.length}/{items.length})
           </span>
         </div>
       )}
@@ -139,8 +176,50 @@ export function IncubatingPanel({
         <div className="text-[11px] text-destructive/80 italic pl-2" title={incubating.error}>{incubating.error}</div>
       ) : (
         <>
+          {/* Channel filter buttons */}
+          <div className="flex gap-1 mb-2 px-2">
+            <button
+              onClick={() => setFilterChannel(null)}
+              className={`px-2 py-0.5 rounded text-[10px] ${!filterChannel ? 'bg-accent/20 text-accent' : 'text-muted-foreground hover:bg-muted/50'}`}
+            >
+              {t('zenskill.gtd.incubating.filterAll', '全部')}
+            </button>
+            {CHANNELS.map(ch => (
+              <button
+                key={ch}
+                onClick={() => setFilterChannel(filterChannel === ch ? null : ch)}
+                className={`px-2 py-0.5 rounded text-[10px] ${filterChannel === ch ? 'bg-accent/20 text-accent' : 'text-muted-foreground hover:bg-muted/50'}`}
+              >
+                {t(`zenskill.gtd.incubating.channel.${ch}`)}
+              </button>
+            ))}
+          </div>
+
+          {/* Batch operations */}
+          {isFull && onBatchPromote && (
+            <div className="flex items-center gap-2 mb-2 px-2">
+              <button
+                onClick={handleSelectAll}
+                className="text-[10px] text-muted-foreground hover:text-foreground"
+              >
+                {selectedIds.size === filteredItems.length
+                  ? t('zenskill.gtd.incubating.deselectAll', '取消全选')
+                  : t('zenskill.gtd.incubating.selectAll', '全选')}
+              </button>
+              {selectedIds.size > 0 && (
+                <button
+                  onClick={handleBatchPromote}
+                  className="flex items-center gap-1 px-2 py-0.5 rounded bg-green-500/10 text-green-400 hover:bg-green-500/20 text-[10px]"
+                >
+                  <TrendingUp className="h-3 w-3" />
+                  {t('zenskill.gtd.incubating.batchPromote', '批量提升')} ({selectedIds.size})
+                </button>
+              )}
+            </div>
+          )}
+
           <div className="space-y-3">
-            {groups.map((g) => (
+            {groups.filter(g => !filterChannel || g.key === filterChannel).map((g) => (
               <div key={g.key}>
                 <div className="flex items-center gap-1 text-[10px] font-medium text-muted-foreground px-2 pt-0.5">
                   {g.label}
@@ -159,6 +238,16 @@ export function IncubatingPanel({
                         isFull={isFull}
                         busyId={busyId}
                         onPromote={onPromote}
+                        isSelected={selectedIds.has(item.id)}
+                        onSelect={(selected) => {
+                          const next = new Set(selectedIds)
+                          if (selected) {
+                            next.add(item.id)
+                          } else {
+                            next.delete(item.id)
+                          }
+                          setSelectedIds(next)
+                        }}
                       />
                     ))}
                   </div>
