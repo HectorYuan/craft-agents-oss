@@ -339,6 +339,7 @@ export class BrowserPaneManager implements IBrowserPaneManager {
   private popupParentByWebContentsId = new Map<number, string>()
   private windowManager: WindowManager | null = null
   private sessionPathResolver: ((sessionId: string) => string | null) | null = null
+  private cdpFactory: ((wc: any) => BrowserCDP) | null = null
 
   setWindowManager(windowManager: WindowManager): void {
     this.windowManager = windowManager
@@ -346,6 +347,10 @@ export class BrowserPaneManager implements IBrowserPaneManager {
 
   setSessionPathResolver(fn: (sessionId: string) => string | null): void {
     this.sessionPathResolver = fn
+  }
+
+  setCdpFactory(fn: (wc: any) => BrowserCDP): void {
+    this.cdpFactory = fn
   }
 
   onStateChange(callback: (info: BrowserInstanceInfo) => void): void {
@@ -441,7 +446,7 @@ export class BrowserPaneManager implements IBrowserPaneManager {
     const overlayWcWithBg = nativeOverlayView.webContents as typeof nativeOverlayView.webContents & { setBackgroundColor?: (color: string) => void }
     overlayWcWithBg.setBackgroundColor?.('#00000000')
 
-    const cdp = new BrowserCDP(pageView.webContents)
+    const cdp = this.cdpFactory ? this.cdpFactory(pageView.webContents) : new BrowserCDP(pageView.webContents)
 
     const instance: BrowserInstance = {
       id: instanceId,
@@ -2105,7 +2110,7 @@ export class BrowserPaneManager implements IBrowserPaneManager {
     this.destroyingIds.delete(instance.id)
     this.closePopupsForParent(instance.id, 'parent_destroy')
     this.applyAgentControlLock(instance, false)
-    this.updateNativeOverlayState(instance)
+    try { this.updateNativeOverlayState(instance) } catch { /* best-effort */ }
     instance.cdp.detach()
     this.instances.delete(instance.id)
     this.removedCallback?.(instance.id)

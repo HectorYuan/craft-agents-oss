@@ -200,44 +200,42 @@ mock.module('../logger', () => {
   }
 })
 
-mock.module('../browser-cdp', () => ({
-  BrowserCDP: class MockBrowserCDP {
-    detach = mock(() => {})
-    getAccessibilitySnapshot = mock(async () => ({
-      url: 'https://example.com',
-      title: 'Example',
-      nodes: [],
-    }))
-    clickElement = mock(async () => ({
-      ref: '@e1',
-      box: { x: 0, y: 0, width: 10, height: 10 },
-      clickPoint: { x: 5, y: 5 },
-    }))
-    fillElement = mock(async () => ({
-      ref: '@e1',
-      box: { x: 0, y: 0, width: 10, height: 10 },
-      clickPoint: { x: 5, y: 5 },
-    }))
-    selectOption = mock(async () => ({
-      ref: '@e1',
-      box: { x: 0, y: 0, width: 10, height: 10 },
-      clickPoint: { x: 5, y: 5 },
-    }))
-    renderTemporaryOverlay = mock(async () => {})
-    clearTemporaryOverlay = mock(async () => {})
-    getViewportMetrics = mock(async () => ({ width: 1200, height: 900, dpr: 2, scrollX: 0, scrollY: 0 }))
-    getElementGeometry = mock(async () => ({
-      ref: '@e1',
-      box: { x: 0, y: 0, width: 10, height: 10 },
-      clickPoint: { x: 5, y: 5 },
-    }))
-    getElementGeometryBySelector = mock(async () => ({
-      ref: 'selector:div.card',
-      box: { x: 5, y: 5, width: 20, height: 20 },
-      clickPoint: { x: 15, y: 15 },
-    }))
-  },
-}))
+const MockBrowserCDP = class {
+  detach = mock(() => {})
+  getAccessibilitySnapshot = mock(async () => ({
+    url: 'https://example.com',
+    title: 'Example',
+    nodes: [],
+  }))
+  clickElement = mock(async () => ({
+    ref: '@e1',
+    box: { x: 0, y: 0, width: 10, height: 10 },
+    clickPoint: { x: 5, y: 5 },
+  }))
+  fillElement = mock(async () => ({
+    ref: '@e1',
+    box: { x: 0, y: 0, width: 10, height: 10 },
+    clickPoint: { x: 5, y: 5 },
+  }))
+  selectOption = mock(async () => ({
+    ref: '@e1',
+    box: { x: 0, y: 0, width: 10, height: 10 },
+    clickPoint: { x: 5, y: 5 },
+  }))
+  renderTemporaryOverlay = mock(async () => {})
+  clearTemporaryOverlay = mock(async () => {})
+  getViewportMetrics = mock(async () => ({ width: 1200, height: 900, dpr: 2, scrollX: 0, scrollY: 0 }))
+  getElementGeometry = mock(async () => ({
+    ref: '@e1',
+    box: { x: 0, y: 0, width: 10, height: 10 },
+    clickPoint: { x: 5, y: 5 },
+  }))
+  getElementGeometryBySelector = mock(async () => ({
+    ref: 'selector:div.card',
+    box: { x: 5, y: 5, width: 20, height: 20 },
+    clickPoint: { x: 15, y: 15 },
+  }))
+}
 
 const { BrowserPaneManager } = await import('../browser-pane-manager')
 
@@ -250,6 +248,7 @@ describe('BrowserPaneManager', () => {
     mockShellOpenExternal.mockClear()
     mockIpcMainHandle.mockClear()
     manager = new BrowserPaneManager()
+    manager.setCdpFactory(() => new MockBrowserCDP() as any)
   })
 
   it('creates and lists instances', () => {
@@ -581,7 +580,8 @@ describe('BrowserPaneManager', () => {
     manager.focus('f1')
 
     const instance = (manager as any).instances.get('f1')
-    instance.window._emit('ready-to-show')
+    instance.toolbarView.webContents.getURL = mock(() => 'http://localhost:5173/browser-toolbar.html')
+    instance.toolbarView.webContents._emit('did-finish-load')
 
     expect(instance.window.show).toHaveBeenCalled()
     expect(instance.window.focus).toHaveBeenCalled()
@@ -595,7 +595,8 @@ describe('BrowserPaneManager', () => {
     manager.focus('f2')
 
     const instance = (manager as any).instances.get('f2')
-    instance.window._emit('ready-to-show')
+    instance.toolbarView.webContents.getURL = mock(() => 'http://localhost:5173/browser-toolbar.html')
+    instance.toolbarView.webContents._emit('did-finish-load')
 
     expect(instance.window.show.mock.calls.length).toBe(1)
     expect(instance.window.focus.mock.calls.length).toBe(1)
@@ -674,14 +675,15 @@ describe('BrowserPaneManager', () => {
 
     await Bun.sleep(1400)
 
-    const toolbarWindow = createdWindows[0]
-    const fileAttempts = toolbarWindow.webContents.loadFile.mock.calls.length
-    const toolbarUrlAttempts = toolbarWindow.webContents.loadURL.mock.calls
+    const instance = (manager as any).instances.get('retry-toolbar')
+    const toolbarWc = instance.toolbarView.webContents
+    const fileAttempts = toolbarWc.loadFile.mock.calls.length
+    const toolbarUrlAttempts = toolbarWc.loadURL.mock.calls
       .filter((args: [string]) => args[0]?.includes('browser-toolbar.html')).length
     const totalAttempts = fileAttempts + toolbarUrlAttempts
 
-    expect(totalAttempts).toBe(3)
-    expect(toolbarWindow.webContents.loadURL).not.toHaveBeenCalledWith(expect.stringContaining('data:text/html'))
+    expect(totalAttempts).toBe(2)
+    expect(toolbarWc.loadURL).not.toHaveBeenCalledWith(expect.stringContaining('browser-toolbar.html'))
   })
 
   it('loads toolbar fallback page after retry exhaustion', async () => {
@@ -690,14 +692,15 @@ describe('BrowserPaneManager', () => {
 
     await Bun.sleep(3200)
 
-    const toolbarWindow = createdWindows[0]
-    const fileAttempts = toolbarWindow.webContents.loadFile.mock.calls.length
-    const toolbarUrlAttempts = toolbarWindow.webContents.loadURL.mock.calls
+    const instance = (manager as any).instances.get('fallback-toolbar')
+    const toolbarWc = instance.toolbarView.webContents
+    const fileAttempts = toolbarWc.loadFile.mock.calls.length
+    const toolbarUrlAttempts = toolbarWc.loadURL.mock.calls
       .filter((args: [string]) => args[0]?.includes('browser-toolbar.html')).length
     const totalAttempts = fileAttempts + toolbarUrlAttempts
 
     expect(totalAttempts).toBe(5)
-    expect(toolbarWindow.webContents.loadURL).toHaveBeenCalledWith(expect.stringContaining('data:text/html'))
+    expect(toolbarWc.loadURL).toHaveBeenCalledWith(expect.stringContaining('data:text/html'))
   })
 
   it('captures and filters console entries', () => {
@@ -773,10 +776,10 @@ describe('BrowserPaneManager', () => {
     instance.canGoForward = false
     instance.themeColor = '#123456'
 
-    const sendsBeforeShow = instance.window.webContents.send.mock.calls.length
+    const sendsBeforeShow = instance.toolbarView.webContents.send.mock.calls.length
     instance.window._emit('show')
 
-    const sendCallsAfterShow = instance.window.webContents.send.mock.calls.slice(sendsBeforeShow)
+    const sendCallsAfterShow = instance.toolbarView.webContents.send.mock.calls.slice(sendsBeforeShow)
     expect(sendCallsAfterShow).toContainEqual([
       'browser-toolbar:state-update',
       {
@@ -804,10 +807,10 @@ describe('BrowserPaneManager', () => {
 
     instance.toolbarView.webContents.getURL = mock(() => 'http://localhost:5173/browser-toolbar.html?instanceId=toolbar-finish-load-replay')
 
-    const sendsBeforeFinishLoad = instance.window.webContents.send.mock.calls.length
+    const sendsBeforeFinishLoad = instance.toolbarView.webContents.send.mock.calls.length
     instance.toolbarView.webContents._emit('did-finish-load')
 
-    const sendCallsAfterFinishLoad = instance.window.webContents.send.mock.calls.slice(sendsBeforeFinishLoad)
+    const sendCallsAfterFinishLoad = instance.toolbarView.webContents.send.mock.calls.slice(sendsBeforeFinishLoad)
     expect(sendCallsAfterFinishLoad).toContainEqual([
       'browser-toolbar:state-update',
       {
