@@ -1876,6 +1876,7 @@
   "zenskill.toast.actionDone": "✓「{{title}}」を完了しました",
   "zenskill.toast.actionFailed": "アクションの完了に失敗しました",
   "zenskill.toast.archived": "アーカイブしました",
+  "zenskill.toast.captured": "キャプチャ済み",
   "zenskill.toast.clarified": "{{type}}として分類しました",
   "zenskill.toast.deletedAction": "行動を削除しました",
   "zenskill.toast.deletedEvent": "予定を削除しました",

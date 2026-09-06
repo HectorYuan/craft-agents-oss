@@ -198,7 +198,9 @@ export function GtdWorkspace({ workspaceId, initialTab }: GtdWorkspaceProps) {
       }
       // Lightweight success feedback for ops whose effect is only visible
       // after the zenskill:changed refresh lands
-      if (tool === 'inbox_clarify') {
+      if (tool === 'gtd_capture') {
+        toast.success(t('zenskill.toast.captured'))
+      } else if (tool === 'inbox_clarify') {
         const rawType = typeof data?.result_type === 'string' && data.result_type ? data.result_type : '?'
         const knownType = (['action', 'project', 'calendar', 'reference'] as const).includes(rawType as ClarifyResultType)
         toast.success(t('zenskill.toast.clarified', {

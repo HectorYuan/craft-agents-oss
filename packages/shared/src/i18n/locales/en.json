@@ -1876,6 +1876,7 @@
   "zenskill.toast.actionDone": "✓ \"{{title}}\" completed",
   "zenskill.toast.actionFailed": "Failed to complete the action",
   "zenskill.toast.archived": "Archived",
+  "zenskill.toast.captured": "已捕获",
   "zenskill.toast.clarified": "Classified as {{type}}",
   "zenskill.toast.deletedAction": "Action deleted",
   "zenskill.toast.deletedEvent": "Event deleted",

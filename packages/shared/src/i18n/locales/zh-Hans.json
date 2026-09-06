@@ -1876,6 +1876,7 @@
   "zenskill.toast.actionDone": "✓ 「{{title}}」已完成",
   "zenskill.toast.actionFailed": "完成行动失败",
   "zenskill.toast.archived": "已归档",
+  "zenskill.toast.captured": "已捕获",
   "zenskill.toast.clarified": "已归类为 {{type}}",
   "zenskill.toast.deletedAction": "已删除行动",
   "zenskill.toast.deletedEvent": "已删除日程",

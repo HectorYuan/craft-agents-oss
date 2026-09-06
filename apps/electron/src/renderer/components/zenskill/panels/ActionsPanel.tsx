@@ -246,10 +246,11 @@ export function ActionsPanel({
 
   const renderRow = (a: GtdAction) => {
     const energy = typeof a.energy_required === 'number' && Number.isFinite(a.energy_required) ? a.energy_required : null
+    const isJustDone = busyId === a.id && status === 'done'
     return (
       <div
         key={a.id}
-        className="flex items-center gap-1.5 text-xs rounded px-2 py-1 hover:bg-muted/50 group"
+        className={`flex items-center gap-1.5 text-xs rounded px-2 py-1 hover:bg-muted/50 group transition-colors duration-300 ${isJustDone ? 'bg-green-500/10' : ''}`}
       >
         {isFull && !isDoneView && editing && editing.id === a.id ? (
           <div className="flex items-center gap-1 flex-1 min-w-0">

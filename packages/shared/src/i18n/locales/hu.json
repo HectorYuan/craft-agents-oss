@@ -1876,6 +1876,7 @@
   "zenskill.toast.actionDone": "✓ \"{{title}}\" teljesítve",
   "zenskill.toast.actionFailed": "A teendő teljesítése nem sikerült",
   "zenskill.toast.archived": "Archiválva",
+  "zenskill.toast.captured": "Rögzítve",
   "zenskill.toast.clarified": "Besorolva: {{type}}",
   "zenskill.toast.deletedAction": "Teendő törölve",
   "zenskill.toast.deletedEvent": "Esemény törölve",

@@ -1876,6 +1876,7 @@
   "zenskill.toast.actionDone": "✓ Ukończono: „{{title}}”",
   "zenskill.toast.actionFailed": "Nie udało się ukończyć czynności",
   "zenskill.toast.archived": "Zarchiwizowano",
+  "zenskill.toast.captured": "Przechwycono",
   "zenskill.toast.clarified": "Sklasyfikowano jako {{type}}",
   "zenskill.toast.deletedAction": "Usunięto działanie",
   "zenskill.toast.deletedEvent": "Usunięto wydarzenie",
