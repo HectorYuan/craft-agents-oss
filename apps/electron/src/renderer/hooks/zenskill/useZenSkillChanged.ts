@@ -15,7 +15,8 @@ export function useZenSkillChanged(sourceSlug: string, onChanged: () => void): v
     const cleanup = window.electronAPI.onZenSkillChanged((_wsId, data) => {
       // Mode C args may arrive as [{sourceSlug,...}] (array) or {sourceSlug,...}
       // (unwrapped). Single-source setup: always refresh on any zenskill:changed.
-      const slug = data?.sourceSlug ?? data?.[0]?.sourceSlug
+      const d = data as Record<string, unknown>
+      const slug = d?.sourceSlug ?? (Array.isArray(d) ? d[0]?.sourceSlug : undefined) as string | undefined
       if (!slug || slug === sourceSlug) cbRef.current()
     })
     return cleanup

@@ -69,7 +69,10 @@ function createMockWebContents() {
     },
     _listeners: listeners,
     _emit: (event: string, ...args: any[]) => {
-      for (const cb of listeners[event] || []) cb({}, ...args)
+      for (const cb of listeners[event] || []) {
+        const firstArg = event === 'did-create-window' ? (args[0] ?? createMockWindow()) : {}
+        cb(firstArg, ...(event === 'did-create-window' ? args.slice(1) : args))
+      }
     },
   }
 }
