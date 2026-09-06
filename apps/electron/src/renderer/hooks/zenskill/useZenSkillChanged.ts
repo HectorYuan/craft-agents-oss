@@ -13,7 +13,10 @@ export function useZenSkillChanged(sourceSlug: string, onChanged: () => void): v
   useEffect(() => {
     if (!window.electronAPI?.onZenSkillChanged) return
     const cleanup = window.electronAPI.onZenSkillChanged((_wsId, data) => {
-      if (data.sourceSlug === sourceSlug) cbRef.current()
+      // Mode C args may arrive as [{sourceSlug,...}] (array) or {sourceSlug,...}
+      // (unwrapped). Single-source setup: always refresh on any zenskill:changed.
+      const slug = data?.sourceSlug ?? data?.[0]?.sourceSlug
+      if (!slug || slug === sourceSlug) cbRef.current()
     })
     return cleanup
   }, [sourceSlug])
