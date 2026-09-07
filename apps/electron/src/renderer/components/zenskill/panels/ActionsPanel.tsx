@@ -9,11 +9,13 @@
  * full variant (GtdWorkspace): pending/next/done status switch, priority
  * filter, grouping (none / by due date / by project), inline editing
  * (title + priority + due date via action_update), energy_required chips,
- * and an action_add form.
+ * and an action_add form (title / priority + energy / due date + project /
+ * contexts + repeat_rule), plus per-row schedule-to-calendar (calendar_add
+ * with action_id) with a scheduled-state icon fed by scheduledDates.
  */
 import React, { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ArrowRight, CalendarPlus, Check, Circle, CircleDashed, Pencil, Plus, Trash2, X } from 'lucide-react'
+import { ArrowRight, CalendarCheck, CalendarPlus, Check, Circle, CircleDashed, Pencil, Plus, Trash2, X } from 'lucide-react'
 import { PRIORITY_COLOR, energyChipClass, parseIsoDate, weekKey, type GtdAction } from './types'
 
 export type ActionStatusFilter = 'pending' | 'next' | 'done'
@@ -47,6 +49,9 @@ export interface ActionsPanelProps {
     dueDate: string
     energyRequired?: number
     projectId?: string
+    /** raw comma-separated input ("@coding, @computer"); split into an array by the caller */
+    contexts?: string
+    repeatRule?: string
   }) => void
   addDisabled?: boolean
   statusLabels?: Partial<Record<ActionStatusFilter, string>>
@@ -59,13 +64,17 @@ export interface ActionsPanelProps {
   nextActions?: GtdAction[]
   /** full variant: schedule an action to the calendar (calendar_add with action_id) */
   onSchedule?: (input: { actionId: string; title: string; date: string }) => void
+  /** full variant: action_id → scheduled calendar date; rows with an entry render a scheduled-state icon */
+  scheduledDates?: Record<string, string>
 }
 
 const STATUS_FILTERS: ActionStatusFilter[] = ['pending', 'next', 'done']
 const GROUP_MODES: ActionGroupMode[] = ['none', 'due', 'project']
 const PRIORITIES = ['P0', 'P1', 'P2', 'P3'] as const
-/** Valid energy_required values (backend _VALID_ENERGY) */
-const ENERGY_LEVELS = [1, 3, 5, 8, 10] as const
+/** Valid energy_required values (backend ENERGY_MAP: easy=3 / medium=5 / hard=8 / extreme=10) */
+const ENERGY_LEVELS = [3, 5, 8, 10] as const
+/** repeat_rule options for the action_add form (backend: daily/weekly/monthly auto-regenerate) */
+const REPEAT_RULES = ['daily', 'weekly', 'monthly'] as const
 
 type DueBucket = 'overdue' | 'today' | 'tomorrow' | 'thisWeek' | 'later' | 'nodate'
 const DUE_BUCKETS: DueBucket[] = ['overdue', 'today', 'tomorrow', 'thisWeek', 'later', 'nodate']
@@ -143,6 +152,7 @@ export function ActionsPanel({
   projects,
   nextActions,
   onSchedule,
+  scheduledDates,
 }: ActionsPanelProps) {
   const isFull = variant === 'full'
   const isDoneView = isFull && status === 'done'
@@ -171,6 +181,8 @@ export function ActionsPanel({
   const [formDueDate, setFormDueDate] = useState('')
   const [formEnergy, setFormEnergy] = useState('')
   const [formProjectId, setFormProjectId] = useState('')
+  const [formContexts, setFormContexts] = useState('')
+  const [formRepeat, setFormRepeat] = useState('')
 
   // full variant: priority filter + grouping + inline edit (client-side)
   const [priorityFilter, setPriorityFilter] = useState<ActionPriorityFilter>('all')
@@ -184,17 +196,22 @@ export function ActionsPanel({
   const submitAdd = () => {
     const title = formTitle.trim()
     if (!title || addDisabled) return
+    const contexts = formContexts.trim()
     onAdd?.({
       title,
       priority: formPriority,
       dueDate: formDueDate,
       energyRequired: formEnergy ? Number(formEnergy) : undefined,
       projectId: formProjectId || undefined,
+      contexts: contexts || undefined,
+      repeatRule: formRepeat || undefined,
     })
     setFormTitle('')
     setFormDueDate('')
     setFormEnergy('')
     setFormProjectId('')
+    setFormContexts('')
+    setFormRepeat('')
   }
 
   const startSchedule = (a: GtdAction, todayIso: string) => {
@@ -363,18 +380,29 @@ export function ActionsPanel({
                 </button>
               </div>
             )}
+            {!isDoneView && isFull && onSchedule && schedulingId !== a.id && (
+              scheduledDates?.[a.id] ? (
+                <button
+                  className="p-0.5 rounded hover:bg-accent/20 text-green-400 shrink-0"
+                  title={t('zenskill.gtd.actions.scheduled', { date: scheduledDates[a.id] })}
+                  disabled={busyId === a.id}
+                  onClick={() => startSchedule(a, todayIso)}
+                >
+                  <CalendarCheck className="h-3 w-3" />
+                </button>
+              ) : (
+                <button
+                  className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-accent/20 text-muted-foreground hover:text-accent shrink-0"
+                  title={t('zenskill.gtd.actions.schedule')}
+                  disabled={busyId === a.id}
+                  onClick={() => startSchedule(a, todayIso)}
+                >
+                  <CalendarPlus className="h-3 w-3" />
+                </button>
+              )
+            )}
             {!isDoneView && !(isFull && schedulingId === a.id) && (
               <>
-                {isFull && onSchedule && (
-                  <button
-                    className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-accent/20 text-muted-foreground hover:text-accent shrink-0"
-                    title={t('zenskill.gtd.actions.schedule')}
-                    disabled={busyId === a.id}
-                    onClick={() => startSchedule(a, todayIso)}
-                  >
-                    <CalendarPlus className="h-3 w-3" />
-                  </button>
-                )}
                 {isFull && onEdit && (
                   <button
                     className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-accent/20 text-muted-foreground hover:text-accent shrink-0"
@@ -498,6 +526,7 @@ export function ActionsPanel({
               </button>
             ))}
           </div>
+          {/* Row 1: title + submit */}
           <div className="flex items-center gap-1.5">
             <input
               value={formTitle}
@@ -509,23 +538,6 @@ export function ActionsPanel({
               disabled={addDisabled}
               className="flex-1 text-xs bg-muted/40 rounded px-2 py-1.5 outline-none focus:ring-1 focus:ring-accent/40 disabled:opacity-50"
             />
-            <select
-              value={formPriority}
-              onChange={(e) => setFormPriority(e.target.value)}
-              disabled={addDisabled}
-              className="text-xs bg-muted/40 rounded px-1 py-1.5 outline-none focus:ring-1 focus:ring-accent/40 disabled:opacity-50"
-            >
-              {PRIORITIES.map((p) => (
-                <option key={p} value={p}>{p}</option>
-              ))}
-            </select>
-            <input
-              type="date"
-              value={formDueDate}
-              onChange={(e) => setFormDueDate(e.target.value)}
-              disabled={addDisabled}
-              className="text-xs bg-muted/40 rounded px-1.5 py-1.5 outline-none focus:ring-1 focus:ring-accent/40 text-muted-foreground disabled:opacity-50"
-            />
             <button
               onClick={submitAdd}
               disabled={addDisabled || !formTitle.trim()}
@@ -535,12 +547,24 @@ export function ActionsPanel({
               <Plus className="h-3.5 w-3.5" />
             </button>
           </div>
+          {/* Row 2: priority + energy */}
           <div className="flex items-center gap-1.5">
+            <select
+              value={formPriority}
+              onChange={(e) => setFormPriority(e.target.value)}
+              disabled={addDisabled}
+              className="w-24 shrink-0 text-xs bg-muted/40 rounded px-1 py-1 outline-none focus:ring-1 focus:ring-accent/40 disabled:opacity-50"
+              title="Priority"
+            >
+              {PRIORITIES.map((p) => (
+                <option key={p} value={p}>{p}</option>
+              ))}
+            </select>
             <select
               value={formEnergy}
               onChange={(e) => setFormEnergy(e.target.value)}
               disabled={addDisabled}
-              className="text-xs bg-muted/40 rounded px-1 py-1 outline-none focus:ring-1 focus:ring-accent/40 text-muted-foreground disabled:opacity-50"
+              className="flex-1 min-w-0 text-xs bg-muted/40 rounded px-1 py-1 outline-none focus:ring-1 focus:ring-accent/40 text-muted-foreground disabled:opacity-50"
               title={t('zenskill.gtd.actions.energy')}
             >
               <option value="">{t('zenskill.gtd.actions.formEnergy')}</option>
@@ -548,6 +572,17 @@ export function ActionsPanel({
                 <option key={v} value={v}>{t(`zenskill.gtd.actions.energyLevel.${v}`)}</option>
               ))}
             </select>
+          </div>
+          {/* Row 3: due date + project */}
+          <div className="flex items-center gap-1.5">
+            <input
+              type="date"
+              value={formDueDate}
+              onChange={(e) => setFormDueDate(e.target.value)}
+              disabled={addDisabled}
+              className="w-36 shrink-0 text-xs bg-muted/40 rounded px-1.5 py-1 outline-none focus:ring-1 focus:ring-accent/40 text-muted-foreground disabled:opacity-50"
+              title="Due date"
+            />
             <select
               value={formProjectId}
               onChange={(e) => setFormProjectId(e.target.value)}
@@ -558,6 +593,32 @@ export function ActionsPanel({
               <option value="">{t('zenskill.gtd.actions.formProjectNone')}</option>
               {(projects ?? []).map((p) => (
                 <option key={p.id} value={p.id}>{p.name}</option>
+              ))}
+            </select>
+          </div>
+          {/* Row 4: contexts + repeat rule */}
+          <div className="flex items-center gap-1.5">
+            <input
+              value={formContexts}
+              onChange={(e) => setFormContexts(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.nativeEvent.isComposing) submitAdd()
+              }}
+              placeholder="@coding, @computer"
+              disabled={addDisabled}
+              className="flex-1 min-w-0 text-xs bg-muted/40 rounded px-2 py-1 outline-none focus:ring-1 focus:ring-accent/40 disabled:opacity-50"
+              title={t('zenskill.gtd.actions.formContexts')}
+            />
+            <select
+              value={formRepeat}
+              onChange={(e) => setFormRepeat(e.target.value)}
+              disabled={addDisabled}
+              className="w-24 shrink-0 text-xs bg-muted/40 rounded px-1 py-1 outline-none focus:ring-1 focus:ring-accent/40 text-muted-foreground disabled:opacity-50"
+              title={t('zenskill.gtd.actions.formRepeat')}
+            >
+              <option value="">{t('zenskill.gtd.actions.repeat.none')}</option>
+              {REPEAT_RULES.map((r) => (
+                <option key={r} value={r}>{t(`zenskill.gtd.actions.repeat.${r}`)}</option>
               ))}
             </select>
           </div>

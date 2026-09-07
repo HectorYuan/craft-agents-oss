@@ -157,6 +157,9 @@ export function GtdWorkspace({ workspaceId, initialTab }: GtdWorkspaceProps) {
   // B06: suggested next actions (top of the pending view)
   const nextActions = useMcpTool<ActionData>(workspaceId, sourceSlug, 'action_list', { status: 'next', limit: 3 })
   const calendarToday = useMcpTool<CalendarListData>(workspaceId, sourceSlug, 'calendar_list', { scope: 'today' })
+  // B13: week-scope feed for the ActionsPanel scheduled-state icons (today alone
+  // would miss actions scheduled later in the week); failure is non-fatal
+  const calendarWeek = useMcpTool<CalendarListData>(workspaceId, sourceSlug, 'calendar_list', { scope: 'week' })
   // Month payload for the grid — parked while the today flat list is shown
   const calendarMonth = useMcpTool<GtdCalendarMonthData>(
     calendarScope === 'today' ? undefined : workspaceId,
@@ -228,17 +231,26 @@ export function GtdWorkspace({ workspaceId, initialTab }: GtdWorkspaceProps) {
     void runTool('gtd_capture', { text })
   }, [runTool])
 
-  const addAction = useCallback(({ title, priority, dueDate, energyRequired, projectId }: {
+  const addAction = useCallback(({ title, priority, dueDate, energyRequired, projectId, contexts, repeatRule }: {
     title: string
     priority: string
     dueDate: string
     energyRequired?: number
     projectId?: string
+    /** raw comma-separated contexts from the form; split into a list for the backend */
+    contexts?: string
+    repeatRule?: string
   }) => {
-    const args: Record<string, unknown> = { title, priority }
+    const args: Record<string, unknown> = { title, priority, skill_id: 'zenskill-core' }
     if (dueDate) args.due_date = dueDate
     if (typeof energyRequired === 'number') args.energy_required = energyRequired
     if (projectId) args.project_id = projectId
+    const contextList = (contexts ?? '')
+      .split(',')
+      .map((c) => c.trim())
+      .filter(Boolean)
+    if (contextList.length > 0) args.contexts = contextList
+    if (repeatRule) args.repeat_rule = repeatRule
     void runTool('action_add', args)
   }, [runTool])
 
@@ -311,6 +323,12 @@ export function GtdWorkspace({ workspaceId, initialTab }: GtdWorkspaceProps) {
   const suggestionMap: Record<string, string> = {}
   for (const s of inboxSuggest.data?.items ?? []) {
     suggestionMap[s.item_id] = s.suggested_type
+  }
+
+  // B13: action_id → scheduled date (today + week feeds merged; later entries win)
+  const scheduledMap: Record<string, string> = {}
+  for (const e of [...(calendarToday.data?.events ?? []), ...(calendarWeek.data?.events ?? [])]) {
+    if (e?.action_id) scheduledMap[e.action_id] = e.date
   }
 
   const error = inbox.error ?? actions.error ?? calendarToday.error ?? calendarMonth.error ?? projects.error
@@ -433,6 +451,7 @@ export function GtdWorkspace({ workspaceId, initialTab }: GtdWorkspaceProps) {
                 projects={projects.data?.items ?? []}
                 nextActions={nextActions.data?.items ?? []}
                 onSchedule={scheduleAction}
+                scheduledDates={scheduledMap}
                 statusLabels={{
                   pending: t('zenskill.gtd.actions.status.pending'),
                   next: t('zenskill.gtd.actions.status.next'),

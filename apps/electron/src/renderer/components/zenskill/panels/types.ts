@@ -29,6 +29,8 @@ export interface GtdCalendarEvent {
   date: string
   time: string
   title: string
+  /** linked action id (calendar_list) — drives the ActionsPanel scheduled-state icon */
+  action_id?: string
 }
 
 /** calendar_month / calendar_list event — id fields are contract-pending, read defensively */
