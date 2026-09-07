@@ -9,7 +9,7 @@
 import React, { useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { Inbox, Brain, Zap, RefreshCw, ChevronRight, Target, Activity, Search, TrendingUp } from 'lucide-react'
+import { Inbox, Brain, Zap, RefreshCw, ChevronRight, Target, Activity, Search, TrendingUp, Share2 } from 'lucide-react'
 import { InboxPanel } from './panels/InboxPanel'
 import { ActionsPanel } from './panels/ActionsPanel'
 import { CalendarPanel } from './panels/CalendarPanel'
@@ -88,6 +88,7 @@ export function ZenSkillDataPanel({ workspaceId, sourceSlug, onGtdItemClick }: Z
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
   const [memQuery, setMemQuery] = useState('')
   const [activeTab, setActiveTab] = useState<TabKey>('today')
+  const [shareLoading, setShareLoading] = useState(false)
 
   // ─── L3 数据层：15 个 useMcpTool ───
   const inboxData = useMcpTool<{ count?: number; items?: GtdItem[] }>(workspaceId, sourceSlug, 'gtd_inbox_list', { limit: 10 })
@@ -157,6 +158,27 @@ export function ZenSkillDataPanel({ workspaceId, sourceSlug, onGtdItemClick }: Z
       toast.error(err instanceof Error ? err.message : `Failed to run ${tool}`)
     } finally {
       setBusyId(null)
+    }
+  }
+
+  // B 方案：生成成长分享卡片 + 免登录公开页（share_card MCP 工具）
+  const handleShareCard = async () => {
+    setShareLoading(true)
+    try {
+      const result = await window.electronAPI.callMcpTool(
+        workspaceId, sourceSlug, 'share_card', { format: 'png', public: true },
+      )
+      const parsed = extractMcpJson(result) as { public_page?: string } | null
+      const pagePath = parsed?.public_page
+      if (pagePath) {
+        toast.success(t('zenskill.toast.shareSuccess', 'Growth card shared'), { description: pagePath })
+      } else {
+        toast.success(t('zenskill.toast.shareSuccess', 'Growth card shared'))
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : t('zenskill.toast.toolFailed', 'Operation failed'))
+    } finally {
+      setShareLoading(false)
     }
   }
 
@@ -257,6 +279,16 @@ export function ZenSkillDataPanel({ workspaceId, sourceSlug, onGtdItemClick }: Z
 
         {/* Growth */}
         <GrowthCard skills={growth} maxItems={3} onNavigateToChat={onGtdItemClick} />
+        <button
+          onClick={() => void handleShareCard()}
+          disabled={shareLoading}
+          className="w-full flex items-center justify-center gap-1.5 text-xs rounded-md border border-border/40 px-2 py-1.5 hover:bg-muted/50 transition-colors disabled:opacity-50"
+        >
+          <Share2 className="h-3 w-3" />
+          {shareLoading
+            ? t('zenskill.panel.share.sharing', 'Sharing...')
+            : t('zenskill.panel.share.button', 'Share growth card')}
+        </button>
       </div>)}
 
       {/* === GTD TAB === */}
