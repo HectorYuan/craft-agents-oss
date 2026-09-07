@@ -1829,6 +1829,7 @@
   "zenskill.gtd.projects.formOutcome": "成果（任意）",
   "zenskill.gtd.projects.toggle": "プロジェクトのアクションを表示",
   "zenskill.gtd.review.doneToday": "今日の完了",
+  "zenskill.gtd.review.energy": "エネルギー {level} {pct}%",
   "zenskill.gtd.review.overdue": "期限超過",
   "zenskill.gtd.review.pending": "未処理",
   "zenskill.gtd.subtitle": "インボックス・アクション・カレンダー・プロジェクト",

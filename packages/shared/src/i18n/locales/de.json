@@ -1829,6 +1829,7 @@
   "zenskill.gtd.projects.formOutcome": "Ergebnis (optional)",
   "zenskill.gtd.projects.toggle": "Projektaktionen anzeigen",
   "zenskill.gtd.review.doneToday": "Heute erledigt",
+  "zenskill.gtd.review.energy": "Energie {level} {pct}%",
   "zenskill.gtd.review.overdue": "Überfällig",
   "zenskill.gtd.review.pending": "Offen",
   "zenskill.gtd.subtitle": "Eingang, Aktionen, Kalender und Projekte",

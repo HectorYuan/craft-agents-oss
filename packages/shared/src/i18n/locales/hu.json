@@ -1829,6 +1829,7 @@
   "zenskill.gtd.projects.formOutcome": "Eredmény (nem kötelező)",
   "zenskill.gtd.projects.toggle": "Projekt teendők megjelenítése",
   "zenskill.gtd.review.doneToday": "Ma kész",
+  "zenskill.gtd.review.energy": "Energia {level} {pct}%",
   "zenskill.gtd.review.overdue": "Késedelmes",
   "zenskill.gtd.review.pending": "Függő",
   "zenskill.gtd.subtitle": "Gyűjtő, teendők, naptár és projektek",

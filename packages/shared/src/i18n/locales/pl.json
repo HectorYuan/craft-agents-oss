@@ -1829,6 +1829,7 @@
   "zenskill.gtd.projects.formOutcome": "Rezultat (opcjonalnie)",
   "zenskill.gtd.projects.toggle": "Pokaż zadania projektu",
   "zenskill.gtd.review.doneToday": "Ukończone dzisiaj",
+  "zenskill.gtd.review.energy": "Energia {level} {pct}%",
   "zenskill.gtd.review.overdue": "Zaległe",
   "zenskill.gtd.review.pending": "Oczekujące",
   "zenskill.gtd.subtitle": "Skrzynka, zadania, kalendarz i projekty",
