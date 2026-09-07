@@ -5,6 +5,9 @@ export function clearBlockAnnotationMarkers(root: HTMLElement): void {
   const blocks = root.querySelectorAll<HTMLElement>('[data-ca-block-annotated="true"]')
   blocks.forEach((block) => {
     block.removeAttribute('data-ca-block-annotated')
+    // Runtime DOM cleanup — annotation markers target arbitrary nodes via
+    // querySelector, so CSS utility classes cannot express this styling.
+    // eslint-disable-next-line craft-styles/no-nonstandard-shadows
     block.style.boxShadow = ''
     block.style.backgroundColor = ''
   })
@@ -27,5 +30,6 @@ export function applyBlockAnnotationMarker(root: HTMLElement, annotation: Annota
 
   target.setAttribute('data-ca-block-annotated', 'true')
   target.style.backgroundColor = annotationColorToCss(annotation.style?.color)
+  // eslint-disable-next-line craft-styles/no-nonstandard-shadows -- runtime DOM drawing on arbitrary nodes (see above)
   target.style.boxShadow = 'inset 0 0 0 1px color-mix(in srgb, var(--info) 22%, transparent)'
 }

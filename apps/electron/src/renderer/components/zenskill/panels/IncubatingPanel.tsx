@@ -8,7 +8,7 @@
  * (full variant) — promote relies on the zenskill:changed broadcast for
  * refresh, like every other write.
  */
-import React from 'react'
+import React, { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Sprout, TrendingUp } from 'lucide-react'
 import { useMcpTool } from '@/hooks/zenskill/useMcpTool'

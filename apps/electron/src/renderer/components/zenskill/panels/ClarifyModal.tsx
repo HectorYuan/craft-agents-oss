@@ -84,7 +84,7 @@ export function ClarifyModal({ item, pendingActions, busy, onConfirm, onClose }:
         if (e.target === e.currentTarget) onClose()
       }}
     >
-      <div className="w-[min(360px,calc(100vw-32px))] rounded-md border border-border/40 bg-background shadow-lg p-3 text-xs">
+      <div className="w-[min(360px,calc(100vw-32px))] rounded-md border border-border/40 bg-background shadow-modal-small p-3 text-xs">
         <div className="flex items-center gap-1.5 mb-2">
           <Wand2 className="h-3.5 w-3.5 text-accent" />
           <span className="font-medium flex-1">{t('zenskill.modal.clarify.title')}</span>

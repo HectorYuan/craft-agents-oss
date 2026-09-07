@@ -144,15 +144,10 @@ export function TaskTile({
       className={cn(
         'group relative overflow-hidden rounded-lg border border-border/60 bg-card shadow-minimal',
         'cursor-pointer transition-colors hover:border-border focus-visible:outline-none',
-        'focus-visible:ring-2 focus-visible:ring-ring/50'
+        'focus-visible:ring-2 focus-visible:ring-ring/50',
+        isLive && 'ring-1'
       )}
-      style={
-        isLive
-          ? {
-              boxShadow: `0 0 0 1px ${accent}, 0 4px 16px -4px color-mix(in srgb, ${accent} 40%, transparent)`,
-            }
-          : undefined
-      }
+      style={isLive ? ({ '--tw-ring-color': accent } as React.CSSProperties) : undefined}
     >
       {showTint && color && (
         <div

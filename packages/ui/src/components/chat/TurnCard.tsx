@@ -1502,6 +1502,7 @@ function clearAnnotationMarks(root: HTMLElement): void {
   annotatedInlineCodeNodes.forEach((codeNode) => {
     codeNode.removeAttribute('data-ca-annotation-inline-code')
     codeNode.style.backgroundColor = ''
+    // eslint-disable-next-line craft-styles/no-nonstandard-shadows -- runtime DOM cleanup on arbitrary nodes (see block-markers.ts)
     codeNode.style.boxShadow = ''
   })
 

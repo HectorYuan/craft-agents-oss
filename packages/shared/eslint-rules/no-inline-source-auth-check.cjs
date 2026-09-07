@@ -49,6 +49,7 @@ module.exports = {
       'storage.ts', // isSourceUsable is defined here
       'credential-manager.ts', // State-setting and inverse check
       'server-builder.ts', // OAuth provider checks (documented)
+      'token-refresh-manager.ts', // State-setting after refresh failure (same pattern as credential-manager)
     ]
 
     const filename = context.filename || context.getFilename()
@@ -56,6 +57,11 @@ module.exports = {
 
     // Allow in specific files
     if (allowedFiles.includes(basename)) {
+      return {}
+    }
+
+    // Tests legitimately assert on raw auth state
+    if (basename.endsWith('.test.ts')) {
       return {}
     }
 
