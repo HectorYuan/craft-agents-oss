@@ -4,7 +4,7 @@
  * 用户点击侧边栏 "ZenSkill" 时立即看到数据概览。
  * 复用 Phase 1 提取的 CompanionCard / EnergyBar / HabitHeatmap 组件。
  */
-import React from 'react'
+import React, { useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Zap, TrendingUp } from 'lucide-react'
 import { useMcpTool } from '@/hooks/zenskill/useMcpTool'
@@ -55,20 +55,29 @@ interface ZenSkillOverviewProps {
 export function ZenSkillOverview({ workspaceId, onNavigateToChat }: ZenSkillOverviewProps) {
   const { t } = useTranslation()
 
+  // 核心数据：立即加载
   const companion = useMcpTool<CompanionSummary>(workspaceId, ZENSKILL_SOURCE_SLUG, 'companion_summary', {})
   const review = useMcpTool<ReviewData>(workspaceId, ZENSKILL_SOURCE_SLUG, 'daily_review', {})
-  const habits = useMcpTool<HabitsData>(workspaceId, ZENSKILL_SOURCE_SLUG, 'habit_analyze', { days: 7 })
   const dashboard = useMcpTool<DashboardData>(workspaceId, ZENSKILL_SOURCE_SLUG, 'dashboard_summary', {})
   const energy = useMcpTool<{ status?: { level?: string; pct?: number } }>(workspaceId, ZENSKILL_SOURCE_SLUG, 'energy_level', {})
-  const growth = useMcpTool<GrowthData>(workspaceId, ZENSKILL_SOURCE_SLUG, 'growth_dashboard', {})
+
+  // 次要数据：延迟 500ms 加载（parked hook 模式）
+  const [secondaryLoaded, setSecondaryLoaded] = useState(false)
+  useEffect(() => {
+    const timer = setTimeout(() => setSecondaryLoaded(true), 500)
+    return () => clearTimeout(timer)
+  }, [])
+
+  const habits = useMcpTool<HabitsData>(secondaryLoaded ? workspaceId : undefined, ZENSKILL_SOURCE_SLUG, 'habit_analyze', { days: 7 })
+  const growth = useMcpTool<GrowthData>(secondaryLoaded ? workspaceId : undefined, ZENSKILL_SOURCE_SLUG, 'growth_dashboard', {})
   const achievements = useMcpTool<{
     badges?: { id: string; icon?: string; title?: string; name?: string; progress?: number; detail?: string }[]
     locked?: { id: string; icon?: string; title?: string; name?: string; progress?: number }[]
     completion_rate?: number
-  }>(workspaceId, ZENSKILL_SOURCE_SLUG, 'achievement_list', {})
+  }>(secondaryLoaded ? workspaceId : undefined, ZENSKILL_SOURCE_SLUG, 'achievement_list', {})
   const insights = useMcpTool<{
     items?: { type?: string; title?: string; content?: string; level?: string }[]
-  }>(workspaceId, ZENSKILL_SOURCE_SLUG, 'proactive_insight', {})
+  }>(secondaryLoaded ? workspaceId : undefined, ZENSKILL_SOURCE_SLUG, 'proactive_insight', {})
 
   const isLoading = companion.loading || review.loading || habits.loading || dashboard.loading || energy.loading
   const hasError = companion.error || review.error || habits.error || dashboard.error || energy.error
