@@ -12,12 +12,13 @@
  */
 import type { ComponentType } from 'react'
 import type { LucideIcon } from 'lucide-react'
-import { Brain, Inbox, Zap, Lightbulb, User, Network } from 'lucide-react'
+import { Brain, Inbox, Zap, Lightbulb, User, Network, GitBranch } from 'lucide-react'
 import { GtdWorkspace } from './pages/GtdWorkspace'
 import { MemoryBrowser } from './pages/MemoryBrowser'
 import { ZenSkillOverview } from './pages/ZenSkillOverview'
 import { ZenSkillInsights } from './pages/ZenSkillInsights'
 import { ZenSkillProfile } from './pages/ZenSkillProfile'
+import { ZenSkillCollaboration } from './pages/ZenSkillCollaboration'
 import { ZenSkillSkillGraph } from './pages/ZenSkillSkillGraph'
 
 /** The ZenSkill MCP source slug all ZenSkill pages talk to. */
@@ -75,6 +76,12 @@ export const ZENSKILL_PAGES: ZenSkillPageRegistration[] = [
     component: ZenSkillSkillGraph,
     icon: Network,
     i18nLabelKey: 'zenskill.skillGraph.title',
+  },
+  {
+    slug: 'collaboration',
+    component: ZenSkillCollaboration,
+    icon: GitBranch,
+    i18nLabelKey: 'zenskill.collaboration.title',
   },
 ]
 
