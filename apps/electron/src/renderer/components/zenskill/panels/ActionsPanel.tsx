@@ -415,7 +415,7 @@ export function ActionsPanel({
                 )}
                 <button
                   className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-green-500/20 text-muted-foreground hover:text-green-400 shrink-0"
-                  title="Done"
+                  title={t('zenskill.gtd.actions.done', 'Done')}
                   disabled={busyId === a.id}
                   onClick={() => onDone?.(a.id)}
                 >
@@ -423,7 +423,7 @@ export function ActionsPanel({
                 </button>
                 <button
                   className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-accent/20 text-muted-foreground hover:text-accent shrink-0"
-                  title="Mark as next"
+                  title={t('zenskill.gtd.actions.markNext', 'Mark as next')}
                   disabled={busyId === a.id}
                   onClick={() => onMarkNext?.(a.id)}
                 >
@@ -644,7 +644,7 @@ export function ActionsPanel({
                 <span className="truncate flex-1" title={a.title}>{a.title}</span>
                 <button
                   className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-green-500/20 text-muted-foreground hover:text-green-400 shrink-0"
-                  title="Done"
+                  title={t('zenskill.gtd.actions.done', 'Done')}
                   disabled={busyId === a.id}
                   onClick={() => onDone?.(a.id)}
                 >
@@ -659,10 +659,10 @@ export function ActionsPanel({
         isFull ? (
           <div className="flex flex-col items-center gap-1 py-3 text-muted-foreground/60">
             <CircleDashed className="h-4 w-4" />
-            <span className="text-[11px] italic">No pending actions</span>
+            <span className="text-[11px] italic">{t('zenskill.gtd.actions.empty', 'No pending actions')}</span>
           </div>
         ) : (
-          <div className="text-xs text-muted-foreground italic pl-5">No pending actions</div>
+          <div className="text-xs text-muted-foreground italic pl-5">{t('zenskill.gtd.actions.empty', 'No pending actions')}</div>
         )
       ) : groups ? (
         renderGrouped(groups)

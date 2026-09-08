@@ -196,7 +196,7 @@ export function ProjectsPanel({
             )}
           </div>
         ) : (
-          <div className="text-xs text-muted-foreground italic pl-5">No active projects</div>
+          <div className="text-xs text-muted-foreground italic pl-5">{t('zenskill.gtd.projects.empty', 'No active projects')}</div>
         )
       ) : (
         <div className="space-y-0.5">
@@ -225,7 +225,7 @@ export function ProjectsPanel({
                   {isFull && (
                     <button
                       className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-green-500/20 text-muted-foreground hover:text-green-400 shrink-0"
-                      title="Done"
+                      title={t('zenskill.gtd.projects.done', 'Done')}
                       disabled={busyId === p.id}
                       onClick={() => onDone?.(p.id)}
                     >

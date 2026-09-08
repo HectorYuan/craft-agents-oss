@@ -181,11 +181,11 @@ export function CalendarPanel({
       <div>
         {showHeader && (
           <div className="flex items-center gap-1.5 mb-1.5">
-            <span className="text-xs font-medium text-muted-foreground">Calendar ({headerCount})</span>
+            <span className="text-xs font-medium text-muted-foreground">{t('zenskill.gtd.calendar.title', 'Calendar')} ({headerCount})</span>
           </div>
         )}
         {events.length === 0 ? (
-          <div className="text-xs text-muted-foreground italic pl-5">No events today</div>
+          <div className="text-xs text-muted-foreground italic pl-5">{t('zenskill.gtd.calendar.empty', 'No events today')}</div>
         ) : (
           <div className="space-y-0.5">
             {events.map((e, i) => (
@@ -205,7 +205,7 @@ export function CalendarPanel({
     <div>
       {showHeader && (
         <div className="flex items-center gap-1.5 mb-1.5">
-          <span className="text-xs font-medium text-muted-foreground">Calendar ({count ?? events.length})</span>
+          <span className="text-xs font-medium text-muted-foreground">{t('zenskill.gtd.calendar.title', 'Calendar')} ({count ?? events.length})</span>
           <span className="ml-auto flex items-center gap-1">
             <button
               onClick={() => onToggleSuggest?.()}

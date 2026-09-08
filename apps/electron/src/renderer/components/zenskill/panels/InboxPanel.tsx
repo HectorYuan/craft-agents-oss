@@ -121,7 +121,7 @@ export function InboxPanel({
         </div>
       )}
       {items.length === 0 ? (
-        <div className="text-xs text-muted-foreground italic pl-5">No pending items</div>
+        <div className="text-xs text-muted-foreground italic pl-5">{t('zenskill.gtd.inbox.empty', 'No pending items')}</div>
       ) : (
         <div className="space-y-1">
           {items.slice(0, maxItems).map((item) => {
