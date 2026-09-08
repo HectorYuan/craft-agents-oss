@@ -16,11 +16,19 @@
  *   session, navigates to it and delayed-sends the prompt.
  * The strip is hidden entirely when there is nothing to show — including
  * tool errors (the backend tool may not exist yet).
+ *
+ * Day 1 interaction deepening:
+ * - each suggestion gets an [×] dismiss button; dismissed triggers are kept
+ *   in sessionStorage under `zenskill.progression.dismissed.{YYYY-MM-DD}`
+ *   so they stay hidden for the rest of the day and clear naturally the
+ *   next day (the date is part of the key);
+ * - accepted suggestions (send clicked) are recorded under
+ *   `zenskill.progression.accepted.{YYYY-MM-DD}` as a feedback trail.
  */
 import { useCallback, useState } from 'react'
 import { useAtomValue } from 'jotai'
 import { useTranslation } from 'react-i18next'
-import { ArrowRight } from 'lucide-react'
+import { ArrowRight, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { isSessionsNavigation, routes, useNavigation } from '@/contexts/NavigationContext'
 import { sessionMetaMapAtom } from '@/atoms/sessions'
@@ -31,6 +39,37 @@ interface ProgressionBarProps {
   workspaceId?: string
   /** Valid suggestions (suggestion text present), already defensively extracted */
   progressions: TaskProgression[]
+}
+
+const DISMISS_PREFIX = 'zenskill.progression.dismissed.'
+const ACCEPT_PREFIX = 'zenskill.progression.accepted.'
+
+/** Local date (YYYY-MM-DD) — same convention as the ReviewBar/ActionsPanel */
+function todayKey(): string {
+  const d = new Date()
+  const p = (n: number) => (n < 10 ? `0${n}` : String(n))
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`
+}
+
+/** Read a per-day trigger list from sessionStorage (missing/corrupt → empty) */
+function readDayTriggers(prefix: string): string[] {
+  try {
+    const raw = sessionStorage.getItem(prefix + todayKey())
+    const parsed = raw ? JSON.parse(raw) : []
+    return Array.isArray(parsed) ? parsed.filter((x): x is string => typeof x === 'string') : []
+  } catch {
+    return []
+  }
+}
+
+function appendDayTrigger(prefix: string, trigger: string): void {
+  try {
+    const current = readDayTriggers(prefix)
+    if (!current.includes(trigger)) current.push(trigger)
+    sessionStorage.setItem(prefix + todayKey(), JSON.stringify(current))
+  } catch {
+    // sessionStorage unavailable (quota/private mode) — dismiss is session-only UX
+  }
 }
 
 /** Priority dot color — unknown values collapse to low/grey */
@@ -45,12 +84,23 @@ export function ProgressionBar({ workspaceId, progressions }: ProgressionBarProp
   const { navigate, navigationState } = useNavigation()
   const sessionMetaMap = useAtomValue(sessionMetaMapAtom)
   const [sendingId, setSendingId] = useState<string | null>(null)
+  // Dismissed triggers for today — session-scoped, keyed by date so the next
+  // day starts with a fresh (empty) set.
+  const [dismissed, setDismissed] = useState<string[]>(() => readDayTriggers(DISMISS_PREFIX))
+
+  const dismiss = useCallback((trigger: string) => {
+    setDismissed((cur) => (cur.includes(trigger) ? cur : [...cur, trigger]))
+    appendDayTrigger(DISMISS_PREFIX, trigger)
+  }, [])
 
   const sendPrompt = useCallback(async (progression: TaskProgression, index: number) => {
     if (!workspaceId) return
     const prompt = typeof progression.prompt === 'string' ? progression.prompt.trim() : ''
     if (!prompt || sendingId !== null) return
     const id = typeof progression.trigger === 'string' && progression.trigger ? progression.trigger : `idx-${index}`
+
+    // Feedback trail: this suggestion was accepted (Day 1 / governance prep)
+    appendDayTrigger(ACCEPT_PREFIX, id)
 
     setSendingId(id)
     try {
@@ -76,8 +126,13 @@ export function ProgressionBar({ workspaceId, progressions }: ProgressionBarProp
     }
   }, [workspaceId, sendingId, navigationState, sessionMetaMap, navigate, t])
 
-  if (!workspaceId || progressions.length === 0) return null
-  const hasHigh = progressions.some((p) => p?.priority === 'high')
+  if (!workspaceId) return null
+  const visible = progressions.filter((progression, index) => {
+    const id = typeof progression?.trigger === 'string' && progression.trigger ? progression.trigger : `idx-${index}`
+    return !dismissed.includes(id)
+  })
+  if (visible.length === 0) return null
+  const hasHigh = visible.some((p) => p?.priority === 'high')
 
   return (
     <div
@@ -87,13 +142,14 @@ export function ProgressionBar({ workspaceId, progressions }: ProgressionBarProp
         hasHigh ? 'border-red-400/30 progression-breathe' : 'border-border/30'
       }`}
     >
-      {progressions.map((progression, index) => {
+      {visible.map((progression, index) => {
         const isHigh = progression?.priority === 'high'
         const suggestion = typeof progression?.suggestion === 'string' ? progression.suggestion : ''
         const prompt = typeof progression?.prompt === 'string' ? progression.prompt.trim() : ''
+        const id = typeof progression?.trigger === 'string' && progression.trigger ? progression.trigger : `idx-${index}`
         return (
           <div
-            key={typeof progression?.trigger === 'string' && progression.trigger ? progression.trigger : `idx-${index}`}
+            key={id}
             role="listitem"
             className="flex items-center gap-2 px-3 py-1.5 border-b border-border/20 last:border-b-0 min-w-0"
           >
@@ -112,6 +168,15 @@ export function ProgressionBar({ workspaceId, progressions }: ProgressionBarProp
             >
               <ArrowRight className={`h-3 w-3 ${sendingId !== null ? 'animate-pulse' : ''}`} />
               {t('zenskill.progression.send')}
+            </button>
+            <button
+              type="button"
+              onClick={() => dismiss(id)}
+              title={t('zenskill.progression.dismiss')}
+              aria-label={t('zenskill.progression.dismiss')}
+              className="inline-flex shrink-0 items-center rounded p-0.5 text-muted-foreground/60 transition-colors hover:bg-muted/60 hover:text-muted-foreground"
+            >
+              <X className="h-3 w-3" />
             </button>
           </div>
         )

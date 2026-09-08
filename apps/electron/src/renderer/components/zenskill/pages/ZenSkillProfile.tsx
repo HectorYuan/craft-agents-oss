@@ -5,13 +5,14 @@
  * 成就墙 + 习惯追踪 + 成长趋势 + 能量历史。
  * 数据全部来自 useMcpTool。
  */
-import React, { useMemo } from 'react'
+import React, { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { User, Flame, Target, TrendingUp, Zap, Award, BarChart3, Activity } from 'lucide-react'
 import { useMcpTool } from '@/hooks/zenskill/useMcpTool'
 import { RadarChart } from '../panels/RadarChart'
 import { filterScores } from '../panels/GrowthCard'
 import { EnergyBar } from '../panels/EnergyBar'
+import { PageToChatBridge } from '../PageToChatBridge'
 import { ZS } from '../panels/tokens'
 
 const ZENSKILL_SOURCE_SLUG = 'zenskill'
@@ -165,6 +166,23 @@ export function ZenSkillProfile({ workspaceId }: ZenSkillProfileProps) {
   const energyPct = energy.data?.status?.pct ?? 0
   const energySuggestions = energy.data?.suggestions ?? []
 
+  // Day 1 PageToChatBridge prompt — five-dimension snapshot as a planning
+  // request; composite/weakest read from the first skill's radar scores.
+  const buildBridgePrompt = useCallback((data: { growth?: GrowthData }) => {
+    const skill = data.growth?.skills?.[0]
+    const scores = skill?.scores ? filterScores(skill.scores) : {}
+    const values = Object.values(scores).filter((v) => typeof v === 'number')
+    if (values.length === 0) return ''
+    const composite = Math.round(values.reduce((a, b) => a + b, 0) / values.length)
+    const weakest = Object.entries(scores)
+      .filter(([, v]) => typeof v === 'number')
+      .sort((a, b) => (a[1] as number) - (b[1] as number))[0]?.[0]
+    const realm = data.growth?.realm
+    return `我的五维能力：${composite}分` +
+      (realm ? `，境界 ${realm}` : '') +
+      `。最弱：${weakest ?? '-'}。帮我制定提升计划。`
+  }, [])
+
   return (
     <div className="flex flex-col h-full">
       {/* Page header */}
@@ -177,11 +195,19 @@ export function ZenSkillProfile({ workspaceId }: ZenSkillProfileProps) {
               <div className={ZS.subtitle}>{t('zenskill.profile.subtitle', 'Your growth journey')}</div>
             </div>
           </div>
-          {isLoading && (
-            <div className="h-1.5 w-16 rounded bg-muted/60 overflow-hidden">
-              <div className="h-full w-1/2 bg-accent/50 animate-pulse" />
-            </div>
-          )}
+          <div className="flex items-center gap-2">
+            {isLoading && (
+              <div className="h-1.5 w-16 rounded bg-muted/60 overflow-hidden">
+                <div className="h-full w-1/2 bg-accent/50 animate-pulse" />
+              </div>
+            )}
+            <PageToChatBridge
+              pageName="Profile"
+              workspaceId={workspaceId}
+              contextData={{ growth: growth.data }}
+              buildPrompt={buildBridgePrompt}
+            />
+          </div>
         </div>
       </div>
 

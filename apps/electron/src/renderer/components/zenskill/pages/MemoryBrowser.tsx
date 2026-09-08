@@ -8,10 +8,11 @@
  * while the query is empty, since memory_search requires a query arg.
  * No write tools here (memory_remember is agent-side by design).
  */
-import React, { useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Brain, Search } from 'lucide-react'
 import { useMcpTool } from '@/hooks/zenskill/useMcpTool'
+import { PageToChatBridge } from '../PageToChatBridge'
 import { ZENSKILL_SOURCE_SLUG, type ZenSkillPageProps } from '../zenskill-registry'
 
 const CONTENT_TRUNCATE = 200
@@ -98,6 +99,16 @@ export function MemoryBrowser({ workspaceId }: ZenSkillPageProps) {
 
   const showSkeleton = loading && items.length === 0
 
+  // Day 1 PageToChatBridge prompt — memory snapshot as a search/record request
+  const buildBridgePrompt = useCallback((data: { count?: number; items?: { content?: string }[] }) => {
+    const count = typeof data.count === 'number' ? data.count : (data.items?.length ?? 0)
+    if (count === 0) return ''
+    const latest = typeof data.items?.[0]?.content === 'string' ? data.items[0].content.slice(0, 60) : ''
+    return `记忆库有 ${count} 条记忆。` +
+      (latest ? `最近：${latest}。` : '') +
+      `帮我搜索或记录。`
+  }, [])
+
   return (
     <div className="flex flex-col h-full">
       {/* Page header */}
@@ -113,6 +124,12 @@ export function MemoryBrowser({ workspaceId }: ZenSkillPageProps) {
               <div className="h-full w-1/2 bg-accent/50 animate-pulse" />
             </div>
           )}
+          <PageToChatBridge
+            pageName="Memory Browser"
+            workspaceId={workspaceId}
+            contextData={{ count: recent.data?.count, items: recent.data?.items }}
+            buildPrompt={buildBridgePrompt}
+          />
         </div>
       </div>
 

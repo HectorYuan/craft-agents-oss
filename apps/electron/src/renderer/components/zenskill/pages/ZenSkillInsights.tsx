@@ -4,11 +4,12 @@
  * 从 ZenSkillOverview 的 InsightsPanel 子组件抽离为独立页面。
  * 支持按类型/优先级筛选，展示所有 proactive_insight 列表。
  */
-import React, { useState, useMemo } from 'react'
+import React, { useCallback, useState, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Lightbulb, Filter, AlertTriangle, Info, CheckCircle } from 'lucide-react'
 import { useMcpTool } from '@/hooks/zenskill/useMcpTool'
 import { InsightsPanel, type Insight } from '../panels/InsightsPanel'
+import { PageToChatBridge } from '../PageToChatBridge'
 import { ZS } from '../panels/tokens'
 
 const ZENSKILL_SOURCE_SLUG = 'zenskill'
@@ -65,6 +66,16 @@ export function ZenSkillInsights({ workspaceId }: ZenSkillInsightsProps) {
   const isLoading = insights.loading && !insights.data
   const hasError = insights.error && !insights.data
 
+  // Day 1 PageToChatBridge prompt — insights snapshot as a processing request
+  const buildBridgePrompt = useCallback((data: { items?: { title?: string }[] }) => {
+    const items = data.items ?? []
+    if (items.length === 0) return ''
+    const topTitle = typeof items[0]?.title === 'string' ? items[0].title : ''
+    return `我有 ${items.length} 条洞察。` +
+      (topTitle ? `最新：${topTitle}。` : '') +
+      `帮我处理第一条。`
+  }, [])
+
   return (
     <div className="flex flex-col h-full">
       <div className={`${ZS.pagePad} border-b border-border/30 shrink-0`}>
@@ -76,11 +87,19 @@ export function ZenSkillInsights({ workspaceId }: ZenSkillInsightsProps) {
               <div className={ZS.subtitle}>{t('zenskill.insights.pageSubtitle', 'All proactive insights')}</div>
             </div>
           </div>
-          {isLoading && (
-            <div className="h-1.5 w-16 rounded bg-muted/60 overflow-hidden">
-              <div className="h-full w-1/2 bg-accent/50 animate-pulse" />
-            </div>
-          )}
+          <div className="flex items-center gap-2">
+            {isLoading && (
+              <div className="h-1.5 w-16 rounded bg-muted/60 overflow-hidden">
+                <div className="h-full w-1/2 bg-accent/50 animate-pulse" />
+              </div>
+            )}
+            <PageToChatBridge
+              pageName="Insights"
+              workspaceId={workspaceId}
+              contextData={{ items: insights.data?.items }}
+              buildPrompt={buildBridgePrompt}
+            />
+          </div>
         </div>
       </div>
 

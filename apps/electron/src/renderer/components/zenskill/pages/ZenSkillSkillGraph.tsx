@@ -9,6 +9,7 @@ import React, { useState, useMemo, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Network } from 'lucide-react'
 import { useMcpTool } from '@/hooks/zenskill/useMcpTool'
+import { PageToChatBridge } from '../PageToChatBridge'
 import { ZS } from '../panels/tokens'
 
 const ZENSKILL_SOURCE_SLUG = 'zenskill'
@@ -114,6 +115,14 @@ export function ZenSkillSkillGraph({ workspaceId }: ZenSkillSkillGraphProps) {
   const isLoading = growth.loading && !growth.data
   const hasError = growth.error && !growth.data
 
+  // Day 1 PageToChatBridge prompt — graph stats as a synergy-analysis request
+  const buildBridgePrompt = useCallback((data: { skills?: unknown[]; edges?: unknown[] }) => {
+    const nodes = data.skills?.length ?? 0
+    const edgeCount = data.edges?.length ?? 0
+    if (nodes === 0) return ''
+    return `技能图谱有 ${nodes} 个节点，${edgeCount} 条关系。帮我分析协同机会。`
+  }, [])
+
   return (
     <div className="flex flex-col h-full">
       <div className={`${ZS.pagePad} border-b border-border/30 shrink-0`}>
@@ -125,11 +134,19 @@ export function ZenSkillSkillGraph({ workspaceId }: ZenSkillSkillGraphProps) {
               <div className={ZS.subtitle}>{t('zenskill.skillGraph.subtitle', 'Skill relationships & stats')}</div>
             </div>
           </div>
-          {isLoading && (
-            <div className="h-1.5 w-16 rounded bg-muted/60 overflow-hidden">
-              <div className="h-full w-1/2 bg-accent/50 animate-pulse" />
-            </div>
-          )}
+          <div className="flex items-center gap-2">
+            {isLoading && (
+              <div className="h-1.5 w-16 rounded bg-muted/60 overflow-hidden">
+                <div className="h-full w-1/2 bg-accent/50 animate-pulse" />
+              </div>
+            )}
+            <PageToChatBridge
+              pageName="Skill Graph"
+              workspaceId={workspaceId}
+              contextData={{ skills: growth.data?.skills, edges: growth.data?.edges }}
+              buildPrompt={buildBridgePrompt}
+            />
+          </div>
         </div>
       </div>
 

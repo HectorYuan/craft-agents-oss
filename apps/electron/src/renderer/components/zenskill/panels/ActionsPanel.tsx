@@ -16,6 +16,7 @@
 import React, { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ArrowRight, CalendarCheck, CalendarPlus, Check, Circle, CircleDashed, Pencil, Plus, Trash2, X } from 'lucide-react'
+import { navigate, routes } from '@/lib/navigate'
 import { PRIORITY_COLOR, energyChipClass, parseIsoDate, weekKey, type GtdAction } from './types'
 
 export type ActionStatusFilter = 'pending' | 'next' | 'done'
@@ -263,6 +264,7 @@ export function ActionsPanel({
 
   const renderRow = (a: GtdAction) => {
     const energy = typeof a.energy_required === 'number' && Number.isFinite(a.energy_required) ? a.energy_required : null
+    const skillId = typeof a.skill_id === 'string' && a.skill_id.trim() ? a.skill_id : null
     const isJustDone = busyId === a.id && status === 'done'
     return (
       <div
@@ -336,6 +338,18 @@ export function ActionsPanel({
               >
                 ⚡{energy}
               </span>
+            )}
+            {skillId && (
+              <button
+                className="text-[9px] px-1 py-px rounded shrink-0 bg-accent/10 text-accent hover:bg-accent/25 transition-colors"
+                title={t('zenskill.gtd.actions.openSkill')}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  navigate(routes.view.skills(skillId))
+                }}
+              >
+                {skillId}
+              </button>
             )}
             {isFull && (a.created_by === 'agent' || a.created_by === 'user') && (
               <span

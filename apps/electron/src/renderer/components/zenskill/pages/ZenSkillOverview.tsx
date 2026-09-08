@@ -6,8 +6,9 @@
  */
 import React, { useCallback, useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Zap, TrendingUp } from 'lucide-react'
-import { useMcpTool } from '@/hooks/zenskill/useMcpTool'
+import { Zap, TrendingUp, Share2 } from 'lucide-react'
+import { toast } from 'sonner'
+import { useMcpTool, extractMcpJson } from '@/hooks/zenskill/useMcpTool'
 import { CompanionCard, type CompanionSummary } from '../panels/CompanionCard'
 import { EnergyBar } from '../panels/EnergyBar'
 import { PageToChatBridge } from '../PageToChatBridge'
@@ -18,6 +19,13 @@ import { InsightsPanel } from '../panels/InsightsPanel'
 import { ZS } from '../panels/tokens'
 
 const ZENSKILL_SOURCE_SLUG = 'zenskill'
+
+interface ShareCardPayload {
+  image_base64?: string
+  mime?: string
+  html_path?: string
+  png_path?: string
+}
 
 interface DashboardData {
   active_skills?: number
@@ -107,6 +115,40 @@ export function ZenSkillOverview({ workspaceId, onNavigateToChat }: ZenSkillOver
       ` 帮我规划接下来的安排。`
   }, [])
 
+  // Day 1 share button — share_card is a write tool (generates + saves files
+  // server-side), so it is called directly on click instead of through
+  // useMcpTool (which fetches on mount and refetches on every zenskill:changed
+  // broadcast, regenerating the card each time). The payload carries the
+  // rendered image as base64 (PNG, falling back to SVG) — open it as a Blob
+  // URL preview.
+  const [sharing, setSharing] = useState(false)
+  const handleShare = useCallback(async () => {
+    if (!workspaceId || sharing) return
+    setSharing(true)
+    let url: string | null = null
+    try {
+      const result = await window.electronAPI.callMcpTool(workspaceId, ZENSKILL_SOURCE_SLUG, 'share_card', { format: 'html' })
+      const data = extractMcpJson(result) as ShareCardPayload | null
+      const base64 = data?.image_base64
+      const mime = data?.mime || 'image/svg+xml'
+      if (!base64) {
+        toast.error(t('zenskill.toast.toolFailed'))
+        return
+      }
+      const bin = atob(base64)
+      const bytes = new Uint8Array(bin.length)
+      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i)
+      url = URL.createObjectURL(new Blob([bytes], { type: mime }))
+      window.open(url, '_blank')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : t('zenskill.toast.toolFailed'))
+    } finally {
+      // Reclaim the Blob URL once the preview window has had time to load it
+      if (url) setTimeout(() => URL.revokeObjectURL(url as string), 60_000)
+      setSharing(false)
+    }
+  }, [workspaceId, sharing, t])
+
   return (
     <div className="flex flex-col h-full">
       {/* Page header */}
@@ -125,6 +167,16 @@ export function ZenSkillOverview({ workspaceId, onNavigateToChat }: ZenSkillOver
                 <div className="h-full w-1/2 bg-accent/50 animate-pulse" />
               </div>
             )}
+            <button
+              type="button"
+              onClick={() => void handleShare()}
+              disabled={!workspaceId || sharing}
+              title={t('zenskill.overview.share')}
+              aria-label={t('zenskill.overview.share')}
+              className="inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-accent disabled:opacity-40"
+            >
+              <Share2 className={`h-3.5 w-3.5 ${sharing ? 'animate-pulse text-accent' : ''}`} />
+            </button>
             <PageToChatBridge
               pageName="ZenSkill Overview"
               workspaceId={workspaceId}

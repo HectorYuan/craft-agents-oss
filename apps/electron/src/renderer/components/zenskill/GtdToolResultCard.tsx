@@ -10,18 +10,25 @@
  *
  * MVP-0: the card is an immutable snapshot of the creation-time tool result
  * (message immutability), but a live status overlay is layered on top via
- * useGtdEntityStatus — a status badge top-right, plus an inline "complete"
- * button for pending/next actions so the loop "agent creates in chat →
- * user completes in chat" closes without leaving the conversation. The
- * completion triggers zenskill:changed, the hook refetches and the badge
- * flips to done. Only applies to action-family cards carrying an entity id
- * and a workspaceId; everything else renders as the plain snapshot.
+ * useGtdEntityStatus — a status badge top-right, plus inline action buttons
+ * so the loop "agent creates in chat → user acts in chat" closes without
+ * leaving the conversation (Day 1 interaction deepening):
+ * - action_add / action_mark_next: [complete] [edit] — edit expands an
+ *   inline editor (title/priority/due_date → action_update), mirroring the
+ *   ActionsPanel inline-edit pattern;
+ * - gtd_capture: [clarify] (inbox_clarify) [archive] (inbox_archive);
+ * - calendar_add: [delete] with click-again confirm (calendar_delete);
+ * - project_add: [complete] (project_done).
+ * Buttons need an entity id and a workspaceId; everything else renders as
+ * the plain snapshot. Live status may hide buttons for entities that already
+ * settled (archived inbox item / done project / done action).
  */
-import React, { useState } from 'react'
+import React, { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { navigate, routes } from '@/lib/navigate'
-import { useGtdEntityStatus } from '@/hooks/zenskill/useGtdEntityStatus'
+import { useGtdEntityStatus, type GtdEntityType } from '@/hooks/zenskill/useGtdEntityStatus'
+import { extractMcpJson } from '@/hooks/zenskill/useMcpTool'
 import { ZENSKILL_SOURCE_SLUG } from './zenskill-registry'
 import { notifyActionDone } from './panels/gtdFeedback'
 
@@ -99,12 +106,46 @@ function stripLeadingIcon(name: string): string {
   return name.replace(/^[^\p{L}\p{N}]+\s*/u, '').trim()
 }
 
-/** Entity id carried by action-family tool results; empty string → undefined */
-function actionEntityId(kind: ToolKind, data: Record<string, unknown> | null): string | undefined {
+/** Nested {item|event} object from a tool result, read defensively */
+function nestedObject(data: Record<string, unknown> | null, key: string): Record<string, unknown> | undefined {
+  const v = data?.[key]
+  return v && typeof v === 'object' && !Array.isArray(v) ? (v as Record<string, unknown>) : undefined
+}
+
+/**
+ * Entity id carried by GTD tool results (Day 1: all write kinds carry one);
+ * empty string → undefined. Field layout per backend contract:
+ * action_add/{mark_next} → id|action_id, action_done → action_id,
+ * gtd_capture → item.id, inbox_clarify → item_id, calendar_add → event.id,
+ * project_add → id|project_id.
+ */
+function gtdEntityId(kind: ToolKind, data: Record<string, unknown> | null): string | undefined {
   if (!data) return undefined
-  if (kind === 'action_add') return str(data, 'id') || str(data, 'action_id') || undefined
-  if (kind === 'action_done') return str(data, 'action_id') || undefined
-  if (kind === 'action_mark_next') return str(data, 'action_id') || str(data, 'id') || undefined
+  switch (kind) {
+    case 'action_add':
+    case 'action_mark_next':
+      return str(data, 'id') || str(data, 'action_id') || undefined
+    case 'action_done':
+      return str(data, 'action_id') || undefined
+    case 'gtd_capture':
+      return str(nestedObject(data, 'item') ?? {}, 'id') || undefined
+    case 'inbox_clarify':
+      return str(data, 'item_id') || undefined
+    case 'calendar_add':
+      return str(nestedObject(data, 'event') ?? {}, 'id') || str(data, 'event_id') || undefined
+    case 'project_add':
+      return str(data, 'id') || str(data, 'project_id') || undefined
+    default:
+      return undefined
+  }
+}
+
+/** Live-status entityType for a card kind — non-GTD kinds return undefined */
+function entityTypeForKind(kind: ToolKind): GtdEntityType | undefined {
+  if (kind === 'action_add' || kind === 'action_done' || kind === 'action_mark_next') return 'action'
+  if (kind === 'gtd_capture' || kind === 'inbox_clarify') return 'inbox'
+  if (kind === 'calendar_add') return 'calendar'
+  if (kind === 'project_add') return 'project'
   return undefined
 }
 
@@ -117,16 +158,33 @@ function DetailRow({ label, value }: { label?: string; value: string }) {
   )
 }
 
+const PRIORITIES = ['P0', 'P1', 'P2', 'P3'] as const
+
+interface EditState {
+  title: string
+  priority: string
+  dueDate: string
+}
+
 export function GtdToolResultCard({ toolName, resultText, workspaceId, sourceSlug }: GtdToolResultCardProps) {
   const { t } = useTranslation()
   const [busy, setBusy] = useState(false)
+  const [editing, setEditing] = useState<EditState | null>(null)
+  // calendar delete: click-again confirm (same pattern as ActionsPanel delete)
+  const [confirmingDelete, setConfirmingDelete] = useState(false)
+  const confirmTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  // Hooks run before any early return; for non-action cards entityId is
-  // undefined so the live-status hook stays idle.
+  // Hooks run before any early return; for kinds without a live layer
+  // entityType is undefined so the live-status hook stays idle.
   const data = resultText ? parseResultObject(resultText) : null
   const kind = toolKind(toolName)
-  const entityId = actionEntityId(kind, data)
-  const live = useGtdEntityStatus(workspaceId, 'action', entityId)
+  const entityId = gtdEntityId(kind, data)
+  const entityType = entityTypeForKind(kind)
+  const live = useGtdEntityStatus(
+    workspaceId,
+    entityType ?? 'action',
+    entityType ? entityId : undefined,
+  )
 
   if (!resultText) return null
   const tab = gtdTabForTool(toolName)
@@ -137,7 +195,7 @@ export function GtdToolResultCard({ toolName, resultText, workspaceId, sourceSlu
 
   if (kind === 'action_add') {
     icon = '✓'
-    headline = str(data ?? {}, 'title') || t('zenskill.card.actionAdded')
+    headline = live.data?.title || str(data ?? {}, 'title') || t('zenskill.card.actionAdded')
     const priority = str(data ?? {}, 'priority')
     if (priority) details.push({ label: t('zenskill.card.priority'), value: priority })
     const due = str(data ?? {}, 'due_date')
@@ -204,11 +262,46 @@ export function GtdToolResultCard({ toolName, resultText, workspaceId, sourceSlu
   if (!headline) return null
 
   const liveStatus = live.status
+  const canAct = Boolean(workspaceId) && Boolean(entityId)
   const showComplete = liveStatus === 'pending' || liveStatus === 'next' || liveStatus === 'done'
+  // Edit + project-done stay available while the entity has not settled;
+  // unknown live status (legacy cards / failed lookup) keeps them visible.
+  const showEdit = canAct && entityType === 'action' && (kind === 'action_add' || kind === 'action_mark_next') && liveStatus !== 'done'
+  const showProjectDone = canAct && kind === 'project_add' && liveStatus !== 'done'
+  // inbox buttons collapse once the item settled (clarified/archived)
+  const showInboxActions = canAct && kind === 'gtd_capture' && (!liveStatus || liveStatus === 'unprocessed')
+  const showCalendarDelete = canAct && kind === 'calendar_add'
   const cardDimmed = liveStatus === 'deleted'
+
+  const disarmDelete = () => {
+    if (confirmTimerRef.current) {
+      clearTimeout(confirmTimerRef.current)
+      confirmTimerRef.current = null
+    }
+    setConfirmingDelete(false)
+  }
+
+  const runTool = async (tool: string, args: Record<string, unknown>) => {
+    if (!workspaceId || !entityId || busy) return
+    setBusy(true)
+    try {
+      return await window.electronAPI.callMcpTool(
+        workspaceId,
+        sourceSlug || ZENSKILL_SOURCE_SLUG,
+        tool,
+        args,
+      )
+    } catch {
+      toast.error(t('zenskill.toast.toolFailed'))
+      return undefined
+    } finally {
+      setBusy(false)
+    }
+  }
 
   const handleComplete = async (e: React.MouseEvent) => {
     e.stopPropagation()
+    disarmDelete()
     if (!workspaceId || !entityId || busy) return
     setBusy(true)
     try {
@@ -228,6 +321,83 @@ export function GtdToolResultCard({ toolName, resultText, workspaceId, sourceSlu
       setBusy(false)
     }
   }
+
+  const handleClarify = async (e: React.MouseEvent) => {
+    e.stopPropagation()
+    const result = await runTool('inbox_clarify', { item_id: entityId })
+    if (result) {
+      const parsed = extractMcpJson(result) as { ok?: boolean; result_type?: string } | null
+      if (parsed?.ok === false) toast.error(t('zenskill.toast.toolFailed'))
+      else toast.success(t('zenskill.toast.clarified', { type: parsed?.result_type ?? '-' }))
+    }
+  }
+
+  const handleArchive = async (e: React.MouseEvent) => {
+    e.stopPropagation()
+    const result = await runTool('inbox_archive', { item_id: entityId })
+    if (result) {
+      const parsed = extractMcpJson(result) as { ok?: boolean } | null
+      if (parsed?.ok === false) toast.error(t('zenskill.toast.toolFailed'))
+      else toast.success(t('zenskill.toast.archived'))
+    }
+  }
+
+  const handleDeleteEvent = async (e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (!confirmingDelete) {
+      // First click: arm the confirm, auto-disarm after 3s
+      setConfirmingDelete(true)
+      if (confirmTimerRef.current) clearTimeout(confirmTimerRef.current)
+      confirmTimerRef.current = setTimeout(() => setConfirmingDelete(false), 3000)
+      return
+    }
+    disarmDelete()
+    const result = await runTool('calendar_delete', { event_id: entityId })
+    if (result) {
+      const parsed = extractMcpJson(result) as { ok?: boolean } | null
+      if (parsed?.ok === false) toast.error(t('zenskill.toast.toolFailed'))
+      else toast.success(t('zenskill.toast.deletedEvent'))
+    }
+  }
+
+  const handleProjectDone = async (e: React.MouseEvent) => {
+    e.stopPropagation()
+    const result = await runTool('project_done', { project_id: entityId })
+    if (result) {
+      const parsed = extractMcpJson(result) as { ok?: boolean; name?: string } | null
+      if (parsed?.ok === false) toast.error(t('zenskill.toast.toolFailed'))
+      else toast.success(t('zenskill.toast.actionDone', { title: parsed?.name ?? '' }))
+    }
+  }
+
+  const startEdit = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    disarmDelete()
+    setEditing({
+      title: live.data?.title || str(data ?? {}, 'title') || '',
+      priority: str(data ?? {}, 'priority') || 'P2',
+      dueDate: str(data ?? {}, 'due_date') || '',
+    })
+  }
+
+  const saveEdit = async (e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (!editing || !editing.title.trim() || busy) return
+    const args: Record<string, unknown> = {
+      action_id: entityId,
+      title: editing.title.trim(),
+      priority: editing.priority,
+    }
+    if (editing.dueDate) args.due_date = editing.dueDate
+    const result = await runTool('action_update', args)
+    if (result) {
+      const parsed = extractMcpJson(result) as { ok?: boolean } | null
+      if (parsed?.ok === false) toast.error(t('zenskill.toast.toolFailed'))
+    }
+    setEditing(null)
+  }
+
+  const btnBase = 'inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-[11px] font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50'
 
   return (
     <div
@@ -262,16 +432,126 @@ export function GtdToolResultCard({ toolName, resultText, workspaceId, sourceSlu
       {details.map((row, i) => (
         <DetailRow key={i} label={row.label} value={row.value} />
       ))}
-      {showComplete && workspaceId && entityId && (
-        <span className="pt-0.5">
+
+      {/* Inline editor (action kinds) — clicks must not deep-link the card */}
+      {editing && entityType === 'action' && (
+        <div
+          className="flex flex-wrap items-center gap-1 pt-0.5"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <input
+            value={editing.title}
+            autoFocus
+            onChange={(e) => setEditing({ ...editing, title: e.target.value })}
+            onKeyDown={(e) => {
+              if (e.nativeEvent.isComposing) return
+              if (e.key === 'Enter') void saveEdit(e as unknown as React.MouseEvent)
+              if (e.key === 'Escape') setEditing(null)
+            }}
+            className="min-w-0 flex-1 text-xs bg-muted/40 rounded px-1.5 py-0.5 outline-none focus:ring-1 focus:ring-accent/40"
+          />
+          <select
+            value={editing.priority}
+            onChange={(e) => setEditing({ ...editing, priority: e.target.value })}
+            className="text-xs bg-muted/40 rounded px-0.5 py-0.5 outline-none focus:ring-1 focus:ring-accent/40"
+          >
+            {PRIORITIES.map((p) => (
+              <option key={p} value={p}>{p}</option>
+            ))}
+          </select>
+          <input
+            type="date"
+            value={editing.dueDate}
+            onChange={(e) => setEditing({ ...editing, dueDate: e.target.value })}
+            className="text-xs bg-muted/40 rounded px-1 py-0.5 outline-none focus:ring-1 focus:ring-accent/40 text-muted-foreground"
+          />
           <button
             type="button"
-            disabled={busy || liveStatus === 'done'}
-            onClick={handleComplete}
-            className="inline-flex items-center gap-1 rounded border border-emerald-500/40 bg-emerald-500/10 px-1.5 py-0.5 text-[11px] font-medium text-emerald-600 hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-50 dark:text-emerald-400"
+            disabled={busy || !editing.title.trim()}
+            onClick={saveEdit}
+            className={`${btnBase} border-emerald-500/40 bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20 dark:text-emerald-400`}
           >
-            ✓ {t('zenskill.card.completeAction')}
+            ✓ {t('zenskill.card.edit')}
           </button>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation()
+              setEditing(null)
+            }}
+            className={`${btnBase} border-border/60 bg-muted/40 text-muted-foreground hover:bg-muted/70`}
+          >
+            ✕ {t('zenskill.gtd.actions.editCancel')}
+          </button>
+        </div>
+      )}
+
+      {(showComplete || showEdit || showInboxActions || showCalendarDelete || showProjectDone) && (
+        <span className="flex flex-wrap items-center gap-1 pt-0.5">
+          {showComplete && workspaceId && entityId && (
+            <button
+              type="button"
+              disabled={busy || liveStatus === 'done'}
+              onClick={handleComplete}
+              className={`${btnBase} border-emerald-500/40 bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20 dark:text-emerald-400`}
+            >
+              ✓ {t('zenskill.card.completeAction')}
+            </button>
+          )}
+          {showEdit && (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={startEdit}
+              className={`${btnBase} border-accent/40 bg-accent/10 text-accent hover:bg-accent/20`}
+            >
+              ✏ {t('zenskill.card.edit')}
+            </button>
+          )}
+          {showInboxActions && (
+            <>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={handleClarify}
+                className={`${btnBase} border-accent/40 bg-accent/10 text-accent hover:bg-accent/20`}
+              >
+                {t('zenskill.card.clarify')}
+              </button>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={handleArchive}
+                className={`${btnBase} border-border/60 bg-muted/40 text-muted-foreground hover:bg-muted/70`}
+              >
+                {t('zenskill.card.archive')}
+              </button>
+            </>
+          )}
+          {showCalendarDelete && (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={handleDeleteEvent}
+              className={`${btnBase} ${
+                confirmingDelete
+                  ? 'border-red-500/50 bg-red-500/20 text-red-600 dark:text-red-400'
+                  : 'border-red-500/40 bg-red-500/10 text-red-600 hover:bg-red-500/20 dark:text-red-400'
+              }`}
+            >
+              {confirmingDelete ? t('zenskill.card.deleteConfirm') : t('zenskill.card.delete')}
+            </button>
+          )}
+          {showProjectDone && (
+            <button
+              type="button"
+              disabled={busy || liveStatus === 'done'}
+              onClick={handleProjectDone}
+              className={`${btnBase} border-emerald-500/40 bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20 dark:text-emerald-400`}
+            >
+              ✓ {t('zenskill.card.completeAction')}
+            </button>
+          )}
         </span>
       )}
     </div>

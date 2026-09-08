@@ -20,6 +20,8 @@ export interface GtdAction {
   status?: string
   due_date?: string
   project_id?: string
+  /** Linked skill (action_update accepts skill_id) — rendered as a clickable chip */
+  skill_id?: string
   energy_required?: number
   /** Origin marker from the backend ("agent" | "user") — rendered as a source chip in full variant */
   created_by?: string
@@ -86,6 +88,10 @@ export interface TaskProgression {
   suggestion?: string
   prompt?: string
   priority?: string
+  /** Entity the suggestion points at (contract-pending; Python side attaches
+   * entity_id to zenskill:changed / progression payloads — read defensively) */
+  entity_id?: string
+  entity_type?: string
 }
 
 export const PRIORITY_COLOR: Record<string, string> = {
