@@ -45,7 +45,7 @@ class ServerToolRegistry:
     })
     _READ_TOOLS = frozenset({
         "gtd_inbox_list", "gtd_review",
-        "action_list", "project_list",
+        "action_list", "action_status", "project_list",
         "incubating_list",
     })
 
@@ -998,6 +998,42 @@ def build_default_registry() -> ServerToolRegistry:
             "message": f"找到 {len(items)} 个待办行动",
         }
 
+    def _action_status(a: dict[str, Any]) -> Any:
+        """批量查询行动状态（GUI 卡片实时刷新用，防多卡片扇出 refetch）"""
+        from ...systems.gtd.action import ActionEngine
+        engine = ActionEngine()
+        raw_ids = a.get("ids")
+        if not isinstance(raw_ids, list):
+            return {"count": 0, "items": [], "missing": [],
+                    "message": "未提供行动 ID 列表（ids）"}
+        ids = [str(x) for x in raw_ids if isinstance(x, str) and x]
+        if not ids:
+            return {"count": 0, "items": [], "missing": [],
+                    "message": "未提供行动 ID 列表（ids）"}
+        # 一次全量读取后按 ids 过滤；排序截断可能漏掉个别 id，missing 兜底逐个 get
+        all_items = engine.list(status="all", limit=max(50, len(ids)))
+        by_id = {i.id: i for i in all_items}
+        items = []
+        for aid in ids:
+            it = by_id.get(aid)
+            if it is not None:
+                items.append({"id": it.id, "status": it.status, "title": it.title})
+        found = {i["id"] for i in items}
+        for aid in ids:
+            if aid in found:
+                continue
+            it = engine.get(aid)
+            if it is not None:
+                items.append({"id": it.id, "status": it.status, "title": it.title})
+        found = {i["id"] for i in items}
+        missing = [aid for aid in ids if aid not in found]
+        return {
+            "count": len(items),
+            "items": items,
+            "missing": missing,
+            "message": f"返回 {len(items)}/{len(ids)} 个行动状态",
+        }
+
     def _diff_achievements(skill_id: str = "zenskill-core"):
         """返回 (system, before_set) 供执行后 diff"""
         from ...systems.active.achievement_system import AchievementSystem
@@ -1584,6 +1620,19 @@ def build_default_registry() -> ServerToolRegistry:
                 "due_today": {"type": "boolean", "description": "只显示今天到期"},
                 "limit": {"type": "integer", "description": "返回数量，默认 20"},
             },
+        },
+    )
+    registry.register("action_status", "批量查询行动状态（按 ID 列表）", _action_status,
+        {
+            "type": "object",
+            "properties": {
+                "ids": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "行动 ID 列表",
+                },
+            },
+            "required": ["ids"],
         },
     )
     registry.register("action_done", "完成 GTD 行动（触发成长记录与重复任务再生）", _action_done,

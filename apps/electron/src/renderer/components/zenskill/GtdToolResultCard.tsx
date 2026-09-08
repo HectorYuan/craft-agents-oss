@@ -7,14 +7,30 @@
  * defensively (results are truncated at 8000 chars upstream in ws_server.py
  * and may not be valid JSON — falls back to plain text). Clicking the card
  * deep-links to the matching GTD workspace tab (zenskill/gtd?tab=...).
+ *
+ * MVP-0: the card is an immutable snapshot of the creation-time tool result
+ * (message immutability), but a live status overlay is layered on top via
+ * useGtdEntityStatus — a status badge top-right, plus an inline "complete"
+ * button for pending/next actions so the loop "agent creates in chat →
+ * user completes in chat" closes without leaving the conversation. The
+ * completion triggers zenskill:changed, the hook refetches and the badge
+ * flips to done. Only applies to action-family cards carrying an entity id
+ * and a workspaceId; everything else renders as the plain snapshot.
  */
-import React from 'react'
+import React, { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 import { navigate, routes } from '@/lib/navigate'
+import { useGtdEntityStatus } from '@/hooks/zenskill/useGtdEntityStatus'
+import { ZENSKILL_SOURCE_SLUG } from './zenskill-registry'
+import { notifyActionDone } from './panels/gtdFeedback'
 
 interface GtdToolResultCardProps {
   toolName: string
   resultText: string
+  /** Live-status layer — absent (e.g. legacy call sites) keeps snapshot-only behavior */
+  workspaceId?: string
+  sourceSlug?: string
 }
 
 type GtdTab = 'inbox' | 'actions' | 'calendar' | 'projects'
@@ -83,6 +99,15 @@ function stripLeadingIcon(name: string): string {
   return name.replace(/^[^\p{L}\p{N}]+\s*/u, '').trim()
 }
 
+/** Entity id carried by action-family tool results; empty string → undefined */
+function actionEntityId(kind: ToolKind, data: Record<string, unknown> | null): string | undefined {
+  if (!data) return undefined
+  if (kind === 'action_add') return str(data, 'id') || str(data, 'action_id') || undefined
+  if (kind === 'action_done') return str(data, 'action_id') || undefined
+  if (kind === 'action_mark_next') return str(data, 'action_id') || str(data, 'id') || undefined
+  return undefined
+}
+
 function DetailRow({ label, value }: { label?: string; value: string }) {
   return (
     <div className="flex items-center gap-1.5 min-w-0">
@@ -92,12 +117,18 @@ function DetailRow({ label, value }: { label?: string; value: string }) {
   )
 }
 
-export function GtdToolResultCard({ toolName, resultText }: GtdToolResultCardProps) {
+export function GtdToolResultCard({ toolName, resultText, workspaceId, sourceSlug }: GtdToolResultCardProps) {
   const { t } = useTranslation()
+  const [busy, setBusy] = useState(false)
+
+  // Hooks run before any early return; for non-action cards entityId is
+  // undefined so the live-status hook stays idle.
+  const data = resultText ? parseResultObject(resultText) : null
+  const kind = toolKind(toolName)
+  const entityId = actionEntityId(kind, data)
+  const live = useGtdEntityStatus(workspaceId, 'action', entityId)
 
   if (!resultText) return null
-  const data = parseResultObject(resultText)
-  const kind = toolKind(toolName)
   const tab = gtdTabForTool(toolName)
 
   let icon = '✦'
@@ -172,23 +203,77 @@ export function GtdToolResultCard({ toolName, resultText }: GtdToolResultCardPro
   }
   if (!headline) return null
 
+  const liveStatus = live.status
+  const showComplete = liveStatus === 'pending' || liveStatus === 'next' || liveStatus === 'done'
+  const cardDimmed = liveStatus === 'deleted'
+
+  const handleComplete = async (e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (!workspaceId || !entityId || busy) return
+    setBusy(true)
+    try {
+      // Completion feedback (energy spend, unlocked achievements) mirrors
+      // GtdWorkspace; the zenskill:changed broadcast drives the badge
+      // refresh through useGtdEntityStatus — no manual refetch here.
+      const result = await window.electronAPI.callMcpTool(
+        workspaceId,
+        sourceSlug || ZENSKILL_SOURCE_SLUG,
+        'action_done',
+        { action_id: entityId, energy_invested: 5 },
+      )
+      notifyActionDone(result, t)
+    } catch {
+      toast.error(t('zenskill.toast.actionFailed'))
+    } finally {
+      setBusy(false)
+    }
+  }
+
   return (
-    <button
-      type="button"
+    <div
+      role="button"
+      tabIndex={0}
       title={t('zenskill.card.openInGtd')}
       onClick={(e) => {
         e.stopPropagation()
         navigate(routes.view.zenskillGtd(tab))
       }}
-      className="mt-0.5 inline-flex max-w-full flex-col gap-0.5 rounded-md border border-border/60 bg-background px-2.5 py-1.5 text-left text-xs hover:border-accent/40 hover:bg-accent/5 transition-colors"
+      className={`mt-0.5 inline-flex max-w-full flex-col gap-0.5 rounded-md border border-border/60 bg-background px-2.5 py-1.5 text-left text-xs hover:border-accent/40 hover:bg-accent/5 transition-colors cursor-pointer ${cardDimmed ? 'opacity-50' : ''}`}
     >
       <span className="flex items-center gap-1.5 min-w-0">
         <span className="shrink-0 text-accent">{icon}</span>
         <span className="truncate font-medium text-foreground">{headline}</span>
+        {liveStatus === 'next' && (
+          <span className="ml-auto shrink-0 rounded-full border border-purple-500/30 bg-purple-500/10 px-1.5 py-px text-[10px] font-medium text-purple-600 dark:text-purple-400">
+            {t('zenskill.card.statusNext')}
+          </span>
+        )}
+        {liveStatus === 'done' && (
+          <span className="ml-auto shrink-0 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-1.5 py-px text-[10px] font-medium text-emerald-600 dark:text-emerald-400">
+            {t('zenskill.card.statusDone')}
+          </span>
+        )}
+        {liveStatus === 'deleted' && (
+          <span className="ml-auto shrink-0 rounded-full border border-border/60 bg-muted px-1.5 py-px text-[10px] font-medium text-muted-foreground">
+            {t('zenskill.card.statusDeleted')}
+          </span>
+        )}
       </span>
       {details.map((row, i) => (
         <DetailRow key={i} label={row.label} value={row.value} />
       ))}
-    </button>
+      {showComplete && workspaceId && entityId && (
+        <span className="pt-0.5">
+          <button
+            type="button"
+            disabled={busy || liveStatus === 'done'}
+            onClick={handleComplete}
+            className="inline-flex items-center gap-1 rounded border border-emerald-500/40 bg-emerald-500/10 px-1.5 py-0.5 text-[11px] font-medium text-emerald-600 hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-50 dark:text-emerald-400"
+          >
+            ✓ {t('zenskill.card.completeAction')}
+          </button>
+        </span>
+      )}
+    </div>
   )
 }
