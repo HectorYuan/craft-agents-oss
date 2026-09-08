@@ -4,7 +4,8 @@
  * Full-page counterpart of the ZenSkillDataPanel GTD tab: Inbox capture
  * flow / Actions / Calendar / Projects / Incubating, switched by in-page
  * tabs, with a compact Review Bar (energy + daily_review numbers) between
- * the header and the tab bar. Data is fetched through the useMcpTool L3
+ * the header and the tab bar, plus a ProgressionBar strip (task_progressions
+ * suggestions, MVP-2a) right below it. Data is fetched through the useMcpTool L3
  * hook (JSON extraction + zenskill:changed auto-refresh); write tools are
  * called directly and rely on the zenskill:changed broadcast to refresh,
  * never manual refetches.
@@ -32,12 +33,14 @@ import { ProjectsPanel } from '../panels/ProjectsPanel'
 import { IncubatingPanel } from '../panels/IncubatingPanel'
 import { ClarifyModal, type ClarifyResultType } from '../panels/ClarifyModal'
 import { ReviewBar } from '../panels/ReviewBar'
+import { ProgressionBar } from '../panels/ProgressionBar'
 import type {
   GtdAction,
   GtdCalendarEvent,
   GtdCalendarMonthData,
   GtdCalendarSuggestion,
   GtdItem,
+  TaskProgression,
 } from '../panels/types'
 import { ZENSKILL_SOURCE_SLUG } from '../zenskill-registry'
 
@@ -62,6 +65,8 @@ interface DailyReviewData {
   actions?: { completed?: number; added?: number }
   message?: string
 }
+/** task_progressions payload (MVP-2a) — backend tool runs in parallel, defensive reads */
+interface ProgressionsData { count?: number; progressions?: TaskProgression[] }
 
 /** Write-tool payload — ok:false means the backend rejected the operation */
 interface WriteToolPayload { ok?: boolean; message?: string; result_type?: string }
@@ -140,6 +145,10 @@ export function GtdWorkspace({ workspaceId, initialTab }: GtdWorkspaceProps) {
   const dailyReview = useMcpTool<DailyReviewData>(workspaceId, sourceSlug, 'daily_review', {})
   // B09: AI classification suggestions for unprocessed inbox items (read-only)
   const inboxSuggest = useMcpTool<InboxSuggestData>(workspaceId, sourceSlug, 'inbox_suggest', { limit: 50 })
+  // MVP-2a: progression suggestions for the ReviewBar strip (layer 3); the
+  // backend tool runs in parallel — errors land in .error and collapse to
+  // "no suggestions" (ProgressionBar hidden), never a visible failure
+  const progressions = useMcpTool<ProgressionsData>(workspaceId, sourceSlug, 'task_progressions', { limit: 3 })
 
   const runTool = useCallback(async (tool: string, args: Record<string, unknown>) => {
     if (!workspaceId) return
@@ -318,6 +327,12 @@ export function GtdWorkspace({ workspaceId, initialTab }: GtdWorkspaceProps) {
   ).length
   const reviewMessage = typeof dailyReview.data?.message === 'string' ? dailyReview.data.message.slice(0, 60) : ''
 
+  // MVP-2a: defensively extract valid suggestions — an entry needs suggestion
+  // text to be actionable; prompt/priority checks happen inside ProgressionBar
+  const progressionItems: TaskProgression[] = (
+    Array.isArray(progressions.data?.progressions) ? progressions.data.progressions : []
+  ).filter((p) => typeof p?.suggestion === 'string' && p.suggestion.trim() !== '')
+
   // MVP-1 PageToChatBridge prompt — page-data snapshot framed as a planning
   // request. due_date reads use localTodayIso (same convention as the
   // ReviewBar overdue count), not the UTC slice.
@@ -385,6 +400,10 @@ export function GtdWorkspace({ workspaceId, initialTab }: GtdWorkspaceProps) {
         overdueCount={overdueCount}
         message={reviewMessage}
       />
+
+      {/* MVP-2a: progression suggestions — one-line cards under the ReviewBar,
+          hidden entirely when the backend tool has nothing to offer */}
+      <ProgressionBar workspaceId={workspaceId} progressions={progressionItems} />
 
       {/* Tab bar */}
       <div className="px-5 pt-2 border-b border-border/30 flex gap-1 shrink-0">

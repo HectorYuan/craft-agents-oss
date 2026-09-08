@@ -76,6 +76,18 @@ export interface GtdIncubatingItem {
   check_after?: string
 }
 
+/**
+ * task_progressions item — conversational GTD layer 3 (MVP-2a). The backend
+ * tool runs in parallel; every field is contract-pending and read
+ * defensively. prompt is the exact text sent to the agent on send.
+ */
+export interface TaskProgression {
+  trigger?: string
+  suggestion?: string
+  prompt?: string
+  priority?: string
+}
+
 export const PRIORITY_COLOR: Record<string, string> = {
   P0: 'bg-red-500/15 text-red-400',
   P1: 'bg-orange-500/15 text-orange-400',

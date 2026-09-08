@@ -1487,3 +1487,20 @@ html.dark[data-scenic] .fullscreen-overlay-background {
   min-height: 31px;
   padding: 6px 8px;
 }
+
+/* ProgressionBar breathing highlight (GtdWorkspace, MVP-2a) — subtle
+   box-shadow pulse while a high-priority suggestion exists; text opacity
+   stays untouched so the strip stays readable */
+@keyframes progression-breathe {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgb(248 113 113 / 0.2);
+  }
+  50% {
+    box-shadow: 0 0 6px 1px rgb(248 113 113 / 0.12);
+  }
+}
+
+.progression-breathe {
+  animation: progression-breathe 2.4s ease-in-out infinite;
+}
