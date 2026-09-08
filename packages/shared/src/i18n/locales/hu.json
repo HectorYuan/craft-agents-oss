@@ -1741,6 +1741,8 @@
   "workspace.selectWorkspacePlaceholder": "Válassz munkaterületet...",
   "workspace.serverAuthToken": "Szerver hitelesítési token",
   "workspace.underDefaultFolder": "a .craft-agent mappában",
+  "zenskill.bridge.continueInChat": "Folytatás csevegésben",
+  "zenskill.bridge.sent": "Elküldve a csevegésbe itt: {{page}}",
   "zenskill.card.actionAdded": "Teendő létrehozva",
   "zenskill.card.actionCompleted": "Teendő teljesítve",
   "zenskill.card.captured": "Begyűjtve a gyűjtőbe",

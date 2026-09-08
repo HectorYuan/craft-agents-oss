@@ -24,6 +24,7 @@ import { toast } from 'sonner'
 import { Zap, Inbox, Circle, CalendarDays, FolderKanban, Sprout } from 'lucide-react'
 import { useMcpTool, extractMcpJson } from '@/hooks/zenskill/useMcpTool'
 import { notifyActionDone } from '../panels/gtdFeedback'
+import { PageToChatBridge } from '../PageToChatBridge'
 import { InboxPanel } from '../panels/InboxPanel'
 import { ActionsPanel, type ActionStatusFilter } from '../panels/ActionsPanel'
 import { CalendarPanel, type CalendarScope } from '../panels/CalendarPanel'
@@ -317,6 +318,28 @@ export function GtdWorkspace({ workspaceId, initialTab }: GtdWorkspaceProps) {
   ).length
   const reviewMessage = typeof dailyReview.data?.message === 'string' ? dailyReview.data.message.slice(0, 60) : ''
 
+  // MVP-1 PageToChatBridge prompt — page-data snapshot framed as a planning
+  // request. due_date reads use localTodayIso (same convention as the
+  // ReviewBar overdue count), not the UTC slice.
+  const buildBridgePrompt = useCallback((data: {
+    actions?: GtdAction[]
+    inbox?: { status?: string }[]
+    calendar?: GtdCalendarEvent[]
+  }) => {
+    const pending = (data.actions ?? []).filter((a) => a?.status === 'pending')
+    const overdue = pending.filter((a) => a?.due_date && a.due_date < todayIso)
+    const inboxCount = (data.inbox ?? []).filter((i) => i?.status === 'unprocessed')
+    const dueToday = pending.filter((a) => a?.due_date === todayIso)
+    const todayEvents = data.calendar?.length ?? 0
+
+    return `我正在查看 GTD 工作台。当前有 ${pending.length} 个待处理行动，` +
+      `${overdue.length} 个逾期，${inboxCount.length} 条收件箱待整理` +
+      (todayEvents > 0 ? `，今天有 ${todayEvents} 项日程` : '') +
+      `。` +
+      (dueToday.length > 0 ? `今天有 ${dueToday.length} 项到期：${dueToday.map((a) => a.title).join('、')}。` : '') +
+      ` 帮我规划下一步。`
+  }, [todayIso])
+
   return (
     <div className="flex flex-col h-full">
       {/* Page header */}
@@ -328,11 +351,23 @@ export function GtdWorkspace({ workspaceId, initialTab }: GtdWorkspaceProps) {
             <div className="text-[11px] text-muted-foreground">{t('zenskill.gtd.subtitle')}</div>
           </div>
         </div>
-        {busy && (
-          <div className="h-1.5 w-16 rounded bg-muted/60 overflow-hidden" title={t('zenskill.gtd.loading')}>
-            <div className="h-full w-1/2 bg-accent/50 animate-pulse" />
-          </div>
-        )}
+        <div className="flex items-center gap-3">
+          {busy && (
+            <div className="h-1.5 w-16 rounded bg-muted/60 overflow-hidden" title={t('zenskill.gtd.loading')}>
+              <div className="h-full w-1/2 bg-accent/50 animate-pulse" />
+            </div>
+          )}
+          <PageToChatBridge
+            pageName="GTD Workspace"
+            workspaceId={workspaceId}
+            contextData={{
+              actions: dueActions.data?.items,
+              inbox: inbox.data?.items,
+              calendar: calendarToday.data?.events,
+            }}
+            buildPrompt={buildBridgePrompt}
+          />
+        </div>
       </div>
 
       {error && (

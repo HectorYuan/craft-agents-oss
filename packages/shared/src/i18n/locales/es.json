@@ -1741,6 +1741,8 @@
   "workspace.selectWorkspacePlaceholder": "Selecciona un Workspace...",
   "workspace.serverAuthToken": "Token de autenticación del servidor",
   "workspace.underDefaultFolder": "bajo la carpeta .craft-agent",
+  "zenskill.bridge.continueInChat": "Continuar en el chat",
+  "zenskill.bridge.sent": "Enviado al chat desde {{page}}",
   "zenskill.card.actionAdded": "Acción creada",
   "zenskill.card.actionCompleted": "Acción completada",
   "zenskill.card.captured": "Guardado en la bandeja de entrada",

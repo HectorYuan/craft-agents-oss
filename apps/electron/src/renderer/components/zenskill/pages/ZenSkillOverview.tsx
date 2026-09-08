@@ -4,12 +4,13 @@
  * 用户点击侧边栏 "ZenSkill" 时立即看到数据概览。
  * 复用 Phase 1 提取的 CompanionCard / EnergyBar / HabitHeatmap 组件。
  */
-import React, { useState, useEffect } from 'react'
+import React, { useCallback, useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Zap, TrendingUp } from 'lucide-react'
 import { useMcpTool } from '@/hooks/zenskill/useMcpTool'
 import { CompanionCard, type CompanionSummary } from '../panels/CompanionCard'
 import { EnergyBar } from '../panels/EnergyBar'
+import { PageToChatBridge } from '../PageToChatBridge'
 import { HabitHeatmap } from '../panels/HabitHeatmap'
 import { RadarChart } from '../panels/RadarChart'
 import { filterScores } from '../panels/GrowthCard'
@@ -85,6 +86,27 @@ export function ZenSkillOverview({ workspaceId, onNavigateToChat }: ZenSkillOver
 
   const firstHabitCompleted = habits.data?.habits?.[0]?.completed
 
+  // MVP-1 PageToChatBridge prompt — energy / todo snapshot as a planning
+  // request; companion_summary is the richest source, energy/daily_review
+  // are the fallbacks. All reads defensive (contracts pending).
+  const buildBridgePrompt = useCallback((data: {
+    companion?: CompanionSummary | null
+    energy?: { status?: { level?: string; pct?: number } } | null
+    review?: { inbox?: { pending?: number }; actions?: { completed?: number } } | null
+  }) => {
+    const energy = data.companion?.energy ?? data.energy?.status
+    const level = typeof energy?.level === 'string' ? energy.level : '未知'
+    const pct = typeof energy?.pct === 'number' ? Math.round(energy.pct * 100) : null
+    const pendingActions = data.companion?.pending_actions ?? 0
+    const inboxPending = data.companion?.inbox_pending ?? data.review?.inbox?.pending ?? 0
+    const doneToday = data.review?.actions?.completed ?? 0
+
+    return `我正在查看 ZenSkill 总览页。当前能量状态：${level}` +
+      (pct !== null ? `（${pct}%）` : '') +
+      `，待处理行动 ${pendingActions} 个，收件箱待整理 ${inboxPending} 条，今日已完成 ${doneToday} 项。` +
+      ` 帮我规划接下来的安排。`
+  }, [])
+
   return (
     <div className="flex flex-col h-full">
       {/* Page header */}
@@ -97,11 +119,19 @@ export function ZenSkillOverview({ workspaceId, onNavigateToChat }: ZenSkillOver
               <div className={ZS.subtitle}>{t('zenskill.overview.subtitle', 'Your daily overview')}</div>
             </div>
           </div>
-          {isLoading && !anyData && (
-            <div className="h-1.5 w-16 rounded bg-muted/60 overflow-hidden">
-              <div className="h-full w-1/2 bg-accent/50 animate-pulse" />
-            </div>
-          )}
+          <div className="flex items-center gap-3">
+            {isLoading && !anyData && (
+              <div className="h-1.5 w-16 rounded bg-muted/60 overflow-hidden">
+                <div className="h-full w-1/2 bg-accent/50 animate-pulse" />
+              </div>
+            )}
+            <PageToChatBridge
+              pageName="ZenSkill Overview"
+              workspaceId={workspaceId}
+              contextData={{ companion: companion.data, energy: energy.data, review: review.data }}
+              buildPrompt={buildBridgePrompt}
+            />
+          </div>
         </div>
       </div>
 

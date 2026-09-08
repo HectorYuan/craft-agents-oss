@@ -1741,6 +1741,8 @@
   "workspace.selectWorkspacePlaceholder": "选择 Workspace...",
   "workspace.serverAuthToken": "服务器认证令牌",
   "workspace.underDefaultFolder": ".craft-agent 文件夹下",
+  "zenskill.bridge.continueInChat": "继续对话",
+  "zenskill.bridge.sent": "已从 {{page}} 发送到对话",
   "zenskill.card.actionAdded": "行动已创建",
   "zenskill.card.actionCompleted": "行动已完成",
   "zenskill.card.captured": "已收集到收件箱",

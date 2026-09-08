@@ -1741,6 +1741,8 @@
   "workspace.selectWorkspacePlaceholder": "Workspaceを選択...",
   "workspace.serverAuthToken": "サーバー認証トークン",
   "workspace.underDefaultFolder": ".craft-agentフォルダ内",
+  "zenskill.bridge.continueInChat": "チャットで続ける",
+  "zenskill.bridge.sent": "{{page}}からチャットに送信しました",
   "zenskill.card.actionAdded": "アクションを作成しました",
   "zenskill.card.actionCompleted": "アクションを完了しました",
   "zenskill.card.captured": "受信箱に収集しました",
