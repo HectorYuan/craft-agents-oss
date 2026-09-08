@@ -16,6 +16,7 @@ import { HabitHeatmap } from '../panels/HabitHeatmap'
 import { RadarChart } from '../panels/RadarChart'
 import { filterScores } from '../panels/GrowthCard'
 import { InsightsPanel } from '../panels/InsightsPanel'
+import { ErrorBoundary } from '../panels/ErrorBoundary'
 import { ZS } from '../panels/tokens'
 
 const ZENSKILL_SOURCE_SLUG = 'zenskill'
@@ -265,20 +266,22 @@ export function ZenSkillOverview({ workspaceId, onNavigateToChat }: ZenSkillOver
 
           {/* Growth radar chart — first skill with scores */}
           {growth.data?.skills?.[0]?.scores && (
-            <div className={ZS.card}>
-              <div className={ZS.sectionHeader}>
-                <TrendingUp className="h-3.5 w-3.5 text-muted-foreground" />
-                <span className={ZS.body + ' font-medium text-muted-foreground'}>
-                  {t('zenskill.overview.growth', 'Growth')} — {growth.data.skills[0].skill_id}
-                </span>
-                <span className={ZS.micro + ' text-muted-foreground/60 ml-auto'}>
-                  {growth.data.skills[0].level}
-                </span>
+            <ErrorBoundary componentName="RadarChart">
+              <div className={ZS.card}>
+                <div className={ZS.sectionHeader}>
+                  <TrendingUp className="h-3.5 w-3.5 text-muted-foreground" />
+                  <span className={ZS.body + ' font-medium text-muted-foreground'}>
+                    {t('zenskill.overview.growth', 'Growth')} — {growth.data.skills[0].skill_id}
+                  </span>
+                  <span className={ZS.micro + ' text-muted-foreground/60 ml-auto'}>
+                    {growth.data.skills[0].level}
+                  </span>
+                </div>
+                <div className="flex justify-center">
+                  <RadarChart scores={filterScores(growth.data.skills[0].scores)} size={180} />
+                </div>
               </div>
-              <div className="flex justify-center">
-                <RadarChart scores={filterScores(growth.data.skills[0].scores)} size={180} />
-              </div>
-            </div>
+            </ErrorBoundary>
           )}
 
           {/* Achievements — unlocked badges + next to unlock */}
@@ -307,20 +310,22 @@ export function ZenSkillOverview({ workspaceId, onNavigateToChat }: ZenSkillOver
 
           {/* Proactive insights — 使用 InsightsPanel 组件 */}
           {insights.data && (insights.data.items?.length ?? 0) > 0 && (
-            <div className={ZS.card}>
-              <InsightsPanel
-                insights={insights.data.items!.map(item => ({
-                  type: item.type || 'info',
-                  title: item.title || '',
-                  content: item.content || '',
-                  level: item.level || 'low',
-                  id: item.title,
-                }))}
-                maxItems={5}
-                variant="compact"
-                showHeader={false}
-              />
-            </div>
+            <ErrorBoundary componentName="InsightsPanel">
+              <div className={ZS.card}>
+                <InsightsPanel
+                  insights={insights.data.items!.map(item => ({
+                    type: item.type || 'info',
+                    title: item.title || '',
+                    content: item.content || '',
+                    level: item.level || 'low',
+                    id: item.title,
+                  }))}
+                  maxItems={5}
+                  variant="compact"
+                  showHeader={false}
+                />
+              </div>
+            </ErrorBoundary>
           )}
         </div>
       </div>

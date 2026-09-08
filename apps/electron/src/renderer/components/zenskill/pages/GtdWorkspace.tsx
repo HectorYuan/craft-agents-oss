@@ -33,6 +33,7 @@ import { ProjectsPanel } from '../panels/ProjectsPanel'
 import { IncubatingPanel } from '../panels/IncubatingPanel'
 import { ClarifyModal, type ClarifyResultType } from '../panels/ClarifyModal'
 import { ReviewBar } from '../panels/ReviewBar'
+import { ErrorBoundary } from '../panels/ErrorBoundary'
 import { ProgressionBar } from '../panels/ProgressionBar'
 import type {
   GtdAction,
@@ -526,13 +527,15 @@ export function GtdWorkspace({ workspaceId, initialTab }: GtdWorkspaceProps) {
           )}
 
           {activeTab === 'incubating' && (
-            <IncubatingPanel
-              variant="full"
-              workspaceId={workspaceId}
-              sourceSlug={sourceSlug}
-              busyId={busyId}
-              onPromote={(itemId) => runTool('incubating_promote', { item_id: itemId })}
-            />
+            <ErrorBoundary componentName="IncubatingPanel">
+              <IncubatingPanel
+                variant="full"
+                workspaceId={workspaceId}
+                sourceSlug={sourceSlug}
+                busyId={busyId}
+                onPromote={(itemId) => runTool('incubating_promote', { item_id: itemId })}
+              />
+            </ErrorBoundary>
           )}
         </div>
       </div>

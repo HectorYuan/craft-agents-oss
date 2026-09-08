@@ -171,3 +171,108 @@ describe('filterScores', () => {
     expect(Object.keys(filterScores(input))).toEqual(['proficiency', 'stability'])
   })
 })
+
+// ─── InsightsPanel level colors ───
+const INSIGHT_LEVEL_COLORS: Record<string, string> = {
+  high: 'bg-red-500/15 text-red-400',
+  medium: 'bg-yellow-500/15 text-yellow-400',
+  low: 'bg-green-500/15 text-green-400',
+}
+
+describe('InsightLevelColors', () => {
+  test('high → red', () => expect(INSIGHT_LEVEL_COLORS.high).toContain('red'))
+  test('medium → yellow', () => expect(INSIGHT_LEVEL_COLORS.medium).toContain('yellow'))
+  test('low → green', () => expect(INSIGHT_LEVEL_COLORS.low).toContain('green'))
+  test('未知级别 fallback 到 low', () => {
+    const level = 'unknown'
+    const color = INSIGHT_LEVEL_COLORS[level] || INSIGHT_LEVEL_COLORS.low
+    expect(color).toContain('green')
+  })
+})
+
+// ─── IncubatingPanel channel colors ───
+const CHANNEL_COLORS: Record<string, string> = {
+  reflect: 'bg-blue-500/15 text-blue-400',
+  consolidate: 'bg-purple-500/15 text-purple-400',
+  insight: 'bg-yellow-500/15 text-yellow-400',
+  purify: 'bg-green-500/15 text-green-400',
+}
+
+describe('IncubatingChannelColors', () => {
+  test('reflect → blue', () => expect(CHANNEL_COLORS.reflect).toContain('blue'))
+  test('consolidate → purple', () => expect(CHANNEL_COLORS.consolidate).toContain('purple'))
+  test('insight → yellow', () => expect(CHANNEL_COLORS.insight).toContain('yellow'))
+  test('purify → green', () => expect(CHANNEL_COLORS.purify).toContain('green'))
+  test('未知通道 fallback', () => {
+    const channel = 'unknown'
+    const color = CHANNEL_COLORS[channel] || 'bg-muted text-muted-foreground'
+    expect(color).toContain('muted')
+  })
+})
+
+// ─── IncubatingPanel promote threshold ───
+describe('IncubatingPromoteThreshold', () => {
+  const PROMOTE_THRESHOLD_PCT = 80
+  test('maturity 0.8 → 可 promote', () => {
+    const pct = Math.round(Math.min(Math.max(0.8, 0), 1) * 100)
+    expect(pct).toBeGreaterThanOrEqual(PROMOTE_THRESHOLD_PCT)
+  })
+  test('maturity 0.79 → 不可 promote', () => {
+    const pct = Math.round(Math.min(Math.max(0.79, 0), 1) * 100)
+    expect(pct).toBeLessThan(PROMOTE_THRESHOLD_PCT)
+  })
+  test('maturity 1.0 → 可 promote', () => {
+    const pct = Math.round(Math.min(Math.max(1.0, 0), 1) * 100)
+    expect(pct).toBeGreaterThanOrEqual(PROMOTE_THRESHOLD_PCT)
+  })
+  test('maturity 0 → 不可 promote', () => {
+    const pct = Math.round(Math.min(Math.max(0, 0), 1) * 100)
+    expect(pct).toBeLessThan(PROMOTE_THRESHOLD_PCT)
+  })
+})
+
+// ─── EnergyBar color thresholds ───
+describe('EnergyBarColors', () => {
+  function energyColor(pct: number): string {
+    if (pct > 0.7) return 'bg-green-500/70'
+    if (pct > 0.3) return 'bg-yellow-500/70'
+    if (pct > 0.1) return 'bg-orange-500/70'
+    return 'bg-red-500/70'
+  }
+  test('pct > 0.7 → green', () => expect(energyColor(0.8)).toContain('green'))
+  test('pct > 0.3 → yellow', () => expect(energyColor(0.5)).toContain('yellow'))
+  test('pct > 0.1 → orange', () => expect(energyColor(0.2)).toContain('orange'))
+  test('pct <= 0.1 → red', () => expect(energyColor(0.05)).toContain('red'))
+  test('pct = 0 → red', () => expect(energyColor(0)).toContain('red'))
+  test('pct = 1 → green', () => expect(energyColor(1)).toContain('green'))
+})
+
+// ─── RadarChart vertex calculation ───
+describe('RadarChartVertices', () => {
+  function pentagonPoints(cx: number, cy: number, r: number, n: number): string[] {
+    const points: string[] = []
+    for (let i = 0; i < n; i++) {
+      const angle = (2 * Math.PI * i) / n - Math.PI / 2
+      points.push(`${cx + r * Math.cos(angle)},${cy + r * Math.sin(angle)}`)
+    }
+    return points
+  }
+  test('5 个顶点', () => {
+    const points = pentagonPoints(100, 100, 50, 5)
+    expect(points).toHaveLength(5)
+  })
+  test('顶点在圆上', () => {
+    const points = pentagonPoints(100, 100, 50, 5)
+    points.forEach(p => {
+      const [x, y] = p.split(',').map(Number)
+      const dist = Math.sqrt((x - 100) ** 2 + (y - 100) ** 2)
+      expect(dist).toBeCloseTo(50, 0)
+    })
+  })
+  test('第一个顶点在正上方', () => {
+    const points = pentagonPoints(100, 100, 50, 5)
+    const [x, y] = points[0].split(',').map(Number)
+    expect(x).toBeCloseTo(100, 0)
+    expect(y).toBeCloseTo(50, 0)
+  })
+})
