@@ -52,6 +52,7 @@ export function useMcpTool<T = any>(
   const argsKey = JSON.stringify(args)
   const mountedRef = useRef(true)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const timingRef = useRef<number>(0)
 
   const fetchData = useCallback(async () => {
     if (!workspaceId) {
@@ -62,9 +63,14 @@ export function useMcpTool<T = any>(
     }
     setLoading(true)
     setError(null)
+    timingRef.current = performance.now()
     try {
       const result = await window.electronAPI.callMcpTool(workspaceId, sourceSlug, tool, JSON.parse(argsKey))
       if (!mountedRef.current) return
+      const elapsed = Math.round(performance.now() - timingRef.current)
+      if (elapsed > 1000) {
+        console.warn(`[useMcpTool] ${tool} took ${elapsed}ms`)
+      }
       const parsed = extractMcpJson(result)
       if (parsed !== null) setData(parsed as T)
       const errText = (result as McpToolResponse | null)?.error

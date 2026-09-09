@@ -218,7 +218,7 @@ export function ZenSkillOverview({ workspaceId, onNavigateToChat }: ZenSkillOver
 
           {/* Stats grid */}
           {dashboard.data && (
-            <div className="grid grid-cols-3 gap-2 text-xs">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
               <div className={ZS.card}>
                 <div className="text-muted-foreground">{t('zenskill.overview.skills', 'Skills')}</div>
                 <div className="text-lg font-semibold">

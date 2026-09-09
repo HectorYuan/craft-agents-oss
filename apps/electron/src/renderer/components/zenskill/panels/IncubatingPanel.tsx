@@ -153,10 +153,10 @@ export function IncubatingPanel({
     : items
 
   return (
-    <div>
+    <div role="region" aria-label={t('zenskill.gtd.tab.incubating', 'Incubating')}>
       {showHeader && (
         <div className="flex items-center gap-1.5 mb-1.5">
-          <Sprout className="h-3.5 w-3.5 text-muted-foreground" />
+          <Sprout className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
           <span className="text-xs font-medium text-muted-foreground">
             {t('zenskill.gtd.tab.incubating')} ({filteredItems.length}/{items.length})
           </span>
@@ -177,10 +177,11 @@ export function IncubatingPanel({
       ) : (
         <>
           {/* Channel filter buttons */}
-          <div className="flex gap-1 mb-2 px-2">
+          <div className="flex gap-1 mb-2 px-2" role="group" aria-label={t('zenskill.gtd.incubating.filterAll', 'Channel filter')}>
             <button
               onClick={() => setFilterChannel(null)}
               className={`px-2 py-0.5 rounded text-[10px] ${!filterChannel ? 'bg-accent/20 text-accent' : 'text-muted-foreground hover:bg-muted/50'}`}
+              aria-pressed={!filterChannel}
             >
               {t('zenskill.gtd.incubating.filterAll', '全部')}
             </button>
@@ -189,6 +190,7 @@ export function IncubatingPanel({
                 key={ch}
                 onClick={() => setFilterChannel(filterChannel === ch ? null : ch)}
                 className={`px-2 py-0.5 rounded text-[10px] ${filterChannel === ch ? 'bg-accent/20 text-accent' : 'text-muted-foreground hover:bg-muted/50'}`}
+                aria-pressed={filterChannel === ch}
               >
                 {t(`zenskill.gtd.incubating.channel.${ch}`)}
               </button>

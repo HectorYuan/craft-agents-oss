@@ -86,16 +86,16 @@ export function InsightsPanel({
   }
 
   return (
-    <div>
+    <div role="region" aria-label={t('zenskill.insights.title', 'Insights')}>
       {showHeader && (
         <div className={ZS.sectionHeader}>
-          <Lightbulb className="h-3.5 w-3.5 text-muted-foreground" />
+          <Lightbulb className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
           <span className={ZS.body + ' font-medium text-muted-foreground'}>
             {t('zenskill.insights.title', 'Insights')} ({insights.length})
           </span>
         </div>
       )}
-      <div className="space-y-1">
+      <div className="space-y-1" role="list">
         {insights.slice(0, maxItems).map((insight, index) => {
           const id = insight.id || insight.title
           const isExpanded = expandedId === id
@@ -103,10 +103,15 @@ export function InsightsPanel({
           const Icon = TYPE_ICONS[insight.type] || TYPE_ICONS.default
 
           return (
-            <div key={index} className="text-xs rounded px-2 py-1.5 hover:bg-muted/50 group">
+            <div key={index} className="text-xs rounded px-2 py-1.5 hover:bg-muted/50 group" role="listitem">
               <div
                 className="flex items-start gap-2 cursor-pointer"
                 onClick={() => handleExpand(insight)}
+                role="button"
+                aria-expanded={isExpanded}
+                aria-label={`${insight.title} - ${insight.level} priority`}
+                tabIndex={0}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') handleExpand(insight) }}
               >
                 {/* 展开/收起图标 */}
                 <span className="shrink-0 mt-0.5">
