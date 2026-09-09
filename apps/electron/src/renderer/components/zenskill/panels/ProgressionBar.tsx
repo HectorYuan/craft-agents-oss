@@ -24,11 +24,22 @@
  *   next day (the date is part of the key);
  * - accepted suggestions (send clicked) are recorded under
  *   `zenskill.progression.accepted.{YYYY-MM-DD}` as a feedback trail.
+ *
+ * Day 2 ritual mode: when the top visible progression is a time-based
+ * ritual (morning_ritual / shutdown_ritual / weekly_review /
+ * silence_wakeup — backend contract, read defensively) the whole strip
+ * renders as a single ceremony card instead of the compact rows: icon +
+ * i18n title heading, the suggestion line, and a confirm/dismiss button
+ * pair. Confirm sends progression.prompt through the same session logic
+ * as PageToChatBridge (above); the secondary button dismisses for the
+ * rest of the day via the shared sessionStorage trail. The card carries
+ * an accent left border with a faint gradient to stand apart from the
+ * plain suggestions.
  */
 import { useCallback, useState } from 'react'
 import { useAtomValue } from 'jotai'
 import { useTranslation } from 'react-i18next'
-import { ArrowRight, X } from 'lucide-react'
+import { ArrowRight, Bell, CalendarCheck, Moon, Sunrise, X, type LucideIcon } from 'lucide-react'
 import { toast } from 'sonner'
 import { isSessionsNavigation, routes, useNavigation } from '@/contexts/NavigationContext'
 import { sessionMetaMapAtom } from '@/atoms/sessions'
@@ -77,6 +88,52 @@ function priorityDotClass(priority?: string): string {
   if (priority === 'high') return 'bg-red-400'
   if (priority === 'medium') return 'bg-yellow-500'
   return 'bg-muted-foreground/40'
+}
+
+/** Time-based ritual triggers (Day 2 backend contract) — exact matches only */
+const RITUAL_TRIGGERS = ['morning_ritual', 'shutdown_ritual', 'weekly_review', 'silence_wakeup'] as const
+type RitualTrigger = (typeof RITUAL_TRIGGERS)[number]
+
+/** Per-ritual icon + i18n keys (title heading and confirm/dismiss labels) */
+interface RitualStyle {
+  icon: LucideIcon
+  titleKey: string
+  confirmKey: string
+  dismissKey: string
+}
+
+const RITUAL_STYLES: Record<RitualTrigger, RitualStyle> = {
+  morning_ritual: {
+    icon: Sunrise,
+    titleKey: 'zenskill.progression.morningTitle',
+    confirmKey: 'zenskill.progression.morningConfirm',
+    dismissKey: 'zenskill.progression.morningDismiss',
+  },
+  shutdown_ritual: {
+    icon: Moon,
+    titleKey: 'zenskill.progression.shutdownTitle',
+    confirmKey: 'zenskill.progression.shutdownConfirm',
+    dismissKey: 'zenskill.progression.shutdownDismiss',
+  },
+  weekly_review: {
+    icon: CalendarCheck,
+    titleKey: 'zenskill.progression.weeklyTitle',
+    confirmKey: 'zenskill.progression.weeklyConfirm',
+    dismissKey: 'zenskill.progression.weeklyDismiss',
+  },
+  silence_wakeup: {
+    icon: Bell,
+    titleKey: 'zenskill.progression.silenceTitle',
+    confirmKey: 'zenskill.progression.silenceConfirm',
+    dismissKey: 'zenskill.progression.silenceDismiss',
+  },
+}
+
+/** Exact-match guard for the top-1 trigger (contract-pending, defensive) */
+function ritualTriggerOf(trigger: unknown): RitualTrigger | null {
+  return (RITUAL_TRIGGERS as readonly string[]).includes(trigger as string)
+    ? (trigger as RitualTrigger)
+    : null
 }
 
 export function ProgressionBar({ workspaceId, progressions }: ProgressionBarProps) {
@@ -132,6 +189,58 @@ export function ProgressionBar({ workspaceId, progressions }: ProgressionBarProp
     return !dismissed.includes(id)
   })
   if (visible.length === 0) return null
+
+  // Day 2 ritual mode: the top *visible* suggestion decides the strip's
+  // mode. When it is a time-based ritual the whole strip renders as one
+  // ceremony card; dismissing the ritual falls back to the plain rows.
+  const top = visible[0]
+  const ritual = top ? ritualTriggerOf(top.trigger) : null
+  if (ritual && top) {
+    const style = RITUAL_STYLES[ritual]
+    const RitualIcon = style.icon
+    const suggestion = typeof top.suggestion === 'string' ? top.suggestion : ''
+    const prompt = typeof top.prompt === 'string' ? top.prompt.trim() : ''
+    const busy = sendingId !== null
+    return (
+      <div
+        role="group"
+        aria-label={t(style.titleKey)}
+        className={`mx-5 mt-2 shrink-0 rounded-md border border-accent/30 border-l-2 border-l-accent bg-gradient-to-r from-accent/10 via-accent/5 to-transparent px-4 py-3 ${
+          top.priority === 'high' ? 'progression-breathe' : ''
+        }`}
+      >
+        <div className="flex items-center gap-1.5">
+          <RitualIcon className={`h-4 w-4 shrink-0 text-accent ${busy ? 'animate-pulse' : ''}`} />
+          <span className="truncate text-xs font-semibold text-foreground">{t(style.titleKey)}</span>
+        </div>
+        {suggestion && (
+          <p className="mt-1.5 truncate text-xs text-foreground/75" title={suggestion}>
+            {suggestion}
+          </p>
+        )}
+        <div className="mt-2.5 flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => void sendPrompt(top, 0)}
+            disabled={!prompt || busy}
+            className="inline-flex shrink-0 items-center gap-1 rounded bg-accent px-2.5 py-1 text-[11px] font-medium text-white transition-colors hover:bg-accent/90 disabled:opacity-40"
+          >
+            <RitualIcon className="h-3 w-3" />
+            {t(style.confirmKey)}
+          </button>
+          <button
+            type="button"
+            onClick={() => dismiss(ritual)}
+            disabled={busy}
+            className="inline-flex shrink-0 items-center rounded px-2 py-1 text-[11px] text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground disabled:opacity-40"
+          >
+            {t(style.dismissKey)}
+          </button>
+        </div>
+      </div>
+    )
+  }
+
   const hasHigh = visible.some((p) => p?.priority === 'high')
 
   return (
