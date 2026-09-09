@@ -605,7 +605,9 @@ export function ZenSkillCollaboration({ workspaceId }: ZenSkillCollaborationProp
   const isLoading = (dashboard.loading || growth.loading) && !dashboard.data && !growth.data
   const hasError = (dashboard.error || growth.error) && !dashboard.data && !growth.data
 
-  const skills = growth.data?.skills ?? []
+  // Memoized so fallbackSkills's useMemo sees a stable reference
+  // (the ?? [] fallback would otherwise allocate a fresh array every render).
+  const skills = useMemo(() => growth.data?.skills ?? [], [growth.data])
   const insights = insightsResp.data?.insights ?? []
   const patterns = transferResp.data?.patterns ?? []
 

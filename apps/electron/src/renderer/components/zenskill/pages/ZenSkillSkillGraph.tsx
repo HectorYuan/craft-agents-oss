@@ -91,7 +91,9 @@ export function ZenSkillSkillGraph({ workspaceId }: ZenSkillSkillGraphProps) {
   const [hoveredSkill, setHoveredSkill] = useState<string | null>(null)
   const [selectedSkill, setSelectedSkill] = useState<string | null>(null)
 
-  const skills = growth.data?.skills ?? []
+  // Memoized so downstream ringLayout/nodeMap memos see a stable reference
+  // (the ?? [] fallback would otherwise allocate a fresh array every render).
+  const skills = useMemo(() => growth.data?.skills ?? [], [growth.data])
   const edges = growth.data?.edges ?? []
 
   const SVG_WIDTH = 400

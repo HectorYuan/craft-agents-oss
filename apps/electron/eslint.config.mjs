@@ -159,6 +159,24 @@ export default [
     },
   },
 
+  // localStorage exemptions:
+  //   - lib/local-storage.ts is the sanctioned wrapper (prefixed keys, central
+  //     key registry) for ephemeral UI state that must survive reloads without
+  //     a round-trip through main.
+  //   - playground runs in a plain browser tab with no electronAPI bridge.
+  //   - main.tsx reads i18next's own `i18nextLng` key for a startup diagnostic;
+  //     that key belongs to the i18n library, not the app preferences system.
+  {
+    files: [
+      'src/renderer/lib/local-storage.ts',
+      'src/renderer/playground/**/*.{ts,tsx}',
+      'src/renderer/main.tsx',
+    ],
+    rules: {
+      'craft-agent/no-localstorage': 'off',
+    },
+  },
+
   // Enforce backend abstraction boundary in Electron main process.
   {
     files: ['src/main/**/*.{ts,tsx}'],
