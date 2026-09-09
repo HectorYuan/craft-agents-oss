@@ -16,8 +16,10 @@
  *
  * Calendar: real month grid via calendar_month (defensive reads — the
  * shape is contract-pending), selected-day detail with calendar_add /
- * calendar_delete, and calendar_suggest slots (hook parked until the user
- * asks for suggestions, mirroring MemoryBrowser's parked search pattern).
+ * calendar_delete / calendar_update (inline edit), and calendar_suggest
+ * slots (hook parked until the user asks for suggestions, mirroring
+ * MemoryBrowser's parked search pattern). Projects: project_add /
+ * project_done / project_update inline edit in the expanded detail area.
  *
  * Day 4 governance: a compact proactivity selector (active / quiet /
  * ritual_only) sits between the ReviewBar and the ProgressionBar. The
@@ -236,6 +238,10 @@ export function GtdWorkspace({ workspaceId, initialTab }: GtdWorkspaceProps) {
         toast.success(t('zenskill.toast.deletedAction'))
       } else if (tool === 'calendar_delete') {
         toast.success(t('zenskill.toast.deletedEvent'))
+      } else if (tool === 'calendar_update') {
+        toast.success(t('zenskill.toast.eventUpdated'))
+      } else if (tool === 'project_update') {
+        toast.success(t('zenskill.toast.projectUpdated'))
       } else if (tool === 'calendar_add' && args.action_id) {
         // B13: only the action-scheduling path toasts (plain calendar_add from
         // the CalendarPanel form has its own visible row already)
@@ -314,6 +320,21 @@ export function GtdWorkspace({ workspaceId, initialTab }: GtdWorkspaceProps) {
 
   const deleteEvent = useCallback((eventId: string) => {
     void runTool('calendar_delete', { event_id: eventId })
+  }, [runTool])
+
+  // Batch 3: calendar_update inline edit (event title/date/time)
+  const updateEvent = useCallback(({ eventId, title, date, timeStr }: { eventId: string; title: string; date: string; timeStr: string }) => {
+    const args: Record<string, unknown> = { event_id: eventId, title, date }
+    if (timeStr) args.time_str = timeStr
+    void runTool('calendar_update', args)
+  }, [runTool])
+
+  // Batch 2: project_update inline edit (name/outcome/notes)
+  const editProject = useCallback(({ projectId, name, outcome, notes }: { projectId: string; name: string; outcome?: string; notes?: string }) => {
+    const args: Record<string, unknown> = { project_id: projectId, name }
+    if (outcome) args.outcome = outcome
+    if (notes) args.notes = notes
+    void runTool('project_update', args)
   }, [runTool])
 
   const prevMonth = useCallback(() => {
@@ -585,6 +606,8 @@ export function GtdWorkspace({ workspaceId, initialTab }: GtdWorkspaceProps) {
                 onAddEvent={addEvent}
                 addEventDisabled={!workspaceId || busyId === 'calendar_add'}
                 onDeleteEvent={deleteEvent}
+                onUpdateEvent={updateEvent}
+                updateEventDisabled={!workspaceId || busyId === 'calendar_update'}
                 suggestions={suggestions}
                 suggestActive={suggestActive}
                 suggestLoading={suggest.loading}
@@ -604,6 +627,8 @@ export function GtdWorkspace({ workspaceId, initialTab }: GtdWorkspaceProps) {
                 onDone={(projectId) => runTool('project_done', { project_id: projectId })}
                 onAddProject={({ name, outcome }) => runTool('project_add', outcome ? { name, outcome } : { name })}
                 addProjectDisabled={!workspaceId || busyId === 'project_add'}
+                onEditProject={editProject}
+                editProjectDisabled={!workspaceId || busyId === 'project_update'}
                 workspaceId={workspaceId}
                 sourceSlug={sourceSlug}
               />

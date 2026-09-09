@@ -6,16 +6,23 @@
  * a debounced search switches to memory_search. Both read through the
  * useMcpTool L3 hook — the search hook is parked (workspaceId undefined)
  * while the query is empty, since memory_search requires a query arg.
- * No write tools here (memory_remember is agent-side by design).
+ *
+ * Write path: memory_forget via a hover trash button with two-click confirm;
+ * the zenskill:changed broadcast refreshes memory_list/memory_search through
+ * useMcpTool, so no manual refetch. Backend tool in parallel development —
+ * the delete query is the truncated card content per contract.
  */
-import React, { useCallback, useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Brain, Search } from 'lucide-react'
-import { useMcpTool } from '@/hooks/zenskill/useMcpTool'
+import { toast } from 'sonner'
+import { Brain, Search, Trash2 } from 'lucide-react'
+import { useMcpTool, extractMcpJson } from '@/hooks/zenskill/useMcpTool'
 import { PageToChatBridge } from '../PageToChatBridge'
 import { ZENSKILL_SOURCE_SLUG, type ZenSkillPageProps } from '../zenskill-registry'
 
 const CONTENT_TRUNCATE = 200
+/** memory_forget {query} — truncated content match per contract */
+const FORGET_QUERY_TRUNCATE = 120
 
 interface MemoryItem {
   id?: string
@@ -97,6 +104,45 @@ export function MemoryBrowser({ workspaceId }: ZenSkillPageProps) {
   const error = searching ? search.error : recent.error
   const totalCount = recent.data?.count ?? 0
 
+  // Two-click delete confirm (same pattern as CalendarPanel) + in-flight flag
+  const [confirmKey, setConfirmKey] = useState<string | null>(null)
+  const confirmRef = useRef<string | null>(null)
+  confirmRef.current = confirmKey
+  const [forgetting, setForgetting] = useState(false)
+  const armForget = (item: MemoryItem, key: string) => {
+    if (confirmRef.current === key) {
+      setConfirmKey(null)
+      void forgetMemory(item)
+    } else {
+      setConfirmKey(key)
+      setTimeout(() => setConfirmKey((cur) => (cur === key ? null : cur)), 3000)
+    }
+  }
+  const forgetMemory = async (item: MemoryItem) => {
+    if (!workspaceId || forgetting) return
+    setForgetting(true)
+    try {
+      const result = await window.electronAPI.callMcpTool(
+        workspaceId,
+        ZENSKILL_SOURCE_SLUG,
+        'memory_forget',
+        { query: item.content.slice(0, FORGET_QUERY_TRUNCATE) },
+      )
+      const data = extractMcpJson(result) as { ok?: boolean; success?: boolean; message?: string; error?: string } | null
+      if (data?.ok === false || data?.success === false) {
+        const reason = typeof data.message === 'string' ? data.message : typeof data.error === 'string' ? data.error : undefined
+        toast.error(t('zenskill.toast.toolFailed'), { description: reason })
+        return
+      }
+      toast.success(t('zenskill.toast.memoryForgotten'))
+      // List refresh rides the zenskill:changed broadcast via useMcpTool
+    } catch {
+      toast.error(t('zenskill.toast.toolFailed'))
+    } finally {
+      setForgetting(false)
+    }
+  }
+
   const showSkeleton = loading && items.length === 0
 
   // Day 1 PageToChatBridge prompt — memory snapshot as a search/record request
@@ -167,13 +213,39 @@ export function MemoryBrowser({ workspaceId }: ZenSkillPageProps) {
                 const key = itemKey(item, i)
                 const expanded = expandedKey === key
                 return (
-                  <button
+                  <div
                     key={key}
+                    role="button"
+                    tabIndex={0}
                     onClick={() => setExpandedKey(expanded ? null : key)}
-                    className="w-full text-left text-xs rounded px-2.5 py-2 border border-border/40 bg-muted/20 hover:bg-muted/50 transition-colors"
+                    onKeyDown={(e) => {
+                      if (e.nativeEvent.isComposing) return
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault()
+                        setExpandedKey(expanded ? null : key)
+                      }
+                    }}
+                    className="group w-full text-left text-xs rounded px-2.5 py-2 border border-border/40 bg-muted/20 hover:bg-muted/50 transition-colors cursor-pointer"
                   >
-                    <div className={expanded ? 'whitespace-pre-wrap break-words' : 'truncate'}>
-                      {truncateContent(item.content, expanded)}
+                    <div className="flex items-start gap-1.5">
+                      <div className={'flex-1 min-w-0 ' + (expanded ? 'whitespace-pre-wrap break-words' : 'truncate')}>
+                        {truncateContent(item.content, expanded)}
+                      </div>
+                      <button
+                        className={`opacity-0 group-hover:opacity-100 p-1 rounded shrink-0 transition-opacity ${
+                          confirmKey === key
+                            ? 'opacity-100 bg-red-500/25 text-red-400'
+                            : 'hover:bg-red-500/20 text-muted-foreground hover:text-red-400'
+                        }`}
+                        title={confirmKey === key ? t('zenskill.gtd.calendar.deleteConfirm') : t('zenskill.memory.delete')}
+                        disabled={forgetting}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          armForget(item, key)
+                        }}
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </button>
                     </div>
                     <div className="flex items-center gap-1.5 mt-1">
                       {item.action && (
@@ -186,7 +258,7 @@ export function MemoryBrowser({ workspaceId }: ZenSkillPageProps) {
                         <span className="text-[10px] text-muted-foreground/60 shrink-0 ml-auto">{item.date}</span>
                       )}
                     </div>
-                  </button>
+                  </div>
                 )
               })}
             </div>

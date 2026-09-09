@@ -66,6 +66,9 @@ export interface GtdProject {
   name: string
   status?: string
   progress?: number
+  /** project_update editable fields — optional, contract-pending on project_list */
+  outcome?: string
+  notes?: string
 }
 
 /** incubating_list entry — maturity is a 0..1 fraction (backend rounds to 2 decimals) */

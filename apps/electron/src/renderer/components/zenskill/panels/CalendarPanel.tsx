@@ -5,9 +5,10 @@
  * ZenSkillDataPanel's GTD tab (flat today list). full variant
  * (GtdWorkspace): a real month grid (calendar_month data with heat badges
  * and event chips), a selected-day detail sidebar (day events + due
- * actions + inline add form + calendar_delete with two-click confirm),
- * and calendar_suggest chips that prefill the add form. today/week stay
- * as quick scopes (week = current week row highlighted on the grid).
+ * actions + inline add form + calendar_delete with two-click confirm +
+ * calendar_update inline edit on hover), and calendar_suggest chips that
+ * prefill the add form. today/week stay as quick scopes (week = current
+ * week row highlighted on the grid).
  *
  * calendar_month keys days by full "YYYY-MM-DD" and groups events per day;
  * calendar_suggest returns {suggestions: [{date, time, period}]}. The reads
@@ -17,7 +18,7 @@
 import React, { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { format } from 'date-fns'
-import { CalendarOff, ChevronLeft, ChevronRight, CircleDashed, Plus, Trash2, Wand2 } from 'lucide-react'
+import { CalendarOff, Check, ChevronLeft, ChevronRight, CircleDashed, Pencil, Plus, Trash2, Wand2, X } from 'lucide-react'
 import type { Locale } from 'date-fns'
 import { getDateLocale } from '@craft-agent/shared/i18n'
 import type { GtdAction, GtdCalendarEvent, GtdCalendarEventWithId, GtdCalendarMonthData, GtdCalendarSuggestion } from './types'
@@ -51,6 +52,9 @@ export interface CalendarPanelProps {
   addEventDisabled?: boolean
   /** full variant: calendar_delete */
   onDeleteEvent?: (eventId: string) => void
+  /** full variant: calendar_update inline edit submit */
+  onUpdateEvent?: (input: { eventId: string; title: string; date: string; timeStr: string }) => void
+  updateEventDisabled?: boolean
   /** full variant: calendar_suggest */
   suggestions?: GtdCalendarSuggestion[]
   suggestActive?: boolean
@@ -111,6 +115,8 @@ export function CalendarPanel({
   onAddEvent,
   addEventDisabled,
   onDeleteEvent,
+  onUpdateEvent,
+  updateEventDisabled,
   suggestions,
   suggestActive,
   suggestLoading,
@@ -138,6 +144,26 @@ export function CalendarPanel({
       setConfirmEventId(eventId)
       setTimeout(() => setConfirmEventId((cur) => (cur === eventId ? null : cur)), 3000)
     }
+  }
+
+  // calendar_update inline edit (day-events sidebar)
+  const [editingEvent, setEditingEvent] = useState<{ eventId: string; title: string; date: string; time: string } | null>(null)
+  const startEventEdit = (e: GtdCalendarEventWithId) => {
+    const eventId = eventIdOf(e)
+    if (!eventId) return
+    setEditingEvent({ eventId, title: e.title ?? '', date: e.date ?? selectedDate ?? '', time: eventTimeOf(e) })
+  }
+  const saveEventEdit = () => {
+    if (!editingEvent) return
+    const title = editingEvent.title.trim()
+    if (!title || updateEventDisabled) { setEditingEvent(null); return }
+    onUpdateEvent?.({
+      eventId: editingEvent.eventId,
+      title,
+      date: editingEvent.date,
+      timeStr: editingEvent.time.trim(),
+    })
+    setEditingEvent(null)
   }
 
   const submitAdd = () => {
@@ -431,10 +457,68 @@ export function CalendarPanel({
                     {dayEvents.map((e, i) => {
                       const eventId = eventIdOf(e)
                       const time = eventTimeOf(e)
+                      const isEditing = !!eventId && editingEvent?.eventId === eventId
+                      if (isEditing && editingEvent) {
+                        return (
+                          <div key={eventId ?? `event-${i}`} className="flex items-center gap-1 text-xs rounded px-2 py-0.5">
+                            <input
+                              value={editingEvent.title}
+                              autoFocus
+                              onChange={(ev) => setEditingEvent({ ...editingEvent, title: ev.target.value })}
+                              onKeyDown={(ev) => {
+                                if (ev.nativeEvent.isComposing) return
+                                if (ev.key === 'Enter') saveEventEdit()
+                                if (ev.key === 'Escape') setEditingEvent(null)
+                              }}
+                              aria-label={t('zenskill.gtd.calendar.addPlaceholder')}
+                              className="flex-1 min-w-0 text-xs bg-muted/40 rounded px-1.5 py-0.5 outline-none focus:ring-1 focus:ring-accent/40"
+                            />
+                            <input
+                              type="date"
+                              value={editingEvent.date}
+                              onChange={(ev) => setEditingEvent({ ...editingEvent, date: ev.target.value })}
+                              aria-label={t('zenskill.gtd.calendar.dateLabel')}
+                              className="text-xs bg-muted/40 rounded px-1 py-0.5 outline-none focus:ring-1 focus:ring-accent/40 text-muted-foreground shrink-0"
+                            />
+                            <input
+                              type="time"
+                              value={editingEvent.time}
+                              onChange={(ev) => setEditingEvent({ ...editingEvent, time: ev.target.value })}
+                              aria-label={t('zenskill.gtd.calendar.timeLabel')}
+                              className="text-xs bg-muted/40 rounded px-1 py-0.5 outline-none focus:ring-1 focus:ring-accent/40 text-muted-foreground shrink-0"
+                            />
+                            <button
+                              onClick={saveEventEdit}
+                              disabled={updateEventDisabled || busyId === editingEvent.eventId || !editingEvent.title.trim()}
+                              className="p-0.5 rounded hover:bg-green-500/20 text-green-400 disabled:opacity-40 shrink-0"
+                              title={t('zenskill.gtd.actions.editSave')}
+                            >
+                              <Check className="h-3 w-3" />
+                            </button>
+                            <button
+                              onClick={() => setEditingEvent(null)}
+                              className="p-0.5 rounded hover:bg-muted/60 text-muted-foreground shrink-0"
+                              title={t('zenskill.gtd.actions.editCancel')}
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          </div>
+                        )
+                      }
                       return (
                         <div key={eventId ?? `event-${i}`} className="flex items-center gap-1.5 text-xs rounded px-2 py-0.5 hover:bg-muted/50 group">
                           {time && <span className="text-[10px] text-muted-foreground shrink-0 tabular-nums">{time}</span>}
                           <span className="truncate flex-1">{e.title ?? ''}</span>
+                          {eventId && onUpdateEvent && (
+                            <button
+                              className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-accent/20 text-muted-foreground hover:text-accent shrink-0"
+                              title={t('zenskill.gtd.calendar.editEvent')}
+                              disabled={updateEventDisabled}
+                              onClick={() => startEventEdit(e)}
+                            >
+                              <Pencil className="h-3 w-3" />
+                            </button>
+                          )}
                           {eventId && onDeleteEvent && (
                             <button
                               className={`opacity-0 group-hover:opacity-100 p-0.5 rounded shrink-0 ${

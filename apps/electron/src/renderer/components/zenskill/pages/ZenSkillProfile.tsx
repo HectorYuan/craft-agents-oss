@@ -2,13 +2,20 @@
  * ZenSkillProfile — 九区用户画像页
  *
  * 展示用户成长全貌：Header + 五维雷达图 + 境界进度 + 活跃热力图 +
- * 成就墙 + 习惯追踪 + 成长趋势 + 能量历史。
- * 数据全部来自 useMcpTool。
+ * 成就墙 + 习惯追踪 + 目标管理 + 成长趋势 + 能量历史。
+ * 读取全部走 useMcpTool；写入（habit_set / habit_delete / goal_set /
+ * goal_update / goal_delete）直接调用 MCP 工具，刷新依赖 zenskill:changed
+ * 广播（useMcpTool 内订阅），不做手动 refetch。后端工具并行开发中，
+ * 所有 payload 读取均为防御式（可选链 + 字段缺失回退）。
  */
-import React, { useCallback, useMemo } from 'react'
+import React, { useCallback, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { User, Flame, Target, TrendingUp, Zap, Award, BarChart3, Activity } from 'lucide-react'
-import { useMcpTool } from '@/hooks/zenskill/useMcpTool'
+import { toast } from 'sonner'
+import {
+  User, Flame, Target, TrendingUp, Zap, Award, BarChart3, Activity,
+  Plus, Trash2, Pencil, Check, X,
+} from 'lucide-react'
+import { useMcpTool, extractMcpJson } from '@/hooks/zenskill/useMcpTool'
 import { RadarChart } from '../panels/RadarChart'
 import { filterScores } from '../panels/GrowthCard'
 import { EnergyBar } from '../panels/EnergyBar'
@@ -41,9 +48,41 @@ interface AchievementData {
   completion_rate?: number
 }
 
-interface HabitData {
-  habits?: { completed?: Record<string, boolean>; streak?: number }[]
+/** habit_analyze entry — fields contract-pending, all reads defensive */
+interface HabitEntry {
+  id?: string
+  title?: string
+  target?: number
+  completed?: Record<string, boolean>
+  streak?: number
+  completion_rate?: number
+  risk?: string
 }
+
+interface HabitData {
+  habits?: HabitEntry[]
+}
+
+/** goal_progress active entry — status/deadline come with goal_update, defensive */
+interface GoalEntry {
+  goal_id?: string
+  dimension?: string
+  start_score?: number
+  current_score?: number
+  target_score?: number
+  progress_pct?: number
+  status?: string
+  deadline?: string
+}
+
+interface GoalProgressData {
+  active?: GoalEntry[]
+  completed_count?: number
+  message?: string
+}
+
+/** Write-tool payload — ok:false (or success:false, goal_set style) means rejected */
+interface WritePayload { ok?: boolean; success?: boolean; message?: string; error?: string }
 
 interface EnergyData {
   status?: { level?: string; pct?: number; current_energy?: number; max_energy?: number }
@@ -67,6 +106,17 @@ const DIM_LABELS: Record<string, string> = {
   satisfaction: 'Satisfaction',
   responsiveness: 'Responsiveness',
   memory: 'Memory',
+}
+
+/** goal_update accepts these statuses; anything else renders raw (defensive) */
+const GOAL_STATUSES = ['active', 'completed', 'cancelled']
+
+function goalStatusBadgeClass(status: string): string {
+  switch (status) {
+    case 'completed': return 'bg-green-500/15 text-green-400'
+    case 'cancelled': return 'bg-muted text-muted-foreground'
+    default: return 'bg-accent/10 text-accent'
+  }
 }
 
 function pad2(n: number): string {
@@ -127,8 +177,115 @@ export function ZenSkillProfile({ workspaceId }: ZenSkillProfileProps) {
   const growth = useMcpTool<GrowthData>(workspaceId, ZENSKILL_SOURCE_SLUG, 'growth_dashboard', {})
   const achievements = useMcpTool<AchievementData>(workspaceId, ZENSKILL_SOURCE_SLUG, 'achievement_list', {})
   const habits = useMcpTool<HabitData>(workspaceId, ZENSKILL_SOURCE_SLUG, 'habit_analyze', { days: 28 })
+  const goals = useMcpTool<GoalProgressData>(workspaceId, ZENSKILL_SOURCE_SLUG, 'goal_progress', {})
   const energy = useMcpTool<EnergyData>(workspaceId, ZENSKILL_SOURCE_SLUG, 'energy_level', {})
   const review = useMcpTool<ReviewData>(workspaceId, ZENSKILL_SOURCE_SLUG, 'daily_review', {})
+
+  // --- write tools (habit_set / habit_delete / goal_set / goal_update / goal_delete) ---
+  const [busyTool, setBusyTool] = useState<string | null>(null)
+  const runWrite = useCallback(async (tool: string, args: Record<string, unknown>): Promise<boolean> => {
+    if (!workspaceId) return false
+    setBusyTool(tool)
+    try {
+      const result = await window.electronAPI.callMcpTool(workspaceId, ZENSKILL_SOURCE_SLUG, tool, args)
+      const data = extractMcpJson(result) as WritePayload | null
+      if (data?.ok === false || data?.success === false) {
+        const reason = typeof data.message === 'string' ? data.message : typeof data.error === 'string' ? data.error : undefined
+        toast.error(t('zenskill.toast.toolFailed'), { description: reason })
+        return false
+      }
+      return true
+    } catch {
+      toast.error(t('zenskill.toast.toolFailed'))
+      return false
+    } finally {
+      setBusyTool(null)
+    }
+  }, [workspaceId, t])
+
+  // Two-click delete confirm — shared by habit rows and goal cards
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
+  const confirmRef = useRef<string | null>(null)
+  confirmRef.current = confirmDeleteId
+  const armDelete = (id: string, onConfirm: () => void) => {
+    if (confirmRef.current === id) {
+      setConfirmDeleteId(null)
+      onConfirm()
+    } else {
+      setConfirmDeleteId(id)
+      setTimeout(() => setConfirmDeleteId((cur) => (cur === id ? null : cur)), 3000)
+    }
+  }
+
+  // New-habit inline form (habit_set)
+  const [habitFormOpen, setHabitFormOpen] = useState(false)
+  const [hfTitle, setHfTitle] = useState('')
+  const [hfTarget, setHfTarget] = useState('1')
+  const [hfAction, setHfAction] = useState('')
+  const submitHabit = async () => {
+    const title = hfTitle.trim()
+    if (!title || busyTool === 'habit_set') return
+    const args: Record<string, unknown> = { title, skill_id: 'zenskill-core' }
+    const target = parseInt(hfTarget, 10)
+    if (Number.isFinite(target) && target > 0) args.target_count = target
+    if (hfAction.trim()) args.action_contains = hfAction.trim()
+    if (await runWrite('habit_set', args)) {
+      toast.success(t('zenskill.toast.habitCreated'))
+      setHfTitle('')
+      setHfTarget('1')
+      setHfAction('')
+      setHabitFormOpen(false)
+    }
+  }
+  const deleteHabit = (habitId: string) => {
+    armDelete(habitId, () => {
+      void runWrite('habit_delete', { habit_id: habitId }).then((ok) => {
+        if (ok) toast.success(t('zenskill.toast.habitDeleted'))
+      })
+    })
+  }
+
+  // New-goal inline form (goal_set)
+  const [goalFormOpen, setGoalFormOpen] = useState(false)
+  const [gfDimension, setGfDimension] = useState<string>(FIVE_DIMS[0])
+  const [gfTarget, setGfTarget] = useState('')
+  const [gfDeadline, setGfDeadline] = useState('')
+  const submitGoal = async () => {
+    const target = parseInt(gfTarget, 10)
+    if (!Number.isFinite(target) || target <= 0 || busyTool === 'goal_set') return
+    const args: Record<string, unknown> = { dimension: gfDimension, target_score: target, skill_id: 'zenskill-core' }
+    if (gfDeadline) args.deadline = gfDeadline
+    if (await runWrite('goal_set', args)) {
+      toast.success(t('zenskill.toast.goalCreated'))
+      setGfTarget('')
+      setGfDeadline('')
+      setGoalFormOpen(false)
+    }
+  }
+  // Goal inline edit (goal_update) — target_score + status per contract
+  const [editingGoalId, setEditingGoalId] = useState<string | null>(null)
+  const [egTarget, setEgTarget] = useState('')
+  const [egStatus, setEgStatus] = useState('active')
+  const startGoalEdit = (g: GoalEntry) => {
+    setEditingGoalId(g.goal_id ?? null)
+    setEgTarget(String(g.target_score ?? ''))
+    setEgStatus(typeof g.status === 'string' && GOAL_STATUSES.includes(g.status) ? g.status : 'active')
+  }
+  const submitGoalEdit = async (goalId: string) => {
+    const target = parseInt(egTarget, 10)
+    if (!Number.isFinite(target) || target <= 0 || busyTool === 'goal_update') return
+    if (await runWrite('goal_update', { goal_id: goalId, target_score: target, status: egStatus })) {
+      toast.success(t('zenskill.toast.goalUpdated'))
+      setEditingGoalId(null)
+    }
+  }
+  const deleteGoal = (goalId: string) => {
+    armDelete(goalId, () => {
+      void runWrite('goal_delete', { goal_id: goalId }).then((ok) => {
+        if (ok) toast.success(t('zenskill.toast.goalDeleted'))
+      })
+    })
+  }
 
   const isLoading = growth.loading && !growth.data
   const hasError = growth.error && !growth.data
@@ -150,11 +307,11 @@ export function ZenSkillProfile({ workspaceId }: ZenSkillProfileProps) {
   const locked = achievements.data?.locked ?? []
   const completionRate = achievements.data?.completion_rate ?? 0
 
-  const streak = habits.data?.habits?.[0]?.streak ?? 0
-  const firstHabitCompleted = habits.data?.habits?.[0]?.completed
+  const habitEntries = useMemo(() => habits.data?.habits ?? [], [habits.data])
+  const streak = habitEntries[0]?.streak ?? 0
   const heatmapData = useMemo(() => {
-    return generateHeatmapData(habits.data?.habits ?? [])
-  }, [habits.data])
+    return generateHeatmapData(habitEntries)
+  }, [habitEntries])
 
   // Trend: last 100 snapshots → proficiency values
   const trendValues = useMemo(() => {
@@ -342,12 +499,12 @@ export function ZenSkillProfile({ workspaceId }: ZenSkillProfileProps) {
             </div>
           </div>
 
-          {/* 6. Habit tracking: streak + 28-day grid */}
+          {/* 6. Habit tracking: per-habit rows + habit_set/habit_delete management */}
           <div className={`${ZS.card}`}>
             <div className={ZS.sectionHeader}>
               <Flame className="h-3.5 w-3.5 text-orange-400" />
               <span className={ZS.body + ' font-medium text-muted-foreground'}>
-                {t('zenskill.profile.habits', 'Habits')}
+                {t('zenskill.profile.habits', 'Habits')} ({habitEntries.length})
               </span>
               {streak > 0 && (
                 <span className="text-[10px] text-orange-400 ml-auto">
@@ -355,18 +512,311 @@ export function ZenSkillProfile({ workspaceId }: ZenSkillProfileProps) {
                 </span>
               )}
             </div>
-            {firstHabitCompleted ? (
-              <div className="flex flex-wrap gap-0.5">
-                {Object.entries(firstHabitCompleted).slice(-28).map(([day, ok]) => (
-                  <span
-                    key={day}
-                    title={day}
-                    className={`h-3 w-3 rounded-[3px] ${ok ? 'bg-green-500/70' : 'bg-muted/60'}`}
+            {habitEntries.length === 0 ? (
+              <div className={ZS.emptyState}>{t('zenskill.profile.habitsEmpty', 'No habit data yet')}</div>
+            ) : (
+              <div className="space-y-1.5">
+                {habitEntries.map((h) => {
+                  const habitId = h.id ?? h.title ?? ''
+                  if (!habitId) return null
+                  const deleting = busyTool === 'habit_delete'
+                  return (
+                    <div key={habitId} className={ZS.hoverRow}>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="truncate">{h.title || habitId}</span>
+                        <div className="flex items-center gap-2 shrink-0">
+                          {(h.streak ?? 0) > 0 && (
+                            <span className="text-[10px] text-orange-500">🔥{h.streak}</span>
+                          )}
+                          <span className="text-[10px] text-muted-foreground tabular-nums">
+                            {Math.round((h.completion_rate ?? 0) * 100)}%
+                          </span>
+                          <button
+                            className={`opacity-0 group-hover:opacity-100 p-0.5 rounded shrink-0 ${
+                              confirmDeleteId === habitId
+                                ? 'bg-red-500/25 text-red-400'
+                                : 'hover:bg-red-500/20 text-muted-foreground hover:text-red-400'
+                            }`}
+                            title={confirmDeleteId === habitId ? t('zenskill.gtd.calendar.deleteConfirm') : t('zenskill.profile.habits.delete')}
+                            disabled={deleting || !h.id}
+                            onClick={() => h.id && deleteHabit(h.id)}
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </button>
+                        </div>
+                      </div>
+                      {h.completed && (
+                        <div className="flex flex-wrap gap-0.5 mt-1">
+                          {Object.entries(h.completed).slice(-28).map(([day, ok]) => (
+                            <span
+                              key={day}
+                              title={day}
+                              className={`h-2.5 w-2.5 rounded-[3px] ${ok ? 'bg-green-500/70' : 'bg-muted/60'}`}
+                            />
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+            {/* habit_set inline form + toggle — bottom of the section */}
+            {habitFormOpen ? (
+              <div className="mt-2 space-y-1.5">
+                <div className="flex items-center gap-1.5">
+                  <input
+                    value={hfTitle}
+                    autoFocus
+                    onChange={(e) => setHfTitle(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.nativeEvent.isComposing) return
+                      if (e.key === 'Enter') void submitHabit()
+                      if (e.key === 'Escape') setHabitFormOpen(false)
+                    }}
+                    placeholder={t('zenskill.profile.habits.formTitle')}
+                    className={`${ZS.input} flex-1 min-w-0`}
                   />
-                ))}
+                  <input
+                    type="number"
+                    min={1}
+                    value={hfTarget}
+                    onChange={(e) => setHfTarget(e.target.value)}
+                    aria-label={t('zenskill.profile.habits.formTarget')}
+                    className={`${ZS.input} w-16 shrink-0 tabular-nums`}
+                  />
+                  <input
+                    value={hfAction}
+                    onChange={(e) => setHfAction(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.nativeEvent.isComposing) return
+                      if (e.key === 'Enter') void submitHabit()
+                      if (e.key === 'Escape') setHabitFormOpen(false)
+                    }}
+                    placeholder={t('zenskill.profile.habits.formAction')}
+                    className={`${ZS.input} flex-1 min-w-0 text-muted-foreground`}
+                  />
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    onClick={() => void submitHabit()}
+                    disabled={!hfTitle.trim() || busyTool === 'habit_set'}
+                    className="flex items-center gap-1 px-2 py-1 text-[11px] rounded bg-accent/10 text-accent hover:bg-accent/20 disabled:opacity-40"
+                    title={t('zenskill.profile.habits.addTitle')}
+                  >
+                    <Check className="h-3 w-3" />
+                    {t('zenskill.gtd.actions.editSave', 'Save')}
+                  </button>
+                  <button
+                    onClick={() => setHabitFormOpen(false)}
+                    className="flex items-center gap-1 px-2 py-1 text-[11px] rounded text-muted-foreground hover:bg-muted/60"
+                    title={t('zenskill.gtd.projects.cancel', 'Cancel')}
+                  >
+                    <X className="h-3 w-3" />
+                    {t('zenskill.gtd.projects.cancel', 'Cancel')}
+                  </button>
+                </div>
               </div>
             ) : (
-              <div className={ZS.emptyState}>{t('zenskill.profile.habitsEmpty', 'No habit data yet')}</div>
+              <button
+                onClick={() => setHabitFormOpen(true)}
+                disabled={!workspaceId || busyTool === 'habit_set'}
+                className="mt-2 flex items-center gap-1 px-2 py-1 text-[11px] rounded text-accent hover:bg-accent/10 transition-colors disabled:opacity-40"
+                title={t('zenskill.profile.habits.addTitle')}
+              >
+                <Plus className="h-3 w-3" />
+                {t('zenskill.profile.habits.add')}
+              </button>
+            )}
+          </div>
+
+          {/* 6b. Goal management: goal_progress cards + goal_set/goal_update/goal_delete */}
+          <div className={`${ZS.card}`}>
+            <div className={ZS.sectionHeader}>
+              <Target className="h-3.5 w-3.5 text-muted-foreground" />
+              <span className={ZS.body + ' font-medium text-muted-foreground'}>
+                {t('zenskill.profile.goals')} ({goals.data?.active?.length ?? 0})
+              </span>
+            </div>
+            {(goals.data?.active?.length ?? 0) === 0 ? (
+              <div className={ZS.emptyState}>{t('zenskill.profile.goals.empty')}</div>
+            ) : (
+              <div className="space-y-2">
+                {(goals.data?.active ?? []).map((g, i) => {
+                  const goalId = g.goal_id ?? ''
+                  if (!goalId) return null
+                  const dimLabel = DIM_LABELS[g.dimension ?? ''] ?? g.dimension ?? '—'
+                  const current = typeof g.current_score === 'number' ? g.current_score : 0
+                  const target = typeof g.target_score === 'number' ? g.target_score : 0
+                  const pct = typeof g.progress_pct === 'number'
+                    ? g.progress_pct
+                    : target > 0 ? Math.min((current / target) * 100, 100) : 0
+                  const rawStatus = typeof g.status === 'string' ? g.status : 'active'
+                  const statusLabel = GOAL_STATUSES.includes(rawStatus)
+                    ? t(`zenskill.profile.goals.status.${rawStatus}`)
+                    : rawStatus
+                  return (
+                    <div key={goalId || i} className={ZS.hoverRow}>
+                      {editingGoalId === goalId ? (
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <input
+                            type="number"
+                            min={1}
+                            max={100}
+                            value={egTarget}
+                            autoFocus
+                            onChange={(e) => setEgTarget(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.nativeEvent.isComposing) return
+                              if (e.key === 'Enter') void submitGoalEdit(goalId)
+                              if (e.key === 'Escape') setEditingGoalId(null)
+                            }}
+                            aria-label={t('zenskill.profile.goals.editTarget')}
+                            className={`${ZS.input} w-16 tabular-nums`}
+                          />
+                          <select
+                            value={egStatus}
+                            onChange={(e) => setEgStatus(e.target.value)}
+                            aria-label={t('zenskill.profile.goals.editStatus')}
+                            className="text-xs bg-muted/40 rounded px-1 py-1.5 outline-none focus:ring-1 focus:ring-accent/40"
+                          >
+                            {GOAL_STATUSES.map((s) => (
+                              <option key={s} value={s}>{t(`zenskill.profile.goals.status.${s}`)}</option>
+                            ))}
+                          </select>
+                          <button
+                            onClick={() => void submitGoalEdit(goalId)}
+                            disabled={busyTool === 'goal_update'}
+                            className="p-1 rounded hover:bg-green-500/20 text-green-400 disabled:opacity-40"
+                            title={t('zenskill.gtd.actions.editSave', 'Save')}
+                          >
+                            <Check className="h-3 w-3" />
+                          </button>
+                          <button
+                            onClick={() => setEditingGoalId(null)}
+                            className="p-1 rounded hover:bg-muted/60 text-muted-foreground"
+                            title={t('zenskill.gtd.actions.editCancel', 'Cancel')}
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </div>
+                      ) : (
+                        <>
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-1.5 min-w-0">
+                              <span className="truncate font-medium">{dimLabel}</span>
+                              <span className={`text-[9px] px-1 py-px rounded shrink-0 ${goalStatusBadgeClass(rawStatus)}`}>
+                                {statusLabel}
+                              </span>
+                              {g.deadline && (
+                                <span className="text-[9px] text-muted-foreground shrink-0 tabular-nums">{g.deadline}</span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-1 shrink-0">
+                              <span className="text-[10px] text-muted-foreground tabular-nums">
+                                {current}/{target}
+                              </span>
+                              <button
+                                className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-accent/20 text-muted-foreground hover:text-accent"
+                                title={t('zenskill.profile.goals.edit')}
+                                disabled={!workspaceId}
+                                onClick={() => startGoalEdit(g)}
+                              >
+                                <Pencil className="h-3 w-3" />
+                              </button>
+                              <button
+                                className={`opacity-0 group-hover:opacity-100 p-0.5 rounded shrink-0 ${
+                                  confirmDeleteId === goalId
+                                    ? 'bg-red-500/25 text-red-400'
+                                    : 'hover:bg-red-500/20 text-muted-foreground hover:text-red-400'
+                                }`}
+                                title={confirmDeleteId === goalId ? t('zenskill.gtd.calendar.deleteConfirm') : t('zenskill.profile.goals.delete')}
+                                disabled={busyTool === 'goal_delete'}
+                                onClick={() => deleteGoal(goalId)}
+                              >
+                                <Trash2 className="h-3 w-3" />
+                              </button>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2 mt-1">
+                            <div className="flex-1 h-1 rounded bg-muted/60 overflow-hidden">
+                              <div className="h-full bg-accent/70" style={{ width: `${Math.min(pct, 100)}%` }} />
+                            </div>
+                            <span className="text-[9px] text-muted-foreground tabular-nums">{Math.round(pct)}%</span>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+            {/* goal_set inline form + toggle — bottom of the section */}
+            {goalFormOpen ? (
+              <div className="mt-2 space-y-1.5">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <select
+                    value={gfDimension}
+                    onChange={(e) => setGfDimension(e.target.value)}
+                    aria-label={t('zenskill.profile.goals.formDimension')}
+                    className="text-xs bg-muted/40 rounded px-1 py-1.5 outline-none focus:ring-1 focus:ring-accent/40"
+                  >
+                    {FIVE_DIMS.map((d) => (
+                      <option key={d} value={d}>{DIM_LABELS[d] ?? d}</option>
+                    ))}
+                  </select>
+                  <input
+                    type="number"
+                    min={1}
+                    max={100}
+                    value={gfTarget}
+                    onChange={(e) => setGfTarget(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.nativeEvent.isComposing) return
+                      if (e.key === 'Enter') void submitGoal()
+                      if (e.key === 'Escape') setGoalFormOpen(false)
+                    }}
+                    placeholder={t('zenskill.profile.goals.formTarget')}
+                    className={`${ZS.input} w-20 tabular-nums`}
+                  />
+                  <input
+                    type="date"
+                    value={gfDeadline}
+                    onChange={(e) => setGfDeadline(e.target.value)}
+                    aria-label={t('zenskill.profile.goals.formDeadline')}
+                    className={`${ZS.input} w-36 text-muted-foreground`}
+                  />
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    onClick={() => void submitGoal()}
+                    disabled={!gfTarget || busyTool === 'goal_set'}
+                    className="flex items-center gap-1 px-2 py-1 text-[11px] rounded bg-accent/10 text-accent hover:bg-accent/20 disabled:opacity-40"
+                    title={t('zenskill.profile.goals.addTitle')}
+                  >
+                    <Check className="h-3 w-3" />
+                    {t('zenskill.gtd.actions.editSave', 'Save')}
+                  </button>
+                  <button
+                    onClick={() => setGoalFormOpen(false)}
+                    className="flex items-center gap-1 px-2 py-1 text-[11px] rounded text-muted-foreground hover:bg-muted/60"
+                    title={t('zenskill.gtd.projects.cancel', 'Cancel')}
+                  >
+                    <X className="h-3 w-3" />
+                    {t('zenskill.gtd.projects.cancel', 'Cancel')}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button
+                onClick={() => setGoalFormOpen(true)}
+                disabled={!workspaceId || busyTool === 'goal_set'}
+                className="mt-2 flex items-center gap-1 px-2 py-1 text-[11px] rounded text-accent hover:bg-accent/10 transition-colors disabled:opacity-40"
+                title={t('zenskill.profile.goals.addTitle')}
+              >
+                <Plus className="h-3 w-3" />
+                {t('zenskill.profile.goals.add')}
+              </button>
             )}
           </div>
 
