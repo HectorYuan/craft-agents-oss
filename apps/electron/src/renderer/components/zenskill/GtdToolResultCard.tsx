@@ -579,6 +579,58 @@ export function GtdToolResultCard({ toolName, resultText, workspaceId, sourceSlu
           )}
         </span>
       )}
+
+      {/* Day 3 inline clarify panel (gtd_capture) — four-way radio with the
+          AI-suggested default preselected, confirm calls inbox_clarify with
+          result_type. Clicks must not deep-link the card. */}
+      {showInboxActions && clarifying && (
+        <div
+          className="flex flex-col gap-0.5 rounded border border-accent/30 bg-accent/5 px-2 py-1.5 mt-0.5"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {CLARIFY_RESULT_TYPES.map((type) => (
+            <label
+              key={type}
+              className={`flex items-center gap-2 rounded px-1.5 py-1 cursor-pointer transition-colors ${
+                clarifyType === type
+                  ? 'bg-accent/15 text-accent'
+                  : 'hover:bg-muted/60 text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              <input
+                type="radio"
+                name={`clarify-type-${entityId ?? 'item'}`}
+                value={type}
+                checked={clarifyType === type}
+                onChange={() => setClarifyType(type)}
+                className="accent-accent shrink-0"
+              />
+              {t(`zenskill.modal.clarify.type.${type}`)}
+            </label>
+          ))}
+          <div className="flex justify-end gap-1 pt-0.5">
+            <button
+              type="button"
+              disabled={busy}
+              onClick={(e) => {
+                e.stopPropagation()
+                setClarifying(false)
+              }}
+              className={`${btnBase} border-border/60 bg-muted/40 text-muted-foreground hover:bg-muted/70`}
+            >
+              ✕ {t('zenskill.modal.clarify.cancel')}
+            </button>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={confirmClarify}
+              className={`${btnBase} border-accent/40 bg-accent/10 text-accent hover:bg-accent/20`}
+            >
+              ✓ {t('zenskill.modal.clarify.confirm')}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

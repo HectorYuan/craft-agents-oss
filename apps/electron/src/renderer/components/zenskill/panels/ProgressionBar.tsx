@@ -274,7 +274,8 @@ export function ProgressionBar({ workspaceId, progressions }: ProgressionBarProp
       toast.error(err instanceof Error ? err.message : t('zenskill.toast.toolFailed'))
     } finally {
       // Reclaim the Blob URL once the preview window has had time to load it
-      if (url) setTimeout(() => URL.revokeObjectURL(url), 60_000)
+      const created = url
+      if (created) setTimeout(() => URL.revokeObjectURL(created), 60_000)
       setSharing(false)
     }
   }, [workspaceId, sharing, t])
