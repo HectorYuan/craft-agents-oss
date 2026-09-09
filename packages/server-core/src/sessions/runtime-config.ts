@@ -102,6 +102,31 @@ export function isImageAttachment(attachment: Pick<FileAttachment, 'type' | 'mim
 }
 
 /**
+ * Map a connection's saved model list onto the `customModels` envelope carried
+ * by `update_runtime_config`. Plain string ids pass through unchanged; object
+ * entries keep `contextWindow`/`supportsImages` only when explicitly set, and
+ * degrade back to a bare id when neither field is present so the subprocess
+ * registry stays minimal. Order is preserved (unlike the signature's
+ * normalized form) so the subprocess re-registers models in the saved order.
+ */
+export function mapConnectionModelsToCustomModels(
+  models: LlmConnection['models'],
+): Array<string | { id: string; contextWindow?: number; supportsImages?: boolean }> {
+  return (models ?? []).map(model => {
+    if (typeof model === 'string') return model
+    const supportsImages = typeof model.supportsImages === 'boolean' ? model.supportsImages : undefined
+    if (model.contextWindow || supportsImages !== undefined) {
+      return {
+        id: model.id,
+        ...(model.contextWindow ? { contextWindow: model.contextWindow } : {}),
+        ...(supportsImages !== undefined ? { supportsImages } : {}),
+      }
+    }
+    return model.id
+  })
+}
+
+/**
  * Enforce saved custom-endpoint image capability at send time. The session can
  * still persist/display image attachments, but they are not passed to text-only
  * models even if an older subprocess has stale vision-capable registry state.

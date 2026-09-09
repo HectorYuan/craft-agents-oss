@@ -259,7 +259,7 @@ export function ZenSkillSkillGraph({ workspaceId }: ZenSkillSkillGraphProps) {
 
             {/* Hover tooltip */}
             {hoveredNode && (
-              <div className="absolute top-2 right-2 bg-popover border border-border/30 rounded p-2 shadow-lg pointer-events-none" style={{ minWidth: 140 }}>
+              <div className="absolute top-2 right-2 bg-popover border border-border/30 rounded p-2 shadow-modal-small pointer-events-none" style={{ minWidth: 140 }}>
                 <div className="text-[10px] font-medium mb-1">{hoveredNode.skill_id}</div>
                 {hoveredNode.level && (
                   <div className="text-[9px] text-muted-foreground">Level: {hoveredNode.level}</div>

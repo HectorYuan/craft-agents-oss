@@ -309,7 +309,7 @@ function NetworkGraph({ skills }: { skills: GrowthSkill[] }) {
         })}
       </svg>
       {hoveredNode && (
-        <div className="absolute top-2 right-2 bg-popover border border-border/30 rounded p-2 shadow-lg pointer-events-none" style={{ minWidth: 120 }}>
+        <div className="absolute top-2 right-2 bg-popover border border-border/30 rounded p-2 shadow-modal-small pointer-events-none" style={{ minWidth: 120 }}>
           <div className={ZS.badge + ' font-medium'}>{hoveredNode.skill_id}</div>
           {hoveredNode.level && <div className={ZS.micro + ' text-muted-foreground'}>Lv: {hoveredNode.level}</div>}
           {hoveredNode.usage_count != null && (

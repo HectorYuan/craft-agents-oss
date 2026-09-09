@@ -587,7 +587,7 @@ export function TaskEditor({
       })
     },
     // fallbackModel is stable for the life of an open editor (same reasoning as the prefill effect).
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
     [store, editSessionId],
   )
 

@@ -18,6 +18,8 @@ import type { GtdAction, GtdItem } from './types'
 
 const RESULT_TYPES = ['action', 'project', 'calendar', 'reference'] as const
 export type ClarifyResultType = (typeof RESULT_TYPES)[number]
+/** The four clarify categories — shared with the inline clarify flow (GtdToolResultCard) */
+export const CLARIFY_RESULT_TYPES = RESULT_TYPES
 
 /**
  * Local keyword-based auto-classify heuristic.
@@ -25,7 +27,7 @@ export type ClarifyResultType = (typeof RESULT_TYPES)[number]
  * action / project / calendar / reference keywords and returns the
  * first matching type (or 'reference' as the default fallback).
  */
-function inferDefaultType(text: string): ClarifyResultType {
+export function inferDefaultType(text: string): ClarifyResultType {
   const lower = text.toLowerCase()
   if (/\b(todo|task|do|fix|build|create|write|send|email|call|review|pr|merge)\b/.test(lower)) return 'action'
   if (/\b(project|initiative|epic|sprint|milestone|release)\b/.test(lower)) return 'project'

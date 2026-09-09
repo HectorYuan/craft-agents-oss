@@ -1504,3 +1504,22 @@ html.dark[data-scenic] .fullscreen-overlay-background {
 .progression-breathe {
   animation: progression-breathe 2.4s ease-in-out infinite;
 }
+
+/* ProgressionBar celebration card (Day 3 project celebration) — faint golden
+   shimmer: a slow amber glow pulse, deliberately weaker than the breathe
+   highlight so a completed project celebrates without stealing focus */
+@keyframes progression-celebrate {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgb(251 191 36 / 0.0);
+    background-color: rgb(251 191 36 / 0.03);
+  }
+  50% {
+    box-shadow: 0 0 8px 1px rgb(251 191 36 / 0.18);
+    background-color: rgb(251 191 36 / 0.08);
+  }
+}
+
+.progression-celebrate {
+  animation: progression-celebrate 3.2s ease-in-out infinite;
+}

@@ -16,7 +16,11 @@
  * - action_add / action_mark_next: [complete] [edit] — edit expands an
  *   inline editor (title/priority/due_date → action_update), mirroring the
  *   ActionsPanel inline-edit pattern;
- * - gtd_capture: [clarify] (inbox_clarify) [archive] (inbox_archive);
+ * - gtd_capture: [clarify] expands an inline clarify panel inside the card
+ *   (Day 3 — zero-friction capture, no page navigation): the four categories
+ *   as a radio group pre-selected by the local auto-classify heuristic
+ *   (ClarifyModal precedent) + confirm → inbox_clarify {item_id,
+ *   result_type}; plus [archive] (inbox_archive);
  * - calendar_add: [delete] with click-again confirm (calendar_delete);
  * - project_add: [complete] (project_done).
  * Buttons need an entity id and a workspaceId; everything else renders as
@@ -30,6 +34,7 @@ import { navigate, routes } from '@/lib/navigate'
 import { useGtdEntityStatus, type GtdEntityType } from '@/hooks/zenskill/useGtdEntityStatus'
 import { extractMcpJson } from '@/hooks/zenskill/useMcpTool'
 import { ZENSKILL_SOURCE_SLUG } from './zenskill-registry'
+import { CLARIFY_RESULT_TYPES, inferDefaultType, type ClarifyResultType } from './panels/ClarifyModal'
 import { notifyActionDone } from './panels/gtdFeedback'
 
 interface GtdToolResultCardProps {
@@ -170,6 +175,10 @@ export function GtdToolResultCard({ toolName, resultText, workspaceId, sourceSlu
   const { t } = useTranslation()
   const [busy, setBusy] = useState(false)
   const [editing, setEditing] = useState<EditState | null>(null)
+  // Day 3 inline clarify (gtd_capture): the [clarify] button expands a panel
+  // inside the card instead of calling inbox_clarify with auto-classify
+  const [clarifying, setClarifying] = useState(false)
+  const [clarifyType, setClarifyType] = useState<ClarifyResultType>('action')
   // calendar delete: click-again confirm (same pattern as ActionsPanel delete)
   const [confirmingDelete, setConfirmingDelete] = useState(false)
   const confirmTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -322,13 +331,29 @@ export function GtdToolResultCard({ toolName, resultText, workspaceId, sourceSlu
     }
   }
 
-  const handleClarify = async (e: React.MouseEvent) => {
+  // Day 3: [clarify] toggles the inline clarify panel; the category is
+  // pre-selected by the same keyword heuristic the ClarifyModal uses
+  const startClarify = (e: React.MouseEvent) => {
     e.stopPropagation()
-    const result = await runTool('inbox_clarify', { item_id: entityId })
+    disarmDelete()
+    if (!clarifying) {
+      const item = nestedObject(data, 'item')
+      const text = typeof item?.text === 'string'
+        ? item.text
+        : typeof item?.raw_text === 'string' ? item.raw_text : ''
+      setClarifyType(inferDefaultType(text))
+    }
+    setClarifying((v) => !v)
+  }
+
+  const confirmClarify = async (e: React.MouseEvent) => {
+    e.stopPropagation()
+    const result = await runTool('inbox_clarify', { item_id: entityId, result_type: clarifyType })
     if (result) {
       const parsed = extractMcpJson(result) as { ok?: boolean; result_type?: string } | null
       if (parsed?.ok === false) toast.error(t('zenskill.toast.toolFailed'))
-      else toast.success(t('zenskill.toast.clarified', { type: parsed?.result_type ?? '-' }))
+      else toast.success(t('zenskill.toast.clarified', { type: parsed?.result_type ?? clarifyType }))
+      setClarifying(false)
     }
   }
 
@@ -513,7 +538,7 @@ export function GtdToolResultCard({ toolName, resultText, workspaceId, sourceSlu
               <button
                 type="button"
                 disabled={busy}
-                onClick={handleClarify}
+                onClick={startClarify}
                 className={`${btnBase} border-accent/40 bg-accent/10 text-accent hover:bg-accent/20`}
               >
                 {t('zenskill.card.clarify')}

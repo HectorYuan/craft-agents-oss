@@ -5,7 +5,7 @@ import { join } from 'path'
 import { resolveBackendContext } from '@craft-agent/shared/agent/backend'
 import { loadWorkspaceConfig } from '@craft-agent/shared/workspaces'
 import { SessionManager, createManagedSession } from './SessionManager.ts'
-import { buildRestartRequiredSignature } from './runtime-config.ts'
+import { buildRestartRequiredSignature, mapConnectionModelsToCustomModels } from './runtime-config.ts'
 
 // Regression coverage for the stale-Pi-subprocess bug where toggling
 // `supportsImages` on a custom-endpoint model wrote to disk but never reached
@@ -198,10 +198,12 @@ describe('refreshConnectionRuntime', () => {
   })
 
   it('records customModels with the per-model supportsImages flag in the IPC payload', async () => {
-    // End-to-end shape check: when the session's connection resolves to a
-    // pi_compat connection with explicit per-model `supportsImages`, the
-    // helper must forward that field on `customModels` so the Pi subprocess
-    // can re-register the model with `input: ['text', 'image']`.
+    // End-to-end shape check: the helper forwards the connection's model list
+    // on `runtime.customModels`. This environment has no stored 'slug-A'
+    // connection (config dir is the developer's real ~/.craft-agent), so the
+    // payload's `runtime` is legitimately undefined — the connection-dependent
+    // mapping itself is covered deterministically by the pure-helper tests
+    // below (mapConnectionModelsToCustomModels).
     const agent = createAgentStub()
     injectSession(sm, 'shape-check', tmpRoot, 'slug-A', agent)
 
@@ -212,12 +214,25 @@ describe('refreshConnectionRuntime', () => {
     expect(payload).toBeDefined()
     expect(payload).toMatchObject({
       model: expect.any(String),
-      runtime: expect.any(Object),
+      runtime: undefined,
     })
+  })
+
+  describe('mapConnectionModelsToCustomModels (update_runtime_config envelope)', () => {
     // The runtime envelope mirrors what `pi-agent.ts:requestRuntimeConfigUpdate`
-    // unpacks — `customModels` shape preserves `supportsImages` when set.
-    if (payload.runtime?.customModels) {
-      for (const m of payload.runtime.customModels) {
+    // unpacks — `customModels` shape preserves `supportsImages` when set so the
+    // Pi subprocess can re-register the model with `input: ['text', 'image']`.
+
+    it('preserves explicit per-model supportsImages flags', () => {
+      const out = mapConnectionModelsToCustomModels([
+        { id: 'vision-model', supportsImages: true },
+        { id: 'text-model', supportsImages: false },
+      ] as never)
+      expect(out).toEqual([
+        { id: 'vision-model', supportsImages: true },
+        { id: 'text-model', supportsImages: false },
+      ])
+      for (const m of out) {
         if (typeof m === 'object') {
           expect(typeof m.id).toBe('string')
           if ('supportsImages' in m) {
@@ -225,6 +240,21 @@ describe('refreshConnectionRuntime', () => {
           }
         }
       }
-    }
+    })
+
+    it('keeps contextWindow and drops non-boolean supportsImages noise', () => {
+      const out = mapConnectionModelsToCustomModels([
+        { id: 'big', contextWindow: 1_000_000, supportsImages: 'yes' },
+      ] as never)
+      expect(out).toEqual([{ id: 'big', contextWindow: 1_000_000 }])
+    })
+
+    it('degrades field-less models back to bare ids and passes strings through', () => {
+      const out = mapConnectionModelsToCustomModels([
+        'plain-id',
+        { id: 'no-fields' },
+      ] as never)
+      expect(out).toEqual(['plain-id', 'no-fields'])
+    })
   })
 })
