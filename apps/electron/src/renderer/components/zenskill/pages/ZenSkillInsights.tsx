@@ -9,6 +9,7 @@ import { useTranslation } from 'react-i18next'
 import { Lightbulb, Filter, AlertTriangle, Info, CheckCircle } from 'lucide-react'
 import { useMcpTool } from '@/hooks/zenskill/useMcpTool'
 import { InsightsPanel, type Insight } from '../panels/InsightsPanel'
+import { ErrorBoundary } from '../panels/ErrorBoundary'
 import { PageToChatBridge } from '../PageToChatBridge'
 import { ZS } from '../panels/tokens'
 
@@ -164,12 +165,14 @@ export function ZenSkillInsights({ workspaceId }: ZenSkillInsightsProps) {
           )}
 
           {mappedInsights.length > 0 && (
-            <InsightsPanel
-              insights={mappedInsights}
-              maxItems={mappedInsights.length}
-              variant="full"
-              showHeader={false}
-            />
+            <ErrorBoundary componentName="InsightsPanel">
+              <InsightsPanel
+                insights={mappedInsights}
+                maxItems={mappedInsights.length}
+                variant="full"
+                showHeader={false}
+              />
+            </ErrorBoundary>
           )}
         </div>
       </div>

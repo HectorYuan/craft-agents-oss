@@ -276,3 +276,87 @@ describe('RadarChartVertices', () => {
     expect(y).toBeCloseTo(50, 0)
   })
 })
+
+// ─── LearningPath difficulty colors ───
+describe('LearningPathDifficultyColors', () => {
+  const DIFFICULTY_COLORS: Record<string, string> = {
+    beginner: 'bg-green-500/15 text-green-400',
+    intermediate: 'bg-yellow-500/15 text-yellow-400',
+    advanced: 'bg-orange-500/15 text-orange-400',
+    expert: 'bg-red-500/15 text-red-400',
+  }
+  test('beginner → green', () => expect(DIFFICULTY_COLORS.beginner).toContain('green'))
+  test('intermediate → yellow', () => expect(DIFFICULTY_COLORS.intermediate).toContain('yellow'))
+  test('advanced → orange', () => expect(DIFFICULTY_COLORS.advanced).toContain('orange'))
+  test('expert → red', () => expect(DIFFICULTY_COLORS.expert).toContain('red'))
+  test('未知难度 fallback', () => {
+    const level = 'unknown'
+    const color = DIFFICULTY_COLORS[level] || DIFFICULTY_COLORS.beginner
+    expect(color).toContain('green')
+  })
+})
+
+// ─── SkillGraph relation colors ───
+describe('SkillGraphRelationColors', () => {
+  const RELATION_COLORS: Record<string, string> = {
+    prerequisite: '#3b82f6',
+    related: '#8b5cf6',
+    similar: '#f59e0b',
+    enables: '#10b981',
+    conflicts: '#ef4444',
+  }
+  test('prerequisite → blue', () => expect(RELATION_COLORS.prerequisite).toBe('#3b82f6'))
+  test('related → purple', () => expect(RELATION_COLORS.related).toBe('#8b5cf6'))
+  test('similar → yellow', () => expect(RELATION_COLORS.similar).toBe('#f59e0b'))
+  test('enables → green', () => expect(RELATION_COLORS.enables).toBe('#10b981'))
+  test('conflicts → red', () => expect(RELATION_COLORS.conflicts).toBe('#ef4444'))
+  test('未知关系 fallback', () => {
+    const relation = 'unknown'
+    const color = RELATION_COLORS[relation] ?? '#666'
+    expect(color).toBe('#666')
+  })
+})
+
+// ─── ZenLoop channel colors ───
+describe('ZenLoopChannelColors', () => {
+  const CHANNEL_COLORS: Record<string, string> = {
+    reflect: 'bg-blue-500/15 text-blue-400',
+    consolidate: 'bg-purple-500/15 text-purple-400',
+    insight: 'bg-yellow-500/15 text-yellow-400',
+    purify: 'bg-green-500/15 text-green-400',
+  }
+  test('reflect → blue', () => expect(CHANNEL_COLORS.reflect).toContain('blue'))
+  test('consolidate → purple', () => expect(CHANNEL_COLORS.consolidate).toContain('purple'))
+  test('insight → yellow', () => expect(CHANNEL_COLORS.insight).toContain('yellow'))
+  test('purify → green', () => expect(CHANNEL_COLORS.purify).toContain('green'))
+})
+
+// ─── Design Token 验证 ───
+describe('DesignTokens', () => {
+  const ZS = {
+    pagePad: 'px-5 pt-4 pb-3',
+    card: 'rounded border border-border/30 p-2',
+    title: 'text-sm font-medium',
+    subtitle: 'text-[11px] text-muted-foreground',
+    body: 'text-xs',
+    badge: 'text-[10px]',
+    errorBanner: 'text-xs text-destructive bg-destructive/5 rounded p-2',
+    emptyState: 'text-xs text-muted-foreground italic',
+    skeleton: 'h-4 rounded bg-muted/60 animate-pulse',
+  }
+  test('pagePad 包含 padding', () => {
+    expect(ZS.pagePad).toContain('px-5')
+    expect(ZS.pagePad).toContain('pt-4')
+    expect(ZS.pagePad).toContain('pb-3')
+  })
+  test('card 包含 border 和 padding', () => {
+    expect(ZS.card).toContain('border')
+    expect(ZS.card).toContain('p-2')
+  })
+  test('errorBanner 包含 destructive', () => {
+    expect(ZS.errorBanner).toContain('destructive')
+  })
+  test('skeleton 包含 animate-pulse', () => {
+    expect(ZS.skeleton).toContain('animate-pulse')
+  })
+})

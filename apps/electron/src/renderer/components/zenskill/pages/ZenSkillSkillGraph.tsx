@@ -9,6 +9,7 @@ import React, { useState, useMemo, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Network } from 'lucide-react'
 import { useMcpTool } from '@/hooks/zenskill/useMcpTool'
+import { ErrorBoundary } from '../panels/ErrorBoundary'
 import { PageToChatBridge } from '../PageToChatBridge'
 import { ZS } from '../panels/tokens'
 
