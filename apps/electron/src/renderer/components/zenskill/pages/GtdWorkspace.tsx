@@ -18,6 +18,12 @@
  * shape is contract-pending), selected-day detail with calendar_add /
  * calendar_delete, and calendar_suggest slots (hook parked until the user
  * asks for suggestions, mirroring MemoryBrowser's parked search pattern).
+ *
+ * Day 4 governance: a compact proactivity selector (active / quiet /
+ * ritual_only) sits between the ReviewBar and the ProgressionBar. The
+ * current mode is read through the progression_mode MCP tool and passed
+ * down to ProgressionBar, which filters suggestion density accordingly
+ * (quiet = high priority only, ritual_only = time-based rituals).
  */
 import React, { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -68,6 +74,19 @@ interface DailyReviewData {
 }
 /** task_progressions payload (MVP-2a) — backend tool runs in parallel, defensive reads */
 interface ProgressionsData { count?: number; progressions?: TaskProgression[] }
+
+/** progression_mode payload (Day 4) — query without mode, defensive reads */
+interface ProgressionModeData { mode?: string; message?: string }
+
+/** Day 4 proactivity modes — drives ProgressionBar suggestion density */
+type ProgressionMode = 'active' | 'quiet' | 'ritual_only'
+
+const PROGRESSION_MODES: ProgressionMode[] = ['active', 'quiet', 'ritual_only']
+
+/** i18n key suffix per mode (ritual_only maps to the camelCase locale key) */
+function modeLabelKey(mode: ProgressionMode): string {
+  return `zenskill.progression.mode.${mode === 'ritual_only' ? 'ritualOnly' : mode}`
+}
 
 /** Write-tool payload — ok:false means the backend rejected the operation */
 interface WriteToolPayload { ok?: boolean; message?: string; result_type?: string }
@@ -150,6 +169,38 @@ export function GtdWorkspace({ workspaceId, initialTab }: GtdWorkspaceProps) {
   // backend tool runs in parallel — errors land in .error and collapse to
   // "no suggestions" (ProgressionBar hidden), never a visible failure
   const progressions = useMcpTool<ProgressionsData>(workspaceId, sourceSlug, 'task_progressions', { limit: 3 })
+  // Day 4: progression proactivity (active/quiet/ritual_only) — queried via
+  // progression_mode; the selector below writes through the same tool
+  const progressionMode = useMcpTool<ProgressionModeData>(workspaceId, sourceSlug, 'progression_mode', {})
+  // Optimistic override keeps the selector responsive: progression_mode is
+  // classified as a read tool backend-side, so no zenskill:changed refresh
+  // is expected after a set — the chosen mode is applied locally right away
+  const [modeOverride, setModeOverride] = useState<string | null>(null)
+  const progressionModeValue: ProgressionMode =
+    modeOverride === 'quiet' || modeOverride === 'ritual_only' || modeOverride === 'active'
+      ? modeOverride
+      : (progressionMode.data?.mode === 'quiet' || progressionMode.data?.mode === 'ritual_only'
+        ? progressionMode.data.mode
+        : 'active')
+
+  // Day 4: switch proactivity via progression_mode {mode}; on failure revert
+  // the optimistic override and surface the backend error
+  const setProgressionMode = useCallback((mode: ProgressionMode) => {
+    setModeOverride(mode)
+    if (!workspaceId) return
+    window.electronAPI
+      .callMcpTool(workspaceId, sourceSlug, 'progression_mode', { mode })
+      .then((result) => {
+        const data = extractMcpJson(result) as (WriteToolPayload & { ok?: boolean }) | null
+        if (data?.ok === false) {
+          throw new Error(typeof data.message === 'string' ? data.message : 'mode rejected')
+        }
+      })
+      .catch(() => {
+        setModeOverride(null)
+        toast.error(t('zenskill.toast.toolFailed'))
+      })
+  }, [workspaceId, sourceSlug, t])
 
   const runTool = useCallback(async (tool: string, args: Record<string, unknown>) => {
     if (!workspaceId) return
@@ -402,9 +453,42 @@ export function GtdWorkspace({ workspaceId, initialTab }: GtdWorkspaceProps) {
         message={reviewMessage}
       />
 
+      {/* Day 4: progression proactivity — three-mode selector controlling the
+          suggestion density of the ProgressionBar below (active = all,
+          quiet = high priority only, ritual_only = time-based rituals) */}
+      {workspaceId && (
+        <div
+          role="radiogroup"
+          aria-label={t('zenskill.progression.mode.modeLabel')}
+          className="mx-5 mt-2 flex items-center justify-end gap-1.5 shrink-0 text-[11px]"
+        >
+          <span className="text-muted-foreground">{t('zenskill.progression.mode.modeLabel')}</span>
+          {PROGRESSION_MODES.map((mode) => (
+            <button
+              key={mode}
+              type="button"
+              role="radio"
+              aria-checked={progressionModeValue === mode}
+              onClick={() => setProgressionMode(mode)}
+              className={`rounded-full border px-2 py-0.5 transition-colors ${
+                progressionModeValue === mode
+                  ? 'border-accent bg-accent/10 text-accent'
+                  : 'border-border/40 text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              {t(modeLabelKey(mode))}
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* MVP-2a: progression suggestions — one-line cards under the ReviewBar,
           hidden entirely when the backend tool has nothing to offer */}
-      <ProgressionBar workspaceId={workspaceId} progressions={progressionItems} />
+      <ProgressionBar
+        workspaceId={workspaceId}
+        progressions={progressionItems}
+        mode={progressionModeValue}
+      />
 
       {/* Tab bar */}
       <div className="px-5 pt-2 border-b border-border/30 flex gap-1 shrink-0">

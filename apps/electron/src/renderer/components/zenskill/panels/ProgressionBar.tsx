@@ -49,6 +49,16 @@
  * `zenskill.progression.feedback.{YYYY-MM-DD}` as a {trigger: action} map
  * (send -> accepted / dismiss -> dismissed; a suggestion that times out
  * untouched stays unrecorded).
+ *
+ * Day 4 governance: the local feedback trail is mirrored into the backend
+ * `progression_feedback` JSONL via a fire-and-forget MCP write call (send ->
+ * accepted, dismiss -> dismissed) — failures stay silent since the local
+ * sessionStorage trail remains the source of truth for the UI. The strip
+ * also receives the active proactivity `mode` (from GtdWorkspace's
+ * progression_mode selector) and filters suggestions accordingly:
+ * active shows everything, quiet keeps only high-priority rows, ritual_only
+ * keeps only time-based rituals (morning/shutdown/weekly/silence). Unknown
+ * or missing modes fall back to active.
  */
 import { useCallback, useState } from 'react'
 import { useAtomValue } from 'jotai'
@@ -66,6 +76,9 @@ interface ProgressionBarProps {
   workspaceId?: string
   /** Valid suggestions (suggestion text present), already defensively extracted */
   progressions: TaskProgression[]
+  /** Proactivity mode from the progression_mode selector (Day 4);
+   * active = all / quiet = high only / ritual_only = rituals, unknown -> active */
+  mode?: string
 }
 
 const DISMISS_PREFIX = 'zenskill.progression.dismissed.'
@@ -147,6 +160,24 @@ function priorityDotClass(priority?: string): string {
 const RITUAL_TRIGGERS = ['morning_ritual', 'shutdown_ritual', 'weekly_review', 'silence_wakeup'] as const
 type RitualTrigger = (typeof RITUAL_TRIGGERS)[number]
 
+/** Day 4 proactivity modes — the strip's suggestion density follows the
+ * progression_mode selector; unknown values collapse to active */
+type ProgressionMode = 'active' | 'quiet' | 'ritual_only'
+
+function normalizeMode(mode?: string): ProgressionMode {
+  return mode === 'quiet' || mode === 'ritual_only' ? mode : 'active'
+}
+
+/** Day 4 mode filter: quiet keeps high-priority rows only, ritual_only keeps
+ * only time-based rituals; active (default) shows everything */
+function matchesMode(progression: TaskProgression, mode: ProgressionMode): boolean {
+  if (mode === 'quiet') return progression?.priority === 'high'
+  if (mode === 'ritual_only') {
+    return (RITUAL_TRIGGERS as readonly string[]).includes(progression?.trigger ?? '')
+  }
+  return true
+}
+
 /** Day 3 event triggers — low_energy is exact, celebration matches by prefix */
 const LOW_ENERGY_TRIGGER = 'low_energy'
 
@@ -196,7 +227,7 @@ function ritualTriggerOf(trigger: unknown): RitualTrigger | null {
     : null
 }
 
-export function ProgressionBar({ workspaceId, progressions }: ProgressionBarProps) {
+export function ProgressionBar({ workspaceId, progressions, mode }: ProgressionBarProps) {
   const { t } = useTranslation()
   const { navigate, navigationState } = useNavigation()
   const sessionMetaMap = useAtomValue(sessionMetaMapAtom)
@@ -206,11 +237,22 @@ export function ProgressionBar({ workspaceId, progressions }: ProgressionBarProp
   // day starts with a fresh (empty) set.
   const [dismissed, setDismissed] = useState<string[]>(() => readDayTriggers(DISMISS_PREFIX))
 
+  // Day 4 governance: mirror the local feedback trail into the backend
+  // progression_feedback JSONL (write tool). Fire-and-forget — the local
+  // sessionStorage trail drives the UI, so transport failures stay silent.
+  const sendFeedback = useCallback((trigger: string, action: 'accepted' | 'dismissed') => {
+    if (!workspaceId) return
+    window.electronAPI
+      .callMcpTool(workspaceId, ZENSKILL_SOURCE_SLUG, 'progression_feedback', { trigger, action })
+      .catch(() => { /* best-effort governance trail */ })
+  }, [workspaceId])
+
   const dismiss = useCallback((trigger: string) => {
     setDismissed((cur) => (cur.includes(trigger) ? cur : [...cur, trigger]))
     appendDayTrigger(DISMISS_PREFIX, trigger)
     recordFeedback(trigger, 'dismissed')
-  }, [])
+    sendFeedback(trigger, 'dismissed')
+  }, [sendFeedback])
 
   const sendPrompt = useCallback(async (progression: TaskProgression, index: number) => {
     if (!workspaceId) return
@@ -218,9 +260,11 @@ export function ProgressionBar({ workspaceId, progressions }: ProgressionBarProp
     if (!prompt || sendingId !== null) return
     const id = typeof progression.trigger === 'string' && progression.trigger ? progression.trigger : `idx-${index}`
 
-    // Feedback trail: this suggestion was accepted (Day 1 / governance prep)
+    // Feedback trail: this suggestion was accepted (Day 1 / governance prep;
+    // Day 4 mirrors it into the backend progression_feedback JSONL)
     appendDayTrigger(ACCEPT_PREFIX, id)
     recordFeedback(id, 'accepted')
+    sendFeedback(id, 'accepted')
 
     setSendingId(id)
     try {
@@ -244,7 +288,7 @@ export function ProgressionBar({ workspaceId, progressions }: ProgressionBarProp
     } finally {
       setSendingId(null)
     }
-  }, [workspaceId, sendingId, navigationState, sessionMetaMap, navigate, t])
+  }, [workspaceId, sendingId, navigationState, sessionMetaMap, navigate, t, sendFeedback])
 
   // Day 3 celebration: generate a growth share card through the share_card
   // MCP tool and preview the returned image (base64 PNG/SVG) as a Blob URL —
@@ -281,9 +325,10 @@ export function ProgressionBar({ workspaceId, progressions }: ProgressionBarProp
   }, [workspaceId, sharing, t])
 
   if (!workspaceId) return null
+  const activeMode = normalizeMode(mode)
   const visible = progressions.filter((progression, index) => {
     const id = typeof progression?.trigger === 'string' && progression.trigger ? progression.trigger : `idx-${index}`
-    return !dismissed.includes(id)
+    return !dismissed.includes(id) && matchesMode(progression, activeMode)
   })
   if (visible.length === 0) return null
 
