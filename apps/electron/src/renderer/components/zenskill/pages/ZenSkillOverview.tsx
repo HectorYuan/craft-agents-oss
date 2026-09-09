@@ -284,49 +284,52 @@ export function ZenSkillOverview({ workspaceId, onNavigateToChat }: ZenSkillOver
             </ErrorBoundary>
           )}
 
-          {/* Achievements — unlocked badges + next to unlock */}
-          {achievements.data && (achievements.data.badges?.length ?? 0) > 0 && (
-            <div className={ZS.card}>
-              <div className={ZS.sectionHeader}>
-                <span className={ZS.body + ' font-medium text-muted-foreground'}>
-                  {t('zenskill.overview.achievements', 'Achievements')} ({achievements.data.badges!.length}/{(achievements.data.badges?.length ?? 0) + (achievements.data.locked?.length ?? 0)})
-                </span>
-                {achievements.data.completion_rate != null && (
-                  <span className={ZS.micro + ' text-muted-foreground/60 ml-auto'}>
-                    {Math.round(achievements.data.completion_rate * 100)}%
-                  </span>
-                )}
-              </div>
-              <div className="flex flex-wrap gap-1">
-                {achievements.data.badges!.slice(0, 8).map((b) => (
-                  <span key={b.id} className="text-[10px] px-1.5 py-0.5 rounded bg-accent/10 text-accent inline-flex items-center gap-1"
-                    title={b.detail}>
-                    {b.icon || '🏅'} {b.title || b.name}
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Proactive insights — 使用 InsightsPanel 组件 */}
-          {insights.data && (insights.data.items?.length ?? 0) > 0 && (
-            <ErrorBoundary componentName="InsightsPanel">
+          {/* Achievements + Insights 两栏布局 */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Achievements */}
+            {achievements.data && (achievements.data.badges?.length ?? 0) > 0 && (
               <div className={ZS.card}>
-                <InsightsPanel
-                  insights={insights.data.items!.map(item => ({
-                    type: item.type || 'info',
-                    title: item.title || '',
-                    content: item.content || '',
-                    level: item.level || 'low',
-                    id: item.title,
-                  }))}
-                  maxItems={5}
-                  variant="compact"
-                  showHeader={false}
-                />
+                <div className={ZS.sectionHeader}>
+                  <span className={ZS.body + ' font-medium text-muted-foreground'}>
+                    {t('zenskill.overview.achievements', 'Achievements')} ({achievements.data.badges!.length}/{(achievements.data.badges?.length ?? 0) + (achievements.data.locked?.length ?? 0)})
+                  </span>
+                  {achievements.data.completion_rate != null && (
+                    <span className={ZS.micro + ' text-muted-foreground/60 ml-auto'}>
+                      {Math.round(achievements.data.completion_rate * 100)}%
+                    </span>
+                  )}
+                </div>
+                <div className="flex flex-wrap gap-1">
+                  {achievements.data.badges!.slice(0, 8).map((b) => (
+                    <span key={b.id} className="text-[10px] px-1.5 py-0.5 rounded bg-accent/10 text-accent inline-flex items-center gap-1"
+                      title={b.detail}>
+                      {b.icon || '🏅'} {b.title || b.name}
+                    </span>
+                  ))}
+                </div>
               </div>
-            </ErrorBoundary>
-          )}
+            )}
+
+            {/* Proactive insights */}
+            {insights.data && (insights.data.items?.length ?? 0) > 0 && (
+              <ErrorBoundary componentName="InsightsPanel">
+                <div className={ZS.card}>
+                  <InsightsPanel
+                    insights={insights.data.items!.map(item => ({
+                      type: item.type || 'info',
+                      title: item.title || '',
+                      content: item.content || '',
+                      level: item.level || 'low',
+                      id: item.title,
+                    }))}
+                    maxItems={5}
+                    variant="compact"
+                    showHeader={false}
+                  />
+                </div>
+              </ErrorBoundary>
+            )}
+          </div>
         </div>
       </div>
     </div>
