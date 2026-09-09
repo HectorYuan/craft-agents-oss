@@ -1891,6 +1891,11 @@
   "zenskill.insights.pageTitle": "Insights",
   "zenskill.insights.showing": "Mostrando",
   "zenskill.insights.title": "Perspectivas",
+  "zenskill.learningPath.empty": "Ingrese una habilidad objetivo para generar una ruta de aprendizaje",
+  "zenskill.learningPath.generate": "Generar ruta",
+  "zenskill.learningPath.placeholder": "Ingrese habilidad objetivo...",
+  "zenskill.learningPath.subtitle": "Generar ruta de aprendizaje",
+  "zenskill.learningPath.title": "Ruta de aprendizaje",
   "zenskill.memory.empty": "Aún no hay recuerdos",
   "zenskill.memory.error": "Error al cargar los recuerdos",
   "zenskill.memory.searchPlaceholder": "Buscar recuerdos...",
@@ -1981,5 +1986,13 @@
   "zenskill.toast.promoted": "Promovida a acción",
   "zenskill.toast.scheduled": "Programado para el {{date}}",
   "zenskill.toast.shareSuccess": "Tarjeta de crecimiento compartida",
-  "zenskill.toast.toolFailed": "Error en la operación"
+  "zenskill.toast.toolFailed": "Error en la operación",
+  "zenskill.zenloop.actions": "Activación manual",
+  "zenskill.zenloop.cycle.consolidation": "Consolidación",
+  "zenskill.zenloop.cycle.insight": "Perspectiva",
+  "zenskill.zenloop.cycle.purification": "Purificación",
+  "zenskill.zenloop.cycle.reflection": "Reflexión",
+  "zenskill.zenloop.status": "Resumen de estado",
+  "zenskill.zenloop.subtitle": "Ciclos de reflexión automatizados",
+  "zenskill.zenloop.title": "ZenLoop"
 }

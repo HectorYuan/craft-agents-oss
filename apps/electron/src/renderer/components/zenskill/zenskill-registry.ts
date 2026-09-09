@@ -12,7 +12,7 @@
  */
 import type { ComponentType } from 'react'
 import type { LucideIcon } from 'lucide-react'
-import { Brain, Inbox, Zap, Lightbulb, User, Network, GitBranch } from 'lucide-react'
+import { Brain, Inbox, Zap, Lightbulb, User, Network, GitBranch, BookOpen, RefreshCw } from 'lucide-react'
 import { GtdWorkspace } from './pages/GtdWorkspace'
 import { MemoryBrowser } from './pages/MemoryBrowser'
 import { ZenSkillOverview } from './pages/ZenSkillOverview'
@@ -20,6 +20,8 @@ import { ZenSkillInsights } from './pages/ZenSkillInsights'
 import { ZenSkillProfile } from './pages/ZenSkillProfile'
 import { ZenSkillCollaboration } from './pages/ZenSkillCollaboration'
 import { ZenSkillSkillGraph } from './pages/ZenSkillSkillGraph'
+import { LearningPathPage } from './pages/LearningPathPage'
+import { ZenloopStandalonePage } from './pages/ZenloopStandalonePage'
 
 /** The ZenSkill MCP source slug all ZenSkill pages talk to. */
 export const ZENSKILL_SOURCE_SLUG = 'zenskill'
@@ -82,6 +84,18 @@ export const ZENSKILL_PAGES: ZenSkillPageRegistration[] = [
     component: ZenSkillCollaboration,
     icon: GitBranch,
     i18nLabelKey: 'zenskill.collaboration.title',
+  },
+  {
+    slug: 'learning-path',
+    component: LearningPathPage,
+    icon: BookOpen,
+    i18nLabelKey: 'zenskill.learningPath.title',
+  },
+  {
+    slug: 'zenloop',
+    component: ZenloopStandalonePage,
+    icon: RefreshCw,
+    i18nLabelKey: 'zenskill.zenloop.title',
   },
 ]
 

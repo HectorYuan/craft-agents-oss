@@ -1891,6 +1891,11 @@
   "zenskill.insights.pageTitle": "Einblicke",
   "zenskill.insights.showing": "Angezeigt",
   "zenskill.insights.title": "Einblicke",
+  "zenskill.learningPath.empty": "Geben Sie eine Zielfähigkeit ein, um einen Lernpfad zu generieren",
+  "zenskill.learningPath.generate": "Pfad generieren",
+  "zenskill.learningPath.placeholder": "Zielfähigkeit eingeben...",
+  "zenskill.learningPath.subtitle": "Lernpfad generieren",
+  "zenskill.learningPath.title": "Lernpfad",
   "zenskill.memory.empty": "Noch keine Erinnerungen",
   "zenskill.memory.error": "Fehler beim Laden der Erinnerungen",
   "zenskill.memory.searchPlaceholder": "Erinnerungen durchsuchen...",
@@ -1981,5 +1986,13 @@
   "zenskill.toast.promoted": "Zur Aktion hochgestuft",
   "zenskill.toast.scheduled": "Geplant für {{date}}",
   "zenskill.toast.shareSuccess": "Wachstumskarte geteilt",
-  "zenskill.toast.toolFailed": "Aktion fehlgeschlagen"
+  "zenskill.toast.toolFailed": "Aktion fehlgeschlagen",
+  "zenskill.zenloop.actions": "Manueller Auslöser",
+  "zenskill.zenloop.cycle.consolidation": "Konsolidierung",
+  "zenskill.zenloop.cycle.insight": "Einblick",
+  "zenskill.zenloop.cycle.purification": "Reinigung",
+  "zenskill.zenloop.cycle.reflection": "Reflexion",
+  "zenskill.zenloop.status": "Statusübersicht",
+  "zenskill.zenloop.subtitle": "Automatisierte Reflexionszyklen",
+  "zenskill.zenloop.title": "ZenLoop"
 }

@@ -1891,6 +1891,11 @@
   "zenskill.insights.pageTitle": "Meglátások",
   "zenskill.insights.showing": "Megjelenítve",
   "zenskill.insights.title": "Betekintések",
+  "zenskill.learningPath.empty": "Adjon meg egy cél készséget a tanulási útvonal generálásához",
+  "zenskill.learningPath.generate": "Útvonal generálása",
+  "zenskill.learningPath.placeholder": "Cél készség megadása...",
+  "zenskill.learningPath.subtitle": "Tanulási útvonal generálása",
+  "zenskill.learningPath.title": "Tanulási útvonal",
   "zenskill.memory.empty": "Még nincsenek emlékek",
   "zenskill.memory.error": "Nem sikerült betölteni az emlékeket",
   "zenskill.memory.searchPlaceholder": "Emlékek keresése...",
@@ -1981,5 +1986,13 @@
   "zenskill.toast.promoted": "Teendővé léptetve",
   "zenskill.toast.scheduled": "Ütemezve: {{date}}",
   "zenskill.toast.shareSuccess": "Növekedési kártya megosztva",
-  "zenskill.toast.toolFailed": "A művelet sikertelen"
+  "zenskill.toast.toolFailed": "A művelet sikertelen",
+  "zenskill.zenloop.actions": "Kézi indítás",
+  "zenskill.zenloop.cycle.consolidation": "Konszolidáció",
+  "zenskill.zenloop.cycle.insight": "Betekintés",
+  "zenskill.zenloop.cycle.purification": "Tisztítás",
+  "zenskill.zenloop.cycle.reflection": "Reflexió",
+  "zenskill.zenloop.status": "Állapot áttekintés",
+  "zenskill.zenloop.subtitle": "Automatizált reflexiós ciklusok",
+  "zenskill.zenloop.title": "ZenLoop"
 }

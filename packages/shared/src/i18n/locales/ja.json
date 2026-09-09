@@ -1891,6 +1891,11 @@
   "zenskill.insights.pageTitle": "インサイト",
   "zenskill.insights.showing": "表示中",
   "zenskill.insights.title": "インサイト",
+  "zenskill.learningPath.empty": "目標スキルを入力して学習パスを生成",
+  "zenskill.learningPath.generate": "パス生成",
+  "zenskill.learningPath.placeholder": "目標スキルを入力...",
+  "zenskill.learningPath.subtitle": "学習パスを生成",
+  "zenskill.learningPath.title": "学習パス",
   "zenskill.memory.empty": "記憶はまだありません",
   "zenskill.memory.error": "記憶の読み込みに失敗しました",
   "zenskill.memory.searchPlaceholder": "記憶を検索...",
@@ -1981,5 +1986,13 @@
   "zenskill.toast.promoted": "アクションに昇格しました",
   "zenskill.toast.scheduled": "{{date}} に登録しました",
   "zenskill.toast.shareSuccess": "成長カードを共有しました",
-  "zenskill.toast.toolFailed": "操作に失敗しました"
+  "zenskill.toast.toolFailed": "操作に失敗しました",
+  "zenskill.zenloop.actions": "手動トリガー",
+  "zenskill.zenloop.cycle.consolidation": "コンソリデーション",
+  "zenskill.zenloop.cycle.insight": "インサイト",
+  "zenskill.zenloop.cycle.purification": "ピュリフィケーション",
+  "zenskill.zenloop.cycle.reflection": "リフレクション",
+  "zenskill.zenloop.status": "ステータス概要",
+  "zenskill.zenloop.subtitle": "自動リフレクションサイクル",
+  "zenskill.zenloop.title": "ZenLoop"
 }

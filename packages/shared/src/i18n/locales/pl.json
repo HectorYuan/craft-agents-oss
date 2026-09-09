@@ -1891,6 +1891,11 @@
   "zenskill.insights.pageTitle": "Wglądy",
   "zenskill.insights.showing": "Wyświetlanie",
   "zenskill.insights.title": "Spostrzeżenia",
+  "zenskill.learningPath.empty": "Wprowadź docelową umiejętność, aby wygenerować ścieżkę uczenia",
+  "zenskill.learningPath.generate": "Generuj ścieżkę",
+  "zenskill.learningPath.placeholder": "Wprowadź docelową umiejętność...",
+  "zenskill.learningPath.subtitle": "Generuj ścieżkę uczenia",
+  "zenskill.learningPath.title": "Ścieżka uczenia",
   "zenskill.memory.empty": "Brak zapisanych wspomnień",
   "zenskill.memory.error": "Nie udało się wczytać wspomnień",
   "zenskill.memory.searchPlaceholder": "Szukaj wspomnień...",
@@ -1981,5 +1986,13 @@
   "zenskill.toast.promoted": "Awansowano do działania",
   "zenskill.toast.scheduled": "Zaplanowano na {{date}}",
   "zenskill.toast.shareSuccess": "Karta wzrostu udostępniona",
-  "zenskill.toast.toolFailed": "Operacja nie powiodła się"
+  "zenskill.toast.toolFailed": "Operacja nie powiodła się",
+  "zenskill.zenloop.actions": "Ręczne wyzwalanie",
+  "zenskill.zenloop.cycle.consolidation": "Konsolidacja",
+  "zenskill.zenloop.cycle.insight": "Spostrzeżenie",
+  "zenskill.zenloop.cycle.purification": "Oczyszczanie",
+  "zenskill.zenloop.cycle.reflection": "Refleksja",
+  "zenskill.zenloop.status": "Przegląd statusu",
+  "zenskill.zenloop.subtitle": "Automatyczne cykle refleksji",
+  "zenskill.zenloop.title": "ZenLoop"
 }

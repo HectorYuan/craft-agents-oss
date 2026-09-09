@@ -1891,6 +1891,11 @@
   "zenskill.insights.pageTitle": "Insights",
   "zenskill.insights.showing": "Showing",
   "zenskill.insights.title": "Insights",
+  "zenskill.learningPath.empty": "Enter a target skill to generate a learning path",
+  "zenskill.learningPath.generate": "Generate Path",
+  "zenskill.learningPath.placeholder": "Enter target skill...",
+  "zenskill.learningPath.subtitle": "Generate learning path",
+  "zenskill.learningPath.title": "Learning Path",
   "zenskill.memory.empty": "No memories yet",
   "zenskill.memory.error": "Failed to load memories",
   "zenskill.memory.searchPlaceholder": "Search memories...",
@@ -1981,5 +1986,13 @@
   "zenskill.toast.promoted": "Promoted to action",
   "zenskill.toast.scheduled": "Scheduled to {{date}}",
   "zenskill.toast.shareSuccess": "Growth card shared",
-  "zenskill.toast.toolFailed": "Operation failed"
+  "zenskill.toast.toolFailed": "Operation failed",
+  "zenskill.zenloop.actions": "Manual Trigger",
+  "zenskill.zenloop.cycle.consolidation": "Consolidation",
+  "zenskill.zenloop.cycle.insight": "Insight",
+  "zenskill.zenloop.cycle.purification": "Purification",
+  "zenskill.zenloop.cycle.reflection": "Reflection",
+  "zenskill.zenloop.status": "Status Overview",
+  "zenskill.zenloop.subtitle": "Automated reflection cycles",
+  "zenskill.zenloop.title": "ZenLoop"
 }

@@ -1891,6 +1891,11 @@
   "zenskill.insights.pageTitle": "洞察",
   "zenskill.insights.showing": "显示",
   "zenskill.insights.title": "洞察",
+  "zenskill.learningPath.empty": "输入目标技能以生成学习路径",
+  "zenskill.learningPath.generate": "生成路径",
+  "zenskill.learningPath.placeholder": "输入目标技能...",
+  "zenskill.learningPath.subtitle": "生成学习路径",
+  "zenskill.learningPath.title": "学习路径",
   "zenskill.memory.empty": "暂无记忆",
   "zenskill.memory.error": "记忆加载失败",
   "zenskill.memory.searchPlaceholder": "搜索记忆...",
@@ -1981,5 +1986,13 @@
   "zenskill.toast.promoted": "已提升为行动",
   "zenskill.toast.scheduled": "已排期到 {{date}}",
   "zenskill.toast.shareSuccess": "增长卡片已分享",
-  "zenskill.toast.toolFailed": "操作失败"
+  "zenskill.toast.toolFailed": "操作失败",
+  "zenskill.zenloop.actions": "手动触发",
+  "zenskill.zenloop.cycle.consolidation": "整合",
+  "zenskill.zenloop.cycle.insight": "洞察",
+  "zenskill.zenloop.cycle.purification": "净化",
+  "zenskill.zenloop.cycle.reflection": "反思",
+  "zenskill.zenloop.status": "状态概览",
+  "zenskill.zenloop.subtitle": "自动化反思循环",
+  "zenskill.zenloop.title": "ZenLoop"
 }
