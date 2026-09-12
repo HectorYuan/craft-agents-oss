@@ -558,7 +558,7 @@ export async function createSource(
   }
 
   // Create guide.md with skeleton template
-  // (bundled guides removed - service-specific guidance lives in the product docs at https://thecraftagents.com/docs)
+  // (bundled guides removed - service-specific guidance lives in the product docs at https://github.com/HectorYuan/ZenSkill#readme)
   const guideContent = `# ${input.name}
 
 ## Guidelines

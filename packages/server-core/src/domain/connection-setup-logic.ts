@@ -28,7 +28,7 @@ export function parseTestConnectionError(msg: string): string {
     return 'Cannot connect to API server. Check the URL and ensure the server is running.'
   }
   if (lower.includes('no api key found for')) {
-    return 'Provider mismatch during setup. Select a provider preset in Craft Agents Backend API Key mode, or use Anthropic API Key mode for arbitrary compatible endpoints.'
+    return 'Provider mismatch during setup. Select a provider preset in ZenSkill Backend API Key mode, or use Anthropic API Key mode for arbitrary compatible endpoints.'
   }
   if (lower.includes('401') || lower.includes('unauthorized') || lower.includes('authentication')) {
     return 'Invalid API key'
@@ -152,7 +152,7 @@ export const BUILT_IN_CONNECTION_TEMPLATES: Record<string, {
     piAuthProvider: 'github-copilot',
   },
   'pi-api-key': {
-    name: 'Craft Agents Backend (API Key)',
+    name: 'ZenSkill Backend (API Key)',
     providerType: 'pi',
     authType: 'api_key',
     // piAuthProvider set dynamically from setup.piAuthProvider

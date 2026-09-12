@@ -3,7 +3,9 @@
  * Summaries provide quick context; "Learn more" opens the full docs.
  */
 
-const DOC_BASE_URL = 'https://thecraftagents.com/docs'
+import { DOCS_URL } from '../brand.ts'
+
+const DOC_BASE_URL = DOCS_URL
 
 export type DocFeature =
   | 'sources'

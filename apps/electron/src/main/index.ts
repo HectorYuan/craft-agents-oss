@@ -1144,7 +1144,7 @@ app.whenReady().then(async () => {
         type: 'error',
         title: 'Update failed',
         message: 'The update could not be installed.',
-        detail: 'Craft Agents will restart now. The update will be retried on the next launch.',
+        detail: 'ZenSkill will restart now. The update will be retried on the next launch.',
       })
       app.relaunch()
       app.exit(0)

@@ -66,7 +66,7 @@ export const ZENSKILL_SOURCE_SLUG = 'zenskill-4';
 /** guide.md shown next to the source in the UI and referenced by api-tools. */
 const ZENSKILL_GUIDE = `# ZenSkill
 
-有生命的技能系统：把技能生态、GTD、记忆与成长体系作为 MCP 工具接入 Craft Agents。
+有生命的技能系统：把技能生态、GTD、记忆与成长体系作为 MCP 工具接入 ZenSkill。
 
 工具前缀为 \`mcp__zenskill-4__*\`，例如 \`mcp__zenskill-4__skill_search\`。
 
