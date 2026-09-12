@@ -232,10 +232,20 @@ class TuiDataAdapter:
         except Exception:
             pass
 
+        # TUI 版 recent_topics（与 MCP 版对齐）
+        recent_topics = []
+        try:
+            from ..core.session_context import get_session_topic_context
+            topic_ctx = get_session_topic_context("zenskill-core")
+            recent_topics = topic_ctx.get("recent_topics", [])
+        except Exception:
+            pass
+
         return {
             "greeting": greeting,
             "mood": "；".join(parts) + "。",
             "recent_actions": recent_actions,
+            "recent_topics": recent_topics,
             "energy": {"level": level, "pct": energy.get("pct"),
                        "current": energy.get("current_energy"), "max": energy.get("max_energy")},
             "inbox_pending": inbox,

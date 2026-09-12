@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import logging
+import sqlite3
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -32,6 +33,8 @@ class GTDAction:
     status: str = "pending"  # pending → next → done / delegated / incubating
     repeat_rule: str = ""
     profile: str = ""  # 所属 profile（空=当前激活）
+    source_session_id: str = ""  # 创建来源 session（空=非 agent 会话/GUI 手动）
+    created_by: str = "user"  # "agent"=agent 自动创建 / "user"=用户手动
     created_at: str = field(default_factory=lambda: time.strftime("%Y-%m-%dT%H:%M:%S"))
     completed_at: str = ""
     energy_invested: int = 0
@@ -44,6 +47,8 @@ class GTDAction:
             "estimated_minutes": self.estimated_minutes, "project_id": self.project_id,
             "skill_id": self.skill_id, "status": self.status,
             "repeat_rule": self.repeat_rule, "profile": self.profile,
+            "source_session_id": self.source_session_id,
+            "created_by": self.created_by,
             "created_at": self.created_at,
             "completed_at": self.completed_at, "energy_invested": self.energy_invested,
         }
@@ -61,6 +66,8 @@ class GTDAction:
             status=data.get("status", "pending"),
             repeat_rule=data.get("repeat_rule", ""),
             profile=data.get("profile", ""),
+            source_session_id=data.get("source_session_id", ""),
+            created_by=data.get("created_by", "user"),
             created_at=data.get("created_at", ""),
             completed_at=data.get("completed_at", ""),
             energy_invested=data.get("energy_invested", 0),
@@ -110,6 +117,7 @@ class ActionEngine:
             action.energy_required = self.ENERGY_MAP.get(
                 action.energy_required.lower(), 5)
         self._append(action)
+        self._sync_to_sqlite(action)
         return action
 
     def list(self, status: str = "pending", project_id: str = "",
@@ -130,6 +138,12 @@ class ActionEngine:
 
         # 按 priority 排序
         items.sort(key=lambda a: self.PRIORITY_ORDER.get(a.priority, 2))
+        return items[:limit]
+
+    def list_pending(self, limit: int = 50) -> list[GTDAction]:
+        """未完成 actions（status != done，按创建时间倒序）— TUI/概览用"""
+        items = [a for a in self._read_all() if a.status != "done"]
+        items.sort(key=lambda a: a.created_at, reverse=True)
         return items[:limit]
 
     def get(self, action_id: str) -> Optional[GTDAction]:
@@ -155,6 +169,7 @@ class ActionEngine:
         filtered = [a for a in items if a.id != action_id]
         if len(filtered) != len(items):
             self._rewrite(filtered)
+            self._delete_from_sqlite(action_id)
             return True
         return False
 
@@ -166,6 +181,7 @@ class ActionEngine:
                     if hasattr(a, k) and v is not None:
                         setattr(a, k, v)
                 self._rewrite(items)
+                self._sync_to_sqlite(a)
                 return a
         return None
 
@@ -237,6 +253,7 @@ class ActionEngine:
                     if hasattr(a, k):
                         setattr(a, k, v)
                 self._rewrite(items)
+                self._sync_to_sqlite(a)
                 # 完成时消耗能量（修炼闭环：消耗 → XP → 成长）
                 # 仅首次 done 扣减，重复标记不重复扣
                 if status == "done" and not already_done:
@@ -286,3 +303,96 @@ class ActionEngine:
             due_date=next_due, project_id=action.project_id,
             skill_id=action.skill_id, repeat_rule=action.repeat_rule,
         )
+
+    def _sync_to_sqlite(self, action: GTDAction) -> None:
+        """JSONL 写入后同步到 SQLite（逐条，WAL 模式）。失败仅 warning 不阻塞。"""
+        try:
+            from ...core.database import db
+            with db.connect() as conn:
+                self._sync_into(conn, action)
+        except Exception:
+            logger.warning("SQLite sync failed for action %s, JSONL is authoritative", action.id)
+
+    def _sync_into(self, conn, action: GTDAction) -> None:
+        """在给定连接上 upsert 单条 action（sync 与 reconcile 共用）。"""
+        # FK 约束要求 skill_id 为 NULL 而非空字符串
+        skill_id = action.skill_id or None
+        params = (action.id, action.title, action.status, action.priority,
+                  action.energy_required, json.dumps(action.contexts),
+                  action.due_date, action.project_id or None, skill_id,
+                  action.repeat_rule or None, action.source_session_id,
+                  action.created_by, action.created_at, action.completed_at,
+                  action.id)
+        try:
+            conn.execute(
+                """INSERT OR REPLACE INTO gtd_actions
+                   (action_id, title, status, priority, energy_required,
+                    contexts, due_date, project_id, skill_id, repeat_rule,
+                    source_session_id, created_by, created_at, completed_at,
+                    energy_invested, updated_at)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,
+                           COALESCE((SELECT energy_invested FROM gtd_actions
+                                     WHERE action_id=?), 0),
+                           datetime('now'))""",
+                params)
+        except sqlite3.IntegrityError:
+            # skill_id 指向的技能不在 skill_registry（成长归因标签可先于
+            # 技能注册出现）。Phase 4 后读侧走 SQLite，此行丢弃 = 数据丢失，
+            # 故降级为 skill_id=NULL 保行，仅放弃外键链接。
+            conn.execute(
+                """INSERT OR REPLACE INTO gtd_actions
+                   (action_id, title, status, priority, energy_required,
+                    contexts, due_date, project_id, skill_id, repeat_rule,
+                    source_session_id, created_by, created_at, completed_at,
+                    energy_invested, updated_at)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,
+                           COALESCE((SELECT energy_invested FROM gtd_actions
+                                     WHERE action_id=?), 0),
+                           datetime('now'))""",
+                params[:8] + (None,) + params[9:])
+
+    def _delete_from_sqlite(self, action_id: str) -> None:
+        """JSONL 删除后同步移除 SQLite 行。失败仅 warning 不阻塞。"""
+        try:
+            from ...core.database import db
+            with db.connect() as conn:
+                conn.execute("DELETE FROM gtd_actions WHERE action_id=?", (action_id,))
+        except Exception:
+            logger.warning("SQLite delete failed for action %s, JSONL is authoritative", action_id)
+
+    def reconcile_sqlite(self) -> None:
+        """读路径对账：JSONL 为权威，SQLite 漂移时幂等重建。
+
+        行数一致时零解析跳过（仅 COUNT + 文件非空行计数）；
+        漂移来源：直写 JSONL 的历史/外部数据、旧版 delete/edit 未回写 SQLite。
+        失败仅 warning（JSONL 权威不受影响）。
+        """
+        try:
+            from ...core.database import db
+            jsonl_count = self._jsonl_line_count()
+            with db.connect() as conn:
+                db_count = conn.execute(
+                    "SELECT COUNT(*) FROM gtd_actions").fetchone()[0]
+            if jsonl_count == db_count:
+                return
+            items = self._read_all()
+            with db.connect() as conn:
+                for act in items:
+                    self._sync_into(conn, act)
+                if items:
+                    marks = ",".join("?" * len(items))
+                    conn.execute(
+                        f"DELETE FROM gtd_actions WHERE action_id NOT IN ({marks})",
+                        [a.id for a in items])
+                else:
+                    conn.execute("DELETE FROM gtd_actions")
+        except Exception:
+            logger.warning("reconcile_sqlite failed; JSONL remains authoritative",
+                           exc_info=True)
+
+    def _jsonl_line_count(self) -> int:
+        """JSONL 非空行数（不解析 JSON，对账用的廉价探针）。"""
+        if not self._file.exists():
+            return 0
+        return sum(1 for line in self._file.read_text(encoding="utf-8").splitlines()
+                   if line.strip())

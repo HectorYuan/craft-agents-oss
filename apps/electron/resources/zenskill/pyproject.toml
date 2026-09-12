@@ -1,6 +1,6 @@
 [project]
 name = "zenskill"
-version = "2.7.1"
+version = "2.9.0"
 description = "有生命的技能系统 - 记忆、成长、自我反思"
 authors = [{name = "ZenSkill Team"}]
 requires-python = ">=3.9"
@@ -24,9 +24,12 @@ dev = [
     "pytest>=7.0",
     "pytest-asyncio>=0.21",
     "pytest-cov>=4.0",
+    "pytest-timeout>=2.1",
     "mypy>=1.0",
     "rich>=13.0",
     "prompt_toolkit>=3.0",
+    "hypothesis>=6.0",
+    "tomli-w>=1.0",
 ]
 tui = [
     "rich>=13.0",
@@ -56,14 +59,28 @@ exclude = [
 ]
 
 [tool.pytest.ini_options]
-addopts = "--strict-markers"
+addopts = "--strict-markers --timeout=120"
 testpaths = ["tests"]
 markers = [
-    "e2e: E2E 场景测试（完整用户流程）",
+    "e2e: E2E 场景测试（完整用户流程，CI 可跳过）",
+    "gui: L4 GUI E2E 测试（Playwright + 真实浏览器，需 chromium）",
+    "hypothesis: 属性测试（随机输入边界发现）",
+    "faux: FauxStreamFn 集成测试（确定性 LLM 剧本）",
+    "unit: Mock/单元测试（快速反馈，默认层）",
     "skill: 技能生态测试（包格式/兼容/沙箱）",
     "platform: 平台适配器测试（契约/隔离）",
     "security: 安全审计测试（注入/泄漏/CVE）",
+    "network: 真实网络调用测试（CI 禁用，本地手动跑）",
 ]
+
+# 五层测试运行命令
+# L0 全量快速:    pytest tests/ -m "not hypothesis and not faux and not e2e and not gui"
+# L1 边界发现:    pytest tests/ -m hypothesis
+# L2 全流程:      pytest tests/ -m faux
+# L3 终端验证:    pytest tests/ -m e2e
+# L4 GUI E2E:     pytest tests/gui/ -m gui
+# 全部:           pytest tests/
+# CI 快速:        pytest tests/ -m "not e2e and not gui" --timeout=300
 
 [tool.coverage.run]
 source = ["zenskill"]

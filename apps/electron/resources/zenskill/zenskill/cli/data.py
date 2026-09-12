@@ -155,6 +155,7 @@ def cmd_data_export(args: argparse.Namespace) -> None:
                 pass
 
         # 导出清单文件
+        from .. import __version__
         manifest = {
             "exported_at": datetime.now().isoformat(),
             "version": __version__,

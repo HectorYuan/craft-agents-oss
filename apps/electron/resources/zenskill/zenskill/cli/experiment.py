@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 
 from ..cli_utils import output as cli_output
 

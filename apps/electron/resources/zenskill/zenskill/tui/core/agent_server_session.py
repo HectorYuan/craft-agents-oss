@@ -66,12 +66,9 @@ class AgentServerSession:
             logger.warning(self._init_error)
             return False
 
-        # 模型解析（复用 AgentChatSession 的占位名消毒 + model-switcher 注入）
-        model_name = self._model_name
-        if model_name:
-            leaf = (model_name.split("/", 1)[1] if "/" in model_name else model_name)
-            if leaf.strip().lower() in ("test-model", "mock-gpt", "mock", "unknown", "未配置"):
-                model_name = None
+        # 模型解析（复用 providers 层公共消毒 + model-switcher 注入）
+        from zenskill.runtime.agent.providers import sanitize_model_name
+        model_name = sanitize_model_name(self._model_name)
         model_name = model_name or os.environ.get("ZENSKILL_AGENT_MODEL")
         if model_name is None and not os.environ.get("DEEPSEEK_API_KEY"):
             try:
@@ -125,6 +122,12 @@ class AgentServerSession:
                 })
             except Exception:
                 pass
+        # 注册活跃 session（companion 主题感知）
+        try:
+            from zenskill.core.session_context import register_active_session
+            register_active_session("zenskill-core", self._server.session)
+        except Exception:
+            pass
 
         # 懒初始化能力（与 AgentServer._init_capabilities 同步）
         try:
@@ -288,7 +291,20 @@ class AgentServerSession:
         elif etype == "compaction_error":
             return {"type": "tool_end", "content": f"[compaction] ✗ {event.get('error', '?')}"}
 
-        # agent_start, turn_start/end, message_start, entry_appended, queue_update, agent_settled
+        elif etype == "queue_update":
+            # steering/follow_up 队列状态变更 → 通知用户
+            steer_n = event.get("steering", 0)
+            follow_n = event.get("followUp", 0)
+            parts = []
+            if steer_n:
+                parts.append(f"{steer_n} 条 steering 注入")
+            if follow_n:
+                parts.append(f"{follow_n} 条 follow_up 等待")
+            if parts:
+                return {"type": "tool_end", "content": f"[queue] {' + '.join(parts)}"}
+            return None
+
+        # agent_start, turn_start/end, message_start, entry_appended, agent_settled
         # → 不直接映射为 TUI chunk（agent_settled 由外层循环检测）
         return None
 

@@ -438,6 +438,57 @@ class ActiveGoalEngine:
 
         return found
 
+    _GOAL_STATUSES = ("active", "completed", "failed", "cancelled")
+
+    def update_goal(
+        self,
+        goal_id: str,
+        target_score: Optional[int] = None,
+        status: Optional[str] = None,
+    ) -> Optional[GrowthGoal]:
+        """更新目标字段（target_score/status），JSONL 整文件 rewrite
+
+        Returns:
+            更新后的目标；goal_id 不存在时返回 None
+        """
+        if target_score is None and status is None:
+            raise ValueError("update_goal 需要 target_score 或 status 至少一项")
+        if status is not None and str(status).strip().lower() not in self._GOAL_STATUSES:
+            raise ValueError(f"无效状态: {status}，可选: {'/'.join(self._GOAL_STATUSES)}")
+
+        goals = self.get_all_goals()
+        updated: Optional[GrowthGoal] = None
+        for goal in goals:
+            if goal.goal_id != goal_id:
+                continue
+            if target_score is not None:
+                goal.target_score = max(0, min(100, int(target_score)))
+            if status is not None:
+                goal.status = str(status).strip().lower()
+            updated = goal
+        if updated is None:
+            return None
+
+        temp_file = self.goals_file.with_suffix(".tmp")
+        with open(temp_file, "w", encoding="utf-8") as f:
+            for goal in goals:
+                f.write(json.dumps(goal.to_dict(), ensure_ascii=False) + "\n")
+        temp_file.rename(self.goals_file)
+        return updated
+
+    def delete_goal(self, goal_id: str) -> bool:
+        """物理删除目标（JSONL rewrite 移除该行）"""
+        goals = self.get_all_goals()
+        remaining = [g for g in goals if g.goal_id != goal_id]
+        if len(remaining) == len(goals):
+            return False
+        temp_file = self.goals_file.with_suffix(".tmp")
+        with open(temp_file, "w", encoding="utf-8") as f:
+            for goal in remaining:
+                f.write(json.dumps(goal.to_dict(), ensure_ascii=False) + "\n")
+        temp_file.rename(self.goals_file)
+        return True
+
     def generate_status_report(self) -> str:
         """生成目标状态报告"""
         self.update_goal_status()

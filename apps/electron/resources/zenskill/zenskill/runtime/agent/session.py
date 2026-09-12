@@ -296,6 +296,61 @@ def session_health_hints(manager: "SessionManager", *, force: bool = False) -> l
     return hints
 
 
+# ── 会话导出 ──────────────────────────────────────────────────────
+
+def export_markdown(session: "Session", leaf_id: Optional[str] = None,
+                    include_tools: bool = True,
+                    include_thinking: bool = False) -> str:
+    """导出当前分支为 Markdown 对话记录。"""
+    from datetime import datetime as _dt
+    built = session.build_context(leaf_id)
+    messages = built.get("messages", [])
+    lines = [
+        "# ZenSkill 对话记录",
+        "",
+        f"- **Session ID**: `{session.id}`",
+        f"- **导出时间**: {_dt.now().strftime('%Y-%m-%d %H:%M')}",
+        f"- **消息数**: {len(messages)}",
+        "",
+        "---",
+        "",
+    ]
+    for m in messages:
+        mtype = type(m).__name__
+        if mtype == "UserMessage":
+            text = m.text() if hasattr(m, "text") else str(m)
+            if text.strip():
+                lines.append(f"## 👤 用户\n\n{text}\n")
+        elif mtype == "AssistantMessage":
+            text = m.text() if hasattr(m, "text") else ""
+            if text.strip():
+                lines.append(f"## 🤖 Agent\n\n{text}\n")
+            if include_thinking and hasattr(m, "content"):
+                thinking = "".join(
+                    b.thinking for b in m.content
+                    if type(b).__name__ == "ThinkingContent"
+                )
+                if thinking:
+                    lines.append(f"<details><summary>💭 思考过程</summary>\n\n{thinking}\n</details>\n")
+            if include_tools and hasattr(m, "content"):
+                for b in m.content:
+                    if type(b).__name__ == "ToolCall":
+                        args_str = json.dumps(b.arguments, ensure_ascii=False)[:120]
+                        lines.append(f"> 🔧 **{b.name}**({args_str})\n")
+        elif mtype == "ToolResultMessage":
+            if include_tools:
+                text = ""
+                if hasattr(m, "content"):
+                    for b in m.content:
+                        if hasattr(b, "text"):
+                            text = b.text[:500]
+                            break
+                status = "✗" if getattr(m, "is_error", False) else "✓"
+                lines.append(f"<details><summary>🔧 结果 {status}</summary>\n\n{text}\n</details>\n")
+    lines.extend(["---", "", "*由 ZenSkill Agent 自动导出*", ""])
+    return "\n".join(lines)
+
+
 class SessionManager:
     def __init__(self, root: Optional[str] = None, stateless: bool = False) -> None:
         self.root = Path(root) if root else (

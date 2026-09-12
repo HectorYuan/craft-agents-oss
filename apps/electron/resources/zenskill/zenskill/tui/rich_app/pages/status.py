@@ -92,11 +92,10 @@ class StatusPage:
     def _render_gtd(self):
         """GTD 状态。"""
         try:
-            from zenskill.core.database import db
-            rows = db.execute("SELECT count(*) as c FROM gtd_actions WHERE status != 'done'")
-            actions = rows[0]["c"] if rows else 0
-            rows = db.execute("SELECT count(*) as c FROM gtd_projects WHERE status = 'active'")
-            projects = rows[0]["c"] if rows else 0
+            from zenskill.systems.gtd.action import ActionEngine
+            from zenskill.systems.gtd.project import ProjectEngine
+            actions = len(ActionEngine().list_pending(limit=10000))
+            projects = len(ProjectEngine().list_active(limit=10000))
         except Exception:
             actions = 0
             projects = 0

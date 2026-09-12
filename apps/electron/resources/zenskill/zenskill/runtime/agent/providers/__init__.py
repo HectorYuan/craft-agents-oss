@@ -99,6 +99,15 @@ _REGISTRY: Dict[str, Dict[str, Any]] = {
 
 _ENV_DETECT_ORDER = ["deepseek", "anthropic", "openai", "volc", "qwen", "gemini", "mimo", "ollama"]
 
+SUSPECT_MODELS = {"test-model", "mock-gpt", "mock", "unknown", "未配置", ""}
+
+
+def sanitize_model_name(name: Optional[str]) -> Optional[str]:
+    """过滤占位/占位模型名，返回 None 表示应走环境变量/DB 探测路径。"""
+    if not name or name.strip().lower() in SUSPECT_MODELS:
+        return None
+    return name
+
 
 def build_model_config(provider: str, model_id: Optional[str] = None,
                        api_key: Optional[str] = None) -> ModelConfig:
@@ -152,6 +161,7 @@ def _provider_for_model_name(name: str) -> Optional[str]:
 
 def resolve_model(name: Optional[str] = None) -> ModelConfig:
     """解析模型配置：provider/model 形式 > core.llm_config 目录 > 环境变量探测。"""
+    name = sanitize_model_name(name)
     if name:
         provider = _provider_for_model_name(name)
         if provider is not None:

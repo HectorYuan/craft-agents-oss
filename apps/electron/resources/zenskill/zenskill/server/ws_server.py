@@ -160,9 +160,24 @@ class RPCHandler:
         self._handlers["statuses:list"] = self._stub_empty_list
         self._handlers["views:list"] = self._stub_empty_list
         self._handlers["workspaceSettings:get"] = self._stub_empty_object
-        self._handlers["sessions:getUnreadSummary"] = self._stub_empty_object
+        self._handlers["sessions:getUnreadSummary"] = self._stub_unread_summary
         self._handlers["sessions:getPendingPlanExecution"] = self._stub_null
         self._handlers["input:getAutoCapitalisation"] = self._stub_false
+        # craft Pages（v0.13.1 workspace 级仪表盘）：读通道实装，播种页可见
+        self._handlers["pages:get"] = self._pages_get
+        self._handlers["pages:getOne"] = self._pages_get_one
+        self._handlers["pages:getContent"] = self._pages_get_content
+        self._handlers["pages:getData"] = self._pages_get_data
+        # 渲染租约（PageView 渲染 iframe 前必须持有；action 执行仍归 Mode B）
+        self._handlers["pages:createLease"] = self._pages_create_lease
+        self._handlers["pages:releaseLease"] = self._pages_release_lease
+        self._page_leases: dict[str, dict] = {}
+        # SourceInfoPage 权限通道（返回 null 表示无权限配置，前端安全降级）
+        self._handlers["sources:getPermissions"] = self._stub_null
+        self._handlers["workspace:getPermissions"] = self._stub_null
+        self._handlers["permissions:getDefaults"] = self._stub_empty_list
+        # debug:log 探测通道（前端 console 降噪）
+        self._handlers["debug:log"] = self._stub_null
         self._handlers["input:getSendMessageKey"] = self._stub_null
         self._handlers["input:getSpellCheck"] = self._stub_false
         self._handlers["system:homeDir"] = self._server_home_dir
@@ -184,12 +199,68 @@ class RPCHandler:
         self._handlers["skills:list"] = self._empty_list
         self._handlers["automations:get"] = self._empty_list
         self._handlers["automations:test"] = self._empty_result
+        self._handlers["automations:create"] = self._stub_empty_object
+        self._handlers["automations:delete"] = self._stub_empty_object
+        self._handlers["automations:setEnabled"] = self._stub_empty_object
+        self._handlers["automations:getHistory"] = self._stub_empty_list
+        self._handlers["automations:getLastExecuted"] = self._stub_empty_object
+        # Pages CRUD（写通道）
+        self._handlers["pages:create"] = self._pages_create
+        self._handlers["pages:update"] = self._pages_update
+        self._handlers["pages:delete"] = self._pages_delete
+        self._handlers["pages:setContent"] = self._pages_set_content
+        self._handlers["pages:listGrants"] = self._stub_empty_list
+        self._handlers["pages:issueGrant"] = self._stub_empty_object
+        self._handlers["pages:revokeGrant"] = self._stub_empty_object
+        # Sessions 扩展
+        self._handlers["sessions:export"] = self._sessions_export
+        self._handlers["sessions:getFiles"] = self._sessions_get_files
+        self._handlers["sessions:getPermissionModeState"] = self._stub_empty_object
+        self._handlers["sessions:markAllRead"] = self._stub_empty_object
+        self._handlers["sessions:searchContent"] = self._sessions_search
+        # Input / Preferences
+        self._handlers["input:setSpellCheck"] = self._stub_empty_object
+        self._handlers["preferences:write"] = self._stub_empty_object
         # Onboarding（SPA 启动流程）
         self._handlers["onboarding:getAuthState"] = self._get_auth_state
         self._handlers["onboarding:validateMcp"] = self._empty_result
         self._handlers["onboarding:hasClaudeOauthState"] = self._empty_result
         self._handlers["onboarding:clearClaudeOauthState"] = self._empty_result
         self._handlers["onboarding:deferSetup"] = self._empty_result
+        # ── Mode C Phase 2: GUI 关键 channel stub（17 个） ──
+        # Projects CRUD
+        self._handlers["projects:getOne"] = self._stub_empty_object
+        self._handlers["projects:create"] = self._stub_empty_object
+        self._handlers["projects:update"] = self._stub_empty_object
+        self._handlers["projects:delete"] = self._stub_empty_object
+        # Skills 管理
+        self._handlers["skills:getFiles"] = self._stub_empty_list
+        self._handlers["skills:delete"] = self._stub_empty_object
+        self._handlers["skills:openEditor"] = self._stub_empty_object
+        # Settings
+        self._handlers["settings:getDefaultThinkingLevel"] = lambda: "medium"
+        self._handlers["settings:setDefaultThinkingLevel"] = self._stub_empty_object
+        # Sessions 增强
+        self._handlers["sessions:getNotes"] = self._stub_empty_object
+        self._handlers["sessions:setNotes"] = self._stub_empty_object
+        # Automations 增强
+        self._handlers["automations:duplicate"] = self._stub_empty_object
+        self._handlers["automations:replay"] = self._stub_empty_object
+        self._handlers["automations:changed"] = self._stub_empty_object
+        # Sources
+        self._handlers["sources:startOAuth"] = self._stub_empty_object
+        self._handlers["sources:saveCredentials"] = self._stub_empty_object
+        # Workspace
+        self._handlers["workspace:checkSlug"] = lambda slug: True
+        # ── Pages 扩展 stub（对齐 channels.ts 缺失 RPC 通道） ──
+        self._handlers["pages:cancelAction"] = self._stub_empty_object
+        self._handlers["pages:getShareCapabilities"] = self._stub_empty_object
+        self._handlers["pages:getShareDataScan"] = self._stub_empty_object
+        self._handlers["pages:getThumbnail"] = self._stub_null
+        self._handlers["pages:publish"] = self._stub_empty_object
+        self._handlers["pages:regenerateThumbnail"] = self._stub_empty_object
+        self._handlers["pages:setPublicationPassword"] = self._stub_empty_object
+        self._handlers["pages:unpublish"] = self._stub_empty_object
 
     async def handle(self, msg: dict) -> None:
         """处理一条 WS 消息"""
@@ -365,8 +436,21 @@ class RPCHandler:
     async def _stub_empty_object(self, *args):
         return {}
 
-    async def _server_create_workspace(self, abs_path: str, name: str):
-        return self.server.workspace_manager.create_workspace(abs_path, name)
+    async def _stub_unread_summary(self, *args):
+        return {"hasUnreadByWorkspace": {}}
+
+    async def _server_create_workspace(self, name: str):
+        """Craft 前端只传 name，rootPath 自动生成到 ~/.zenskill/workspaces/"""
+        import uuid as _uuid
+        root = Path.home() / ".zenskill" / "workspaces"
+        root.mkdir(parents=True, exist_ok=True)
+        ws_id = str(_uuid.uuid4())
+        ws_dir = root / ws_id
+        ws_dir.mkdir(parents=True, exist_ok=True)
+        (ws_dir / "config.json").write_text(
+            json.dumps({"name": name, "rootPath": str(ws_dir),
+                         "createdAt": int(time.time() * 1000)}, indent=2))
+        return {"id": ws_id, "name": name, "rootPath": str(ws_dir)}
 
     async def _server_health(self):
         return {"healthy": True, "status": "ok"}
@@ -399,7 +483,213 @@ class RPCHandler:
         return {"deleted": True}
 
     async def _sources_get_mcp_tools(self, workspace_id: str, source_slug: str):
-        return self.server.source_manager.get_mcp_tools(workspace_id, source_slug)
+        try:
+            tools = self.server.source_manager.get_mcp_tools(workspace_id, source_slug)
+            return {"success": True, "tools": tools}
+        except Exception as e:
+            return {"success": False, "error": str(e), "tools": []}
+
+    # ── craft Pages 读通道（v0.13.1 契约，LoadedPage 形状对齐 shared/pages/storage.ts）──
+
+    def _load_page(self, ws_path: Path, slug: str) -> Optional[dict]:
+        page_dir = ws_path / "pages" / slug
+        config_path = page_dir / "page.json"
+        if not config_path.exists():
+            return None
+        try:
+            config = json.loads(config_path.read_text(encoding="utf-8"))
+        except Exception:
+            return None
+        return {
+            "config": config,
+            "folderPath": str(page_dir),
+            "contentPath": str(page_dir / "index.html"),
+            "dataPath": str(page_dir / "data"),
+            "snapshotPath": str(page_dir / "data" / "snapshot.json"),
+            "workspaceRootPath": str(ws_path),
+            "workspaceId": ws_path.name,
+        }
+
+    def _iter_pages(self, ws_path: Path) -> list:
+        pages_dir = ws_path / "pages"
+        if not pages_dir.exists():
+            return []
+        pages = []
+        for d in sorted(pages_dir.iterdir()):
+            if d.is_dir():
+                page = self._load_page(ws_path, d.name)
+                if page:
+                    pages.append(page)
+        return pages
+
+    async def _pages_get(self, workspace_id: str):
+        ws_path = self.server.workspace_manager.get_workspace_path(workspace_id)
+        return self._iter_pages(ws_path) if ws_path else []
+
+    async def _pages_get_one(self, workspace_id: str, page_id_or_slug: str):
+        ws_path = self.server.workspace_manager.get_workspace_path(workspace_id)
+        if not ws_path:
+            return None
+        pages = self._iter_pages(ws_path)
+        for page in pages:
+            if page["config"].get("slug") == page_id_or_slug:
+                return page
+        for page in pages:
+            if page["config"].get("id") == page_id_or_slug:
+                return page
+        return None
+
+    async def _pages_get_content(self, workspace_id: str, page_slug: str):
+        ws_path = self.server.workspace_manager.get_workspace_path(workspace_id)
+        if not ws_path:
+            return {"content": None}
+        content_path = ws_path / "pages" / page_slug / "index.html"
+        if not content_path.exists():
+            return {"content": None}
+        try:
+            content = content_path.read_text(encoding="utf-8")
+        except Exception:
+            content = None
+        digest = None
+        page = self._load_page(ws_path, page_slug)
+        if page:
+            digest = page["config"].get("contentDigest")
+        return {"content": content, "contentDigest": digest}
+
+    async def _pages_get_data(self, workspace_id: str, page_slug: str):
+        ws_path = self.server.workspace_manager.get_workspace_path(workspace_id)
+        if not ws_path:
+            return None
+        snapshot_path = ws_path / "pages" / page_slug / "data" / "snapshot.json"
+        if not snapshot_path.exists():
+            return None
+        try:
+            return json.loads(snapshot_path.read_text(encoding="utf-8"))
+        except Exception:
+            return None
+
+    _PAGE_LEASE_TTL_MS = 10 * 60_000
+
+    def _page_content_and_digest(self, ws_path: Path, page_slug: str):
+        content_path = ws_path / "pages" / page_slug / "index.html"
+        if not content_path.exists():
+            return None, None
+        content = content_path.read_text(encoding="utf-8")
+        digest = hashlib.sha256(content.encode("utf-8")).hexdigest()
+        return content, digest
+
+    async def _pages_create_lease(self, workspace_id: str, page_slug: str):
+        """渲染租约（对齐 TS broker.createLease 返回 {lease, content}）。
+
+        Mode C 不实现页面 action 执行（grants 走 Mode B broker），租约仅
+        满足 PageView 渲染前置与 iframe init 的 nonce 校验。
+        """
+        import secrets
+        import uuid as _uuid
+
+        ws_path = self.server.workspace_manager.get_workspace_path(workspace_id)
+        if not ws_path:
+            raise ValueError(f"Workspace not found: {workspace_id}")
+        content, digest = self._page_content_and_digest(ws_path, page_slug)
+        if content is None:
+            raise ValueError(f"Page has no content: {page_slug}")
+        now = int(time.time() * 1000)
+        lease = {
+            "leaseId": f"lease_{_uuid.uuid4().hex[:16]}",
+            "nonce": secrets.token_hex(16),
+            "pageSlug": page_slug,
+            "contentDigest": digest,
+            "issuedAt": now,
+            "expiresAt": now + self._PAGE_LEASE_TTL_MS,
+        }
+        self._page_leases[lease["leaseId"]] = {**lease, "workspaceId": workspace_id}
+        return {"lease": lease, "content": content}
+
+    async def _pages_release_lease(self, workspace_id: str, lease_id: str):
+        self._page_leases.pop(lease_id, None)
+        return {"released": True}
+
+    # ── Pages CRUD 写通道 ──
+
+    async def _pages_create(self, workspace_id: str, input: dict = None):
+        """创建页面：page.json + 空 index.html"""
+        slug = (input or {}).get("slug", f"page_{int(time.time())}")
+        ws = self.server.workspace_manager.get_workspace_path(workspace_id)
+        if not ws:
+            return None
+        page_dir = ws / "pages" / slug
+        page_dir.mkdir(parents=True, exist_ok=True)
+        config = {
+            "schemaVersion": 1, "id": f"page_{slug}", "slug": slug,
+            "name": slug, "kind": "interactive",
+            "createdAt": int(time.time() * 1000),
+            "updatedAt": int(time.time() * 1000),
+        }
+        (page_dir / "page.json").write_text(json.dumps(config, indent=2))
+        (page_dir / "index.html").write_text("<!DOCTYPE html><html><body><p>Empty page</p></body></html>")
+        return {"slug": slug, "config": config}
+
+    async def _pages_update(self, workspace_id: str, page_slug: str = None, input: dict = None):
+        """更新页面配置"""
+        ws = self.server.workspace_manager.get_workspace_path(workspace_id)
+        if not ws:
+            return None
+        config_path = ws / "pages" / page_slug / "page.json"
+        if not config_path.exists():
+            return None
+        config = json.loads(config_path.read_text())
+        config.update({k: v for k, v in (input or {}).items() if k in ("name", "description", "kind")})
+        config["updatedAt"] = int(time.time() * 1000)
+        config_path.write_text(json.dumps(config, indent=2))
+        return {"slug": page_slug, "config": config}
+
+    async def _pages_delete(self, workspace_id: str, page_slug: str = None):
+        """删除页面"""
+        ws = self.server.workspace_manager.get_workspace_path(workspace_id)
+        if not ws:
+            return {"deleted": False}
+        page_dir = ws / "pages" / page_slug
+        if page_dir.exists():
+            import shutil
+            shutil.rmtree(page_dir)
+        return {"deleted": True, "slug": page_slug}
+
+    async def _pages_set_content(self, workspace_id: str, page_slug: str = None, content: str = ""):
+        """写入页面 HTML 内容"""
+        ws = self.server.workspace_manager.get_workspace_path(workspace_id)
+        if not ws:
+            return None
+        content_path = ws / "pages" / page_slug / "index.html"
+        content_path.parent.mkdir(parents=True, exist_ok=True)
+        content_path.write_text(content)
+        config_path = ws / "pages" / page_slug / "page.json"
+        if config_path.exists():
+            config = json.loads(config_path.read_text())
+            config["contentDigest"] = hashlib.sha256(content.encode()).hexdigest()
+            config["updatedAt"] = int(time.time() * 1000)
+            config_path.write_text(json.dumps(config, indent=2))
+        return {"slug": page_slug}
+
+    # ── Sessions 扩展 ──
+
+    async def _sessions_export(self, session_id: str = None):
+        """导出会话为 JSON"""
+        return {"messages": [], "exported": True}
+
+    async def _sessions_get_files(self, session_id: str = None):
+        """获取会话文件列表"""
+        return []
+
+    async def _sessions_search(self, query: str = "", limit: int = 20):
+        """搜索会话内容"""
+        try:
+            from ..tui.core.search import SessionSearcher
+            from ..core.paths import get_user_data_dir
+            searcher = SessionSearcher(get_user_data_dir())
+            results = searcher.search(query, limit)
+            return {"results": results, "count": len(results)}
+        except Exception:
+            return {"results": [], "count": 0}
 
     async def _call_mcp_tool(self, workspace_id: str, source_slug: str,
                              tool_name: str, args: dict | None = None):
@@ -408,8 +698,23 @@ class RPCHandler:
         result 包装为 MCP content 形态——WebUI extractJson 依赖
         result.result.content[0].text 路径。写工具后广播 zenskill:changed
         （DataPanel/自动化依赖此事件刷新）。
+
+        source_slug 在 Python 侧仅用于事件 payload 的溯源标记——
+        registry.call() 不依赖 slug 路由。真正的 slug 一致性由
+        zenskill-registry.ts（前端）+ source_resolver.py（迁移）保证。
         """
-        result_text = self.server.registry.call(tool_name, args or {})
+        # 安全网：source_slug 是 zenskill 变体时归一化（前端旧缓存/硬编码兜底）
+        from ..core.source_resolver import CANONICAL_SLUG
+        if source_slug and "zenskill" in source_slug and source_slug != CANONICAL_SLUG:
+            source_slug = CANONICAL_SLUG
+
+        call_args = dict(args or {})
+        if self.server.registry.is_write_tool(tool_name):
+            # A2 来源标记：GUI 手动操作 → created_by=user，
+            # session 概念不存在则记 workspace_id 便于溯源
+            call_args.setdefault("_created_by", "user")
+            call_args.setdefault("_source_session_id", workspace_id)
+        result_text = self.server.registry.call(tool_name, call_args)
         if self.server.registry.is_write_tool(tool_name):
             payload = [{"type": tool_name, "sourceSlug": source_slug}]
             # 成就解锁进事件 payload——自动化规则/webhook 可感知
@@ -418,9 +723,20 @@ class RPCHandler:
                 new_ach = parsed.get("new_achievements")
                 if new_ach:
                     payload[0]["newAchievements"] = new_ach
+                # entity_id 精确刷新：各工具返回字段名不一致，按序尝试
+                entity_id = (parsed.get("id") or parsed.get("event_id")
+                             or parsed.get("project_id") or parsed.get("item_id") or "")
+                if entity_id:
+                    payload[0]["entityId"] = entity_id
             except Exception:
                 pass
             self.push_event("zenskill:changed", payload)
+            # A4 guide.md 置脏：写操作后标记，下次 create_session 才刷新
+            try:
+                from ..core.guide_dirty import mark_guide_dirty
+                mark_guide_dirty()
+            except Exception:
+                pass
         return {
             "success": True,
             "result": {"content": [{"type": "text", "text": result_text}]},
@@ -659,8 +975,10 @@ class SessionManager:
         }
         self._save_index()
 
-        # 记忆注入：刷新 guide.md 注入最新记忆/GTD/技能数据
-        if self._event_collector is not None:
+        # 记忆注入：guide.md 仅在脏时刷新（写工具置脏 → 下次建会话才 spawn，
+        # 替代此前每次 create_session 无条件 spawn 的 1-3s CPU 开销；
+        # 脏标记由 update_guide.py 刷新成功后自行清除）
+        if self._is_guide_dirty():
             try:
                 import subprocess as _subprocess
                 _subprocess.Popen(
@@ -671,7 +989,8 @@ class SessionManager:
             except Exception:
                 pass
 
-            # craft Pages 播种：zenskill-* 页面包幂等同步进活跃 workspace
+        # craft Pages 播种：zenskill-* 页面包幂等同步进活跃 workspace
+        if self._event_collector is not None:
             try:
                 from .core.update_pages import resolve_active_workspace_root, sync_pages
                 _ws_root = resolve_active_workspace_root()
@@ -681,6 +1000,16 @@ class SessionManager:
                 pass
 
         return session
+
+    @staticmethod
+    def _is_guide_dirty() -> bool:
+        """guide.md 脏标记检测（guide_dirty 模块缺失/异常时保守视为不脏，
+        避免 session 创建链路被阻断）"""
+        try:
+            from ..core.guide_dirty import is_guide_dirty
+            return is_guide_dirty()
+        except Exception:
+            return False
 
     def get_messages(self, session_id: str) -> dict:
         """会话消息历史。官方 GET_MESSAGES 语义：返回整个 session 对象
@@ -788,7 +1117,7 @@ class SessionManager:
             instructions = load_project_instructions(".")
             if instructions:
                 host.add_prompt_section(instructions)
-            skills_section = format_skills_prompt()
+            skills_section = format_skills_prompt(scenario=message)
             if skills_section:
                 host.add_prompt_section(skills_section)
 
@@ -852,6 +1181,11 @@ class SessionManager:
             loop = AgentLoop(AgentLoopConfig(
                 stream=stream_fn,
                 model=model,
+                # A2 来源标记：GUI 会话内 agent 发起的写工具调用
+                source_context={
+                    "_source_session_id": session_id,
+                    "_created_by": "agent",
+                },
                 **config_kwargs,
             ))
 
@@ -869,18 +1203,17 @@ class SessionManager:
                 push_event("session:event", [event])
 
             def flush_deltas() -> None:
-                nonlocal delta_timer, pending_deltas
-                delta_timer = None
+                nonlocal pending_deltas
                 if pending_deltas:
                     text = "".join(pending_deltas)
                     pending_deltas = []
                     emit({"type": "text_delta", "delta": text})
 
             def queue_delta(text: str) -> None:
-                nonlocal delta_timer
                 pending_deltas.append(text)
-                if delta_timer is None:
-                    delta_timer = loop_ref.call_later(0.05, flush_deltas)
+                # 直接 flush（WebSocket 无需 50ms IPC 批处理优化；
+                # call_later 在 async for 生成器 yield 期间不触发）
+                flush_deltas()
 
             def flush_thinking(buffer: list) -> None:
                 if buffer:
@@ -1076,22 +1409,17 @@ class SourceManager:
             shutil.rmtree(source_dir)
 
     def get_mcp_tools(self, workspace_id: str, source_slug: str) -> list:
-        """获取 source 的 MCP 工具列表（简化版：读 config.json 中的 mcp 配置）"""
-        ws_path = self._wm.get_workspace_path(workspace_id)
-        if not ws_path:
-            return []
-        config_path = ws_path / "sources" / source_slug / "config.json"
-        if not config_path.exists():
-            return []
-        try:
-            config = json.loads(config_path.read_text())
-            mcp_config = config.get("mcp", {})
-            if not mcp_config:
-                return []
-            # 简化：返回配置中的工具定义（实际应启动 MCP server 查询）
-            return [{"name": "placeholder", "description": "MCP tool", "allowed": True}]
-        except Exception:
-            return []
+        """获取 source 的 MCP 工具列表（从 registry 实时获取）"""
+        from ..runtime.mcp.registry import build_default_registry
+        registry = build_default_registry()
+        tools = []
+        for spec in registry.list_specs():
+            tools.append({
+                "name": spec["name"],
+                "description": spec.get("description", ""),
+                "allowed": True,
+            })
+        return tools
 
 
 async def _build_session_tools(workspace_path):
@@ -1159,11 +1487,23 @@ async def _build_session_tools(workspace_path):
 class ZenWebServer:
     """ZenSkill WebUI server 主类"""
 
+    def _migrate_source_slugs(self):
+        """对所有 workspace 执行旧 zenskill-N slug 迁移（幂等）"""
+        try:
+            from .core.source_resolver import resolve_or_migrate
+            for ws_dir in self.workspace_manager._root.iterdir():
+                if ws_dir.is_dir() and (ws_dir / "sources").exists():
+                    resolve_or_migrate(ws_dir)
+        except Exception:
+            pass  # 迁移失败不阻塞启动
+
     def __init__(self, webui_path: Path, token: str, port: int = 9100):
         self.webui_path = webui_path
         self.token = token
         self.port = port
         self.workspace_manager = WorkspaceManager(Path.home() / ".zenskill" / "workspaces")
+        # 启动时迁移旧 zenskill-N slug → canonical "zenskill"（幂等）
+        self._migrate_source_slugs()
         self.session_manager = SessionManager(self.workspace_manager)
         self.source_manager = SourceManager(self.workspace_manager)
         # 进程内工具注册表单例：callMcpTool 直调（免 spawn MCP 子进程），

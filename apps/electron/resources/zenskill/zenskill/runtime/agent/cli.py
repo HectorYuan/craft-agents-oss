@@ -54,7 +54,11 @@ _SPIN_INTERVAL = 0.08
 
 
 class _Spinner:
-    """零依赖终端 spinner，用于 LLM 思考等待期间"""
+    """零依赖终端 spinner，用于 LLM 思考等待期间。
+
+    asyncio 兼容：stop() 会 join 线程（超时 0.1s），确保 asyncio.run()
+    关闭循环前 spinner 线程已终止。
+    """
 
     def __init__(self, label: str = "思考中") -> None:
         self._label = label
@@ -83,6 +87,9 @@ class _Spinner:
             self._active = False
             sys.stdout.write("\r" + " " * (len(self._label) + 10) + "\r")
             sys.stdout.flush()
+        if self._thread is not None:
+            self._thread.join(timeout=0.1)
+            self._thread = None
 
 
 def cmd_run_agent(args: Any) -> int:
@@ -173,7 +180,7 @@ async def _run_task(task: str, model, max_steps, timeout, json_output: bool,
                     with_memory=False, with_skills=False, debug=False,
                     planning=False, graph=False, mcp_server=None,
                     json_response=False, images=None,
-                    thinking_level=None) -> int:
+                    thinking_level=None, no_delegate=False) -> int:
     tools = create_default_tools(".")
 
     # MCP server 连接：发现并注册远程工具（单台直连，多台走 pool 前缀路由）
@@ -233,7 +240,7 @@ async def _run_task(task: str, model, max_steps, timeout, json_output: bool,
             print(f"Skill 工具加载失败: {e}", file=sys.stderr)
 
     # SubAgent delegate 工具（P2-3）：聚焦子任务隔离子上下文执行
-    if not getattr(args, "no_delegate", False):
+    if not no_delegate:
         try:
             from .delegate_tool import DelegateTool
             from .tools import DEFAULT_SYSTEM_PROMPT as _DSP
@@ -610,6 +617,31 @@ def cmd_agent_session(args: Any) -> int:
                 except (OSError, ValueError):
                     ts_str = str(r["timestamp"])
                 print(f"[{r['session_id']}] {ts_str}  {r['content_preview']}")
+        return 0
+
+    if action == "export":
+        session_id = getattr(args, "session_id", "")
+        if not session_id:
+            print("错误: 需要 --session-id", file=sys.stderr)
+            return 2
+        try:
+            sess = manager.load(session_id)
+        except FileNotFoundError as e:
+            print(f"错误: {e}", file=sys.stderr)
+            return 2
+        from .session import export_markdown
+        md = export_markdown(
+            sess,
+            include_tools=not getattr(args, "no_tools", False),
+            include_thinking=getattr(args, "with_thinking", False),
+        )
+        output = getattr(args, "output", None)
+        if output:
+            from pathlib import Path as _Path
+            _Path(output).write_text(md, encoding="utf-8")
+            print(f"已导出到 {output}（{len(md)} 字符）")
+        else:
+            print(md)
         return 0
 
     if not args.session_id:

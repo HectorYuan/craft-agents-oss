@@ -55,6 +55,11 @@ def register_agent_engine_parser(subparsers) -> None:
     search_p.add_argument("query", help="搜索关键词")
     search_p.add_argument("--limit", type=int, default=20, help="最多返回条数")
     search_p.add_argument("--json", action="store_true", help="JSON 输出")
+    export_p = agent_session_sub.add_parser("export", help="导出会话为 Markdown")
+    export_p.add_argument("--session-id", required=True, help="会话 ID")
+    export_p.add_argument("--output", help="输出文件路径（缺省打印到 stdout）")
+    export_p.add_argument("--no-tools", action="store_true", help="不包含工具调用")
+    export_p.add_argument("--with-thinking", action="store_true", help="包含思考过程")
     agent_session_parser.set_defaults(func=lambda args: (
         __import__("zenskill.runtime.agent.cli", fromlist=["cmd_agent_session"]).cmd_agent_session(args)
     ))

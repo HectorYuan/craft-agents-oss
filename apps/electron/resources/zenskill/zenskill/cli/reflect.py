@@ -143,7 +143,7 @@ def cmd_reflect_trigger(args: argparse.Namespace) -> None:
     }
     cli_output(result, args, text=lambda: (
         f"🧘 触发禅思反思...\n"
-        f"{"=" * 60}\n\n"
+        f"{'=' * 60}\n\n"
         f"📊 本次周期统计:\n"
         f"   - 使用次数: {usage_count} 次\n"
         f"   - 成长事件: {len(episodes)} 条\n"

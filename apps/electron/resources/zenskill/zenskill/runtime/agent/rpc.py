@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import sys
 import time
 from typing import Any, AsyncIterator, Callable, Dict, List, Optional
@@ -52,6 +53,8 @@ from .types import (
 
 PROTOCOL_VERSION = 1
 OUTBOX_MAX = 512
+
+logger = logging.getLogger(__name__)
 
 
 class EchoFauxStream:
@@ -194,6 +197,10 @@ class AgentServer:
         self._with_skills = with_skills
         # CapabilityHost（能力注入 + 系统提示词增强）
         self._capability_host = None
+        # 两阶段降级启动状态
+        self._phase1_ready = False
+        self._phase2_ready = False
+        self._init_error: Optional[str] = None
         # 记忆桥接（统一模式方案：brain 层公共能力，craft/python 两种运行
         # 模式共享；上移自 ws_server 的 Mode C 专用实现）
         self._event_collector = None
@@ -254,8 +261,27 @@ class AgentServer:
 
     def _ensure_session(self) -> Session:
         if self.session is None:
+            self._maybe_prune_sessions()
             self.session = self.session_manager.create(cwd=self.cwd)
         return self.session
+
+    def _maybe_prune_sessions(self) -> None:
+        """会话创建时检查 sessions 目录大小，超过阈值推送清理提示"""
+        try:
+            from zenskill.core.paths import get_user_data_dir
+            sessions_dir = get_user_data_dir() / "agent"
+            if not sessions_dir.exists():
+                return
+            total = sum(f.stat().st_size for f in sessions_dir.rglob("*.jsonl"))
+            if total > 50 * 1024 * 1024:
+                count = len(list(sessions_dir.glob("*.jsonl")))
+                self._send({
+                    "type": "system_notification",
+                    "message": f"发现 {count} 个历史会话（{total // 1024 // 1024}MB），"
+                               f"运行 zenskill session prune 可清理",
+                })
+        except Exception:
+            pass
 
     def _build_loop(self, context: Context) -> AgentLoop:
         session = self._ensure_session()
@@ -315,6 +341,12 @@ class AgentServer:
             tool_executor=self._build_proxy_executor(context) if self._proxy_tools else None,
             max_steps=self.max_steps,
             max_total_tokens=self.max_total_tokens,
+            # A2 来源标记：agent-engine 会话内发起的写工具调用标记来源
+            # （session_id 随每次 run 的 _build_loop 解析，new_session/switch 后自动更新）
+            source_context={
+                "_source_session_id": session.id,
+                "_created_by": "agent",
+            },
         )
         # 注入 Craft system prompt（合并到 Context.system_prompt）
         if self._host_system_prompt:
@@ -407,7 +439,8 @@ class AgentServer:
     async def _run_agent(self, context: Context) -> None:
         # P4.1 会话元数据：run 结束后回流一条 episode（系统记得你做过什么）
         run_meta: Dict[str, Any] = {"turns": 0, "tools": [], "error": None,
-                                    "started": time.time()}
+                                    "started": time.time(),
+                                    "usage": {"input": 0, "output": 0, "total": 0}}
         try:
             loop = self._build_loop(context)
             async for ev in loop.run(context):
@@ -420,6 +453,14 @@ class AgentServer:
                     run_meta["turns"] += 1
                 elif etype == "ToolExecutionStart" and ev.tool_name not in run_meta["tools"]:
                     run_meta["tools"].append(ev.tool_name)
+                elif etype == "AgentEnd" and ev.messages:
+                    # usage 回流：真实 token 数入 run_meta，最终记入 episode（供后续校准）
+                    try:
+                        u = total_usage(list(ev.messages))
+                        run_meta["usage"] = {"input": u.input, "output": u.output,
+                                             "total": u.total_tokens}
+                    except Exception:
+                        pass
         except asyncio.CancelledError:
             run_meta["error"] = "aborted"
             raise
@@ -431,7 +472,25 @@ class AgentServer:
             })
         finally:
             self.abort_event.clear()
+            # usage 闭环：将本次 run 的 token 统计记入 mirroring 生态
+            if self._event_collector is not None:
+                try:
+                    usage = run_meta.get("usage") or {}
+                    tok_total = usage.get("total") or 0
+                    self._event_collector.record_skill_execution(
+                        skill_id="agent-engine",
+                        task=f"agent_run: {run_meta['turns']} turns, "
+                             f"{len(run_meta.get('tools', []))} tools, "
+                             f"{tok_total} tokens",
+                        success=run_meta.get("error") is None,
+                        duration_ms=int((time.time() - run_meta.get("started", time.time())) * 1000),
+                        context={"usage": usage, "tools": run_meta.get("tools", []),
+                                 "error": run_meta.get("error")},
+                    )
+                except Exception:
+                    pass
             self._record_session_episode(context, run_meta)
+            self._on_session_complete(run_meta)
             if self._auto_compaction and self.session is not None and self.stream_fn is not None:
                 try:
                     result = await compact_session(self.session, self.stream_fn, self.model)
@@ -462,8 +521,11 @@ class AgentServer:
             tools = meta.get("tools") or []
             tool_part = f"，工具 {','.join(tools[:6])}" + ("…" if len(tools) > 6 else "")
             err = meta.get("error")
+            usage = meta.get("usage") or {}
+            tok = usage.get("total") or 0
+            usage_part = f"，tokens {tok}" if tok else ""
             content = (f"会话：{first_user or '(无文本任务)'}"
-                       f"（{meta['turns']} 轮{tool_part}"
+                       f"（{meta['turns']} 轮{tool_part}{usage_part}"
                        f"{('，异常退出: ' + str(err)[:60]) if err else ''}）")
             from ...core.paths import SkillStateManager
             duration_ms = int((time.time() - meta.get("started", time.time())) * 1000)
@@ -476,16 +538,44 @@ class AgentServer:
         except Exception:
             pass  # 回流失败绝不影响 agent 主流程
 
+    def _on_session_complete(self, meta: Dict[str, Any]) -> None:
+        """会话完成/中止后自动触发 daily_review 兜底（fire-and-forget，静默失败）。
+
+        迁移自 AgentChatSession._maybe_auto_daily_review：当日已有 2+ 条
+        行动/会话 episode 时补记一条 daily_review episode。
+        """
+        try:
+            if meta.get("turns", 0) <= 0:
+                return  # 空转不触发
+            from ...core.paths import SkillStateManager
+            state = SkillStateManager("zenskill-core").load()
+            episodes = state.get("episodes", [])
+            today = time.strftime("%Y-%m-%d")
+            today_actions = [e for e in episodes
+                             if e.get("date") == today and e.get("action") in ("action_done", "agent_session")]
+            if len(today_actions) >= 2:
+                actions_summary = ", ".join(
+                    (e.get("content") or "")[:30] for e in today_actions[:5]
+                )
+                SkillStateManager("zenskill-core").record_episode(
+                    action="daily_review",
+                    content=f"今日完成 {len(today_actions)} 项：{actions_summary[:120]}",
+                    success=True,
+                )
+        except Exception as e:
+            logger.warning("auto daily_review failed (ignored): %s", e)
+
     def _init_capabilities(self) -> None:
         """初始化 CapabilityHost（一次性，幂等）。"""
         if self._capability_host is not None:
             return
         from .builtin_capabilities import (
-            MemoryCapability, SummaryCapability, ReflectionCapability, TaskTypeCapability,
+            GtdProgressionCapability, MemoryCapability, SummaryCapability,
+            ReflectionCapability, TaskTypeCapability,
         )
         from .capability import CapabilityHost
 
-        caps = [TaskTypeCapability()]
+        caps = [TaskTypeCapability(), GtdProgressionCapability()]
         if self._with_memory:
             caps.append(MemoryCapability())
         caps.append(ReflectionCapability())
@@ -493,7 +583,83 @@ class AgentServer:
         self._capability_host = CapabilityHost(caps)
         self._capability_host.initialize()
 
+    def _spawn_guide_update(self) -> None:
+        """后台更新 guide.md（不阻塞启动）"""
+        import subprocess
+        import sys
+        from pathlib import Path
+        try:
+            script = Path(__file__).parent.parent.parent.parent / "scripts" / "update_guide.py"
+            if script.exists():
+                subprocess.Popen(
+                    [sys.executable, str(script)],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                )
+        except Exception:
+            pass
+
+    # ------------------------------------------------------------------
+    # 两阶段降级启动
+    # ------------------------------------------------------------------
+
+    def _init_phase1(self) -> None:
+        """Phase 1: session + capabilities + tools（不依赖模型，不会失败）。"""
+        if self._phase1_ready:
+            return
+        self._ensure_session()
+        self._init_capabilities()
+        # guide.md 自动更新：脏标记存在时后台刷新
+        try:
+            from zenskill.core.guide_dirty import is_guide_dirty, clear_guide_dirty
+            if is_guide_dirty():
+                self._spawn_guide_update()
+                clear_guide_dirty()
+        except Exception:
+            pass
+        self._phase1_ready = True
+        logger.info("Phase 1 ready: session=%s, caps=%d",
+                     self.session.id if self.session else "?",
+                     len(self._capability_host.capabilities) if self._capability_host else 0)
+
+    def _init_phase2(self) -> None:
+        """Phase 2: model resolution + stream_fn（可能失败，降级而不崩溃）。"""
+        if self._phase2_ready:
+            return
+        try:
+            if self.stream_fn is not None:
+                # stream_fn 已注入（EchoFauxStream 等测试/降级场景不需要真实模型）。
+                # model 缺失时补一个 faux 占位，避免下游 estimate_cost 等触空。
+                if self.model is None:
+                    self.model = ModelConfig(id="faux", api="faux", provider="faux", base_url="")
+                self._phase2_ready = True
+                logger.info("Phase 2 ready: model=%s/%s",
+                             self.model.provider, self.model.id)
+                return
+            # 尝试 resolve_model 自动探测
+            self.model = resolve_model()
+            self.stream_fn = create_stream(self.model)
+            self._phase2_ready = True
+            logger.info("Phase 2 ready (auto-detected): model=%s/%s",
+                         self.model.provider, self.model.id)
+        except Exception as e:
+            self._phase2_ready = False
+            self._init_error = f"模型解析失败: {e}"
+            logger.warning("Phase 2 failed: %s", self._init_error)
+
     def start_prompt(self, message: str) -> None:
+        # 入口守卫：确保 Phase 1 就绪（不依赖模型）
+        if not self._phase1_ready:
+            self._init_phase1()
+        # 入口守卫：Phase 2 幂等初始化（构造器注入 model/stream_fn 时直接就绪）
+        if not self._phase2_ready:
+            self._init_phase2()
+        if not self._phase2_ready:
+            self._send({
+                "type": "agent_end",
+                "error": self._init_error or "模型未初始化，无法执行 prompt",
+            })
+            return
         session = self._ensure_session()
         # 记忆桥接：宿主/GUI 用户输入进 mirroring 生态（模式无关）
         if self._event_collector is not None:
@@ -510,6 +676,27 @@ class AgentServer:
         try:
             from .skill_tools import load_skill_tools
             tools.extend(load_skill_tools())
+        except Exception as e:
+            logger.warning("skill_tools loading failed: %s", e)
+        # MCP 工具（通过 CapabilityHost 的 MCP 桥接，连接失败降级）
+        try:
+            from .mcp_capability import McpCapability
+            from ..mcp.client import MCPClient
+            mcp_client = MCPClient()
+            mcp_cap = McpCapability(mcp_client)
+            # discover() 是 async：在 handle_command 的异步上下文中调用；
+            # 此处仅记录 MCP 客户端已创建，实际 discover 在 _run_agent 中触发
+            logger.info("MCP client created, discovery deferred to run time")
+        except ImportError:
+            pass  # MCP 模块不可用
+        except Exception as e:
+            mcp_err = f"MCP 连接失败: {e}"
+            self._init_error = (self._init_error + "; " + mcp_err) if self._init_error else mcp_err
+            logger.warning("MCP client init failed: %s", e)
+        # custom_tools（~/.zenskill/tools/*.py 用户自定义）
+        try:
+            from .custom_tools import load_custom_tools
+            tools.extend(load_custom_tools())
         except Exception:
             pass
         # capability extra tools（memory_remember/memory_recall 等）
@@ -617,7 +804,7 @@ class AgentServer:
                 built = session.build_context() if session else {"messages": []}
                 from .compaction import context_pressure
                 context_window = int(self._config.get("contextWindow", 128_000))
-                respond({
+                state: Dict[str, Any] = {
                     "running": self.running,
                     "model": f"{self.model.provider}/{self.model.id}" if self.model else None,
                     "sessionId": session.id if session else None,
@@ -630,7 +817,13 @@ class AgentServer:
                         total_usage(built.get("messages", [])).total_tokens,
                         context_window,
                     ) if built.get("messages") else "normal",
-                })
+                }
+                # 降级状态信息（Phase 2 失败时 GUI 可读取）
+                if not self._phase2_ready:
+                    state["error_hint"] = self._init_error or "模型未初始化"
+                    state["available_tools"] = len(self._tools) if hasattr(self, "_tools") else 0
+                    state["phase"] = "phase1_ready" if self._phase1_ready else "init"
+                respond(state)
 
             elif ctype == "set_model":
                 provider = cmd.get("provider") or ""

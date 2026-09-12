@@ -21,6 +21,62 @@ class ServerToolSpec:
     description: str
     input_schema: dict[str, Any] = field(default_factory=dict)
     handler: Callable[[dict[str, Any]], Any] = None
+    _custom: bool = False  # 自定义工具标记（reload_custom_tools 用）
+
+
+# 内部来源标记键：由 agent 执行层（AgentLoop/callMcpTool）注入到写工具
+# arguments，跨进程经 JSON 透传；不入 inputSchema（对外接口不变）。
+SOURCE_SESSION_KEY = "_source_session_id"
+CREATED_BY_KEY = "_created_by"
+
+
+def _pop_source_context(a: dict[str, Any]) -> tuple[str, str]:
+    """弹出内部来源标记，返回 (source_session_id, created_by)。
+
+    弹出而非读取——避免内部键被 catch-all 型 handler（如 action_update 的
+    字段透传）当成业务字段写回引擎。"""
+    return (
+        str(a.pop(SOURCE_SESSION_KEY, "") or ""),
+        str(a.pop(CREATED_BY_KEY, "user") or "user"),
+    )
+
+
+# priority 值域：引擎侧 P0-P3（ActionEngine.PRIORITY_ORDER）。
+# 旧前端/旧数据可能传 high/medium/low，读取与写入时归一化。
+_PRIORITY_ALIASES = {"high": "P1", "medium": "P2", "low": "P3"}
+_VALID_PRIORITIES = ("P0", "P1", "P2", "P3")
+
+# energy_required 值域：引擎侧数字（ActionEngine.ENERGY_MAP: easy=3/medium=5/hard=8/extreme=10）。
+_ENERGY_ALIASES = {"easy": 3, "medium": 5, "hard": 8, "extreme": 10,
+                   "low": 3, "high": 8, "1": 1, "3": 3, "5": 5, "8": 8, "10": 10}
+_VALID_ENERGY = (1, 3, 5, 8, 10)
+
+
+def _normalize_priority(value: Any) -> Any:
+    """priority 归一化：high/medium/low → P1/P2/P3；P0-P3 直传；未知值原样返回"""
+    if not isinstance(value, str):
+        return value
+    v = value.strip()
+    upper = v.upper()
+    if upper in _VALID_PRIORITIES:
+        return upper
+    return _PRIORITY_ALIASES.get(v.lower(), value)
+
+
+def _normalize_energy(value: Any) -> Any:
+    """energy_required 归一化：easy/medium/hard/extreme 等别名 → 数字；有效数字直传"""
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return int(value) if int(value) in _VALID_ENERGY else value
+    if isinstance(value, str):
+        return _ENERGY_ALIASES.get(value.strip().lower(), value)
+    return value
+
+
+def _display_priority(value: Any) -> Any:
+    """读取侧显示归一化：历史数据 medium → P2（不回写文件）"""
+    return _normalize_priority(value)
 
 
 class ServerToolRegistry:
@@ -40,13 +96,25 @@ class ServerToolRegistry:
     # 否则 gtd_inbox_list 等命中前缀被误判为写，TTL 缓存永不命中。
     _WRITE_TOOL_PREFIXES = ("gtd_", "inbox_", "action_", "project_", "incubating_")
     _WRITE_TOOLS_EXACT = frozenset({
-        "memory_remember", "goal_set", "habit_check",
+        "memory_remember", "memory_forget", "goal_set",
+        "goal_update", "goal_delete",
+        "habit_set", "habit_check", "habit_delete",
         "skill_install", "skill_uninstall",
+        "calendar_add", "calendar_update", "calendar_delete",
+        "project_add", "project_update",
+        "progression_feedback",
     })
     _READ_TOOLS = frozenset({
         "gtd_inbox_list", "gtd_review",
-        "action_list", "action_status", "project_list",
+        "action_list", "project_list",
         "incubating_list",
+        "calendar_list", "calendar_month",
+        "inbox_suggest",
+        "share_card",
+        "task_progressions",
+        "progression_mode",
+        "collaboration_insights", "collaboration_transfer",
+        "collaboration_dashboard",
     })
 
     @classmethod
@@ -90,6 +158,17 @@ class ServerToolRegistry:
     def tool_count(self) -> int:
         return len(self._tools)
 
+    def reload_custom_tools(self) -> int:
+        """重新加载 ~/.zenskill/tools/*.py 自定义工具（覆盖同名旧注册）。"""
+        # 移除旧的自定义工具（通过 _custom 标记识别）
+        self._tools = {
+            k: v for k, v in self._tools.items()
+            if not getattr(v, "_custom", False)
+        }
+        before = self.tool_count
+        _register_custom_tools(self)
+        return self.tool_count - before
+
     def filter_by_prefixes(self, prefixes: list[str]) -> "ServerToolRegistry":
         """返回只含名称匹配任一前缀工具的新注册表"""
         filtered = ServerToolRegistry()
@@ -124,8 +203,18 @@ class ServerToolRegistry:
                     return hit[1]
 
         result = spec.handler(arguments)
+        # 写工具成功后标记 guide.md 脏（下次会话启动时自动刷新）
+        if self.is_write_tool(name):
+            try:
+                from ...core.guide_dirty import mark_guide_dirty
+                mark_guide_dirty()
+            except Exception:
+                pass
         # 事件流桥接：每次 MCP 工具调用自动记录到 ZenSkill event collector
         self._record_event(name, arguments, result)
+        # 陪伴事件埋点：companion_summary / instant_feedback / proactive_insight
+        if name in ("companion_summary", "instant_feedback", "proactive_insight"):
+            self._record_companion_event(name, result)
         if not isinstance(result, str):
             result = json.dumps(result, ensure_ascii=False, default=str)
 
@@ -147,6 +236,38 @@ class ServerToolRegistry:
                 duration_ms=0,
                 context={"mcp_tool": name, "source": "craft-gui"},
             )
+        except Exception:
+            pass
+
+    _COMPANION_TOOLS = frozenset({
+        "companion_summary", "instant_feedback", "proactive_insight",
+    })
+
+    def _record_companion_event(self, name: str, result: Any) -> None:
+        """陪伴事件埋点：companion_summary / instant_feedback / proactive_insight"""
+        try:
+            from ...systems.active.companion_events import CompanionEventRecorder
+            recorder = CompanionEventRecorder(
+                getattr(self, '_event_collector', None))
+            if name == "companion_summary":
+                if isinstance(result, dict):
+                    recorder.record_displayed(
+                        mood=result.get("mood", ""),
+                        energy_level=result.get("energy", {}).get("level", ""),
+                        has_insight=result.get("top_insight") is not None,
+                    )
+            elif name == "instant_feedback":
+                if isinstance(result, dict):
+                    recorder.record_feedback(
+                        feedback_type=result.get("one_line", "")[:50],
+                    )
+            elif name == "proactive_insight":
+                if isinstance(result, dict) and result.get("count", 0) > 0:
+                    first = result["items"][0] if result.get("items") else {}
+                    recorder.record_insight_clicked(
+                        insight_type=first.get("type", ""),
+                        source="auto",
+                    )
         except Exception:
             pass
 
@@ -237,7 +358,10 @@ def build_default_registry() -> ServerToolRegistry:
     def _gtd_capture(a: dict[str, Any]) -> Any:
         from ...systems.gtd.inbox import InboxEngine
 
-        item = InboxEngine().add(a["text"], source="mcp")
+        source_session_id, created_by = _pop_source_context(a)
+        item = InboxEngine().add(a["text"], source="mcp",
+                                 source_session_id=source_session_id,
+                                 created_by=created_by)
         return {"ok": True, "item": item.to_dict()}
 
     def _gtd_inbox_list(a: dict[str, Any]) -> Any:
@@ -250,25 +374,67 @@ def build_default_registry() -> ServerToolRegistry:
         return {"count": len(items), "items": [i.to_dict() for i in items]}
 
     def _inbox_clarify(a: dict[str, Any]) -> Any:
-        """澄清 inbox 条目 — 自动意图分类，标记目标类型"""
+        """澄清 inbox 条目 — 自动意图分类，标记目标类型并落下游对象。
+
+        result_type=action/project/calendar 时自动创建对应下游对象并回填
+        target_id（显式传 target_id 时视为已关联，不重复创建）；
+        reference 只打标。"""
         from ...systems.gtd.inbox import InboxEngine
 
+        valid_types = ("action", "project", "calendar", "reference")
         engine = InboxEngine()
         item_id = a["item_id"]
         item = engine.get(item_id)
         if not item:
             return {"ok": False, "item_id": item_id,
                     "message": f"未找到条目 {item_id}"}
-        result_type = a.get("result_type", "") or engine.auto_classify(item.raw_text)
+        result_type = str(a.get("result_type", "")
+                          or engine.auto_classify(item.raw_text)).strip().lower()
+        if result_type not in valid_types:
+            return {
+                "ok": False,
+                "item_id": item_id,
+                "result_type": str(a.get("result_type", "")),
+                "message": (f"非法 result_type「{a.get('result_type')}」，"
+                            f"可选值: {'/'.join(valid_types)}"),
+            }
+
         target_id = a.get("target_id", "")
+        created: Any = None
+        if not target_id:
+            text = item.raw_text
+            try:
+                if result_type == "action":
+                    from ...systems.gtd.action import ActionEngine
+                    created = ActionEngine().add(title=text)
+                elif result_type == "calendar":
+                    from ...systems.gtd.calendar import CalendarEngine
+                    created = CalendarEngine().add(
+                        date=time.strftime("%Y-%m-%d"), title=text)
+                elif result_type == "project":
+                    from ...systems.gtd.project import ProjectEngine
+                    created = ProjectEngine().create(name=text)
+            except Exception as e:
+                return {"ok": False, "item_id": item_id,
+                        "result_type": result_type,
+                        "message": f"下游对象创建失败: {e}"}
+            if created is not None:
+                target_id = getattr(created, "id", "")
+
         ok = engine.clarify(item_id, result_type, target_id)
-        return {
+        result: dict[str, Any] = {
             "ok": ok,
             "item_id": item_id,
             "result_type": result_type,
-            "message": f"Inbox 条目 {item_id} 已澄清为 {result_type}" if ok
-                       else f"未找到条目 {item_id}",
+            "target_id": target_id,
+            "message": (f"Inbox 条目 {item_id} 已澄清为 {result_type}"
+                        + (f"（已创建 target_id={target_id}）" if created is not None else ""))
+                        if ok else f"未找到条目 {item_id}",
         }
+        if created is not None:
+            to_dict = getattr(created, "to_dict", None)
+            result["created"] = to_dict() if callable(to_dict) else str(created)
+        return result
 
     def _inbox_archive(a: dict[str, Any]) -> Any:
         """归档 inbox 条目"""
@@ -280,6 +446,28 @@ def build_default_registry() -> ServerToolRegistry:
             "item_id": a["item_id"],
             "message": f"Inbox 条目 {a['item_id']} 已归档" if ok
                        else f"未找到条目 {a['item_id']}",
+        }
+
+    def _inbox_suggest(a: dict[str, Any]) -> Any:
+        """批量获取 inbox 条目的 AI 分类建议（只读，不写入）。
+
+        B09/B10 支撑：AutoClassifyBadge 展示建议 + 批量整理按建议一键澄清。
+        """
+        from ...systems.gtd.inbox import InboxEngine
+
+        engine = InboxEngine()
+        items = engine.list(status="unprocessed", limit=int(a.get("limit", 50)))
+        suggestions = []
+        for item in items:
+            suggestions.append({
+                "item_id": item.id,
+                "text": item.raw_text[:80],
+                "suggested_type": engine.auto_classify(item.raw_text),
+            })
+        return {
+            "count": len(suggestions),
+            "items": suggestions,
+            "message": f"待处理 {len(suggestions)} 条，已附分类建议",
         }
 
     def _memory_remember(a: dict[str, Any]) -> Any:
@@ -403,25 +591,33 @@ def build_default_registry() -> ServerToolRegistry:
 
     def _gtd_review(a: dict[str, Any]) -> Any:
         """每周回顾：本周完成/未完成/能量统计"""
-        from ...systems.gtd.inbox import InboxEngine
-        from ...systems.gtd.action import ActionEngine
+        from datetime import datetime, timedelta
 
         days = int(a.get("days", 7))
-
-        # inbox 统计
-        inbox = InboxEngine()
-        pending = inbox.list(status="unprocessed", limit=100)
-        processed = inbox.list(status="processed", limit=100)
-
-        # 按日期过滤最近 N 天
-        from datetime import datetime, timedelta
         cutoff = (datetime.now() - timedelta(days=days)).isoformat()
-        recent_pending = [i for i in pending if i.created_at >= cutoff]
-        recent_processed = [i for i in processed if i.created_at >= cutoff]
 
-        return {
-            "period_days": days,
-            "inbox": {
+        def _inbox_stats_jsonl() -> dict[str, Any]:
+            """降级路径：JSONL 全量扫描（SQLite 不可用时）。"""
+            from ...systems.gtd.inbox import InboxEngine
+
+            # inbox 统计（已处理 = clarified + archived 两态合计；
+            # 引擎无 "processed" 状态，旧代码查它恒为 0）
+            inbox = InboxEngine()
+            pending = inbox.list(status="unprocessed", limit=500)
+            processed = (inbox.list(status="clarified", limit=500)
+                         + inbox.list(status="archived", limit=500))
+
+            # 已处理时间：优先 clarify/archive 时间戳，旧数据回退 created_at
+            def _processed_day(i: Any) -> str:
+                cr = i.clarify_result if isinstance(i.clarify_result, dict) else {}
+                return str(cr.get("clarified_at") or cr.get("archived_at")
+                           or i.created_at or "")
+
+            # 按日期过滤最近 N 天
+            recent_pending = [i for i in pending if i.created_at >= cutoff]
+            recent_processed = [i for i in processed if _processed_day(i) >= cutoff]
+
+            return {
                 "pending_total": len(pending),
                 "pending_recent": len(recent_pending),
                 "processed_recent": len(recent_processed),
@@ -429,8 +625,52 @@ def build_default_registry() -> ServerToolRegistry:
                     {"text": i.raw_text[:80], "status": i.status, "created": i.created_at}
                     for i in recent_pending[:5]
                 ],
-            },
-            "message": f"过去 {days} 天：新增 {len(recent_pending)} 项，处理 {len(recent_processed)} 项，剩余 {len(pending)} 项待办",
+            }
+
+        try:
+            from ...core.database import db
+            with db.connect() as conn:
+                pending_total = conn.execute(
+                    "SELECT COUNT(*) FROM gtd_inbox WHERE status='unprocessed'"
+                ).fetchone()[0]
+                pending_recent = conn.execute(
+                    "SELECT COUNT(*) FROM gtd_inbox WHERE status='unprocessed' "
+                    "AND created_at >= ?", (cutoff,)
+                ).fetchone()[0]
+                # 已处理按日分布：clarified_at 为空串/NULL（直接归档）时回退 created_at
+                processed_by_day = conn.execute(
+                    "SELECT date(COALESCE(NULLIF(clarified_at, ''), created_at)) AS day, "
+                    "COUNT(*) AS cnt FROM gtd_inbox "
+                    "WHERE status IN ('clarified','archived') "
+                    "GROUP BY day ORDER BY day"
+                ).fetchall()
+                recent_rows = conn.execute(
+                    "SELECT content, status, created_at FROM gtd_inbox "
+                    "WHERE status='unprocessed' ORDER BY created_at DESC LIMIT 5"
+                ).fetchall()
+            processed_recent = sum(int(cnt) for day, cnt in processed_by_day
+                                   if day and day >= cutoff[:10])
+            inbox_stats: dict[str, Any] = {
+                "pending_total": pending_total,
+                "pending_recent": pending_recent,
+                "processed_recent": processed_recent,
+                "recent_items": [
+                    {"text": (r["content"] or "")[:80], "status": r["status"],
+                     "created": r["created_at"] or ""}
+                    for r in recent_rows
+                ],
+            }
+        except Exception:
+            inbox_stats = _inbox_stats_jsonl()
+
+        return {
+            "period_days": days,
+            "inbox": inbox_stats,
+            "message": (
+                f"过去 {days} 天：新增 {inbox_stats['pending_recent']} 项，"
+                f"处理 {inbox_stats['processed_recent']} 项，"
+                f"剩余 {inbox_stats['pending_total']} 项待办"
+            ),
         }
 
     def _growth_milestone(a: dict[str, Any]) -> Any:
@@ -514,6 +754,52 @@ def build_default_registry() -> ServerToolRegistry:
             "message": f"搜索 '{a['query']}'：找到 {len(all_episodes)} 条相关记忆",
         }
 
+    def _memory_forget(a: dict[str, Any]) -> Any:
+        """按内容模糊匹配删除第一条记忆（episode）。
+
+        skill_id 缺省 all：与 memory_list 同口径聚合遍历，命中即删即返回；
+        读写走 SkillStateManager state JSON（memory_list/memory_search 同源）。
+        """
+        from ...core.paths import SkillStateManager
+
+        query = str(a.get("query") or "").strip()
+        if not query:
+            return {"ok": False, "deleted": False,
+                    "message": "需要 query（按内容模糊匹配，删除第一条匹配项）"}
+        needle = query.lower()
+        skill_id = str(a.get("skill_id") or "all").strip()
+        skill_ids = (["zenskill", "zenskill-core", "mcp-test", "craft-gui"]
+                     if skill_id in ("", "all") else [skill_id])
+
+        for sid in skill_ids:
+            try:
+                mgr = SkillStateManager(sid)
+                state = mgr.load()
+                episodes = state.get("episodes", [])
+            except Exception:
+                continue
+            for idx, ep in enumerate(episodes):
+                content = str(ep.get("content", ""))
+                action = str(ep.get("action", ""))
+                if needle not in content.lower() and needle not in action.lower():
+                    continue
+                episodes.pop(idx)
+                try:
+                    mgr.save(state, action="memory_forget")
+                except Exception as e:
+                    return {"ok": False, "deleted": False, "skill_id": sid,
+                            "message": f"记忆删除失败: {e}"}
+                return {
+                    "ok": True,
+                    "deleted": True,
+                    "skill_id": sid,
+                    "action": action,
+                    "content": content,
+                    "message": f"已删除 {sid} 的记忆: {content[:80]}",
+                }
+        return {"ok": True, "deleted": False, "query": query,
+                "message": f"未找到内容包含「{query}」的记忆"}
+
     registry.register(
         "skill_search",
         "搜索 ZenSkill 技能生态（本地索引 + 使用统计排序）",
@@ -591,14 +877,17 @@ def build_default_registry() -> ServerToolRegistry:
     )
     registry.register(
         "inbox_clarify",
-        "澄清 inbox 条目（自动意图分类为 action/project/reference/calendar）",
+        "澄清 inbox 条目（自动意图分类 action/project/calendar/reference，"
+        "action/project/calendar 会自动创建下游对象并回填 target_id）",
         _inbox_clarify,
         {
             "type": "object",
             "properties": {
                 "item_id": {"type": "string", "description": "inbox 条目 ID"},
-                "result_type": {"type": "string", "description": "可选，不传则自动分类"},
-                "target_id": {"type": "string", "description": "可选，澄清目标 ID（如 action/project 的 ID）"},
+                "result_type": {"type": "string",
+                                "enum": ["action", "project", "calendar", "reference"],
+                                "description": "可选，不传则自动分类；action/project/calendar 自动落下游对象"},
+                "target_id": {"type": "string", "description": "可选，已存在的澄清目标 ID（传了则不重复创建）"},
             },
             "required": ["item_id"],
         },
@@ -611,6 +900,15 @@ def build_default_registry() -> ServerToolRegistry:
             "type": "object",
             "properties": {"item_id": {"type": "string", "description": "inbox 条目 ID"}},
             "required": ["item_id"],
+        },
+    )
+    registry.register(
+        "inbox_suggest",
+        "批量获取 inbox 条目的 AI 分类建议（只读，不写入）",
+        _inbox_suggest,
+        {
+            "type": "object",
+            "properties": {"limit": {"type": "integer", "description": "扫描条数，默认 50"}},
         },
     )
     registry.register(
@@ -700,6 +998,19 @@ def build_default_registry() -> ServerToolRegistry:
             "required": ["query"],
         },
     )
+    registry.register(
+        "memory_forget",
+        "按内容模糊匹配删除第一条记忆（episode）",
+        _memory_forget,
+        {
+            "type": "object",
+            "properties": {
+                "query": {"type": "string", "description": "匹配关键词（content/action 子串，删除第一条命中项）"},
+                "skill_id": {"type": "string", "description": "技能 ID，缺省 all 聚合遍历（与 memory_list 同口径）"},
+            },
+            "required": ["query"],
+        },
+    )
 
     # ============================================================
     # 第一梯队：高价值 + 低成本（直接桥接现有 API）
@@ -777,15 +1088,109 @@ def build_default_registry() -> ServerToolRegistry:
             events = cal.today()
             label = "今日"
 
+        shown = events[:20]
         return {
             "scope": scope,
-            "count": len(events),
+            "count": len(shown),
             "events": [
-                {"date": e.date, "time": getattr(e, "time_str", "") or "",
+                {"id": getattr(e, "id", "") or "",
+                 "date": e.date, "time": getattr(e, "time_str", "") or "",
+                 "end_time": getattr(e, "end_time", "") or "",
                  "title": e.title, "action_id": getattr(e, "action_id", "") or ""}
-                for e in events[:20]
+                for e in shown
             ],
-            "message": f"{label}日程 {len(events)} 条",
+            "message": f"{label}日程 {len(shown)} 条",
+        }
+
+    def _calendar_add(a: dict[str, Any]) -> Any:
+        """添加日程事件（CalendarEngine.add；action_id 走 add 后关联，
+        标题缺省时按 schedule_action 语义从行动解析）"""
+        from ...systems.gtd.calendar import CalendarEngine
+
+        action_id = a.get("action_id", "")
+        title = (a.get("title") or "").strip()
+        if not title and action_id:
+            from ...systems.gtd.action import ActionEngine
+            action = ActionEngine().get(action_id)
+            title = action.title if action else action_id
+        if not title:
+            return {"ok": False, "message": "需要 title（或可解析标题的 action_id）"}
+
+        kwargs: dict[str, Any] = {}
+        if a.get("time_str"):
+            kwargs["time_str"] = a["time_str"]
+        if a.get("end_time"):
+            kwargs["end_time"] = a["end_time"]
+        if a.get("period"):
+            kwargs["period"] = a["period"]
+        if a.get("repeat_rule"):
+            kwargs["repeat_rule"] = a["repeat_rule"]
+        if action_id:
+            kwargs["action_id"] = action_id
+        event = CalendarEngine().add(a["date"], title, **kwargs)
+        when = f"{event.date} {event.time_str}".strip() if event.time_str else event.date
+        return {
+            "ok": True,
+            "event": event.to_dict(),
+            "message": f"已添加日程：{when} {event.title}",
+        }
+
+    def _calendar_delete(a: dict[str, Any]) -> Any:
+        """删除日程事件"""
+        from ...systems.gtd.calendar import CalendarEngine
+
+        event_id = a["event_id"]
+        ok = CalendarEngine().delete(event_id)
+        return {
+            "ok": ok,
+            "event_id": event_id,
+            "message": f"日程 {event_id} 已删除" if ok
+                       else f"未找到日程 {event_id}",
+        }
+
+    def _calendar_update(a: dict[str, Any]) -> Any:
+        """更新日程事件字段（date/time_str/title/end_time/repeat_rule/period）"""
+        from ...systems.gtd.calendar import CalendarEngine
+
+        event_id = a["event_id"]
+        fields = {k: v for k, v in a.items()
+                  if k != "event_id" and v is not None
+                  and not k.startswith("_")}
+        if not fields:
+            return {"ok": False, "event_id": event_id,
+                    "message": ("未提供要更新的字段"
+                                "（可选 date/time_str/title/end_time/repeat_rule/period）")}
+        updated = CalendarEngine().update(event_id, **fields)
+        return {
+            "ok": updated is not None,
+            "event_id": event_id,
+            "event": updated.to_dict() if updated else None,
+            "message": f"日程 {event_id} 已更新" if updated
+                       else f"未找到日程 {event_id}",
+        }
+
+    def _calendar_month(a: dict[str, Any]) -> Any:
+        """月视图：原样返回 engine.month_view()
+        形状：{year, month, month_name, days, events}，
+        days 为 {完整日期 "YYYY-MM-DD": 事件数} 映射，
+        events 为按日分组的完整事件列表（每项含 id/time_str/title 等），
+        仅包含本月有事件的日期；year/month 缺省为当月"""
+        from ...systems.gtd.calendar import CalendarEngine
+
+        return CalendarEngine().month_view(
+            int(a.get("year") or 0), int(a.get("month") or 0))
+
+    def _calendar_suggest(a: dict[str, Any]) -> Any:
+        """智能排期建议：今日空闲槽位（每项 {date, time, period}，
+        按历史活跃时段推荐，避开今日已占用时间）"""
+        from ...systems.gtd.calendar import CalendarEngine
+
+        suggestions = CalendarEngine().suggest()
+        return {
+            "count": len(suggestions),
+            "suggestions": suggestions,
+            "message": (f"建议 {len(suggestions)} 个今日排期槽位"
+                        if suggestions else "今日槽位已满，暂无建议"),
         }
 
     def _session_summary(a: dict[str, Any]) -> Any:
@@ -840,18 +1245,42 @@ def build_default_registry() -> ServerToolRegistry:
         import time
         from datetime import datetime, timedelta
         today = datetime.now().strftime("%Y-%m-%d")
-        today_start = datetime.now().replace(hour=0, minute=0, second=0).isoformat()
 
-        # Inbox
-        from ...systems.gtd.inbox import InboxEngine
-        inbox = InboxEngine()
-        all_inbox = inbox.list(status="all", limit=200)
-        processed_today = sum(
-            1 for i in all_inbox
-            if i.status in ("clarified", "archived")
-            and i.created_at >= today_start[:10]
-        )
-        pending = inbox.count()
+        # Inbox — SQLite 精确统计（无 limit 截断）；异常降级回 JSONL 全量扫描
+        def _inbox_stats_jsonl() -> tuple[int, int]:
+            from ...systems.gtd.inbox import InboxEngine
+            inbox = InboxEngine()
+            all_inbox = inbox.list(status="all", limit=10 ** 6)
+
+            def _done_today(i: Any) -> bool:
+                if i.status not in ("clarified", "archived"):
+                    return False
+                cr = i.clarify_result if isinstance(i.clarify_result, dict) else {}
+                clarified_at = str(cr.get("clarified_at") or "")
+                archived_at = str(cr.get("archived_at") or "")
+                if clarified_at[:10] == today or archived_at[:10] == today:
+                    return True
+                # 旧数据无处理时间戳：回退 created_at 近似
+                return not (clarified_at or archived_at) and i.created_at[:10] == today
+
+            processed = sum(1 for i in all_inbox if _done_today(i))
+            return processed, inbox.count()
+
+        try:
+            from ...core.database import db
+            with db.connect() as conn:
+                pending = conn.execute(
+                    "SELECT COUNT(*) FROM gtd_inbox WHERE status='unprocessed'"
+                ).fetchone()[0]
+                # 已处理时间：clarified_at 为空串/NULL（直接归档）时回退 created_at；
+                # 截前 10 位与 JSONL 版 created_at[:10] 语义一致
+                processed_today = conn.execute(
+                    "SELECT COUNT(*) FROM gtd_inbox WHERE status IN ('clarified','archived') "
+                    "AND substr(COALESCE(NULLIF(clarified_at, ''), created_at), 1, 10) = ?",
+                    (today,),
+                ).fetchone()[0]
+        except Exception:
+            processed_today, pending = _inbox_stats_jsonl()
 
         # Actions
         from ...systems.gtd.action import ActionEngine
@@ -943,6 +1372,83 @@ def build_default_registry() -> ServerToolRegistry:
         },
     )
     registry.register(
+        "calendar_add",
+        "添加日程事件（GTD CalendarEngine）：带 action_id 时关联行动"
+        "（标题缺省自动取行动标题）；period 缺省按 time_str 推断时段",
+        _calendar_add,
+        {
+            "type": "object",
+            "properties": {
+                "date": {"type": "string", "description": "日期 YYYY-MM-DD"},
+                "title": {"type": "string", "description": "事件标题"},
+                "time_str": {"type": "string", "description": "开始时间 HH:MM（可选）"},
+                "end_time": {"type": "string", "description": "结束时间 HH:MM（可选）"},
+                "repeat_rule": {"type": "string",
+                                "enum": ["daily", "weekly", "monthly"],
+                                "description": "重复规则（可选）"},
+                "period": {"type": "string",
+                           "enum": ["morning", "afternoon", "evening"],
+                           "description": "时段（可选，缺省按 time_str 推断）"},
+                "action_id": {"type": "string",
+                              "description": "关联 GTD 行动 ID（可选）"},
+            },
+            "required": ["date", "title"],
+        },
+    )
+    registry.register(
+        "calendar_delete",
+        "删除日程事件",
+        _calendar_delete,
+        {
+            "type": "object",
+            "properties": {"event_id": {"type": "string", "description": "日程事件 ID"}},
+            "required": ["event_id"],
+        },
+    )
+    registry.register(
+        "calendar_update",
+        "更新日程事件字段（date/time_str/title/end_time/repeat_rule/period；"
+        "time_str 变更时自动重算时段）",
+        _calendar_update,
+        {
+            "type": "object",
+            "properties": {
+                "event_id": {"type": "string", "description": "日程事件 ID"},
+                "date": {"type": "string", "description": "日期 YYYY-MM-DD"},
+                "time_str": {"type": "string", "description": "开始时间 HH:MM"},
+                "title": {"type": "string", "description": "事件标题"},
+                "end_time": {"type": "string", "description": "结束时间 HH:MM（可选）"},
+                "repeat_rule": {"type": "string",
+                                "enum": ["daily", "weekly", "monthly"],
+                                "description": "重复规则（可选）"},
+                "period": {"type": "string",
+                           "enum": ["morning", "afternoon", "evening"],
+                           "description": "时段（可选，缺省按 time_str 重算）"},
+            },
+            "required": ["event_id"],
+        },
+    )
+    registry.register(
+        "calendar_month",
+        "月视图：返回 {year, month, month_name, days, events}，"
+        "days 为 {完整日期 YYYY-MM-DD: 事件数} 映射，events 为按日分组的完整事件列表"
+        "（仅含本月有事件的日期；year/month 缺省当月）",
+        _calendar_month,
+        {
+            "type": "object",
+            "properties": {
+                "year": {"type": "integer", "description": "年份，缺省当年"},
+                "month": {"type": "integer", "description": "月份 1-12，缺省当月"},
+            },
+        },
+    )
+    registry.register(
+        "calendar_suggest",
+        "智能排期建议：今日空闲槽位列表（每项含 date/time/period，"
+        "按历史活跃时段推荐并避开已占用时间）",
+        _calendar_suggest,
+    )
+    registry.register(
         "zenloop_run",
         "触发 ZenLoop 循环（reflection/consolidation/insight/purification）——"
         "定时自动化/无人值守反思入口",
@@ -955,19 +1461,95 @@ def build_default_registry() -> ServerToolRegistry:
         },
     )
 
+    def _action_list_item(i: Any) -> dict[str, Any]:
+        """action_list 条目：基础字段 + GTD 视图所需字段 + 来源标记（如有值）"""
+        d: dict[str, Any] = {"id": i.id, "title": i.title,
+                             "priority": _display_priority(i.priority),
+                             "status": i.status, "due_date": i.due_date}
+        for f in ("project_id", "energy_required", "contexts", "repeat_rule"):
+            v = getattr(i, f, None)
+            if v is None:
+                v = [] if f == "contexts" else (0 if f == "energy_required" else "")
+            d[f] = v
+        if getattr(i, "source_session_id", ""):
+            d["source_session_id"] = i.source_session_id
+        if getattr(i, "created_by", ""):
+            d["created_by"] = i.created_by
+        return d
+
+    def _action_row_item(r: Any) -> dict[str, Any]:
+        """SQLite 行 → action_list 条目（与 _action_list_item 同构）"""
+        try:
+            contexts = json.loads(r["contexts"]) if r["contexts"] not in (None, "") else []
+        except Exception:
+            contexts = r["contexts"] or []
+        d: dict[str, Any] = {"id": r["action_id"], "title": r["title"],
+                             "priority": _display_priority(r["priority"]),
+                             "status": r["status"], "due_date": r["due_date"] or ""}
+        d["project_id"] = r["project_id"] or ""
+        d["energy_required"] = r["energy_required"] if r["energy_required"] is not None else 0
+        d["contexts"] = contexts
+        d["repeat_rule"] = r["repeat_rule"] or ""
+        if r["source_session_id"]:
+            d["source_session_id"] = r["source_session_id"]
+        if r["created_by"]:
+            d["created_by"] = r["created_by"]
+        return d
+
+    def _action_list_sql(a: dict[str, Any]) -> list[dict[str, Any]]:
+        """action_list 的 SQLite 查询路径（索引过滤 + 排序 + 截断下推）。
+
+        前置 reconcile_sqlite 对账：直写 JSONL 的历史数据 / 旧版删除残留
+        以 JSONL 为准幂等重建。任一步失败抛出，由 _action_list 降级 JSONL。
+        """
+        from ...core.database import db
+        from ...systems.gtd.action import ActionEngine
+        ActionEngine().reconcile_sqlite()
+
+        sql = ("SELECT action_id, title, status, priority, energy_required, contexts, "
+               "due_date, project_id, repeat_rule, source_session_id, created_by "
+               "FROM gtd_actions WHERE 1=1")
+        params: list[Any] = []
+        status = a.get("status", "pending")
+        if status and status != "all":
+            sql += " AND status = ?"
+            params.append(status)
+        if a.get("project_id"):
+            sql += " AND project_id = ?"
+            params.append(a["project_id"])
+        if a.get("priority"):
+            sql += " AND priority = ?"
+            params.append(a["priority"])
+        if a.get("context"):
+            # JSONL 语义：contexts 为 str 时子串匹配、list 时成员匹配；
+            # JSON 编码后标量与列表元素都带双引号，引号包裹等值匹配覆盖两种形态
+            sql += " AND contexts LIKE ?"
+            params.append(f'%"{a["context"]}"%')
+        if a.get("due_today"):
+            from datetime import datetime
+            sql += " AND substr(due_date, 1, 10) = ?"
+            params.append(datetime.now().strftime("%Y-%m-%d"))
+        sql += (" ORDER BY CASE priority WHEN 'P0' THEN 0 WHEN 'P1' THEN 1 "
+                "WHEN 'P2' THEN 2 ELSE 3 END, created_at DESC LIMIT ?")
+        params.append(int(a.get("limit", 20)))
+        with db.connect() as conn:
+            return [_action_row_item(r) for r in conn.execute(sql, params).fetchall()]
+
     def _action_add(a: dict[str, Any]) -> Any:
         """添加 GTD 下一步行动"""
         from ...systems.gtd.action import ActionEngine
+        source_session_id, created_by = _pop_source_context(a)
         engine = ActionEngine()
         kwargs = {}
-        if a.get("priority"): kwargs["priority"] = a["priority"]
-        if a.get("energy_required"): kwargs["energy_required"] = a["energy_required"]
+        if a.get("priority"): kwargs["priority"] = _normalize_priority(a["priority"])
+        if a.get("energy_required"): kwargs["energy_required"] = _normalize_energy(a["energy_required"])
         if a.get("project_id"): kwargs["project_id"] = a["project_id"]
         if a.get("contexts"): kwargs["contexts"] = a["contexts"]
         if a.get("due_date"): kwargs["due_date"] = a["due_date"]
         if a.get("skill_id"): kwargs["skill_id"] = a["skill_id"]
         if a.get("repeat_rule"): kwargs["repeat_rule"] = a["repeat_rule"]
-        action = engine.add(a["title"], **kwargs)
+        action = engine.add(a["title"], source_session_id=source_session_id,
+                            created_by=created_by, **kwargs)
         return {
             "ok": True,
             "id": action.id,
@@ -977,61 +1559,25 @@ def build_default_registry() -> ServerToolRegistry:
         }
 
     def _action_list(a: dict[str, Any]) -> Any:
-        """列出待办行动"""
+        """列出待办行动（SQLite 索引查询优先；异常降级 JSONL 内存过滤）"""
         from ...systems.gtd.action import ActionEngine
-        engine = ActionEngine()
-        items = engine.list(
-            status=a.get("status", "pending"),
-            project_id=a.get("project_id", ""),
-            context=a.get("context", ""),
-            priority=a.get("priority", ""),
-            due_today=a.get("due_today", False),
-            limit=int(a.get("limit", 20)),
-        )
-        return {
-            "count": len(items),
-            "items": [
-                {"id": i.id, "title": i.title, "priority": i.priority,
-                 "status": i.status, "due_date": i.due_date}
-                for i in items
-            ],
-            "message": f"找到 {len(items)} 个待办行动",
-        }
-
-    def _action_status(a: dict[str, Any]) -> Any:
-        """批量查询行动状态（GUI 卡片实时刷新用，防多卡片扇出 refetch）"""
-        from ...systems.gtd.action import ActionEngine
-        engine = ActionEngine()
-        raw_ids = a.get("ids")
-        if not isinstance(raw_ids, list):
-            return {"count": 0, "items": [], "missing": [],
-                    "message": "未提供行动 ID 列表（ids）"}
-        ids = [str(x) for x in raw_ids if isinstance(x, str) and x]
-        if not ids:
-            return {"count": 0, "items": [], "missing": [],
-                    "message": "未提供行动 ID 列表（ids）"}
-        # 一次全量读取后按 ids 过滤；排序截断可能漏掉个别 id，missing 兜底逐个 get
-        all_items = engine.list(status="all", limit=max(50, len(ids)))
-        by_id = {i.id: i for i in all_items}
-        items = []
-        for aid in ids:
-            it = by_id.get(aid)
-            if it is not None:
-                items.append({"id": it.id, "status": it.status, "title": it.title})
-        found = {i["id"] for i in items}
-        for aid in ids:
-            if aid in found:
-                continue
-            it = engine.get(aid)
-            if it is not None:
-                items.append({"id": it.id, "status": it.status, "title": it.title})
-        found = {i["id"] for i in items}
-        missing = [aid for aid in ids if aid not in found]
+        try:
+            items = _action_list_sql(a)
+        except Exception:
+            engine = ActionEngine()
+            fallback = engine.list(
+                status=a.get("status", "pending"),
+                project_id=a.get("project_id", ""),
+                context=a.get("context", ""),
+                priority=a.get("priority", ""),
+                due_today=a.get("due_today", False),
+                limit=int(a.get("limit", 20)),
+            )
+            items = [_action_list_item(i) for i in fallback]
         return {
             "count": len(items),
             "items": items,
-            "missing": missing,
-            "message": f"返回 {len(items)}/{len(ids)} 个行动状态",
+            "message": f"找到 {len(items)} 个待办行动",
         }
 
     def _diff_achievements(skill_id: str = "zenskill-core"):
@@ -1114,7 +1660,13 @@ def build_default_registry() -> ServerToolRegistry:
             return {"ok": False, "action_id": action_id,
                     "message": f"未找到行动 {action_id}"}
         fields = {k: v for k, v in a.items()
-                  if k != "action_id" and v is not None}
+                  if k != "action_id" and v is not None
+                  and not k.startswith("_")}
+        # 入参归一化：high/medium/low → P1/P2/P3；能量别名 → 数字
+        if "priority" in fields:
+            fields["priority"] = _normalize_priority(fields["priority"])
+        if "energy_required" in fields:
+            fields["energy_required"] = _normalize_energy(fields["energy_required"])
         updated = engine.edit(action_id, **fields)
         return {
             "ok": updated is not None,
@@ -1134,6 +1686,49 @@ def build_default_registry() -> ServerToolRegistry:
         ok = engine.delete(a["action_id"])
         return {"ok": ok, "action_id": a["action_id"], "title": action.title,
                 "message": f"行动「{action.title}」已删除" if ok else "删除失败"}
+
+    def _project_add(a: dict[str, Any]) -> Any:
+        """创建项目（ProjectEngine.create）"""
+        from ...systems.gtd.project import ProjectEngine
+        engine = ProjectEngine()
+        kwargs: dict[str, Any] = {}
+        if a.get("outcome"):
+            kwargs["outcome"] = a["outcome"]
+        if a.get("skill_id"):
+            kwargs["skill_id"] = a["skill_id"]
+        proj = engine.create(a["name"], **kwargs)
+        return {
+            "ok": True,
+            "id": proj.id,
+            "name": proj.name,
+            "outcome": proj.outcome,
+            "message": f"已创建项目「{proj.name}」"
+                       + (f"（id: {proj.id}）" if proj.id else ""),
+        }
+
+    def _project_update(a: dict[str, Any]) -> Any:
+        """更新项目字段（name/outcome/notes/status）"""
+        from ...systems.gtd.project import ProjectEngine
+
+        engine = ProjectEngine()
+        project_id = a["project_id"]
+        project = engine.get(project_id)
+        if not project:
+            return {"ok": False, "project_id": project_id,
+                    "message": f"未找到项目 {project_id}"}
+        fields = {k: v for k, v in a.items()
+                  if k != "project_id" and v is not None
+                  and not k.startswith("_")}
+        if not fields:
+            return {"ok": False, "project_id": project_id,
+                    "message": "未提供要更新的字段（可选 name/outcome/notes/status）"}
+        updated = engine.update(project_id, **fields)
+        return {
+            "ok": updated is not None,
+            "project_id": project_id,
+            "name": updated.name if updated else "",
+            "message": f"项目「{project.name}」已更新" if updated else "更新失败",
+        }
 
     def _project_list(a: dict[str, Any]) -> Any:
         """列出项目及其进度"""
@@ -1264,6 +1859,50 @@ def build_default_registry() -> ServerToolRegistry:
             "message": f"找到 {len(habits)} 个习惯",
         }
 
+    def _habit_set(a: dict[str, Any]) -> Any:
+        """创建/更新习惯定义（HabitTracker.add_habit；habit_id 缺省由 title 归一化派生）"""
+        from ...systems.active.habit_tracker import HabitTracker
+
+        title = str(a.get("title") or "").strip()
+        if not title:
+            return {"ok": False, "message": "需要 title（习惯名称）"}
+        try:
+            habit_id = HabitTracker._normalize_id(a.get("habit_id") or title)
+        except ValueError:
+            habit_id = f"habit_{int(time.time())}"
+        habit = HabitTracker().add_habit(
+            habit_id,
+            title,
+            target_count=int(a.get("target_count") or 1),
+            skill_id=a.get("skill_id"),
+            action_contains=str(a.get("action_contains") or ""),
+        )
+        return {
+            "ok": True,
+            "habit": {
+                "habit_id": habit.habit_id,
+                "title": habit.title,
+                "skill_id": habit.skill_id,
+                "target_count": habit.target_count,
+                "action_contains": habit.action_contains,
+            },
+            "message": (f"已保存习惯「{habit.title}」"
+                        f"（id: {habit.habit_id}，每日 {habit.target_count} 次）"),
+        }
+
+    def _habit_delete(a: dict[str, Any]) -> Any:
+        """删除习惯定义"""
+        from ...systems.active.habit_tracker import HabitTracker
+
+        habit_id = a["habit_id"]
+        ok = HabitTracker().remove_habit(habit_id)
+        return {
+            "ok": ok,
+            "habit_id": habit_id,
+            "message": f"习惯 {habit_id} 已删除" if ok
+                       else f"未找到习惯 {habit_id}",
+        }
+
     def _achievement_list(a: dict[str, Any]) -> Any:
         """列出已解锁成就与进度中的徽章"""
         from ...systems.active.achievement_system import AchievementSystem
@@ -1365,6 +2004,95 @@ def build_default_registry() -> ServerToolRegistry:
             msg = "尚无目标（goal_set suggest=true 可按短板自动推荐）"
         return {"skill_id": skill_id, "active": items,
                 "completed_count": len(completed), "message": msg}
+
+    def _goal_update(a: dict[str, Any]) -> Any:
+        """更新目标字段（target_score/status）"""
+        from ...systems.active.goal_engine import ActiveGoalEngine
+
+        skill_id = a.get("skill_id", "zenskill-core")
+        engine = ActiveGoalEngine(skill_id)
+        goal_id = a["goal_id"]
+        if a.get("target_score") is None and a.get("status") is None:
+            return {"ok": False, "goal_id": goal_id,
+                    "message": "未提供要更新的字段（可选 target_score/status）"}
+        try:
+            goal = engine.update_goal(
+                goal_id,
+                target_score=(int(a["target_score"])
+                              if a.get("target_score") is not None else None),
+                status=a.get("status"),
+            )
+        except ValueError as e:
+            return {"ok": False, "goal_id": goal_id, "message": str(e)}
+        if goal is None:
+            return {"ok": False, "goal_id": goal_id,
+                    "message": f"未找到目标 {goal_id}"}
+        return {
+            "ok": True,
+            "goal_id": goal_id,
+            "goal": goal.to_dict(),
+            "message": (f"目标 {goal_id} 已更新"
+                        f"（{goal.dimension} → {goal.target_score} 分，状态 {goal.status}）"),
+        }
+
+    def _goal_delete(a: dict[str, Any]) -> Any:
+        """删除目标（JSONL 物理删除）"""
+        from ...systems.active.goal_engine import ActiveGoalEngine
+
+        skill_id = a.get("skill_id", "zenskill-core")
+        engine = ActiveGoalEngine(skill_id)
+        goal_id = a["goal_id"]
+        ok = engine.delete_goal(goal_id)
+        return {
+            "ok": ok,
+            "goal_id": goal_id,
+            "message": f"目标 {goal_id} 已删除" if ok
+                       else f"未找到目标 {goal_id}",
+        }
+
+    def _task_progressions(a: dict[str, Any]) -> Any:
+        """任务推进建议（层 3：TaskProgressionEngine 规则扫描 + 缓存）"""
+        from ...core.progression_governor import ProgressionGovernor
+        from ...systems.gtd.progression import TaskProgressionEngine
+        try:
+            limit = int(a.get("limit") or 5)
+        except (TypeError, ValueError):
+            limit = 5
+        if limit <= 0:
+            limit = 5
+        result = TaskProgressionEngine().generate_progressions(limit=limit)
+        # 层 4 治理: 本次返回视为一次推送，按 trigger_type 记入频控计数
+        # （下次调用经 can_push 过滤: 每日上限 / 同类 24h 冷却 / quiet 静默）
+        try:
+            governor = ProgressionGovernor()
+            for p in result.get("progressions") or []:
+                governor.record_push(str(p.get("trigger_type") or "state"))
+        except Exception:
+            pass
+        return result
+
+    def _progression_feedback(a: dict[str, Any]) -> Any:
+        """推进建议反馈（层 4：三态 accepted/rejected/dismissed 落 JSONL）"""
+        from ...core.progression_governor import ProgressionGovernor
+        trigger = str(a.get("trigger") or "").strip()
+        action = str(a.get("action") or "").strip()
+        if not trigger or not action:
+            raise ValueError("progression_feedback 需要 trigger 与 action 参数")
+        ProgressionGovernor().record_feedback(trigger, action)
+        return {"ok": True, "trigger": trigger, "action": action,
+                "message": "反馈已记录"}
+
+    def _progression_mode(a: dict[str, Any]) -> Any:
+        """主动度分级（层 4）：无 mode 查询，有 mode 设置（active/quiet/ritual_only）"""
+        from ...core.progression_governor import ProgressionGovernor
+        governor = ProgressionGovernor()
+        mode = str(a.get("mode") or "").strip()
+        if mode:
+            governor.set_mode(mode)
+            return {"ok": True, "mode": governor.get_mode(),
+                    "message": f"主动度已切换为 {mode}"}
+        mode = governor.get_mode()
+        return {"mode": mode, "message": f"当前主动度: {mode}"}
 
     def _proactive_insight(a: dict[str, Any]) -> Any:
         """获取主动洞察（先检测生成，再按类型筛选）"""
@@ -1500,9 +2228,46 @@ def build_default_registry() -> ServerToolRegistry:
         except Exception:
             pass
 
+        # #5 Companion 深度：会话主题感知
+        recent_topics = []
+        try:
+            from ...core.session_context import get_session_topic_context
+            topic_ctx = get_session_topic_context("zenskill-core")
+            recent_topics = topic_ctx.get("recent_topics", [])
+            if recent_topics:
+                topic = recent_topics[0]
+                parts.append(f"刚才在聊：{topic[:40]}")
+        except Exception:
+            pass
+
+        # #5 Companion 深度：用户画像差异化
+        try:
+            from ...core.session_context import get_user_profile_context
+            profile = get_user_profile_context()
+            user_level = profile.get("level", "NOVICE")
+            usage = profile.get("usage_count", 0)
+            if user_level == "NOVICE" and usage < 10 and len(actions) > 0:
+                parts.append("今天试试用 action_add 添加一个今日目标")
+            elif user_level in ("EXPERT", "MASTER") and len(actions) == 0:
+                parts.append("可以用 learning_path 查看进阶路线")
+        except Exception:
+            pass
+
+        # #5 Companion 深度：时段差异化建议
+        if 22 <= hour or hour < 6:
+            if level in ("low", "critical"):
+                parts.append("建议休息——明日能量会自动恢复")
+            else:
+                parts.append("夜深了，还有精力的话可以处理 inbox")
+        elif 12 <= hour < 14 and len(actions) > 5:
+            parts.append("午休前花 5 分钟清一下收件箱")
+        elif 18 <= hour < 20 and overdue == 0 and pending == 0:
+            parts.append("今天全部完成，做得很棒")
+
         return {
             "mood": f"{greeting}——" + "；".join(parts) + "。",
             "greeting": greeting,
+            "recent_topics": recent_topics,
             "top_insight": top_insights[0] if top_insights else None,
             "top_insights": top_insights,
             "micro_feedback": one_line,
@@ -1599,8 +2364,10 @@ def build_default_registry() -> ServerToolRegistry:
             "type": "object",
             "properties": {
                 "title": {"type": "string", "description": "行动标题"},
-                "priority": {"type": "string", "description": "优先级：high/medium/low"},
-                "energy_required": {"type": "string", "description": "所需能量：high/medium/low"},
+                "priority": {"type": "string", "enum": ["P0", "P1", "P2", "P3"],
+                             "description": "优先级 P0-P3（兼容 high/medium/low，自动归一化）"},
+                "energy_required": {"type": "integer", "enum": [1, 3, 5, 8, 10],
+                                    "description": "所需能量（兼容 easy/medium/hard/extreme，自动映射数字）"},
                 "project_id": {"type": "string", "description": "关联项目 ID"},
                 "contexts": {"type": "string", "description": "上下文标签"},
                 "due_date": {"type": "string", "description": "截止日期 YYYY-MM-DD"},
@@ -1620,19 +2387,6 @@ def build_default_registry() -> ServerToolRegistry:
                 "due_today": {"type": "boolean", "description": "只显示今天到期"},
                 "limit": {"type": "integer", "description": "返回数量，默认 20"},
             },
-        },
-    )
-    registry.register("action_status", "批量查询行动状态（按 ID 列表）", _action_status,
-        {
-            "type": "object",
-            "properties": {
-                "ids": {
-                    "type": "array",
-                    "items": {"type": "string"},
-                    "description": "行动 ID 列表",
-                },
-            },
-            "required": ["ids"],
         },
     )
     registry.register("action_done", "完成 GTD 行动（触发成长记录与重复任务再生）", _action_done,
@@ -1658,7 +2412,8 @@ def build_default_registry() -> ServerToolRegistry:
             "properties": {
                 "action_id": {"type": "string", "description": "行动 ID"},
                 "title": {"type": "string", "description": "新标题"},
-                "priority": {"type": "string", "description": "优先级 P0-P3"},
+                "priority": {"type": "string", "enum": ["P0", "P1", "P2", "P3"],
+                             "description": "优先级 P0-P3（兼容 high/medium/low，自动归一化）"},
                 "due_date": {"type": "string", "description": "截止日期 YYYY-MM-DD"},
                 "contexts": {"type": "string", "description": "上下文标签"},
                 "skill_id": {"type": "string", "description": "关联技能 ID"},
@@ -1674,6 +2429,18 @@ def build_default_registry() -> ServerToolRegistry:
             "required": ["action_id"],
         },
     )
+    registry.register(
+        "project_add", "创建 GTD 项目（多步目标）", _project_add,
+        {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string", "description": "项目名称"},
+                "outcome": {"type": "string", "description": "预期成果描述（可选）"},
+                "skill_id": {"type": "string", "description": "关联技能 ID（完成时记录成长，可选）"},
+            },
+            "required": ["name"],
+        },
+    )
     registry.register("project_list", "列出项目及其进度", _project_list,
         {
             "type": "object",
@@ -1686,6 +2453,21 @@ def build_default_registry() -> ServerToolRegistry:
         {
             "type": "object",
             "properties": {"project_id": {"type": "string", "description": "项目 ID"}},
+            "required": ["project_id"],
+        },
+    )
+    registry.register("project_update", "更新项目字段（name/outcome/notes/status）", _project_update,
+        {
+            "type": "object",
+            "properties": {
+                "project_id": {"type": "string", "description": "项目 ID"},
+                "name": {"type": "string", "description": "项目名称"},
+                "outcome": {"type": "string", "description": "预期成果描述"},
+                "notes": {"type": "string", "description": "备注"},
+                "status": {"type": "string",
+                           "enum": ["active", "someday", "done", "archived"],
+                           "description": "项目状态"},
+            },
             "required": ["project_id"],
         },
     )
@@ -1720,6 +2502,26 @@ def build_default_registry() -> ServerToolRegistry:
             "properties": {"days": {"type": "integer", "description": "分析天数，默认 7"}},
         },
     )
+    registry.register("habit_set", "创建/更新习惯定义（habit_id 缺省由 title 归一化派生，重复保存即更新）", _habit_set,
+        {
+            "type": "object",
+            "properties": {
+                "title": {"type": "string", "description": "习惯名称"},
+                "habit_id": {"type": "string", "description": "习惯 ID（可选，缺省由 title 派生）"},
+                "skill_id": {"type": "string", "description": "关联技能 ID（可选）"},
+                "target_count": {"type": "integer", "description": "每日目标次数，默认 1"},
+                "action_contains": {"type": "string", "description": "事件 action 匹配子串（可选）"},
+            },
+            "required": ["title"],
+        },
+    )
+    registry.register("habit_delete", "删除习惯定义", _habit_delete,
+        {
+            "type": "object",
+            "properties": {"habit_id": {"type": "string", "description": "习惯 ID"}},
+            "required": ["habit_id"],
+        },
+    )
     registry.register("achievement_list", "列出已解锁成就", _achievement_list,
         {
             "type": "object",
@@ -1743,6 +2545,62 @@ def build_default_registry() -> ServerToolRegistry:
         {
             "type": "object",
             "properties": {"skill_id": {"type": "string", "description": "技能 ID"}},
+        },
+    )
+    registry.register("goal_update", "更新成长目标字段（target_score/status）", _goal_update,
+        {
+            "type": "object",
+            "properties": {
+                "goal_id": {"type": "string", "description": "目标 ID"},
+                "target_score": {"type": "integer", "description": "新目标分数 0-100"},
+                "status": {"type": "string",
+                           "enum": ["active", "completed", "failed", "cancelled"],
+                           "description": "目标状态"},
+                "skill_id": {"type": "string", "description": "技能 ID，默认 zenskill-core"},
+            },
+            "required": ["goal_id"],
+        },
+    )
+    registry.register("goal_delete", "删除成长目标（JSONL 物理删除）", _goal_delete,
+        {
+            "type": "object",
+            "properties": {
+                "goal_id": {"type": "string", "description": "目标 ID"},
+                "skill_id": {"type": "string", "description": "技能 ID，默认 zenskill-core"},
+            },
+            "required": ["goal_id"],
+        },
+    )
+    registry.register(
+        "task_progressions",
+        "任务推进建议：基于状态/阶段自动生成 top-N 推进提示词",
+        _task_progressions,
+        {"type": "object", "properties": {"limit": {"type": "integer", "description": "返回数量，默认 5"}}},
+    )
+    registry.register(
+        "progression_feedback",
+        "记录推进建议反馈：accepted（采纳）/ rejected（拒绝）/ dismissed（忽略）",
+        _progression_feedback,
+        {
+            "type": "object",
+            "properties": {
+                "trigger": {"type": "string", "description": "触发器，如 overdue_action:act_xxx / morning_ritual"},
+                "action": {"type": "string", "enum": ["accepted", "rejected", "dismissed"],
+                           "description": "反馈动作"},
+            },
+            "required": ["trigger", "action"],
+        },
+    )
+    registry.register(
+        "progression_mode",
+        "推进建议主动度：无 mode 查询当前档位，有 mode 设置（active/quiet/ritual_only）",
+        _progression_mode,
+        {
+            "type": "object",
+            "properties": {
+                "mode": {"type": "string", "enum": ["active", "quiet", "ritual_only"],
+                         "description": "省略时仅查询当前档位"},
+            },
         },
     )
     registry.register("proactive_insight", "获取主动洞察", _proactive_insight,
@@ -1807,4 +2665,261 @@ def build_default_registry() -> ServerToolRegistry:
         },
     )
 
+    def _share_card(a: dict[str, Any]) -> Any:
+        """生成成长分享卡片（PNG 渲染降级 SVG；public=true 附免登录公开页）"""
+        import base64 as _b64
+        from pathlib import Path as _Path
+
+        from ...share.card_data import GrowthCardData
+        from ...share.public_page import make_card_id, render_card_svg, save_public_page
+        from ...share.renderer import render_card_html, render_card_png
+
+        card_data = GrowthCardData().get_card_data()
+        card_id = make_card_id(card_data)
+        result: dict[str, Any] = {"card_id": card_id, "format": a.get("format", "png")}
+
+        image_base64 = ""
+        shares_dir = _Path.home() / ".zenskill" / "shares"
+        try:
+            shares_dir.mkdir(parents=True, exist_ok=True)
+            png_path = render_card_png(
+                render_card_html(card_data), str(shares_dir / f"{card_id}.png"))
+            if png_path:
+                image_base64 = _b64.b64encode(_Path(png_path).read_bytes()).decode("ascii")
+                result["png_path"] = png_path
+                result["mime"] = "image/png"
+        except Exception:
+            pass
+        if not image_base64:
+            svg = render_card_svg(card_data)
+            image_base64 = _b64.b64encode(svg.encode("utf-8")).decode("ascii")
+            html_path = shares_dir / f"{card_id}.html"
+            try:
+                html_path.write_text(render_card_html(card_data), encoding="utf-8")
+                result["html_path"] = str(html_path)
+            except Exception:
+                pass
+            result["mime"] = "image/svg+xml"
+        result["image_base64"] = image_base64
+        result["level_name"] = card_data.get("level_name", "")
+        result["date"] = card_data.get("date", "")
+
+        if a.get("public"):
+            try:
+                result["public_page"] = save_public_page(card_id)
+            except Exception as e:
+                result["public_page_error"] = str(e)
+
+        result["message"] = (
+            f"成长卡片已生成（{result['mime']}，境界 {result['level_name']}）"
+            + (f"，公开页: {result['public_page']}" if result.get("public_page") else ""))
+        return result
+
+    registry.register("share_card", "生成成长分享卡片（1080×1080 PNG，渲染降级 SVG），public=true 额外生成免登录公开页", _share_card,
+        {
+            "type": "object",
+            "properties": {
+                "format": {"type": "string", "enum": ["png", "html"],
+                           "description": "卡片格式，默认 png（渲染失败自动降级 SVG/HTML）"},
+                "public": {"type": "boolean",
+                           "description": "true=同时生成免登录公开页 HTML 并返回路径"},
+            },
+        },
+    )
+
+    # ── skill_validate：校验所有技能 frontmatter v2 ──
+    def _skill_validate(a: dict[str, Any]) -> Any:
+        import re as _re
+        from pathlib import Path
+        skills_dir = Path.home() / ".agents" / "skills"
+        domains = {"lark", "arkcli", "agentswarm", "dev", "data", "ai", "design", "ops", "life", "general"}
+        types = {"execution", "analysis", "creation", "coordination", "knowledge", "general"}
+        errors: list[str] = []
+        total = 0
+        for d in sorted(skills_dir.iterdir()):
+            sf = d / "SKILL.md"
+            if not d.is_dir() or d.name.startswith(".") or not sf.exists():
+                continue
+            total += 1
+            slug = d.name
+            try:
+                content = sf.read_text(encoding="utf-8")
+                m = _re.match(r"^---\s*\n(.*?)\n---", content, _re.DOTALL)
+                if not m:
+                    errors.append(f"{slug}: no frontmatter")
+                    continue
+                import yaml as _yaml
+                raw = _yaml.safe_load(m.group(1)) or {}
+                for field in ("name", "description", "category", "type"):
+                    v = raw.get(field)
+                    if not v or (isinstance(v, list) and not v):
+                        errors.append(f"{slug}: missing {field}")
+                if raw.get("category") not in domains:
+                    errors.append(f"{slug}: bad category '{raw.get('category')}'")
+                if raw.get("type") not in types:
+                    errors.append(f"{slug}: bad type '{raw.get('type')}'")
+                if isinstance(raw.get("description"), str) and _re.match(r"^\s*Use when", raw["description"], _re.I):
+                    errors.append(f"{slug}: description still starts with 'Use when'")
+            except Exception as exc:
+                errors.append(f"{slug}: {exc}")
+        return {"total": total, "errors": errors, "pass": len(errors) == 0}
+
+    registry.register(
+        "skill_validate",
+        "校验所有技能 SKILL.md frontmatter v2（name/description/category/type 必填，闭集校验）",
+        _skill_validate,
+        {"type": "object", "properties": {}},
+    )
+
+    # ============================================================
+    # Collaboration 子系统：跨技能洞察 / 迁移模式 / 仪表盘
+    # ============================================================
+
+    def _collaboration_insights(a: dict[str, Any]) -> Any:
+        """跨技能洞察：全量扫描技能图谱，发现瓶颈/模式/协同/不均衡"""
+        from ...systems.collaboration.cross_insight import CrossSkillInsightEngine
+        from dataclasses import asdict
+
+        engine = CrossSkillInsightEngine()
+        insights = engine.generate_cross_insights()
+        return {
+            "count": len(insights),
+            "insights": [
+                {
+                    "insight_id": i.insight_id,
+                    "type": i.type,
+                    "severity": i.severity,
+                    "title": i.title,
+                    "description": i.content,
+                    "affected_skills": i.affected_skills,
+                    "importance": i.severity,
+                }
+                for i in insights
+            ],
+            "message": f"发现 {len(insights)} 条跨技能洞察" if insights else "暂无跨技能洞察",
+        }
+
+    def _collaboration_transfer(a: dict[str, Any]) -> Any:
+        """跨技能迁移模式：从高表现技能中提取成功模式推荐给低表现技能"""
+        from ...systems.collaboration.skill_transfer import SkillTransferEngine
+
+        engine = SkillTransferEngine()
+        patterns = engine.find_transferable_patterns()
+        return {
+            "count": len(patterns),
+            "patterns": patterns,
+            "message": f"发现 {len(patterns)} 个可迁移模式" if patterns else "暂无可迁移模式",
+        }
+
+    def _collaboration_dashboard(a: dict[str, Any]) -> Any:
+        """协作仪表盘：技能生态系统全景（健康度/热力图/网络/协同/洞察）"""
+        import re as _re
+        from ...systems.collaboration.dashboard import SkillEcosystemDashboard
+
+        dashboard = SkillEcosystemDashboard()
+        text = dashboard.generate_dashboard()
+
+        # 尝试解析 Markdown 为结构化数据
+        try:
+            sections: dict[str, Any] = {}
+            # 按 ═══ 分割主要区块
+            blocks = _re.split(r"═{2,}", text)
+            for block in blocks:
+                block = block.strip()
+                if not block:
+                    continue
+                # 提取每行内容
+                lines = [ln.strip() for ln in block.splitlines() if ln.strip()]
+                if lines:
+                    title = lines[0]
+                    sections[title] = lines[1:]
+            if sections:
+                return {"sections": sections, "raw_text": text,
+                        "message": "协作仪表盘已生成"}
+        except Exception:
+            pass
+
+        # 解析失败降级：返回原始文本
+        return {"message": text}
+
+    registry.register(
+        "collaboration_insights",
+        "跨技能洞察：全量扫描技能图谱，发现瓶颈/模式/协同/不均衡",
+        _collaboration_insights,
+        {"type": "object", "properties": {}},
+    )
+    registry.register(
+        "collaboration_transfer",
+        "跨技能迁移模式：从高表现技能中提取成功模式推荐给低表现技能",
+        _collaboration_transfer,
+        {"type": "object", "properties": {}},
+    )
+    registry.register(
+        "collaboration_dashboard",
+        "协作仪表盘：技能生态系统全景（健康度/热力图/网络/协同/洞察）",
+        _collaboration_dashboard,
+        {"type": "object", "properties": {}},
+    )
+
+    # 自定义工具桥接（~/.zenskill/tools/*.py → MCP registry）
+    _register_custom_tools(registry)
+
     return registry
+
+
+def _register_custom_tools(registry: "ServerToolRegistry") -> None:
+    """加载 ~/.zenskill/tools/*.py 自定义工具并注册进 MCP registry。
+
+    每个工具 spec 额外标记 _custom: True，便于 reload_custom_tools 识别。
+    """
+    try:
+        from ...runtime.agent.custom_tools import load_custom_tools
+        custom = load_custom_tools()
+    except Exception:
+        return
+
+    for tool in custom:
+        def _make_handler(t):
+            def handler(a: dict[str, Any]) -> Any:
+                """同步 handler — MCP server 是同步的，在独立线程中运行异步 run()。"""
+                import asyncio as _aio
+                import concurrent.futures
+
+                def _runner():
+                    new_loop = _aio.new_event_loop()
+                    _aio.set_event_loop(new_loop)
+                    try:
+                        return new_loop.run_until_complete(t.run("mcp-custom", a))
+                    finally:
+                        new_loop.close()
+
+                try:
+                    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                        result = pool.submit(_runner).result(timeout=30)
+                except Exception as e:
+                    return {"success": False, "error": f"{type(e).__name__}: {e}"}
+                if getattr(result, "is_error", False):
+                    text = result.content[0].text if result.content else "error"
+                    return {"success": False, "error": text}
+                text = result.content[0].text if result.content else ""
+                try:
+                    return json.loads(text)
+                except (json.JSONDecodeError, TypeError):
+                    return {"success": True, "result": text}
+            return handler
+
+        spec = {
+            "name": tool.name,
+            "description": (tool.description or "")[:200],
+            "inputSchema": tool.parameters or {"type": "object", "properties": {}},
+            "_custom": True,
+        }
+        registry.register(
+            tool.name,
+            spec["description"],
+            _make_handler(tool),
+            spec["inputSchema"],
+        )
+        # 标记为自定义工具（reload_custom_tools 识别用）
+        if tool.name in registry._tools:
+            registry._tools[tool.name]._custom = True

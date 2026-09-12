@@ -15,6 +15,7 @@ zenskill/resources/pages/{slug}/ 播种到 {workspace_root}/pages/{slug}/，
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import os
@@ -123,6 +124,13 @@ def _seed_page(source_dir: Path, target_dir: Path) -> str:
     if _is_refresh_disabled(_load_page_json(target_config_path)):
         source_config.setdefault("refresh", {})["enabled"] = False
         logger.info("preserved user disabled refresh for %s", source_config.get("slug"))
+    # contentDigest：宿主 PageView 以此判定"有内容"（hasContent），
+    # 渲染租约/授权也绑定此值——与 TS computePageContentDigest 同源（sha256 hex）
+    index_html = target_dir / "index.html"
+    if index_html.is_file():
+        source_config["contentDigest"] = hashlib.sha256(
+            index_html.read_bytes()
+        ).hexdigest()
     _sync_file(Path("page.json"), json.dumps(source_config, ensure_ascii=False, indent=2) + "\n")
 
     return "seeded" if changed else "unchanged"
@@ -141,6 +149,13 @@ def sync_pages(workspace_root: Path, source_dir: Path | None = None) -> dict:
                     [{"slug", "error"}]），资源目录缺失时 discovered 为空、不报错。
     """
     workspace_root = Path(workspace_root).expanduser()
+
+    # Phase 3b: JSONL → SQLite 幂等迁移（启动时先迁移，再播种）
+    try:
+        from .migrate_sqlite import migrate_jsonl_to_sqlite
+        migrate_jsonl_to_sqlite()
+    except Exception as exc:
+        logger.warning("JSONL→SQLite migration skipped: %s", exc)
     source_dir = Path(source_dir) if source_dir else _pages_resource_dir()
 
     summary: dict = {

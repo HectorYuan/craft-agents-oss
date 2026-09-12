@@ -44,10 +44,23 @@ class DatabaseManager:
         self._lock = Lock()
         self._initialized = False
         self._initializing = False
+        # 迁移等批量导入场景可临时关闭 FK（connect 每连接都执行 PRAGMA，
+        # 单独发 PRAGMA OFF 到别的连接是无效操作）
+        self._foreign_keys = True
 
     @property
     def path(self) -> Path:
         return self._db_path
+
+    @contextmanager
+    def foreign_keys_disabled(self):
+        """上下文管理器：期间所有新连接关闭外键检查。"""
+        prev = self._foreign_keys
+        self._foreign_keys = False
+        try:
+            yield self
+        finally:
+            self._foreign_keys = prev
 
     @contextmanager
     def connect(self):
@@ -56,7 +69,7 @@ class DatabaseManager:
             self.init_schema()
         conn = sqlite3.connect(str(self._db_path))
         conn.execute("PRAGMA journal_mode=WAL")
-        conn.execute("PRAGMA foreign_keys=ON")
+        conn.execute(f"PRAGMA foreign_keys={'ON' if self._foreign_keys else 'OFF'}")
         conn.execute("PRAGMA busy_timeout=5000")
         conn.row_factory = sqlite3.Row
         try:
@@ -130,6 +143,18 @@ class DatabaseManager:
              "entry_point"),
             ("ALTER TABLE skill_dependencies ADD COLUMN dep_version TEXT DEFAULT ''",
              "dep_version"),
+            # A2 来源标记 — gtd_actions / gtd_inbox 补字段
+            ("ALTER TABLE gtd_actions ADD COLUMN source_session_id TEXT DEFAULT ''",
+             "source_session_id (gtd_actions)"),
+            ("ALTER TABLE gtd_actions ADD COLUMN created_by TEXT DEFAULT 'user'",
+             "created_by (gtd_actions)"),
+            ("ALTER TABLE gtd_inbox ADD COLUMN source_session_id TEXT DEFAULT ''",
+             "source_session_id (gtd_inbox)"),
+            ("ALTER TABLE gtd_inbox ADD COLUMN created_by TEXT DEFAULT 'user'",
+             "created_by (gtd_inbox)"),
+            # Phase 2: energy_invested 字段（JSONL 已有，SQLite 补齐）
+            ("ALTER TABLE gtd_actions ADD COLUMN energy_invested INTEGER DEFAULT 0",
+             "energy_invested (gtd_actions)"),
         ]
         for sql, col_name in migrations:
             try:
@@ -137,6 +162,18 @@ class DatabaseManager:
                 logger.info("Migration applied: add column %s", col_name)
             except Exception:
                 pass  # 列已存在
+
+        # Phase 1b: 查询热路径索引（IF NOT EXISTS 幂等）
+        index_sqls = [
+            "CREATE INDEX IF NOT EXISTS idx_actions_created ON gtd_actions(created_at)",
+            "CREATE INDEX IF NOT EXISTS idx_actions_priority_status ON gtd_actions(priority, status)",
+            "CREATE INDEX IF NOT EXISTS idx_inbox_status_created ON gtd_inbox(status, created_at)",
+        ]
+        for idx_sql in index_sqls:
+            try:
+                self.execute(idx_sql)
+            except Exception:
+                pass
 
     def get_stats(self) -> Dict[str, Any]:
         """数据库统计"""
@@ -383,6 +420,9 @@ CREATE TABLE IF NOT EXISTS skill_tasks (
 CREATE INDEX IF NOT EXISTS idx_tasks_skill ON skill_tasks(skill_id);
 
 -- ═══ 表组 3: GTD 生产力 (8 表) ═══
+-- DEPRECATED: GTD 权威存储已迁移至 JSONL（~/.zenskill/profiles/<profile>/gtd/，
+-- 由 zenskill/systems/gtd/ 各 Engine 读写），JSONL 是唯一 source of truth。
+-- 下列 gtd_* 表已无任何写入路径，仅保留供历史数据查询；勿为新代码新增依赖。
 
 CREATE TABLE IF NOT EXISTS gtd_actions (
     action_id       TEXT PRIMARY KEY,
@@ -787,7 +827,7 @@ ALL_TABLES = [
     "user_ratings", "skill_dependencies", "skill_milestones", "skill_fts",
     # 事件/目标
     "skill_events", "skill_insights", "skill_goals", "skill_metrics", "skill_tasks",
-    # GTD
+    # GTD（DEPRECATED: JSONL is the source of truth，见 zenskill/systems/gtd/，表已无写入路径）
     "gtd_actions", "gtd_projects", "gtd_calendar", "gtd_energy",
     "gtd_energy_history", "gtd_inbox", "gtd_incubating", "gtd_health_snapshots",
     # Memory

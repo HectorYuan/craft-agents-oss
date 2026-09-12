@@ -303,86 +303,100 @@ from zenskill.cli.workflow import (
 )
 
 # __main__.py 兼容 re-export（测试迁移期间）
-from zenskill.__main__ import (
-    __title__ as _title,
-    __version__ as _version,
-    generate_reflection_report as _gen_refl,
-)
+# ⚠️ 循环导入保护：当 zenskill 入口脚本先运行 __main__.py 并在初始化
+# 期间触发 cli/__init__.py 加载时，__main__ 尚未完成定义，直接导入会
+# ImportError。此处 try/except 在入口场景跳过 re-export，不影响测试场景
+# （测试先 import cli 时 __main__ 已完整加载）。
+try:
+    from zenskill.__main__ import (
+        __title__ as _title,
+        __version__ as _version,
+        generate_reflection_report as _gen_refl,
+    )
 
-__title__ = _title
-__version__ = _version
-generate_reflection_report = _gen_refl
+    __title__ = _title
+    __version__ = _version
+    generate_reflection_report = _gen_refl
+except (ImportError, AttributeError):
+    __title__ = "zenskill"
+    __version__ = "0.0.0"
+    generate_reflection_report = None  # type: ignore[assignment]
 
 # __main__ 未迁移的 cmd_* 兼容 re-export
-from zenskill.__main__ import (
-    cmd_action_add,
-    cmd_action_delete,
-    cmd_action_done,
-    cmd_action_list,
-    cmd_agent_discover,
-    cmd_browse,
-    cmd_calendar_add,
-    cmd_calendar_today,
-    cmd_calendar_week,
-    cmd_chat,
-    cmd_content_from_file,
-    cmd_content_from_text,
-    cmd_content_from_url,
-    cmd_cross_compare,
-    cmd_cross_insights,
-    cmd_cross_report,
-    cmd_db,
-    cmd_deploy_skill,
-    cmd_discover,
-    cmd_eco_dashboard,
-    cmd_eco_health,
-    cmd_eco_heatmap,
-    cmd_energy_advise,
-    cmd_energy_status,
-    cmd_github_info,
-    cmd_gtd_dashboard,
-    cmd_gtd_migrate,
-    cmd_gtd_weekly_review,
-    cmd_health_annual,
-    cmd_health_card,
-    cmd_health_score,
-    cmd_inbox_add,
-    cmd_inbox_list,
-    cmd_inbox_process,
-    cmd_info,
-    cmd_install,
-    cmd_market_search,
-    cmd_package_build,
-    cmd_package_export,
-    cmd_package_install,
-    cmd_package_list,
-    cmd_package_rollback,
-    cmd_package_validate,
-    cmd_path,
-    cmd_project_create,
-    cmd_project_list,
-    cmd_project_show,
-    cmd_project_templates,
-    cmd_rate,
-    cmd_rating,
-    cmd_ratings_list,
-    cmd_ratings_rate_all,
-    cmd_report_monthly,
-    cmd_report_weekly,
-    cmd_run,
-    cmd_search,
-    cmd_spec_export,
-    cmd_spec_inspect,
-    cmd_spec_validate,
-    cmd_test_skill,
-    cmd_trending,
-    cmd_tui,
-    cmd_uninstall,
-    cmd_zentest,
-)
+# ⚠️ 同上循环导入保护：入口场景跳过
+try:
+    from zenskill.__main__ import (
+        cmd_action_add,
+        cmd_action_delete,
+        cmd_action_done,
+        cmd_action_list,
+        cmd_agent_discover,
+        cmd_browse,
+        cmd_calendar_add,
+        cmd_calendar_today,
+        cmd_calendar_week,
+        cmd_chat,
+        cmd_content_from_file,
+        cmd_content_from_text,
+        cmd_content_from_url,
+        cmd_cross_compare,
+        cmd_cross_insights,
+        cmd_cross_report,
+        cmd_db,
+        cmd_deploy_skill,
+        cmd_discover,
+        cmd_eco_dashboard,
+        cmd_eco_health,
+        cmd_eco_heatmap,
+        cmd_energy_advise,
+        cmd_energy_status,
+        cmd_github_info,
+        cmd_gtd_dashboard,
+        cmd_gtd_migrate,
+        cmd_gtd_weekly_review,
+        cmd_health_annual,
+        cmd_health_card,
+        cmd_health_score,
+        cmd_inbox_add,
+        cmd_inbox_list,
+        cmd_inbox_process,
+        cmd_info,
+        cmd_install,
+        cmd_market_search,
+        cmd_package_build,
+        cmd_package_export,
+        cmd_package_install,
+        cmd_package_list,
+        cmd_package_rollback,
+        cmd_package_validate,
+        cmd_path,
+        cmd_project_create,
+        cmd_project_list,
+        cmd_project_show,
+        cmd_project_templates,
+        cmd_rate,
+        cmd_rating,
+        cmd_ratings_list,
+        cmd_ratings_rate_all,
+        cmd_report_monthly,
+        cmd_report_weekly,
+        cmd_run,
+        cmd_search,
+        cmd_spec_export,
+        cmd_spec_inspect,
+        cmd_spec_validate,
+        cmd_test_skill,
+        cmd_trending,
+        cmd_tui,
+        cmd_uninstall,
+        cmd_zentest,
+    )
 
-# main 入口兼容 re-export
-from zenskill.__main__ import main
-from zenskill.__main__ import __version_info__ as _version_info
+    # main 入口兼容 re-export
+    from zenskill.__main__ import main
+    from zenskill.__main__ import __version_info__ as _version_info
 
-__version_info__ = _version_info
+    __version_info__ = _version_info
+except (ImportError, AttributeError):
+    # 入口场景：__main__ 尚未完成，cmd_*/main 未迁移但入口不依赖这些 re-export
+    pass

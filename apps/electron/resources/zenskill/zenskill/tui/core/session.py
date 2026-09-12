@@ -257,9 +257,8 @@ class ChatSession:
 
         # 注入 GTD 状态
         try:
-            from zenskill.core.database import db
-            rows = db.execute("SELECT count(*) as c FROM gtd_actions WHERE status != 'done'")
-            pending = rows[0]["c"] if rows else 0
+            from zenskill.systems.gtd.action import ActionEngine
+            pending = len(ActionEngine().list_pending(limit=10000))
             if pending:
                 ctx += f"\n## GTD 状态\n- 待处理 Actions: {pending} 个\n"
         except Exception:

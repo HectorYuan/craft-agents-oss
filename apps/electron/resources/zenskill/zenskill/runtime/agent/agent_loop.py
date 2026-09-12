@@ -88,11 +88,39 @@ class AgentLoopConfig:
     abort_event: Optional[asyncio.Event] = None
     on_entry: Optional[Callable] = None  # (message) -> None，每个新增消息回调（会话持久化）
     tool_executor: Optional[Callable] = None  # async (tool_call, params) -> ToolResultMessage，代理模式
+    source_context: Optional[Dict[str, Any]] = None  # 写前缀工具注入的来源标记（内部 kwargs，不入 inputSchema）
     max_turn_retries: int = 2  # 流式失败后 turn 级重试次数（0 = 不重试）
 
 
 def _model_name(model: Any) -> str:
     return str(getattr(model, "id", model))
+
+
+def _is_source_tracked_tool(name: str) -> bool:
+    """写前缀工具判定（来源标记注入范围）。
+
+    与 ServerToolRegistry.is_write_tool 同源判定，兼容 Mode C 的
+    mcp__ 前缀包装名；registry 导入失败回退到本地前缀表。
+    """
+    bare = name[5:] if name.startswith("mcp__") else name
+    try:
+        from ..mcp.registry import ServerToolRegistry
+        return ServerToolRegistry.is_write_tool(bare)
+    except Exception:
+        return bare.startswith(
+            ("gtd_", "inbox_", "action_", "project_", "incubating_"))
+
+
+def _with_source_context(
+    name: str, params: Dict[str, Any], source_context: Dict[str, Any]
+) -> Dict[str, Any]:
+    """写前缀工具调用注入来源标记（trusted 层覆盖 LLM 自带同名键）。
+
+    内部键经 arguments JSON 跨进程透传到 registry handler，
+    不改变工具 inputSchema（对外接口不变）。"""
+    if not _is_source_tracked_tool(name):
+        return params
+    return {**params, **source_context}
 
 
 # ---------------------------------------------------------------------------
@@ -473,6 +501,9 @@ class AgentLoop:
                     blocked.terminate = True
                 results[i] = blocked
                 continue
+            # 来源标记注入：veto 之后、执行之前（权限提示不暴露内部键）
+            if self.config.source_context:
+                params = _with_source_context(tc.name, params, self.config.source_context)
             pending.append((i, tool, params))
 
         # 阶段 2：执行（可选并行；on_update 事件实时流出，结果消息不落 context）

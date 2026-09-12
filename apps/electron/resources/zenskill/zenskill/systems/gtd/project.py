@@ -148,6 +148,12 @@ class ProjectEngine:
                 continue
         return projects
 
+    def list_active(self, limit: int = 5) -> list[GTDProject]:
+        """活跃项目（按创建时间倒序）— TUI/概览用"""
+        items = [p for p in self.list(status="all") if p.status == "active"]
+        items.sort(key=lambda p: p.created_at, reverse=True)
+        return items[:limit]
+
     def update(self, project_id: str, **kwargs) -> Optional[GTDProject]:
         proj = self.get(project_id)
         if not proj:

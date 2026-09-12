@@ -10,6 +10,7 @@ import asyncio
 import logging
 import importlib
 import os
+import sys
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, Optional
@@ -48,7 +49,7 @@ COMMAND_LIST = [
     "/dashboard", "/chat", "/growth", "/skills", "/mirror",
     "/knowledge", "/system", "/doctor", "/llm",
     "/help", "/clear", "/quit", "/version", "/history", "/agent",
-    "/diff", "/export", "/review", "/thinking", "/compact", "/theme", "/status",
+    "/diff", "/export", "/review", "/thinking", "/compact", "/inspect", "/memory", "/theme", "/status",
     "/d", "/c", "/g", "/s", "/m", "/k", "/h", "/q",
     "/skills list", "/growth report", "/growth compare",
     "/growth replay", "/growth errors", "/growth feedback",
@@ -112,30 +113,20 @@ class ZenRichTUI:
         self._current_page = "dashboard"
         self._pages: Dict[str, object] = {}
         self._total_cost = 0.0
-        self._agent_session = None  # lazy AgentChatSession
+        self._agent_session = None  # lazy AgentServerSession
         self._use_agent = use_agent
         self._last_feedback = ("", 0.0)  # T3 微反馈频控 (text, timestamp)
         self._shown_milestones = 0  # T5 已展示的 level_up 里程碑游标
         self._dirty_pages: set = set()  # X3: 需要重渲染的页面
 
     def _get_agent_session(self):
-        """懒加载 AgentSession（优先 AgentServerSession，fallback AgentChatSession）。"""
+        """懒加载 AgentServerSession（AgentChatSession 已退役）。"""
         if self._agent_session is None:
             model = self.session.model if self.session.model != "未配置" else None
-            try:
-                from ..core.agent_server_session import AgentServerSession
-                self._agent_session = AgentServerSession(
-                    model=model, with_memory=True, with_skills=True,
-                )
-            except Exception:
-                try:
-                    from ..core.agent_session import AgentChatSession
-                    self._agent_session = AgentChatSession(
-                        model=model, with_memory=True, with_skills=True,
-                    )
-                except Exception as e:
-                    self.console.print(f"[yellow]Agent engine 不可用: {e}，使用直接 LLM 路径[/yellow]")
-                    return None
+            from ..core.agent_server_session import AgentServerSession
+            self._agent_session = AgentServerSession(
+                model=model, with_memory=True, with_skills=True,
+            )
             # 会话健康检查提示（仅首次加载时触发一次）
             self._show_session_health_hints()
         return self._agent_session
@@ -230,7 +221,7 @@ class ZenRichTUI:
             try:
                 user_input = await self._get_input()
 
-                if not user_input:
+                if user_input is None or not user_input:
                     continue
 
                 # 数字键快捷导航: 1-5 切页面
@@ -269,8 +260,17 @@ class ZenRichTUI:
     # 输入处理 (带命令补全)
     # ═══════════════════════════════════════════════════════════════
 
-    async def _get_input(self) -> str:
-        """获取用户输入 -- prompt_toolkit + 命令自动补全 + 历史。"""
+    async def _get_input(self) -> str | None:
+        """获取用户输入 -- prompt_toolkit + 命令自动补全 + 历史。
+
+        返回 None 表示搜索模式下已消费输入（无需主循环处理）。
+        """
+        # 搜索模式：逐键输入，路由到 agent 页面
+        agent_page = self._pages.get("agent")
+        if agent_page and getattr(agent_page, "_search_mode", False):
+            await self._get_search_input(agent_page)
+            return None  # 搜索模式已消费，主循环无需处理
+
         try:
             from prompt_toolkit import PromptSession
             from prompt_toolkit.completion import WordCompleter
@@ -303,6 +303,90 @@ class ZenRichTUI:
         except ImportError:
             # fallback 到基础输入
             return input("❯ ").strip()
+
+    async def _get_search_input(self, agent_page) -> None:
+        """搜索模式下的逐键输入处理。Ctrl+C 退出搜索。"""
+        import sys
+        import tty
+        import termios
+
+        fd = sys.stdin.fileno()
+        old_settings = termios.tcgetattr(fd)
+        search_input = ""
+        try:
+            tty.setraw(fd)
+            while agent_page._search_mode:
+                # 读取单个字符（raw mode 下 os.read 返回字节）
+                ch = os.read(fd, 1)
+                if not ch:
+                    break
+                key = ch.decode("utf-8", errors="replace")
+
+                # Ctrl+C: 退出搜索
+                if ord(ch) == 3:
+                    agent_page._search_mode = False
+                    agent_page._search_input = ""
+                    agent_page._search_results = []
+                    break
+
+                # ESC 序列（arrow keys / backspace）
+                if ord(ch) == 27:
+                    seq = os.read(fd, 2)
+                    if seq == b"[A":
+                        key = "up"
+                    elif seq == b"[B":
+                        key = "down"
+                    elif seq == b"[C":
+                        key = "right"
+                    elif seq == b"[D":
+                        key = "left"
+                    elif seq == b"[3~":
+                        key = "delete"
+                    elif seq == b"OH":
+                        key = "home"
+                    elif seq == b"OF":
+                        key = "end"
+                    else:
+                        continue
+                elif ord(ch) == 127:
+                    key = "backspace"
+
+                # 路由到 agent 页面的 handle_key
+                agent_page.handle_key(key)
+
+                # 实时刷新：显示搜索状态
+                self._refresh_search_display(agent_page, search_input)
+                if key == "backspace":
+                    search_input = search_input[:-1] if search_input else ""
+                elif len(key) == 1 and key.isprintable():
+                    search_input += key
+
+                # Enter 键后检测会话切换请求
+                if key == "enter":
+                    # 检查并处理会话切换
+                    if agent_page._pending_session_switch:
+                        self._process_pending_session_switch(agent_page)
+                    break
+
+        finally:
+            termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+
+    def _refresh_search_display(self, agent_page, search_input: str) -> None:
+        """刷新搜索模式下的状态显示（单行覆盖）。"""
+        results = agent_page._search_results
+        selected = agent_page._selected_index
+        if results:
+            summary = f"  [{selected+1}/{len(results)}]"
+            if 0 <= selected < len(results):
+                r = results[selected]
+                sid = r.get("session_id", "")[:12]
+                content = r.get("content", "")[:40]
+                summary += f" {sid}... {content}"
+        else:
+            summary = "  (无匹配结果)" if search_input else "  (输入搜索关键词)"
+        # 用 \r + \033[K 清行后打印，避免残留字符
+        sys.stdout.write(f"\r\033[K/search {search_input}{summary}")
+        sys.stdout.flush()
 
     def _get_all_commands(self) -> list:
         """从 CommandRegistry 导出所有命令名用于自动补全。"""
@@ -425,6 +509,28 @@ class ZenRichTUI:
                 scope = parsed.action or parsed.args[0] if parsed.args else ""
                 base = parsed.args[1] if len(parsed.args) > 1 else ""
                 page.render(scope=scope, base=base)
+            return
+
+        if parsed.resource == "inspect":
+            from .pages.inspect import InspectPage
+            page = InspectPage(self.console, self._get_data())
+            skill_id = parsed.args[0] if parsed.args else "zenskill-core"
+            page.render(skill_id=skill_id)
+            return
+
+        if parsed.resource == "memory":
+            self._run_memory(parsed)
+            return
+
+        if parsed.resource == "agent":
+            if parsed.action == "mode":
+                self._switch_agent_mode(parsed)
+                return
+            page = self._pages.get("agent")
+            if page:
+                agent = self._get_agent_session()
+                info = agent.session_info() if agent else {}
+                page.render(agent_session=agent, **info)
             return
 
         if parsed.resource == "thinking":
@@ -626,7 +732,7 @@ class ZenRichTUI:
         reasoning_content = ""
         cancelled = False
         last_render = 0.0
-        tool_status = ""
+        tool_events: list = []  # 累积工具事件，多步不丢失
 
         def _md_render(force: bool = False):
             nonlocal last_render
@@ -641,8 +747,11 @@ class ZenRichTUI:
                 display = f"[dim italic]💭 {reasoning_content[-200:]}[/dim italic]"
             elif reasoning_content:
                 display = f"[dim italic]💭 思考完成[/dim italic]\n\n{full_content}"
-            if tool_status:
-                display = f"{display}\n\n{tool_status}" if display else tool_status
+            # 工具状态：最近 3 条
+            if tool_events:
+                tool_lines = [f"[dim]{e}[/dim]" for e in tool_events[-3:]]
+                tool_block = "\n".join(tool_lines)
+                display = f"{display}\n\n{tool_block}" if display else tool_block
             live.update(Markdown(display) if display else "")
 
         try:
@@ -663,19 +772,19 @@ class ZenRichTUI:
                         _md_render()
 
                     elif ctype == "tool_start":
-                        icon, color = _tool_style(ctext)
-                        tool_status = f"[dim]{icon} {ctext}[/dim]"
+                        icon, _ = _tool_style(ctext)
+                        tool_events.append(f"{icon} {ctext}")
                         _md_render(force=True)
 
                     elif ctype == "tool_progress":
-                        # 实时进度：截断显示最后 80 字符
-                        tail = ctext[-80:] if len(ctext) > 80 else ctext
-                        tool_status = f"[dim]{icon} {tail}[/dim]"
+                        if tool_events:
+                            icon, _ = _tool_style(ctext)
+                            tool_events[-1] = f"{icon} {ctext[-80:]}"  # 更新最后一条
                         _md_render(force=True)
 
                     elif ctype == "tool_end":
-                        icon, color = _tool_style(ctext)
-                        tool_status = f"[dim]{icon} {ctext}[/dim]"
+                        icon, _ = _tool_style(ctext)
+                        tool_events.append(f"{icon} {ctext} ✓")
                         _md_render(force=True)
 
                     elif ctype == "error":
@@ -686,10 +795,21 @@ class ZenRichTUI:
 
                 _md_render(force=True)
 
-            # 保存回复到 TUI session（兼容旧路径）
+            # 保存回复 + 统计
             if full_content:
                 self.session.receive("assistant", full_content)
                 self._total_cost += self._estimate_turn_cost(user_input, full_content)
+
+            # 响应统计
+            if full_content:
+                tool_count = len([e for e in tool_events if "✓" in e])
+                stats = []
+                if tool_count:
+                    stats.append(f"{tool_count} 工具调用")
+                if self._total_cost > 0:
+                    stats.append(format_cost(self._total_cost))
+                if stats:
+                    self.console.print(f"[dim]  {' │ '.join(stats)}[/dim]")
 
             # T3 微反馈（5 分钟同文频控）+ T5 升级仪式
             self._post_chat_companion()
@@ -885,6 +1005,56 @@ class ZenRichTUI:
         else:
             self.console.print(f"[yellow]页面 {self._current_page} 未实现[/yellow]")
 
+        # 检查 agent 页面的待处理会话切换请求
+        if self._current_page == "agent":
+            self._process_pending_session_switch(page)
+
+    def _process_pending_session_switch(self, page) -> None:
+        """处理 agent 页面触发的会话切换。"""
+        if not hasattr(page, "_pending_session_switch") or page._pending_session_switch is None:
+            return
+
+        session_id = page._pending_session_switch
+        page._pending_session_switch = None  # 消费标记
+
+        agent = self._get_agent_session()
+        if agent is None:
+            self.console.print("[yellow]Agent engine 未初始化，无法切换会话[/yellow]")
+            return
+
+        if agent._server is None:
+            self.console.print("[yellow]AgentServer 未就绪，无法切换会话[/yellow]")
+            return
+
+        try:
+            import asyncio
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                # 在事件循环内，用 ensure_future 避免死锁
+                asyncio.ensure_future(self._do_switch_session(agent, session_id))
+            else:
+                loop.run_until_complete(self._do_switch_session(agent, session_id))
+        except Exception as e:
+            self.console.print(f"[red]会话切换失败: {e}[/red]")
+
+    async def _do_switch_session(self, agent, session_id: str) -> None:
+        """异步执行会话切换。"""
+        try:
+            await agent._server.handle_command({
+                "type": "switch_session", "sessionId": session_id,
+            })
+            # 持久化新 session ID
+            from ..core.agent_session import _save_session_id
+            _save_session_id(session_id)
+            # 刷新 agent 页面显示
+            info = agent.session_info()
+            page = self._pages.get("agent")
+            if page:
+                page.render(agent_session=agent, **info)
+            self.console.print(f"[green]已切换到会话: {session_id[:16]}...[/green]")
+        except Exception as e:
+            self.console.print(f"[red]会话切换失败: {e}[/red]")
+
     # ═══════════════════════════════════════════════════════════════
     # 特殊页面
     # ═══════════════════════════════════════════════════════════════
@@ -955,22 +1125,29 @@ class ZenRichTUI:
         ))
 
     def _show_history(self):
-        """显示对话历史。"""
-        messages = self.session.get_history(n=20)
+        """显示对话历史（带时间戳 + 摘要）。"""
+        messages = self.session.get_history()
         if not messages:
             self.console.print("[dim]暂无对话历史[/dim]")
             return
 
-        table = Table(title=f"📜 对话历史 (最近 {len(messages)} 条)", show_lines=False)
-        table.add_column("角色", width=10)
-        table.add_column("内容", width=60)
+        total = len(messages)
+        user_count = sum(1 for m in messages if m.role == "user")
+        assistant_count = sum(1 for m in messages if m.role == "assistant")
 
-        for msg in messages:
+        recent = messages[-15:]  # 最近 15 条
+        table = Table(title=f"📜 对话历史 (共 {total} 条, 显示最近 {len(recent)} 条)", show_lines=False)
+        table.add_column("#", width=4)
+        table.add_column("角色", width=10)
+        table.add_column("内容", width=55)
+
+        for i, msg in enumerate(recent, total - len(recent) + 1):
             role_icon = {"user": "👤", "assistant": "🧘", "system": "⚙️"}.get(msg.role, "")
-            content = msg.content[:80] + ("..." if len(msg.content) > 80 else "")
-            table.add_row(f"{role_icon} {msg.role}", content)
+            content = msg.content[:55] + ("..." if len(msg.content) > 55 else "")
+            table.add_row(str(i), f"{role_icon} {msg.role}", content)
 
         self.console.print(table)
+        self.console.print(f"[dim]用户 {user_count} 条 │ 助手 {assistant_count} 条 │ /export 导出[/dim]")
 
     def _export_history(self):
         """导出对话历史到文件。"""
@@ -1028,6 +1205,42 @@ class ZenRichTUI:
             self._toast(f"主题已切换为 {theme_name}", "success")
         except Exception as e:
             self._toast(f"主题切换失败: {e}", "error")
+
+    def _switch_agent_mode(self, parsed):
+        """/agent mode chat|agent -- 切换对话模式。"""
+        mode = parsed.args[0] if parsed.args else ""
+        if mode == "chat":
+            self._use_agent = False
+            self._toast("对话模式: 直接 LLM", "info")
+        elif mode == "agent":
+            self._use_agent = True
+            self._agent_session = None  # 强制重新初始化
+            self._toast("对话模式: Agent Engine", "info")
+        else:
+            current = "Agent Engine" if self._use_agent else "直接 LLM"
+            self._toast(f"当前模式: {current}，用法: /agent mode chat|agent", "warning")
+
+    def _run_memory(self, parsed):
+        """/memory add <content> -- 写入记忆。"""
+        action = parsed.action
+        if action == "add" and parsed.args:
+            content = " ".join(parsed.args)
+            try:
+                from zenskill.core.memory.memory_store import MemoryStore, MemoryEntry, MemoryType
+                store = MemoryStore()
+                entry = MemoryEntry(
+                    content=content,
+                    memory_type=MemoryType.FACT,
+                    tags=["tui"],
+                )
+                store.remember(entry)
+                self._toast(f"记忆已保存: {content[:50]}...", "success")
+            except Exception as e:
+                self._toast(f"记忆保存失败: {e}", "error")
+        elif action == "add" and not parsed.args:
+            self._toast("用法: /memory add <内容>", "warning")
+        else:
+            self._toast(f"/memory {action or ''} — 支持 add 子命令", "warning")
 
     def _run_thinking(self, parsed):
         """切换 thinking level。"""
