@@ -1877,7 +1877,7 @@
   "zenskill.gtd.projects.formOutcome": "预期成果（可选）",
   "zenskill.gtd.projects.toggle": "查看项目行动",
   "zenskill.gtd.review.doneToday": "今日完成",
-  "zenskill.gtd.review.energy": "能量 {level} {pct}%",
+  "zenskill.gtd.review.energy": "能量 {{level}} {{pct}}%",
   "zenskill.gtd.review.overdue": "逾期",
   "zenskill.gtd.review.pending": "待处理",
   "zenskill.gtd.subtitle": "收件箱、行动、日历与项目",

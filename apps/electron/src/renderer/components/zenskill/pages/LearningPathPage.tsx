@@ -11,7 +11,9 @@ import { useMcpTool } from '@/hooks/zenskill/useMcpTool'
 import { ZS } from '../panels/tokens'
 import { ErrorBoundary } from '../panels/ErrorBoundary'
 
-const ZENSKILL_SOURCE_SLUG = 'zenskill'
+// Must match ZENSKILL_SOURCE_SLUG in ../zenskill-registry. Imported values are
+// avoided here because the registry imports every page (import cycle).
+const ZENSKILL_SOURCE_SLUG = 'zenskill-4'
 
 interface LearningStep {
   skill_id: string

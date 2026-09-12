@@ -108,6 +108,7 @@ import { initNotificationService, initBadgeIcon, initInstanceBadge, updateBadgeC
 import { checkForUpdatesOnLaunch, setAutoUpdateEventSink, isUpdating, setBeforeUpdateQuitHook, setBeforeUpdateInstallHook, setInstallQuitFailedHook } from './auto-update'
 import type { EventSink } from '@craft-agent/server-core/transport'
 import { validateGitBashPath, checkVCRedistInstalled } from '@craft-agent/server-core/services'
+import { seedZenskillSource } from '@craft-agent/shared/sources'
 
 // Initialize electron-log for renderer process support
 log.initialize()
@@ -331,6 +332,17 @@ async function createInitialWindows(): Promise<void> {
     addWorkspace({ rootPath: defaultPath, name: 'My Workspace' })
     workspaces = getWorkspaces() // Refresh after creation
     mainLog.info('Created default workspace on first run')
+  }
+
+  // Seed the bundled ZenSkill MCP source into workspaces that don't have one.
+  // Fresh installs ship the engine pack (resources/zenskill) but no source
+  // config, so every ZenSkill page would otherwise report "Source not found".
+  for (const ws of workspaces) {
+    try {
+      seedZenskillSource(ws.rootPath)
+    } catch (error) {
+      mainLog.warn(`Failed to seed ZenSkill source in ${ws.id}:`, error)
+    }
   }
 
   const validWorkspaceIds = workspaces.map(ws => ws.id)

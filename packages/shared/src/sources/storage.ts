@@ -10,6 +10,7 @@
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync, readdirSync, rmSync } from 'fs';
 import { join, basename } from 'path';
+import { homedir } from 'os';
 import { randomUUID } from 'crypto';
 import type {
   FolderSourceConfig,
@@ -581,6 +582,14 @@ export function deleteSource(workspaceRootPath: string, sourceSlug: string): voi
   if (existsSync(dir)) {
     rmSync(dir, { recursive: true });
   }
+}
+
+/**
+ * Marker file written when the user deletes the seeded ZenSkill source, so the
+ * seed doesn't resurrect it on the next startup.
+ */
+export function getZenskillSeedDismissMarker(): string {
+  return join(homedir(), '.craft-agent', 'zenskill-source.dismissed');
 }
 
 /**

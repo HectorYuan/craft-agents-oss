@@ -1877,7 +1877,7 @@
   "zenskill.gtd.projects.formOutcome": "Outcome (optional)",
   "zenskill.gtd.projects.toggle": "Show project actions",
   "zenskill.gtd.review.doneToday": "Done today",
-  "zenskill.gtd.review.energy": "Energy {level} {pct}%",
+  "zenskill.gtd.review.energy": "Energy {{level}} {{pct}}%",
   "zenskill.gtd.review.overdue": "Overdue",
   "zenskill.gtd.review.pending": "Pending",
   "zenskill.gtd.subtitle": "Inbox, actions, calendar, and projects",
