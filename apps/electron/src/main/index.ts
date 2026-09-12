@@ -8,6 +8,7 @@ import { createHash, randomUUID } from 'crypto'
 import { hostname, homedir } from 'os'
 import * as Sentry from '@sentry/electron/main'
 import { redactSensitiveHeadersInPlace, redactSensitiveKeysInPlace } from '@craft-agent/shared/utils'
+import { APP_NAME, SCHEME } from '@craft-agent/shared/brand'
 
 // Initialize Sentry error tracking as early as possible after app import.
 // Only enabled in production (packaged) builds to avoid noise during development.
@@ -99,6 +100,7 @@ import { setBundledAssetsRoot } from '@craft-agent/shared/utils'
 import { initializeBackendHostRuntime } from '@craft-agent/shared/agent/backend'
 import { setPowerShellValidatorRoot } from '@craft-agent/shared/agent'
 import { handleDeepLink } from './deep-link'
+import { migrateLegacyUserData } from './user-data-migration'
 import { BrowserPaneManager } from './browser-pane-manager'
 import { OAuthFlowStore } from '@craft-agent/shared/auth'
 import { registerThumbnailScheme, registerThumbnailHandler } from './thumbnail-protocol'
@@ -191,9 +193,9 @@ if (isDebugMode) {
 // shared-side default resolver returns [] for the dead providerType==='pi'
 // branch, and the pi-ai SDK is no longer a dependency.
 
-// Custom URL scheme for deeplinks (e.g., craftagents://auth-complete)
-// Supports multi-instance dev: CRAFT_DEEPLINK_SCHEME env var (craftagents1, craftagents2, etc.)
-const DEEPLINK_SCHEME = process.env.CRAFT_DEEPLINK_SCHEME || 'craftagents'
+// Custom URL scheme for deeplinks (e.g., zenskill://auth-complete)
+// Supports multi-instance dev: CRAFT_DEEPLINK_SCHEME env var (zenskill1, zenskill2, etc.)
+const DEEPLINK_SCHEME = process.env.CRAFT_DEEPLINK_SCHEME || SCHEME
 
 let windowManager: WindowManager | null = null
 let sessionManager: SessionManager | null = null
@@ -214,9 +216,15 @@ let pendingDeepLink: string | null = null
 
 // Set app name early (before app.whenReady) to ensure correct macOS menu bar title
 // Supports multi-instance dev: CRAFT_APP_NAME env var (e.g., "Craft Agents [1]")
-app.setName(process.env.CRAFT_APP_NAME || 'Craft Agents')
+app.setName(process.env.CRAFT_APP_NAME || APP_NAME)
 
-// Register as default protocol client for craftagents:// URLs
+// One-time migration of legacy "%APPDATA%\Craft Agents" userData into the new
+// "%APPDATA%\ZenSkill" directory (copy → verify → rename legacy to backup).
+// Placed immediately after setName and before anything opens handles into the
+// data directory. No-op on fresh installs; ZENSKILL_DATA_MIGRATE=0 skips it.
+migrateLegacyUserData()
+
+// Register as default protocol client for zenskill:// URLs
 // This must be done before app.whenReady() on some platforms
 if (process.defaultApp) {
   // Development mode: need to pass the app path
