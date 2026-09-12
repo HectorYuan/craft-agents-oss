@@ -70,6 +70,11 @@ def to_openai_messages(system_prompt: Optional[str], messages: List[Message]) ->
         elif isinstance(m, AssistantMessage):
             text = m.text()
             tool_calls = m.tool_calls()
+            if not text and not tool_calls:
+                # 错误空壳消息（如 HTTP 402/400 失败产物）无任何可发内容；
+                # OpenAI 类 API 要求 assistant 消息必须带 content 或 tool_calls，
+                # 原样发送会被整个请求拒绝（400）并随历史滚雪球锁死会话
+                continue
             entry: Dict[str, Any] = {"role": "assistant"}
             entry["content"] = text if text else None
             if tool_calls:

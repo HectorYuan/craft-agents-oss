@@ -200,7 +200,7 @@ describe('refreshConnectionRuntime', () => {
   it('records customModels with the per-model supportsImages flag in the IPC payload', async () => {
     // End-to-end shape check: the helper forwards the connection's model list
     // on `runtime.customModels`. This environment has no stored 'slug-A'
-    // connection (config dir is the developer's real ~/.craft-agent), so the
+    // connection (config dir is the developer's real ~/.zenskill), so the
     // payload's `runtime` is legitimately undefined — the connection-dependent
     // mapping itself is covered deterministically by the pure-helper tests
     // below (mapConnectionModelsToCustomModels).

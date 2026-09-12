@@ -47,6 +47,26 @@ def strip_tools_from_payload(payload: dict) -> dict:
     return stripped
 
 
+# 4xx 中仍属瞬时、值得重试的例外：请求超时 / 限频
+_RETRYABLE_4XX = {408, 429}
+
+
+def is_permanent_http_error(error: Optional[str]) -> bool:
+    """判定错误是否为永久性 HTTP 4xx（如 400/401/402/403/404/422）。
+
+    这类错误重试必然同样失败（余额不足、请求体非法等），turn 级重试应跳过。
+    匹配 retry_post 的错误格式前缀 "HTTP <code>:"；408/429 与无 HTTP 前缀的
+    错误（连接中断等）均视为瞬时，返回 False。
+    """
+    if not error:
+        return False
+    m = re.match(r"HTTP (\d{3}):", error)
+    if not m:
+        return False
+    code = int(m.group(1))
+    return 400 <= code < 500 and code not in _RETRYABLE_4XX
+
+
 def compute_backoff(
     retry_count: int,
     base_delay: float = 0.5,

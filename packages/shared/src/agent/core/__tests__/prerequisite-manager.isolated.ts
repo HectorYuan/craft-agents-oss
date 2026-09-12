@@ -6,8 +6,8 @@
  */
 import { describe, it, expect, beforeEach, mock } from 'bun:test';
 import { existsSync } from 'node:fs';
-import { homedir } from 'node:os';
 import { resolve, join } from 'node:path';
+import { CONFIG_DIR } from '../../../config/paths.ts';
 import { PrerequisiteManager } from '../prerequisite-manager.ts';
 
 // Mock existsSync to control guide.md existence
@@ -27,7 +27,7 @@ function guidePath(slug: string): string {
 }
 
 function browserDocPath(): string {
-  return resolve(join(homedir(), '.craft-agent', 'docs', 'browser-tools.md'));
+  return resolve(join(CONFIG_DIR, 'docs', 'browser-tools.md'));
 }
 
 describe('PrerequisiteManager', () => {

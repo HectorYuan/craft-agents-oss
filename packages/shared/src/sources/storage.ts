@@ -10,8 +10,8 @@
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync, readdirSync, rmSync } from 'fs';
 import { join, basename } from 'path';
-import { homedir } from 'os';
 import { randomUUID } from 'crypto';
+import { CONFIG_DIR } from '../config/paths.ts';
 import type {
   FolderSourceConfig,
   SourceGuide,
@@ -333,7 +333,7 @@ export { isIconUrl } from '../utils/icon.ts';
 
 /**
  * Load complete source with all files
- * @param workspaceRootPath - Absolute path to workspace folder (e.g., ~/.craft-agent/workspaces/xxx)
+ * @param workspaceRootPath - Absolute path to workspace folder (e.g., ~/.zenskill/workspaces/xxx)
  * @param sourceSlug - Source folder name
  */
 export function loadSource(workspaceRootPath: string, sourceSlug: string): LoadedSource | null {
@@ -589,7 +589,7 @@ export function deleteSource(workspaceRootPath: string, sourceSlug: string): voi
  * seed doesn't resurrect it on the next startup.
  */
 export function getZenskillSeedDismissMarker(): string {
-  return join(homedir(), '.craft-agent', 'zenskill-source.dismissed');
+  return join(CONFIG_DIR, 'zenskill-source.dismissed');
 }
 
 /**

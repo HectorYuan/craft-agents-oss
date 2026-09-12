@@ -3,7 +3,7 @@
  *
  * A fresh install ships the ZenSkill engine pack under resources/zenskill but
  * no user-facing configuration: sources are workspace data living under
- * ~/.craft-agent/workspaces/<id>/sources/. This module seeds a ready-to-use
+ * ~/.zenskill/workspaces/<id>/sources/. This module seeds a ready-to-use
  * ZenSkill MCP source into workspaces that don't have one, so ZenSkill tools
  * (GTD inbox, memory, skills, growth) resolve out of the box.
  *
@@ -19,8 +19,8 @@
 
 import { existsSync, readdirSync } from 'fs';
 import { join } from 'path';
-import { homedir } from 'os';
 import { randomUUID } from 'crypto';
+import { CONFIG_DIR } from '../config/paths.ts';
 import type { FolderSourceConfig } from './types.ts';
 import {
   getZenskillSeedDismissMarker,
@@ -116,7 +116,7 @@ function buildZenskillConfig(): FolderSourceConfig | null {
       ],
       env: {
         // Keep uv's virtualenv out of a potentially read-only install dir.
-        UV_PROJECT_ENVIRONMENT: join(homedir(), '.craft-agent', 'zenskill', 'venv'),
+        UV_PROJECT_ENVIRONMENT: join(CONFIG_DIR, 'zenskill', 'venv'),
       },
     },
     isAuthenticated: true,

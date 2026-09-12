@@ -237,9 +237,17 @@ class Session:
         return collected, model
 
     def build_context(self, leaf_id: Optional[str] = None) -> Dict[str, Any]:
-        """产出 {messages, model}；分支上的 compaction entry 把被压缩前缀替换为摘要"""
+        """产出 {messages, model}；分支上的 compaction entry 把被压缩前缀替换为摘要。
+
+        空壳 assistant（错误/中止残留，无 text 无 tool_calls）不进 LLM 上下文，
+        避免下一轮请求被 API 以 400 拒绝；jsonl 中仍保留供 UI 展示。
+        """
         collected, model = self.collect_pairs(leaf_id)
-        return {"messages": [m for _, m in collected], "model": model}
+        messages = [
+            m for _, m in collected
+            if not (isinstance(m, AssistantMessage) and not m.text() and not m.tool_calls())
+        ]
+        return {"messages": messages, "model": model}
 
 
 _health_hint_shown = False
