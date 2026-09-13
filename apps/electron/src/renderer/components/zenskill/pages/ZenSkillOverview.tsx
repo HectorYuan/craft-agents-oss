@@ -18,8 +18,7 @@ import { filterScores } from '../panels/GrowthCard'
 import { InsightsPanel } from '../panels/InsightsPanel'
 import { ErrorBoundary } from '../panels/ErrorBoundary'
 import { ZS } from '../panels/tokens'
-
-const ZENSKILL_SOURCE_SLUG = 'zenskill'
+import { ZENSKILL_SOURCE_SLUG } from '../zenskill-registry'
 
 interface ShareCardPayload {
   image_base64?: string

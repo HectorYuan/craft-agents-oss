@@ -180,8 +180,12 @@ export function getModelIdByShortName(shortName: string): string {
 // Used ONLY when writing defaults to LLM connection config (not as runtime fallbacks).
 // ============================================
 
-/** Default model for Anthropic connections (used when creating/backfilling connections) */
-export const DEFAULT_MODEL = getModelIdByShortName('Opus');
+/**
+ * Default model for zenskill connections (used when creating/backfilling
+ * connections and as the last-resort runtime fallback). The engine resolves
+ * `provider/model` IDs (see zenskill runtime resolve_model()).
+ */
+export const DEFAULT_MODEL = 'deepseek/deepseek-v4-flash';
 
 
 // ============================================
@@ -189,7 +193,8 @@ export const DEFAULT_MODEL = getModelIdByShortName('Opus');
 // ============================================
 
 /**
- * Get the default summarization model ID (Haiku).
+ * Get the default summarization model ID (registry's "Haiku"-class cheap
+ * model; falls back to DEFAULT_MODEL when the registry has no Haiku entry).
  * Used as fallback when no connection context is available
  * (e.g., url-validator, mcp/validation, summarize.ts without modelOverride).
  *

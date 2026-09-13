@@ -1010,27 +1010,35 @@ export class ZenskillAgent extends BaseAgent {
   // ============================================================
 
   override async runMiniCompletion(prompt: string): Promise<string | null> {
-    try {
-      await this.ensureSubprocess();
-      const id = `mc-${++this.rpcIdCounter}`;
-      return await new Promise<string | null>((resolve) => {
-        const timeout = setTimeout(() => resolve(null), 30000);
-        const handler = (line: string) => {
-          try {
-            const msg = JSON.parse(line);
-            if (msg.type === 'response' && msg.command === 'mini_completion' && msg.id === id) {
-              clearTimeout(timeout);
-              this.readline?.off('line', handler);
-              resolve(msg.success ? msg.data?.text ?? null : null);
+    // Errors are propagated (reject) instead of swallowed as null so callers
+    // can surface the real failure — e.g. testBackendConnection shows the
+    // provider error instead of a generic "no response" hint. Callers that
+    // treat failure as "no result" (title generation, summarization) already
+    // wrap this in try/catch.
+    await this.ensureSubprocess();
+    const id = `mc-${++this.rpcIdCounter}`;
+    return await new Promise<string | null>((resolve, reject) => {
+      const timeout = setTimeout(() => resolve(null), 30000);
+      const handler = (line: string) => {
+        try {
+          const msg = JSON.parse(line);
+          if (msg.type === 'response' && msg.command === 'mini_completion' && msg.id === id) {
+            clearTimeout(timeout);
+            this.readline?.off('line', handler);
+            if (msg.success) {
+              resolve(msg.data?.text ?? null);
+            } else {
+              const error = typeof msg.error === 'string' && msg.error.trim()
+                ? msg.error.trim()
+                : 'mini_completion failed (no error detail from engine)';
+              reject(new Error(error));
             }
-          } catch { /* ignore */ }
-        };
-        this.readline?.on('line', handler);
-        this.send({ type: 'mini_completion', id, prompt });
-      });
-    } catch {
-      return null;
-    }
+          }
+        } catch { /* ignore */ }
+      };
+      this.readline?.on('line', handler);
+      this.send({ type: 'mini_completion', id, prompt });
+    });
   }
 
   override async queryLlm(_request: LLMQueryRequest): Promise<LLMQueryResult> {

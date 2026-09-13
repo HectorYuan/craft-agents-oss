@@ -17,13 +17,40 @@
 // Set `ZENSKILL_DATA_MIGRATE=0` to skip migration entirely.
 
 import { app } from 'electron'
-import { cpSync, existsSync, readdirSync, renameSync, rmSync } from 'node:fs'
+import { cpSync, existsSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { APP_NAME } from '@craft-agent/shared/brand'
 import { mainLog } from './logger'
 
 const LEGACY_APP_DIR_NAME = 'Craft Agents'
 const LEGACY_BACKUP_SUFFIX = '.migrated-bak'
+
+/**
+ * Post-migration fixup (R1): a migrated config.json can carry
+ * `setupDeferred: true` from the legacy install even though the user never
+ * finished onboarding (empty llmConnections). Without this, the rebranded app
+ * would skip onboarding forever and start with no working LLM connection.
+ * Clears the deferred flag only when no LLM connection was migrated.
+ */
+function clearStaleSetupDeferred(newPath: string): void {
+  const configPath = join(newPath, 'config.json')
+  if (!existsSync(configPath)) return
+  try {
+    const raw = readFileSync(configPath, 'utf8')
+    const config = JSON.parse(raw) as Record<string, unknown>
+    if (config?.setupDeferred !== true) return
+    const connections = config?.llmConnections
+    if (Array.isArray(connections) && connections.length > 0) return
+    delete config.setupDeferred
+    writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf8')
+    mainLog.info('[UserDataMigration] Cleared stale setupDeferred in migrated config.json')
+  } catch (error) {
+    // Formatting/parse issues must never fail the migration.
+    mainLog.warn('[UserDataMigration] Failed to inspect config.json after migration', {
+      error: String(error),
+    })
+  }
+}
 
 /** Recursively count files under `dir` (files only, directories excluded). */
 function countFilesRecursive(dir: string): number {
@@ -71,6 +98,7 @@ export function migrateLegacyUserData(): void {
     }
 
     renameSync(legacyPath, backupPath)
+    clearStaleSetupDeferred(newPath)
     mainLog.info('[UserDataMigration] Migration complete', { files: copied, backup: backupPath })
   } catch (error) {
     // Roll back: drop the partial copy, keep the legacy directory untouched.

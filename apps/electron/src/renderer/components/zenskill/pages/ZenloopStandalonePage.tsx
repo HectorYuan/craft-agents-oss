@@ -11,8 +11,7 @@ import { useMcpTool } from '@/hooks/zenskill/useMcpTool'
 import { ZS } from '../panels/tokens'
 import { ErrorBoundary } from '../panels/ErrorBoundary'
 import { IncubatingPanel } from '../panels/IncubatingPanel'
-
-const ZENSKILL_SOURCE_SLUG = 'zenskill'
+import { ZENSKILL_SOURCE_SLUG } from '../zenskill-registry'
 
 interface ZenloopStatusData {
   active?: number

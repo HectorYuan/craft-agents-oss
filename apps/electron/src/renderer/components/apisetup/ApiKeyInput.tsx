@@ -150,6 +150,9 @@ const COMPAT_ANTHROPIC_DEFAULTS = 'claude-opus-4-8, claude-opus-4-7, claude-sonn
 const COMPAT_OPENAI_DEFAULTS = 'openai/gpt-5.2-codex, openai/gpt-5.1-codex-mini'
 const COMPAT_MINIMAX_DEFAULTS = 'MiniMax-M2.5, MiniMax-M2.5-highspeed'
 const COMPAT_KIMI_DEFAULTS = 'k3, kimi-for-coding, kimi-for-coding-highspeed'
+// DeepSeek preset suggestion — bare ID the ZenSkill engine resolves via its
+// PREDEFINED_MODELS catalog (users can still edit it).
+const DEEPSEEK_DEFAULT_MODEL = 'deepseek-v4-flash'
 
 function getPresetsForProvider(providerType: 'anthropic' | 'openai' | 'pi' | 'google' | 'pi_api_key'): Preset[] {
   if (providerType === 'pi_api_key') return ANTHROPIC_PRESETS
@@ -297,6 +300,8 @@ export function ApiKeyInput({
       setConnectionDefaultModel(COMPAT_KIMI_DEFAULTS)
     } else if (preset.key === 'manifest') {
       setConnectionDefaultModel('auto')
+    } else if (preset.key === 'deepseek') {
+      setConnectionDefaultModel(DEEPSEEK_DEFAULT_MODEL)
     } else if (preset.key === 'custom' || OPENAI_COMPAT_CUSTOM_URL_PRESETS.has(preset.key)) {
       setConnectionDefaultModel(providerType === 'openai' ? COMPAT_OPENAI_DEFAULTS : COMPAT_ANTHROPIC_DEFAULTS)
     } else {
@@ -326,6 +331,8 @@ export function ApiKeyInput({
         setConnectionDefaultModel(COMPAT_MINIMAX_DEFAULTS)
       } else if (presetKey === 'kimi-coding') {
         setConnectionDefaultModel(COMPAT_KIMI_DEFAULTS)
+      } else if (presetKey === 'deepseek') {
+        setConnectionDefaultModel(DEEPSEEK_DEFAULT_MODEL)
       } else if (presetKey === 'openrouter' || presetKey === 'vercel-ai-gateway' || presetKey === 'custom') {
         setConnectionDefaultModel(providerType === 'openai' ? COMPAT_OPENAI_DEFAULTS : COMPAT_ANTHROPIC_DEFAULTS)
       }
@@ -804,7 +811,11 @@ export function ApiKeyInput({
                 setConnectionDefaultModel(e.target.value)
                 setModelError(null)
               }}
-              placeholder="e.g. claude-opus-4-8, claude-opus-4-7, claude-sonnet-4-6, claude-haiku-4-5"
+              placeholder={
+                activePreset === 'deepseek'
+                  ? 'e.g. deepseek-v4-flash, deepseek-v4-pro'
+                  : 'e.g. claude-opus-4-8, claude-opus-4-7, claude-sonnet-4-6, claude-haiku-4-5'
+              }
               className="border-0 bg-transparent shadow-none"
               disabled={isDisabled}
             />

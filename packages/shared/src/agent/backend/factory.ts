@@ -581,7 +581,7 @@ export function getDefaultAuthType(provider: AgentProvider): LlmAuthType | undef
  * Resolve the model ID for a given provider, validating against the connection's model list.
  *
  * Each provider has different defaults and validation:
- * - Anthropic: falls back to DEFAULT_MODEL (Opus)
+ * - Zenskill: falls back to DEFAULT_MODEL (deepseek/deepseek-v4-flash)
  * - Pi: falls back to empty string (Pi selects model internally)
  *
  * @param provider - The agent provider
@@ -721,7 +721,12 @@ export async function testBackendConnection(args: {
     try {
       const timeoutMs = args.timeoutMs ?? 20000;
       const text = await Promise.race([
-        agent.runMiniCompletion('Say ok'),
+        // Surface the engine's actual failure instead of a generic hint
+        // (runMiniCompletion rejects with the provider error since R3).
+        agent.runMiniCompletion('Say ok').catch((completionError) => {
+          const detail = completionError instanceof Error ? completionError.message : String(completionError);
+          throw new Error(withStderrContext(`No response from provider: ${detail}`));
+        }),
         new Promise<never>((_, reject) =>
           setTimeout(
             () => reject(new Error(withStderrContext(`Connection test timed out after ${timeoutMs}ms`))),
@@ -730,6 +735,7 @@ export async function testBackendConnection(args: {
         ),
       ]);
 
+      // Fallback for the degenerate "success but empty text" case.
       return text
         ? { success: true }
         : { success: false, error: 'No response from provider. Check your API key.' };

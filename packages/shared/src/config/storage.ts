@@ -1885,16 +1885,20 @@ function withUpdatedModelEntry(
   entry: ModelDefinition | string,
   nextId: string,
 ): ModelDefinition | string {
+  // The registry may not carry Claude entries anymore (R2 DeepSeek catalog);
+  // fall back to the bare ID instead of spreading `undefined` into config.
+  const opusEntry = nextId === OPUS_DEFAULT_ID ? getModelById(OPUS_DEFAULT_ID) : undefined;
+
   if (typeof entry === 'string') {
-    if (connection.providerType === 'anthropic' && nextId === OPUS_DEFAULT_ID) {
-      return { ...getModelById(OPUS_DEFAULT_ID)! };
+    if (connection.providerType === 'anthropic' && opusEntry) {
+      return { ...opusEntry };
     }
     return nextId;
   }
 
   const nextEntry: ModelDefinition = { ...entry, id: nextId };
-  if (connection.providerType === 'anthropic' && nextId === OPUS_DEFAULT_ID) {
-    return { ...getModelById(OPUS_DEFAULT_ID)! };
+  if (connection.providerType === 'anthropic' && opusEntry) {
+    return { ...opusEntry };
   }
   if (nextEntry.name && /Opus 4\.[56]/.test(nextEntry.name)) {
     nextEntry.name = displayNameForMigratedModel(nextId);
@@ -1904,7 +1908,10 @@ function withUpdatedModelEntry(
 
 function modelEntryForDefault(connection: LlmConnection, modelId: string): ModelDefinition | string {
   if (connection.providerType === 'anthropic' && modelId === OPUS_DEFAULT_ID) {
-    return { ...getModelById(OPUS_DEFAULT_ID)! };
+    // The registry may not carry Claude entries anymore (R2 DeepSeek catalog);
+    // fall back to the bare ID instead of spreading `undefined` into config.
+    const registered = getModelById(OPUS_DEFAULT_ID);
+    if (registered) return { ...registered };
   }
   return modelId;
 }

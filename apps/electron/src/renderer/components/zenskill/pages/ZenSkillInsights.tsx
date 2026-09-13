@@ -12,8 +12,7 @@ import { InsightsPanel, type Insight } from '../panels/InsightsPanel'
 import { ErrorBoundary } from '../panels/ErrorBoundary'
 import { PageToChatBridge } from '../PageToChatBridge'
 import { ZS } from '../panels/tokens'
-
-const ZENSKILL_SOURCE_SLUG = 'zenskill'
+import { ZENSKILL_SOURCE_SLUG } from '../zenskill-registry'
 
 interface InsightsData {
   items?: { type?: string; title?: string; content?: string; level?: string }[]

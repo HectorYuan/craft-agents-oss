@@ -128,30 +128,57 @@ function buildZenskillConfig(): FolderSourceConfig | null {
 /**
  * Seed the ZenSkill MCP source into a workspace if it has none.
  * Idempotent; safe to call for every workspace on every startup.
+ *
+ * Self-heal (R6): when the source config already exists but points
+ * mcp.command at a file that no longer exists (e.g. a uv path from a
+ * pre-migration install location), the command/args/env are rewritten with
+ * the current install's paths instead of being skipped forever.
  */
 export function seedZenskillSource(workspaceRootPath: string): void {
   try {
     if (existsSync(getZenskillSeedDismissMarker())) return;
 
-    const sourcesDir = join(workspaceRootPath, 'sources');
-    const existing = existsSync(sourcesDir)
-      ? readdirSync(sourcesDir).filter((s) => s.startsWith('zenskill'))
-      : [];
-    if (existing.length > 0) {
-      debug(
-        `[zenskill-seed] Workspace already has ZenSkill source(s): ${existing.join(', ')}`
-      );
+    const config = loadSourceConfig(workspaceRootPath, ZENSKILL_SOURCE_SLUG);
+
+    if (!config) {
+      const sourcesDir = join(workspaceRootPath, 'sources');
+      const existing = existsSync(sourcesDir)
+        ? readdirSync(sourcesDir).filter((s) => s.startsWith('zenskill'))
+        : [];
+      if (existing.length > 0) {
+        debug(
+          `[zenskill-seed] Workspace already has ZenSkill source(s): ${existing.join(', ')}`
+        );
+        return;
+      }
+
+      const fresh = buildZenskillConfig();
+      if (!fresh) return;
+
+      saveSourceConfig(workspaceRootPath, fresh);
+      saveSourceGuide(workspaceRootPath, ZENSKILL_SOURCE_SLUG, { raw: ZENSKILL_GUIDE });
+      debug(`[zenskill-seed] Seeded ${ZENSKILL_SOURCE_SLUG} into ${workspaceRootPath}`);
       return;
     }
 
-    if (loadSourceConfig(workspaceRootPath, ZENSKILL_SOURCE_SLUG)) return;
-
-    const config = buildZenskillConfig();
-    if (!config) return;
-
-    saveSourceConfig(workspaceRootPath, config);
-    saveSourceGuide(workspaceRootPath, ZENSKILL_SOURCE_SLUG, { raw: ZENSKILL_GUIDE });
-    debug(`[zenskill-seed] Seeded ${ZENSKILL_SOURCE_SLUG} into ${workspaceRootPath}`);
+    // Source exists — repair stale engine paths left over from an old
+    // install location (no-op when the configured command still exists).
+    const engineDir = resolveEngineDir();
+    const uvPath = resolveUvPath();
+    if (!engineDir || !uvPath) {
+      debug('[zenskill-seed] Self-heal skipped: engine pack or bundled uv not found');
+      return;
+    }
+    if (applyZenskillSelfHeal(config, {
+      uvPath,
+      engineDir,
+      venvDir: join(CONFIG_DIR, 'zenskill', 'venv'),
+    })) {
+      saveSourceConfig(workspaceRootPath, config);
+      debug(
+        `[zenskill-seed] Self-healed stale engine paths for ${ZENSKILL_SOURCE_SLUG} in ${workspaceRootPath}`
+      );
+    }
   } catch (error) {
     // Never block startup over seeding.
     debug(
@@ -159,4 +186,44 @@ export function seedZenskillSource(workspaceRootPath: string): void {
       error instanceof Error ? error.message : String(error)
     );
   }
+}
+
+/**
+ * Rewrite a ZenSkill source config whose `mcp.command` points at a missing
+ * file: command/args are replaced with the current install's uv + engine
+ * pack paths, and UV_PROJECT_ENVIRONMENT is re-derived from CONFIG_DIR when
+ * it references the legacy `.craft-agent` directory.
+ *
+ * Pure (no fs/IO apart from the caller's existsSync inputs decision) and
+ * exported for tests. Returns true when `config` was mutated.
+ */
+export function applyZenskillSelfHeal(
+  config: FolderSourceConfig,
+  paths: { uvPath: string; engineDir: string; venvDir: string }
+): boolean {
+  const mcp = config.mcp;
+  if (!mcp || mcp.transport !== 'stdio' || !mcp.command) return false;
+  if (existsSync(mcp.command)) return false; // command still valid — nothing to heal
+
+  mcp.command = paths.uvPath;
+  mcp.args = [
+    'run',
+    '--project',
+    paths.engineDir,
+    '--python',
+    '3.12',
+    'zenskill',
+    'mcp',
+    'serve',
+  ];
+
+  const env = { ...mcp.env };
+  if (
+    !env.UV_PROJECT_ENVIRONMENT ||
+    env.UV_PROJECT_ENVIRONMENT.includes('.craft-agent')
+  ) {
+    env.UV_PROJECT_ENVIRONMENT = paths.venvDir;
+  }
+  mcp.env = env;
+  return true;
 }

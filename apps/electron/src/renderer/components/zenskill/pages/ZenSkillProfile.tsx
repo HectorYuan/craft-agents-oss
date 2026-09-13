@@ -21,8 +21,7 @@ import { filterScores } from '../panels/GrowthCard'
 import { EnergyBar } from '../panels/EnergyBar'
 import { PageToChatBridge } from '../PageToChatBridge'
 import { ZS } from '../panels/tokens'
-
-const ZENSKILL_SOURCE_SLUG = 'zenskill'
+import { ZENSKILL_SOURCE_SLUG } from '../zenskill-registry'
 
 interface GrowthSkill {
   skill_id: string

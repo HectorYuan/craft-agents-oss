@@ -36,7 +36,7 @@
 
 import { homedir } from 'os';
 import { join } from 'path';
-import { cpSync, existsSync, readdirSync, renameSync, rmSync } from 'fs';
+import { cpSync, existsSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'fs';
 import { debug } from '../utils/debug.ts';
 
 // 子目录 'desktop'：~/.zenskill 顶层被 ZenSkill CLI 占用（config.json 同 schema），
@@ -59,6 +59,61 @@ export function getConfigMigrationNotice(): string | null {
 
 function describeError(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+/**
+ * Post-migration fixup (R1): a migrated config.json can carry
+ * `setupDeferred: true` from the legacy install even though the user never
+ * finished onboarding (empty llmConnections). Without this, the rebranded app
+ * would skip onboarding forever and start with no working LLM connection.
+ * Clears the deferred flag only when no LLM connection was migrated. Any
+ * parse/format problem is logged and ignored — never fails the migration.
+ */
+function clearStaleSetupDeferred(newDir: string): void {
+  const configPath = join(newDir, 'config.json');
+  if (!existsSync(configPath)) return;
+  try {
+    const config = JSON.parse(readFileSync(configPath, 'utf8')) as Record<string, unknown>;
+    if (config?.setupDeferred !== true) return;
+    const connections = config?.llmConnections;
+    if (Array.isArray(connections) && connections.length > 0) return;
+    delete config.setupDeferred;
+    writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf8');
+    debug(`[paths] cleared stale setupDeferred in migrated ${configPath}`);
+  } catch (error) {
+    debug(`[paths] failed to inspect migrated config.json: ${describeError(error)}`);
+  }
+}
+
+/**
+ * Rewrite workspace rootPath entries that still point into the legacy config
+ * directory (e.g. `~/.craft-agent/workspaces/x`) to the migrated location
+ * (`~/.zenskill/desktop/workspaces/x`). Without this, the app — and the
+ * ZenSkill source seeder — keep materialising the legacy directory tree.
+ */
+function rewriteWorkspaceRoots(newDir: string): void {
+  const configPath = join(newDir, 'config.json');
+  if (!existsSync(configPath)) return;
+  try {
+    const config = JSON.parse(readFileSync(configPath, 'utf8')) as {
+      workspaces?: Array<{ rootPath?: string }>;
+    };
+    let changed = false;
+    const legacyPrefix = `~/${LEGACY_DIR_NAME}`;
+    const newPrefix = `~/${DEFAULT_DIR_NAME}`;
+    for (const ws of config.workspaces ?? []) {
+      if (typeof ws.rootPath === 'string' && ws.rootPath.startsWith(legacyPrefix)) {
+        ws.rootPath = newPrefix + ws.rootPath.slice(legacyPrefix.length);
+        changed = true;
+      }
+    }
+    if (changed) {
+      writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf8');
+      debug(`[paths] rewrote workspace rootPaths into ${newDir} (migrated config)`);
+    }
+  } catch (error) {
+    debug(`[paths] failed to rewrite workspace rootPaths: ${describeError(error)}`);
+  }
 }
 
 /** Recursively count files/directories (symlinks counted, never followed). */
@@ -91,6 +146,8 @@ function migrateLegacyConfigDir(newDir: string, legacyDir: string): boolean {
     }
 
     renameSync(legacyDir, `${legacyDir}${MIGRATED_BAK_SUFFIX}`);
+    clearStaleSetupDeferred(newDir);
+    rewriteWorkspaceRoots(newDir);
     migrationNotice = `Migrated config data from ${legacyDir} to ${newDir} (backup at ${legacyDir}${MIGRATED_BAK_SUFFIX})`;
     debug(`[paths] ${migrationNotice}`);
     return true;

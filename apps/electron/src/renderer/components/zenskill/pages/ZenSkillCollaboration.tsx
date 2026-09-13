@@ -21,8 +21,7 @@ import {
 } from 'lucide-react'
 import { useMcpTool } from '@/hooks/zenskill/useMcpTool'
 import { ZS } from '../panels/tokens'
-
-const ZENSKILL_SOURCE_SLUG = 'zenskill'
+import { ZENSKILL_SOURCE_SLUG } from '../zenskill-registry'
 
 /* ------------------------------------------------------------------ */
 /*  Data shapes                                                        */
