@@ -11,7 +11,7 @@
  * handled via the same wire format as PiAgent.
  */
 
-import { spawn, type ChildProcess } from 'node:child_process';
+import { spawn, type ChildProcess, type SpawnOptions } from "node:child_process";
 import { createInterface, type Interface as ReadlineInterface } from 'node:readline';
 import { BaseAgent } from '../base-agent.ts';
 import type { AgentEvent } from '@craft-agent/core/types';
@@ -283,11 +283,47 @@ export class ZenskillAgent extends BaseAgent {
       );
     }
 
-    const child = spawn(zenskillPath, args, {
-      cwd: this.workingDirectory || process.cwd(),
+    // Windows: Node ≥20.12 refuses to spawn .cmd/.bat without shell:true
+    // (CVE-2024-27980 mitigation) → packaged installs get `spawn EINVAL` because
+    // _resolveZenSkillPath() resolves to zenskill-cmd.cmd. Bypass the wrapper by
+    // invoking the bundled uv.exe directly with the wrapper's semantics:
+    // cd %CRAFT_ZENSKILL% && uv run --project %CRAFT_ZENSKILL% --python 3.12 zenskill ...
+    let command = zenskillPath;
+    let spawnArgs = args;
+    const expandTilde = (p: string): string =>
+      p.startsWith('~') ? require('path').join(require('os').homedir(), p.slice(1)) : p;
+    let cwd = this.workingDirectory ? expandTilde(this.workingDirectory) : process.cwd();
+    if (process.platform === 'win32' && /\.cmd$/i.test(zenskillPath) && env['CRAFT_UV'] && env['CRAFT_ZENSKILL']) {
+      command = env['CRAFT_UV'] as string;
+      spawnArgs = [
+        'run', '--project', env['CRAFT_ZENSKILL'] as string, '--python', '3.12',
+        'zenskill', ...args,
+      ];
+      if (!env['UV_PROJECT_ENVIRONMENT']) {
+        env['UV_PROJECT_ENVIRONMENT'] = require('path').join(
+          env['USERPROFILE'] || require('os').homedir(), '.zenskill', 'electron-venv',
+        );
+      }
+      if (!env['UV_PYTHON_INSTALL_DIR']) {
+        env['UV_PYTHON_INSTALL_DIR'] = require('path').join(env['CRAFT_ZENSKILL'], 'python');
+      }
+      cwd = env['CRAFT_ZENSKILL'] as string;
+    }
+
+    const spawnOpts: SpawnOptions = {
       stdio: ['pipe', 'pipe', 'pipe'],
       env,
-    });
+      windowsHide: true,
+    };
+    // Residual .cmd case (dev runtime without CRAFT_* env): shell escapes EINVAL.
+    // Args are code-controlled, so shell:true is acceptable here.
+    if (process.platform === 'win32' && /\.(cmd|bat)$/i.test(command)) {
+      spawnOpts.shell = true;
+    } else {
+      spawnOpts.cwd = cwd;
+    }
+
+    const child = spawn(command, spawnArgs, spawnOpts);
 
     this.subprocess = child;
 
