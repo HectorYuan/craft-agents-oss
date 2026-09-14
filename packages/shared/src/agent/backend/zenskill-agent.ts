@@ -262,7 +262,13 @@ export class ZenskillAgent extends BaseAgent {
     const mappedPerm = permMap[permMode] || undefined;
     if (mappedPerm) args.push('--permission', mappedPerm);
     if (this.workingDirectory) args.push('--cwd', this.workingDirectory);
-    if (this._model) args.push('--model', this._model);
+    if (this._model) {
+      // GUI 连接的模型 ID 带 providerType 前缀（如 `pi/deepseek-v4-flash`）。
+      // 引擎已不是 pi 后端：`pi/...` 会落进未知提供方静默空回合；
+      // 剥掉前缀让引擎按 PREDEFINED_MODELS/registry 正常路由。
+      const engineModel = this._model.replace(/^pi\//i, '');
+      args.push('--model', engineModel);
+    }
     if (this._faux) args.push('--faux');
 
     const env = { ...process.env };
