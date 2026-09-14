@@ -269,6 +269,9 @@ export class ZenskillAgent extends BaseAgent {
     const apiKey = await this.resolveApiKey(this.config.connectionSlug);
     if (apiKey) {
       env['DEEPSEEK_API_KEY'] = apiKey;
+      // 引擎 agent 循环的 OpenAI 兼容路径（pi/deepseek-*，runtime/agent/providers）
+      // 读取 OPENAI_API_KEY 鉴权；单连接（ZenSkill Backend）下两键同值即完成路由
+      env['OPENAI_API_KEY'] = apiKey;
     }
 
     // Set CRAFT_ZENSKILL for wrapper scripts
@@ -354,7 +357,8 @@ export class ZenskillAgent extends BaseAgent {
 
     // Wait for server_hello
     await new Promise<void>((resolve, reject) => {
-      const timeout = setTimeout(() => reject(new Error('ZenSkill subprocess timeout (no server_hello)')), 15000);
+      // uv 冷启动（首装 venv 同步）可超过 1 分钟，15s 会误判握手超时
+      const timeout = setTimeout(() => reject(new Error('ZenSkill subprocess timeout (no server_hello; uv first-run may still be syncing deps — retry once)')), 90000);
       const check = setInterval(() => {
         if (this.serverReady) {
           clearInterval(check);
