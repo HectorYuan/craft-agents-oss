@@ -269,6 +269,10 @@ export class ZenskillAgent extends BaseAgent {
     const apiKey = await this.resolveApiKey(this.config.connectionSlug);
     if (apiKey) {
       env['DEEPSEEK_API_KEY'] = apiKey;
+      // agent-engine 的 pi 后端按 provider 走 openai-compat 协议时读取
+      // OPENAI_API_KEY（错误信息 "missing API key: set OPENAI_API_KEY"），
+      // DEEPSEEK_API_KEY 单独注入不会被 pi 的凭据解析命中。
+      env['OPENAI_API_KEY'] = env['OPENAI_API_KEY'] || apiKey;
     }
 
     // Set CRAFT_ZENSKILL for wrapper scripts
