@@ -262,7 +262,14 @@ export class ZenskillAgent extends BaseAgent {
     const mappedPerm = permMap[permMode] || undefined;
     if (mappedPerm) args.push('--permission', mappedPerm);
     if (this.workingDirectory) args.push('--cwd', this.workingDirectory);
-    if (this._model) args.push('--model', this._model);
+    if (this._model) {
+      // craft 的模型名带自家 provider 前缀（如 'pi/deepseek-v4-flash'）。
+      // engine 的 resolve_model 只认它自己的注册表前缀（deepseek/anthropic/
+      // openai/...），未知前缀会兜底成 openai + api.openai.com，把 DeepSeek
+      // key 打到 OpenAI 官方（401 非 SSE 响应被流解析器吞掉，表现为挂起）。
+      // 剥前缀后 engine 走模型目录解析到正确的 provider/base_url。
+      args.push('--model', this._model.replace(/^[a-z]+\//i, ''));
+    }
     if (this._faux) args.push('--faux');
 
     const env = { ...process.env };
