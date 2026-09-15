@@ -198,12 +198,15 @@ describe('refreshConnectionRuntime', () => {
   })
 
   it('records customModels with the per-model supportsImages flag in the IPC payload', async () => {
-    // End-to-end shape check: the helper forwards the connection's model list
-    // on `runtime.customModels`. This environment has no stored 'slug-A'
-    // connection (config dir is the developer's real ~/.craft-agent), so the
-    // payload's `runtime` is legitimately undefined — the connection-dependent
-    // mapping itself is covered deterministically by the pure-helper tests
-    // below (mapConnectionModelsToCustomModels).
+    // End-to-end shape check: the helper forwards whatever connection the
+    // backend context resolves onto `runtime.customModels`. The resolved
+    // payload depends on the host's stored connections: no 'slug-A' entry and
+    // no global default → runtime undefined; a resolvable connection (e.g. a
+    // developer machine with a global default, added in resolveSessionConnection
+    // step 3) → full runtime envelope. Both are valid; assert the invariant
+    // parts and validate the runtime shape when present. The connection-
+    // dependent mapping itself is covered deterministically by the pure-helper
+    // tests below (mapConnectionModelsToCustomModels).
     const agent = createAgentStub()
     injectSession(sm, 'shape-check', tmpRoot, 'slug-A', agent)
 
@@ -212,10 +215,11 @@ describe('refreshConnectionRuntime', () => {
     expect(agent.updateRuntimeConfig).toHaveBeenCalledTimes(1)
     const payload = agent.updateRuntimeConfig.mock.calls[0]?.[0]
     expect(payload).toBeDefined()
-    expect(payload).toMatchObject({
-      model: expect.any(String),
-      runtime: undefined,
-    })
+    expect(payload.model).toEqual(expect.any(String))
+    if (payload.runtime !== undefined) {
+      expect(typeof payload.runtime.baseUrl).toBe('string')
+      expect(payload.runtime).toHaveProperty('customModels')
+    }
   })
 
   describe('mapConnectionModelsToCustomModels (update_runtime_config envelope)', () => {
