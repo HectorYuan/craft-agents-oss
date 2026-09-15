@@ -22,47 +22,42 @@ class GTDPage:
     def render(self, **kwargs) -> None:
         """渲染 GTD 概览。"""
         try:
-            from zenskill.core.database import db
+            from zenskill.systems.gtd.action import ActionEngine
+            from zenskill.systems.gtd.inbox import InboxEngine
+            from zenskill.systems.gtd.project import ProjectEngine
         except Exception:
-            self.console.print("[yellow]数据库不可用[/yellow]")
+            self.console.print("[yellow]GTD 引擎不可用[/yellow]")
             return
 
-        # Inbox
+        # Inbox（未处理条目）
         inbox_count = 0
         try:
-            rows = db.execute("SELECT count(*) as c FROM gtd_inbox")
-            inbox_count = rows[0]["c"] if rows else 0
+            inbox_count = InboxEngine().count_pending()
         except Exception:
             pass
 
-        # Actions
+        # Actions（未完成，按创建时间倒序）
         actions = []
         try:
-            rows = db.execute(
-                "SELECT * FROM gtd_actions WHERE status != 'done' ORDER BY created_at DESC LIMIT 15"
-            )
-            for r in rows:
+            for a in ActionEngine().list_pending(limit=15):
                 actions.append({
-                    "id": r.get("id", ""),
-                    "title": r.get("title", "?"),
-                    "status": r.get("status", "todo"),
-                    "priority": r.get("priority", "medium"),
-                    "energy": r.get("energy", "medium"),
+                    "id": a.id,
+                    "title": a.title or "?",
+                    "status": a.status or "pending",
+                    "priority": a.priority or "P2",
+                    "energy": a.energy_required,
                 })
         except Exception:
             pass
 
-        # Projects
+        # Projects（活跃）
         projects = []
         try:
-            rows = db.execute(
-                "SELECT * FROM gtd_projects WHERE status = 'active' ORDER BY created_at DESC LIMIT 5"
-            )
-            for r in rows:
+            for p in ProjectEngine().list_active(limit=5):
                 projects.append({
-                    "id": r.get("id", ""),
-                    "name": r.get("name", "?"),
-                    "progress": r.get("progress", 0),
+                    "id": p.id,
+                    "name": p.name or "?",
+                    "progress": 0,
                 })
         except Exception:
             pass
@@ -84,15 +79,18 @@ class GTDPage:
             table.add_column("精力", width=6)
 
             for a in actions:
-                icon = {"todo": "⏳", "in_progress": "🔄", "blocked": "🚫"}.get(a["status"], "·")
+                icon = {"pending": "⏳", "next": "🔄", "delegated": "📨",
+                        "incubating": "🌱"}.get(a["status"], "·")
                 priority_style = {
-                    "high": "bold red", "medium": "yellow", "low": "dim"
+                    "P0": "bold red", "P1": "red", "P2": "yellow", "P3": "dim"
                 }.get(a["priority"], "")
+                energy_label = {3: "easy", 5: "medium", 8: "hard",
+                                10: "extreme"}.get(a["energy"], str(a["energy"]))
                 table.add_row(
                     icon,
                     a["title"][:40],
                     f"[{priority_style}]{a['priority']}[/{priority_style}]" if priority_style else a["priority"],
-                    a["energy"],
+                    energy_label,
                 )
             self.console.print(table)
         else:

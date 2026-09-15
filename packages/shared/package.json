@@ -1,8 +1,8 @@
 {
   "name": "@craft-agent/shared",
-  "version": "0.13.1",
+  "version": "2.9.1",
   "license": "Apache-2.0",
-  "description": "Shared business logic for Craft Agents - agent, auth, config, credentials, MCP integration",
+  "description": "Shared business logic for ZenSkill - agent, auth, config, credentials, MCP integration",
   "type": "module",
   "main": "src/index.ts",
   "types": "src/index.ts",
@@ -13,6 +13,7 @@
   },
   "exports": {
     ".": "./src/index.ts",
+    "./brand": "./src/brand.ts",
     "./agent": "./src/agent/index.ts",
     "./agent/modes": "./src/agent/mode-types.ts",
     "./agent/mode-types": "./src/agent/mode-types.ts",

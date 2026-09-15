@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>ZenSkill Growth Card</title>
+</head>
+<body style="margin:0;padding:0;">
+<div style="width:1080px;height:1080px;box-sizing:border-box;background:#1a1d24;color:#ffffff;font-family:'PingFang SC','Microsoft YaHei',sans-serif;padding:80px;display:flex;flex-direction:column;justify-content:space-between;">
+  <div>
+    <div style="font-size:28px;letter-spacing:6px;color:#8b93a7;">ZENSKILL 成长卡片</div>
+    <div style="margin-top:60px;font-size:96px;font-weight:700;">${level_name}</div>
+    <div style="margin-top:12px;font-size:30px;color:#8b93a7;">${level} · 累计交互 ${total_interactions} 次</div>
+    <div style="margin-top:48px;">
+      <div style="width:920px;height:14px;background:#2a2e38;border-radius:7px;overflow:hidden;">
+        <div style="width:${progress_pct}%;height:14px;background:linear-gradient(90deg,#5b8cff,#8f6bff);"></div>
+      </div>
+      <div style="margin-top:14px;font-size:26px;color:#8b93a7;">下一境界进度 ${progress_pct}%</div>
+    </div>
+  </div>
+  <div>
+    <div style="font-size:30px;color:#8b93a7;letter-spacing:3px;">能力维度</div>
+    ${dimension_rows}
+  </div>
+  <div>
+    <div style="font-size:30px;color:#8b93a7;letter-spacing:3px;">最近成就</div>
+    ${achievement_rows}
+  </div>
+  <div style="display:flex;justify-content:space-between;align-items:flex-end;">
+    <div style="font-size:26px;color:#8b93a7;">${date}</div>
+    <div style="font-size:26px;color:#5b8cff;">Powered by ZenSkill</div>
+  </div>
+</div>
+</body>
+</html>

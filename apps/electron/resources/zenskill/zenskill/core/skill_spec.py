@@ -129,13 +129,14 @@ class SkillSpec:
     spec_version: str = "1.0"
 
     # ═══════════════════════════════════════════════════════════
-    # 🏷️ Classification (5)
+    # 🏷️ Classification (6)
     # ═══════════════════════════════════════════════════════════
     category: str = "general"
     skill_type: SkillType = SkillType.GENERAL
     difficulty: str = "beginner"
     tags: List[str] = field(default_factory=list)
     topic: str = ""
+    when: str = ""
 
     # ═══════════════════════════════════════════════════════════
     # 👤 Authorship (5)
@@ -209,8 +210,8 @@ class SkillSpec:
     @classmethod
     def from_dict(cls, d: dict) -> "SkillSpec":
         """从字典构造 SkillSpec"""
-        # 处理 skill_type 枚举
-        st = d.get("skill_type", "general")
+        # 处理 skill_type 枚举（兼容 frontmatter v2 的 type 别名）
+        st = d.get("skill_type", d.get("type", "general"))
         if isinstance(st, str):
             try:
                 st = SkillType(st)
@@ -248,6 +249,7 @@ class SkillSpec:
             difficulty=d.get("difficulty", "beginner"),
             tags=d.get("tags", []),
             topic=d.get("topic", ""),
+            when=d.get("when", ""),
             # Authorship
             author=d.get("author", ""),
             author_email=d.get("author_email", ""),

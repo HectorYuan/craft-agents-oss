@@ -50,5 +50,6 @@ export function lockHolderMatchesLock(
     return liveExecName.toLowerCase() === lock.execName.toLowerCase()
   }
   if (!liveCommandLine) return false
-  return /craft/i.test(liveCommandLine)
+  // 升级期双名匹配：旧版 Craft 进程与新版 ZenSkill 进程互认，避免品牌切换期双实例
+  return /(craft|zenskill)/i.test(liveCommandLine)
 }

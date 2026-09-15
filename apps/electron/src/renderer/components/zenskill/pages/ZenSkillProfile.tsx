@@ -21,8 +21,7 @@ import { filterScores } from '../panels/GrowthCard'
 import { EnergyBar } from '../panels/EnergyBar'
 import { PageToChatBridge } from '../PageToChatBridge'
 import { ZS } from '../panels/tokens'
-
-const ZENSKILL_SOURCE_SLUG = 'zenskill'
+import { ZENSKILL_SOURCE_SLUG } from '../zenskill-registry'
 
 interface GrowthSkill {
   skill_id: string
@@ -100,13 +99,6 @@ interface ZenSkillProfileProps {
 }
 
 const FIVE_DIMS = ['proficiency', 'stability', 'satisfaction', 'responsiveness', 'memory']
-const DIM_LABELS: Record<string, string> = {
-  proficiency: 'Proficiency',
-  stability: 'Stability',
-  satisfaction: 'Satisfaction',
-  responsiveness: 'Responsiveness',
-  memory: 'Memory',
-}
 
 /** goal_update accepts these statuses; anything else renders raw (defensive) */
 const GOAL_STATUSES = ['active', 'completed', 'cancelled']
@@ -173,6 +165,17 @@ function TrendLine({ values, color = 'currentColor', height = 40, width = 200 }:
 
 export function ZenSkillProfile({ workspaceId }: ZenSkillProfileProps) {
   const { t } = useTranslation()
+
+  // Dimension labels resolve through i18n (Chinese fallback) so the legend,
+  // goal list and form options match the radar chart's language (TC-08: the
+  // hardcoded English map rendered next to the chart's Chinese SVG labels).
+  const dimLabels: Record<string, string> = {
+    proficiency: t('zenskill.profile.dim.proficiency', '熟练度'),
+    stability: t('zenskill.profile.dim.stability', '稳定性'),
+    satisfaction: t('zenskill.profile.dim.satisfaction', '满意度'),
+    responsiveness: t('zenskill.profile.dim.responsiveness', '响应力'),
+    memory: t('zenskill.profile.dim.memory', '记忆力'),
+  }
 
   const growth = useMcpTool<GrowthData>(workspaceId, ZENSKILL_SOURCE_SLUG, 'growth_dashboard', {})
   const achievements = useMcpTool<AchievementData>(workspaceId, ZENSKILL_SOURCE_SLUG, 'achievement_list', {})
@@ -414,13 +417,13 @@ export function ZenSkillProfile({ workspaceId }: ZenSkillProfileProps) {
                 </span>
               </div>
               <div className="flex justify-center">
-                <RadarChart scores={radarScores} size={180} />
+                <RadarChart scores={radarScores} size={180} labels={dimLabels} />
               </div>
               {/* Score labels */}
               <div className="flex justify-center gap-3 mt-2">
                 {FIVE_DIMS.map((dim) => (
                   <div key={dim} className="text-center">
-                    <div className="text-[9px] text-muted-foreground">{DIM_LABELS[dim] ?? dim}</div>
+                    <div className="text-[9px] text-muted-foreground">{dimLabels[dim] ?? dim}</div>
                     <div className="text-[10px] font-medium">{radarScores[dim] ?? 0}</div>
                   </div>
                 ))}
@@ -645,7 +648,7 @@ export function ZenSkillProfile({ workspaceId }: ZenSkillProfileProps) {
                 {(goals.data?.active ?? []).map((g, i) => {
                   const goalId = g.goal_id ?? ''
                   if (!goalId) return null
-                  const dimLabel = DIM_LABELS[g.dimension ?? ''] ?? g.dimension ?? '—'
+                  const dimLabel = dimLabels[g.dimension ?? ''] ?? g.dimension ?? '—'
                   const current = typeof g.current_score === 'number' ? g.current_score : 0
                   const target = typeof g.target_score === 'number' ? g.target_score : 0
                   const pct = typeof g.progress_pct === 'number'
@@ -762,7 +765,7 @@ export function ZenSkillProfile({ workspaceId }: ZenSkillProfileProps) {
                     className="text-xs bg-muted/40 rounded px-1 py-1.5 outline-none focus:ring-1 focus:ring-accent/40"
                   >
                     {FIVE_DIMS.map((d) => (
-                      <option key={d} value={d}>{DIM_LABELS[d] ?? d}</option>
+                      <option key={d} value={d}>{dimLabels[d] ?? d}</option>
                     ))}
                   </select>
                   <input

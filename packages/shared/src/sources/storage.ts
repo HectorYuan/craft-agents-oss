@@ -11,6 +11,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync, readdirSync, rmSync } from 'fs';
 import { join, basename } from 'path';
 import { randomUUID } from 'crypto';
+import { CONFIG_DIR } from '../config/paths.ts';
 import type {
   FolderSourceConfig,
   SourceGuide,
@@ -332,7 +333,7 @@ export { isIconUrl } from '../utils/icon.ts';
 
 /**
  * Load complete source with all files
- * @param workspaceRootPath - Absolute path to workspace folder (e.g., ~/.craft-agent/workspaces/xxx)
+ * @param workspaceRootPath - Absolute path to workspace folder (e.g., ~/.zenskill/workspaces/xxx)
  * @param sourceSlug - Source folder name
  */
 export function loadSource(workspaceRootPath: string, sourceSlug: string): LoadedSource | null {
@@ -557,7 +558,7 @@ export async function createSource(
   }
 
   // Create guide.md with skeleton template
-  // (bundled guides removed - service-specific guidance lives in the product docs at https://thecraftagents.com/docs)
+  // (bundled guides removed - service-specific guidance lives in the product docs at https://github.com/HectorYuan/ZenSkill#readme)
   const guideContent = `# ${input.name}
 
 ## Guidelines
@@ -581,6 +582,14 @@ export function deleteSource(workspaceRootPath: string, sourceSlug: string): voi
   if (existsSync(dir)) {
     rmSync(dir, { recursive: true });
   }
+}
+
+/**
+ * Marker file written when the user deletes the seeded ZenSkill source, so the
+ * seed doesn't resurrect it on the next startup.
+ */
+export function getZenskillSeedDismissMarker(): string {
+  return join(CONFIG_DIR, 'zenskill-source.dismissed');
 }
 
 /**

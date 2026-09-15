@@ -66,7 +66,7 @@ def cmd_skill_list(args: argparse.Namespace) -> None:
     # TODO: 从注册中心获取
     cli_output({"skills": [args.skill_id]}, args, text=lambda: (
         f"📦 已注册技能列表\n"
-        f"{"=" * 60}\n"
+        f"{'=' * 60}\n"
         f"   {args.skill_id} - ZenSkill 核心技能\n\n"
         f"提示: 使用 'python -m zenskill skill status <skill_id>' 查看详细状态"
     ))
@@ -1148,7 +1148,7 @@ def cmd_metrics(args: argparse.Namespace) -> None:
         "avg_duration_ms": metrics.get('avg_duration_ms', 0),
     }, args, text=lambda: (
         f"📊 技能使用指标: {args.skill_id}\n"
-        f"{"=" * 60}\n"
+        f"{'=' * 60}\n"
         f"   总执行次数:    {metrics.get('total_executions', 0)} 次\n"
         f"   成功次数:      {metrics.get('successful_executions', 0)} 次\n"
         f"   成功率:        {metrics.get('success_rate', 0):.2%}\n"

@@ -286,13 +286,17 @@ describe('Bedrock-native model display', () => {
   })
 
   it('getModelShortName resolves Bedrock IDs', () => {
-    expect(getModelShortName('us.anthropic.claude-opus-4-8')).toBe('Opus')
-    expect(getModelShortName('us.anthropic.claude-sonnet-4-6')).toBe('Sonnet')
+    // R2: the registry carries the DeepSeek catalog only, so Claude Bedrock
+    // IDs resolve through the humanize fallback instead of registry metadata.
+    expect(getModelShortName('us.anthropic.claude-opus-4-8')).toBe('Opus 4.8')
+    expect(getModelShortName('us.anthropic.claude-sonnet-4-6')).toBe('Sonnet 4.6')
   })
 
   it('getModelContextWindow resolves Bedrock IDs', () => {
-    expect(getModelContextWindow('us.anthropic.claude-opus-4-8')).toBe(1_000_000)
-    expect(getModelContextWindow('us.anthropic.claude-sonnet-4-6')).toBe(200_000)
+    // R2: Claude entries left the registry — no context window is known for them.
+    expect(getModelContextWindow('us.anthropic.claude-opus-4-8')).toBeUndefined()
+    expect(getModelContextWindow('us.anthropic.claude-sonnet-4-6')).toBeUndefined()
+    expect(getModelContextWindow('deepseek/deepseek-v4-flash')).toBe(1_000_000)
   })
 
   it('isClaudeModel recognizes Bedrock IDs', () => {
@@ -307,25 +311,18 @@ describe('Bedrock-native model display', () => {
 // ============================================================
 
 describe('Claude Fable 5', () => {
-  it('is registered as an Anthropic model with the expected metadata', () => {
-    const fable = ANTHROPIC_MODELS.find(m => m.id === 'claude-fable-5')
-    expect(fable).toBeDefined()
-    expect(fable!.provider).toBe('zenskill')
-    expect(fable!.name).toBe('Fable 5')
-    expect(fable!.shortName).toBe('Fable')
-    expect(fable!.contextWindow).toBe(1_000_000)
-    expect(fable!.descriptionKey).toBe('model.fableDesc')
+  it('is no longer a registered model under the DeepSeek catalog (R2)', () => {
+    expect(ANTHROPIC_MODELS.find(m => m.id === 'claude-fable-5')).toBeUndefined()
   })
 
-  it('resolves display/short name, context window, and Claude detection', () => {
-    expect(getModelDisplayName('claude-fable-5')).toBe('Fable 5')
-    expect(getModelShortName('claude-fable-5')).toBe('Fable')
-    expect(getModelContextWindow('claude-fable-5')).toBe(1_000_000)
+  it('resolves display/Claude detection through string fallbacks', () => {
+    // Pure string helpers stay correct even without registry metadata.
     expect(isClaudeModel('claude-fable-5')).toBe(true)
+    expect(getModelDisplayName('claude-fable-5')).toBe('Fable 5')
   })
 
-  it('does NOT become the Anthropic default (Opus 4.8 stays default)', () => {
-    expect(getDefaultModelForConnection('anthropic')).toBe('claude-opus-4-8')
+  it('the connection default is the DeepSeek flagship (R2)', () => {
+    expect(getDefaultModelForConnection('anthropic')).toBe('deepseek/deepseek-v4-flash')
   })
 
   it('round-trips through the Bedrock inference-profile mapping', () => {
@@ -345,31 +342,24 @@ describe('Claude Fable 5', () => {
 // ============================================================
 
 describe('Claude Fable 5.1', () => {
-  it('is registered as an Anthropic model with the expected metadata', () => {
-    const fable = ANTHROPIC_MODELS.find(m => m.id === 'claude-fable-5-1')
-    expect(fable).toBeDefined()
-    expect(fable!.provider).toBe('zenskill')
-    expect(fable!.name).toBe('Fable 5.1')
-    expect(fable!.shortName).toBe('Fable')
-    expect(fable!.contextWindow).toBe(1_000_000)
-    expect(fable!.descriptionKey).toBe('model.fableDesc')
+  it('is no longer a registered model under the DeepSeek catalog (R2)', () => {
+    expect(ANTHROPIC_MODELS.find(m => m.id === 'claude-fable-5-1')).toBeUndefined()
   })
 
-  it('is listed before Fable 5 so the newest Fable wins shortName resolution', () => {
+  it('the registry is the DeepSeek catalog (R2)', () => {
     const ids = ANTHROPIC_MODELS.map(m => m.id)
-    expect(ids.indexOf('claude-fable-5-1')).toBeGreaterThanOrEqual(0)
-    expect(ids.indexOf('claude-fable-5-1')).toBeLessThan(ids.indexOf('claude-fable-5'))
+    expect(ids).toContain('deepseek/deepseek-v4-flash')
+    expect(ids).toContain('deepseek/deepseek-v4-pro')
+    expect(ids[0]).toBe('deepseek/deepseek-v4-flash')
   })
 
-  it('resolves display/short name, context window, and Claude detection', () => {
-    expect(getModelDisplayName('claude-fable-5-1')).toBe('Fable 5.1')
-    expect(getModelShortName('claude-fable-5-1')).toBe('Fable')
-    expect(getModelContextWindow('claude-fable-5-1')).toBe(1_000_000)
+  it('resolves display/Claude detection through string fallbacks', () => {
     expect(isClaudeModel('claude-fable-5-1')).toBe(true)
+    expect(getModelDisplayName('claude-fable-5-1')).toBe('Fable 5.1')
   })
 
-  it('does NOT become the Anthropic default (Opus 4.8 stays default)', () => {
-    expect(getDefaultModelForConnection('anthropic')).toBe('claude-opus-4-8')
+  it('the connection default is the DeepSeek flagship (R2)', () => {
+    expect(getDefaultModelForConnection('anthropic')).toBe('deepseek/deepseek-v4-flash')
   })
 
   it('round-trips through the Bedrock inference-profile mapping', () => {

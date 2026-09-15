@@ -1,3 +1,5 @@
+# DEPRECATED: AgentChatSession 已被 AgentServerSession 替代。
+# 保留此文件仅作为参考；新代码请使用 AgentServerSession（runtime/agent/rpc.py）。
 """AgentChatSession — TUI 用的 agent 会话封装。
 
 桥接 AgentLoop + SessionManager + CapabilityHost，为 TUI 提供：
@@ -162,12 +164,8 @@ class AgentChatSession:
             # 占位模型名消毒：旧托管 provider 会返回 "DeepSeek/test-model" 这类
             # 字符串，形似 provider/model 但 leaf 是占位符——当作未指定，
             # 让 resolve_model 走环境变量/配置自动探测
-            model_name = self._model_name
-            if model_name:
-                leaf = (model_name.split("/", 1)[1] if "/" in model_name else model_name)
-                if leaf.strip().lower() in ("test-model", "mock-gpt", "mock",
-                                            "unknown", "未配置"):
-                    model_name = None
+            from zenskill.runtime.agent.providers import sanitize_model_name
+            model_name = sanitize_model_name(self._model_name)
             # DeepSeek key 注入（与 TUI streaming.py 同源：model-switcher DB）
             model_name = model_name or os.environ.get("ZENSKILL_AGENT_MODEL")
             if model_name is None and not os.environ.get("DEEPSEEK_API_KEY"):

@@ -50,8 +50,12 @@ def migrate_all(dry_run: bool = False, archive: bool = False) -> Dict[str, Any]:
     # 确保 Schema 已初始化
     if not dry_run:
         db.init_schema()
-        # 迁移期间关闭外键检查（因为迁移顺序不确定）
-        db.execute("PRAGMA foreign_keys = OFF")
+
+    # 迁移期间关闭外键检查（迁移顺序不确定；connect() 每连接执行 PRAGMA，
+    # 必须用连接级开关而非单发 PRAGMA——后者作用于已关闭的其他连接，无效）
+    fk_ctx = db.foreign_keys_disabled() if not dry_run else None
+    if fk_ctx is not None:
+        fk_ctx.__enter__()
 
     for name, func in migrations:
         try:
@@ -61,8 +65,8 @@ def migrate_all(dry_run: bool = False, archive: bool = False) -> Dict[str, Any]:
             results["errors"].append(f"{name}: {e}")
 
     # 恢复外键检查
-    if not dry_run:
-        db.execute("PRAGMA foreign_keys = ON")
+    if fk_ctx is not None:
+        fk_ctx.__exit__(None, None, None)
 
     # Archive
     if archive and not dry_run:

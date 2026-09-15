@@ -42,8 +42,8 @@ def _str_box_footer() -> str:
 
 # 版本信息（与 __init__.py 同步
 __title__ = "ZenSkill"
-__version__ = "2.7.1"
-__version_info__ = (1, 9, 0)
+__version__ = "2.9.0"
+__version_info__ = (2, 8, 0)
 __author__ = "ZenSkill Team"
 
 
@@ -1210,17 +1210,8 @@ def cmd_tui(args: argparse.Namespace) -> None:
             # 依赖已安装，重新检测
             deps = check_deps()
 
-    # 指定模式: 命令模式用 CommandMode (Rich fallback)
-    if mode == "command":
-        try:
-            from .tui.command_mode import CommandMode
-            CommandMode().run()
-            return
-        except ImportError:
-            pass
-
-    # 指定模式: rich 用 ZenRichTUI
-    if mode in ("rich", "interactive", "textual"):
+    # 指定模式: command/rich/interactive 都走 ZenRichTUI
+    if mode in ("command", "rich", "interactive"):
         if deps.get("rich_app"):
             try:
                 from .tui.rich_app import ZenRichTUI
@@ -2591,6 +2582,10 @@ def main() -> int:
     # mcp 命令组（实现位于 zenskill/cli/mcp.py，渐进拆分试点）
     from .cli.mcp import register_mcp_parser
     register_mcp_parser(subparsers)
+
+    # share 命令组（成长分享卡片，实现位于 zenskill/cli/share.py）
+    from .cli.share import register_share_parser
+    register_share_parser(subparsers)
 
     # pages 命令组（craft Pages 页面包播种，实现位于 zenskill/cli/pages.py）
     from .cli.pages import register_pages_parser

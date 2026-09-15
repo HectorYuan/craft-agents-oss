@@ -74,9 +74,8 @@ def cmd_serve(args) -> int:
             if _plat.system() == "Windows":
                 # Windows: 通过 bun 直接启动 craft server（bash 不可用）
                 return subprocess.call(["cmd", "/c", "bun", "run",
-                                        str(vendor / "packages" / "server" / "src" / "index.ts")]
-                                       ).returncode or 0
-            return subprocess.call(["bash", str(script)]).returncode or 0
+                                        str(vendor / "packages" / "server" / "src" / "index.ts")])
+            return subprocess.call(["bash", str(script)])
         except KeyboardInterrupt:
             return 0
 

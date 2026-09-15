@@ -10,6 +10,8 @@ import {
   getModelById,
   ANTHROPIC_MODELS,
   getModelIdByShortName,
+  getDefaultSummarizationModel,
+  DEFAULT_MODEL,
   normalizeDeprecatedModelId,
 } from '../src/config/models.ts';
 
@@ -65,9 +67,8 @@ describe('isClaudeModel', () => {
 
 describe('getModelShortName', () => {
   it('returns registry shortName for known models', () => {
-    expect(getModelShortName('claude-opus-4-8')).toBe('Opus');
-    expect(getModelShortName('claude-sonnet-4-6')).toBe('Sonnet');
-    expect(getModelShortName('claude-haiku-4-5-20251001')).toBe('Haiku');
+    expect(getModelShortName('deepseek/deepseek-v4-flash')).toBe('V4 Flash');
+    expect(getModelShortName('deepseek/deepseek-v4-pro')).toBe('V4 Pro');
   });
 
   it('strips provider prefix for slash-separated IDs', () => {
@@ -96,46 +97,41 @@ describe('getModelShortName', () => {
   });
 });
 
-describe('Opus registry', () => {
-  it('includes Opus 4.8 and keeps Opus 4.7 and Opus 4.6', () => {
+describe('ZenSkill registry (DeepSeek catalog)', () => {
+  it('mirrors the engine-real DeepSeek model list', () => {
     const ids = ANTHROPIC_MODELS.map(m => m.id);
-    expect(ids).toContain('claude-opus-4-8');
-    expect(ids).toContain('claude-opus-4-7');
-    expect(ids).toContain('claude-opus-4-6');
+    expect(ids).toContain('deepseek/deepseek-v4-flash');
+    expect(ids).toContain('deepseek/deepseek-v4-pro');
+    expect(ids).toContain('deepseek/deepseek-chat');
+    expect(ids).toContain('deepseek/deepseek-reasoner');
   });
 
-  it('resolves "Opus" shortName to 4.8', () => {
-    expect(getModelIdByShortName('Opus')).toBe('claude-opus-4-8');
+  it('defaults to DeepSeek V4 Flash', () => {
+    expect(DEFAULT_MODEL).toBe('deepseek/deepseek-v4-flash');
   });
 
-  it('normalizes deprecated Opus IDs to Opus 4.8 without migrating Opus 4.7 or 4.6', () => {
+  it('resolves short names against the DeepSeek catalog', () => {
+    expect(getModelIdByShortName('V4 Flash')).toBe('deepseek/deepseek-v4-flash');
+    expect(getModelIdByShortName('V4 Pro')).toBe('deepseek/deepseek-v4-pro');
+  });
+
+  it('exposes DeepSeek V4 Flash metadata', () => {
+    expect(getModelDisplayName('deepseek/deepseek-v4-flash')).toBe('DeepSeek V4 Flash');
+    expect(getModelShortName('deepseek/deepseek-v4-flash')).toBe('V4 Flash');
+    expect(getModelContextWindow('deepseek/deepseek-v4-flash')).toBe(1_000_000);
+    expect(getModelById('deepseek/deepseek-v4-pro')?.id).toBe('deepseek/deepseek-v4-pro');
+    expect(getModelById('claude-opus-4-8')).toBeUndefined();
+  });
+
+  it('falls back to DEFAULT_MODEL for summarization (no Haiku entry)', () => {
+    expect(getDefaultSummarizationModel()).toBe(DEFAULT_MODEL);
+  });
+
+  it('still normalizes deprecated Anthropic IDs (pure mapping, registry-independent)', () => {
     expect(normalizeDeprecatedModelId('claude-opus-4-5-20251101')).toBe('claude-opus-4-8');
     expect(normalizeDeprecatedModelId('claude-opus-4-7')).toBe('claude-opus-4-7');
     expect(normalizeDeprecatedModelId('claude-opus-4-6')).toBe('claude-opus-4-6');
     expect(normalizeDeprecatedModelId('pi/claude-opus-4-6')).toBe('pi/claude-opus-4-6');
     expect(normalizeDeprecatedModelId('us.anthropic.claude-opus-4-6-v1')).toBe('us.anthropic.claude-opus-4-6-v1');
-  });
-});
-
-describe('Sonnet registry', () => {
-  it('includes Sonnet 5 and keeps Sonnet 4.6', () => {
-    const ids = ANTHROPIC_MODELS.map(m => m.id);
-    expect(ids).toContain('claude-sonnet-5');
-    expect(ids).toContain('claude-sonnet-4-6');
-  });
-
-  it('resolves "Sonnet" shortName to Sonnet 5', () => {
-    expect(getModelIdByShortName('Sonnet')).toBe('claude-sonnet-5');
-  });
-
-  it('exposes Sonnet 5 metadata', () => {
-    expect(getModelDisplayName('claude-sonnet-5')).toBe('Sonnet 5');
-    expect(getModelShortName('claude-sonnet-5')).toBe('Sonnet');
-    expect(getModelContextWindow('claude-sonnet-5')).toBe(1_000_000);
-  });
-
-  it('maps Bedrock Sonnet 5 IDs back to the bare ID', () => {
-    expect(getModelById('us.anthropic.claude-sonnet-5')?.id).toBe('claude-sonnet-5');
-    expect(getModelById('anthropic.claude-sonnet-5')?.id).toBe('claude-sonnet-5');
   });
 });

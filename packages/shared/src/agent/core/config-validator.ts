@@ -27,26 +27,28 @@ const CONFIG_FILE_PATTERNS: { pattern: RegExp; type: ConfigFileType }[] = [
 ];
 
 /**
- * Craft Agent specific config files that have known schemas.
+ * App-specific config files that have known schemas.
+ * Both the ZenSkill dir (.zenskill) and the pre-migration legacy dir are
+ * matched so old data keeps validating.
  */
 const CRAFT_AGENT_CONFIG_PATTERNS = [
   // Main config
-  /\.craft-agent\/config\.json$/,
+  /\.(?:zenskill|craft-agent)\/config\.json$/,
   // Preferences
-  /\.craft-agent\/preferences\.json$/,
+  /\.(?:zenskill|craft-agent)\/preferences\.json$/,
   // Source configs
-  /\.craft-agent\/workspaces\/[^/]+\/sources\/[^/]+\/config\.json$/,
+  /\.(?:zenskill|craft-agent)\/workspaces\/[^/]+\/sources\/[^/]+\/config\.json$/,
   // Permissions
-  /\.craft-agent\/workspaces\/[^/]+\/permissions\.json$/,
-  /\.craft-agent\/permissions\/[^/]+\.json$/,
+  /\.(?:zenskill|craft-agent)\/workspaces\/[^/]+\/permissions\.json$/,
+  /\.(?:zenskill|craft-agent)\/permissions\/[^/]+\.json$/,
   // Theme
-  /\.craft-agent\/workspaces\/[^/]+\/theme\.json$/,
+  /\.(?:zenskill|craft-agent)\/workspaces\/[^/]+\/theme\.json$/,
   // Statuses
-  /\.craft-agent\/workspaces\/[^/]+\/statuses\/config\.json$/,
+  /\.(?:zenskill|craft-agent)\/workspaces\/[^/]+\/statuses\/config\.json$/,
   // Labels
-  /\.craft-agent\/workspaces\/[^/]+\/labels\.json$/,
+  /\.(?:zenskill|craft-agent)\/workspaces\/[^/]+\/labels\.json$/,
   // Tool icons
-  /\.craft-agent\/tool-icons\/tool-icons\.json$/,
+  /\.(?:zenskill|craft-agent)\/tool-icons\/tool-icons\.json$/,
 ];
 
 /**

@@ -35,7 +35,11 @@ export async function handleConfigValidate(
   args: ConfigValidateArgs
 ): Promise<ToolResult> {
   const { target, sourceSlug } = args;
-  const craftAgentRoot = join(homedir(), '.craft-agent');
+  // Config root: explicit env override (new ZenSkill alias first, legacy
+  // CRAFT_CONFIG_DIR kept for compatibility), else the ZenSkill default.
+  // (No import from @craft-agent/shared here — this package must stay below it.)
+  const appConfigRoot =
+    process.env.ZENSKILL_CONFIG_DIR || process.env.CRAFT_CONFIG_DIR || join(homedir(), '.zenskill');
 
   // If full validators available (Claude), use them
   if (ctx.validators) {
@@ -85,7 +89,7 @@ export async function handleConfigValidate(
   switch (target) {
     case 'config': {
       const result = validateJsonFileHasFields(
-        join(craftAgentRoot, 'config.json'),
+        join(appConfigRoot, 'config.json'),
         ['workspaces']
       );
       return successResponse(formatValidationResult(result));
@@ -138,7 +142,7 @@ export async function handleConfigValidate(
 
     case 'preferences': {
       const result = validateJsonFileHasFields(
-        join(craftAgentRoot, 'preferences.json'),
+        join(appConfigRoot, 'preferences.json'),
         []
       );
       return successResponse(formatValidationResult(result));
@@ -165,7 +169,7 @@ export async function handleConfigValidate(
 
     case 'tool-icons': {
       const result = validateJsonFileHasFields(
-        join(craftAgentRoot, 'tool-icons', 'tool-icons.json'),
+        join(appConfigRoot, 'tool-icons', 'tool-icons.json'),
         ['version', 'tools']
       );
       return successResponse(formatValidationResult(result));
@@ -173,11 +177,11 @@ export async function handleConfigValidate(
 
     case 'all': {
       const configResult = validateJsonFileHasFields(
-        join(craftAgentRoot, 'config.json'),
+        join(appConfigRoot, 'config.json'),
         ['workspaces']
       );
       const prefsResult = validateJsonFileHasFields(
-        join(craftAgentRoot, 'preferences.json'),
+        join(appConfigRoot, 'preferences.json'),
         []
       );
       const merged = mergeResults(configResult, prefsResult);

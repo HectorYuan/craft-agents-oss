@@ -113,10 +113,13 @@ export function IncubatingPanel({
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [filterChannel, setFilterChannel] = useState<string | null>(null)
 
-  // Parked while workspaceId is absent; sourceSlug '' is safe because the hook
-  // short-circuits before using it (parked-hook pattern).
+  // Parked (no fetch) while workspaceId is absent — useMcpTool short-circuits
+  // on a falsy workspace id before using sourceSlug.
+  // NB: the workspace id slot must stay workspaceId — passing sourceSlug here
+  // made callMcpTool resolve the workspace by slug ("zenskill-4"), which no
+  // workspace matches, surfacing as "Workspace not found" in the panel.
   const incubating = useMcpTool<IncubatingData>(
-    workspaceId ? (sourceSlug ?? '') : undefined,
+    workspaceId,
     sourceSlug ?? '',
     'incubating_list',
     { limit: 100 },

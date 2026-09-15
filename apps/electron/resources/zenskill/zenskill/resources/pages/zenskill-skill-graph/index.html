@@ -6,19 +6,77 @@
 <title>技能图谱</title>
 <style>
   :root {
-    --bg: #16161e;
-    --card: #1f2030;
-    --card-border: #2a2c42;
-    --text: #c8d0e8;
-    --text-dim: #7c8598;
-    --accent: #7aa2f7;
-    --accent-soft: rgba(122, 162, 247, 0.15);
+    --bg: #fafafa;
+    --card: #ffffff;
+    --border: #e5e7eb;
+    --text: #111827;
+    --text-2: #6b7280;
+    --muted: #9ca3af;
+    --accent: #7c5cff;
+    --accent-soft: rgba(124, 92, 255, 0.10);
+    --accent-fill: rgba(124, 92, 255, 0.18);
+    --good: #16a34a;
+    --warn: #d97706;
+    --bad: #dc2626;
+    --gold: #d97706;
+    --gold-soft: rgba(217, 119, 6, 0.10);
+    --gold-border: rgba(217, 119, 6, 0.32);
+    --ring-track: #e9ebef;
+    --cell-off: #e9ebef;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+    --rel-prerequisite: #d97706;
+    --rel-complementary: #16a34a;
+    --rel-competing: #dc2626;
+    --rel-transfer: #9333ea;
+    --rel-co-occurrence: #2563eb;
+    --cat-coding: #2563eb;
+    --cat-writing: #9333ea;
+    --cat-analysis: #16a34a;
+    --cat-learning: #d97706;
+    --cat-productivity: #0d9488;
+    --cat-communication: #ea580c;
+    --cat-general: #6b7280;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1a1d24;
+      --card: #232730;
+      --border: #333845;
+      --text: #e5e7eb;
+      --text-2: #9ca3af;
+      --muted: #6b7280;
+      --accent: #8b7cff;
+      --accent-soft: rgba(139, 124, 255, 0.16);
+      --accent-fill: rgba(139, 124, 255, 0.25);
+      --good: #9ece6a;
+      --warn: #e0af68;
+      --bad: #f7768e;
+      --gold: #e0af68;
+      --gold-soft: rgba(224, 175, 104, 0.12);
+      --gold-border: rgba(224, 175, 104, 0.35);
+      --ring-track: #333845;
+      --cell-off: #2d3240;
+      --shadow: 0 1px 2px rgba(0, 0, 0, 0.20);
+      --rel-prerequisite: #e0af68;
+      --rel-complementary: #9ece6a;
+      --rel-competing: #f7768e;
+      --rel-transfer: #bb9af7;
+      --rel-co-occurrence: #7aa2f7;
+      --cat-coding: #7aa2f7;
+      --cat-writing: #bb9af7;
+      --cat-analysis: #9ece6a;
+      --cat-learning: #e0af68;
+      --cat-productivity: #4fd6be;
+      --cat-communication: #ff9e64;
+      --cat-general: #7c8598;
+    }
   }
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body {
     background: var(--bg);
     color: var(--text);
     font-family: "PingFang SC", "Microsoft YaHei", "Noto Sans SC", sans-serif;
+    font-variant-numeric: tabular-nums;
     padding: 20px;
     min-height: 100vh;
   }
@@ -26,22 +84,24 @@
     display: flex; align-items: baseline; justify-content: space-between;
     margin-bottom: 16px;
   }
-  .header h1 { font-size: 18px; font-weight: 600; color: #e6ecfb; }
-  .updated { font-size: 12px; color: var(--text-dim); }
+  .header h1 { font-size: 18px; font-weight: 600; color: var(--text); }
+  /* 宿主顶栏已有页名，托管渲染时隐藏页内大标题 */
+  .in-host .header h1 { display: none; }
+  .updated { font-size: 12px; color: var(--text-2); }
   .card {
     background: var(--card);
-    border: 1px solid var(--card-border);
+    border: 1px solid var(--border);
     border-radius: 10px;
     padding: 16px;
+    box-shadow: var(--shadow);
   }
   .card h2 {
-    font-size: 12px; font-weight: 500; color: var(--text-dim);
-    margin-bottom: 10px; letter-spacing: 1px;
+    font-size: 12px; font-weight: 500; color: var(--text-2);
+    margin-bottom: 12px; letter-spacing: 1px;
   }
-  .empty { color: var(--text-dim); font-size: 12px; line-height: 1.6; }
   .footer {
-    margin-top: 14px; text-align: center;
-    font-size: 11px; color: var(--text-dim);
+    margin-top: 16px; text-align: center;
+    font-size: 11px; color: var(--muted);
   }
   /* 图谱画布 */
   .graph-scroll { overflow-x: auto; }
@@ -49,20 +109,20 @@
   /* 关系图例（只为快照中出现的关系类型渲染） */
   .legend { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 10px; }
   .legend .lg {
-    display: flex; align-items: center; gap: 5px;
-    font-size: 11px; color: var(--text-dim);
+    display: flex; align-items: center; gap: 4px;
+    font-size: 11px; color: var(--text-2);
   }
-  .legend .lg .swatch { width: 14px; height: 3px; border-radius: 2px; }
+  .legend .lg .swatch { width: 18px; height: 3px; border-radius: 2px; opacity: 0.55; }
   /* 统计行 */
   .stats-row {
     margin-top: 12px;
     display: flex; gap: 24px; flex-wrap: wrap; align-items: baseline;
   }
   .stats-row .stat { font-size: 13px; }
-  .stats-row .stat b { font-size: 18px; color: var(--accent); font-weight: 600; }
-  .stats-row .stat .lbl { font-size: 11px; color: var(--text-dim); margin-left: 4px; }
+  .stats-row .stat b { font-size: 22px; color: var(--accent); font-weight: 700; }
+  .stats-row .stat .lbl { font-size: 11px; color: var(--text-2); margin-left: 4px; }
   .stats-row .source {
-    margin-left: auto; font-size: 12px; color: var(--text-dim);
+    margin-left: auto; font-size: 12px; color: var(--text-2);
     background: var(--accent-soft); border-radius: 8px; padding: 3px 12px;
   }
 </style>
@@ -97,40 +157,74 @@
   // 画布与环形布局参数（viewBox 坐标）
   var W = 760, H = 560, CX = W / 2, CY = H / 2, RADIUS = 205;
 
-  // 关系类型 → 中文名 / 颜色（缺省类型自动隐藏图例）
+  // 关系类型 → 中文名 / 主题变量（缺省类型自动隐藏图例）；
+  // 五类边色在浅色/深色下各有一套高对比取值（变量见 :root / dark media query）
   var REL_TYPES = {
-    prerequisite:  { name: '前置', color: '#e0af68' },
-    complementary: { name: '互补', color: '#9ece6a' },
-    competing:     { name: '竞争', color: '#f7768e' },
-    transfer:      { name: '迁移', color: '#bb9af7' },
-    co_occurrence: { name: '共现', color: '#7aa2f7' }
+    prerequisite:  { name: '前置', cssVar: '--rel-prerequisite' },
+    complementary: { name: '互补', cssVar: '--rel-complementary' },
+    competing:     { name: '竞争', cssVar: '--rel-competing' },
+    transfer:      { name: '迁移', cssVar: '--rel-transfer' },
+    co_occurrence: { name: '共现', cssVar: '--rel-co-occurrence' }
   };
-  // 分类 → 节点色（未知分类按序取色轮）
-  var CATEGORY_COLORS = {
-    coding: '#7aa2f7', writing: '#bb9af7', analysis: '#9ece6a',
-    learning: '#e0af68', productivity: '#4fd6be', communication: '#ff9e64',
-    general: '#7c8598'
+  // 分类 → 节点色主题变量（未知分类按序取色轮）
+  var CATEGORY_VARS = {
+    coding: '--cat-coding', writing: '--cat-writing', analysis: '--cat-analysis',
+    learning: '--cat-learning', productivity: '--cat-productivity',
+    communication: '--cat-communication', general: '--cat-general'
   };
-  var COLOR_WHEEL = ['#7aa2f7', '#9ece6a', '#e0af68', '#f7768e', '#bb9af7', '#4fd6be', '#ff9e64'];
+  var COLOR_WHEEL_VARS = ['--cat-coding', '--cat-analysis', '--cat-learning',
+    '--rel-competing', '--cat-writing', '--cat-productivity', '--cat-communication'];
   var LEVEL_TEXT = {
     NOVICE: '新手', APPRENTICE: '学徒', ADEPT: '熟手', EXPERT: '专家', MASTER: '大师'
   };
+
+  function cssVar(name) {
+    var v = getComputedStyle(document.documentElement).getPropertyValue(name);
+    return (v || '').trim();
+  }
 
   function setText(id, text) {
     var el = document.getElementById(id);
     if (el) el.textContent = text == null ? '-' : String(text);
   }
 
-  function showEmpty(container, message) {
-    container.innerHTML = '';
-    var el = document.createElementNS(SVG_NS, 'text');
-    el.setAttribute('x', CX);
-    el.setAttribute('y', CY);
-    el.setAttribute('text-anchor', 'middle');
-    el.setAttribute('fill', '#7c8598');
-    el.setAttribute('font-size', '13');
-    el.textContent = message || '暂无数据';
-    container.appendChild(el);
+  // SVG 空态：waypoints 图标 + 一句话 + 数据来源提示
+  // 图标形状取自 lucide waypoints（stroke currentColor 1.75，24 viewBox）
+  var WAYPOINTS_ICON = [
+    ['circle', { cx: 12, cy: 4.5, r: 2.5 }],
+    ['path', { d: 'm10.2 6.3-3.9 3.9' }],
+    ['circle', { cx: 4.5, cy: 12, r: 2.5 }],
+    ['path', { d: 'M7 12h10' }],
+    ['circle', { cx: 19.5, cy: 12, r: 2.5 }],
+    ['path', { d: 'm13.8 17.7 3.9-3.9' }],
+    ['circle', { cx: 12, cy: 19.5, r: 2.5 }]
+  ];
+
+  function showEmpty(svg, message, hint) {
+    svg.innerHTML = '';
+    var g = svgEl('g', {
+      transform: 'translate(' + (CX - 16) + ' ' + (CY - 36) + ') scale(1.3333)',
+      fill: 'none', stroke: cssVar('--muted'),
+      'stroke-width': 1.75, 'stroke-linecap': 'round', 'stroke-linejoin': 'round'
+    });
+    WAYPOINTS_ICON.forEach(function (part) {
+      g.appendChild(svgEl(part[0], part[1]));
+    });
+    svg.appendChild(g);
+    var title = svgEl('text', {
+      x: CX, y: CY + 20, 'text-anchor': 'middle',
+      'font-size': 13, fill: cssVar('--text-2')
+    });
+    title.textContent = message || '暂无数据';
+    svg.appendChild(title);
+    if (hint) {
+      var sub = svgEl('text', {
+        x: CX, y: CY + 40, 'text-anchor': 'middle',
+        'font-size': 11, fill: cssVar('--muted')
+      });
+      sub.textContent = hint;
+      svg.appendChild(sub);
+    }
   }
 
   function svgEl(tag, attrs) {
@@ -139,9 +233,15 @@
     return el;
   }
 
+  function relColor(type) {
+    var rel = REL_TYPES[type];
+    return rel ? (cssVar(rel.cssVar) || cssVar('--muted')) : cssVar('--muted');
+  }
+
   function categoryColor(category, index) {
-    if (CATEGORY_COLORS[category]) return CATEGORY_COLORS[category];
-    return COLOR_WHEEL[index % COLOR_WHEEL.length];
+    var v = CATEGORY_VARS[category] ? cssVar(CATEGORY_VARS[category]) : '';
+    if (v) return v;
+    return cssVar(COLOR_WHEEL_VARS[index % COLOR_WHEEL_VARS.length]);
   }
 
   function truncate(text, max) {
@@ -157,9 +257,12 @@
     legend.innerHTML = '';
 
     if (!nodes || !nodes.length) {
-      showEmpty(svg, '暂无图谱数据——等待依赖图引擎建立技能节点');
+      showEmpty(svg, '暂无图谱数据', '等待依赖图引擎建立技能节点，每日 04:00 自动刷新');
       return;
     }
+
+    var labelColor = cssVar('--text-2');
+    var nodeStroke = cssVar('--card');
 
     // 节点定位：按序均匀分布圆周；大小 = usage（面积感用 sqrt 缩放）
     var maxUsage = 0;
@@ -181,25 +284,26 @@
       var mx = (a._x + b._x) / 2, my = (a._y + b._y) / 2;
       var bend = 0.18;
       var qx = mx + (CX - mx) * bend, qy = my + (CY - my) * bend;
-      var rel = REL_TYPES[e.type] || { name: e.type, color: '#7c8598' };
+      var color = relColor(e.type);
       var strength = Math.max(0, Math.min(1, e.strength == null ? 0 : e.strength));
       var path = svgEl('path', {
         d: 'M ' + a._x.toFixed(1) + ' ' + a._y.toFixed(1) +
            ' Q ' + qx.toFixed(1) + ' ' + qy.toFixed(1) +
            ' ' + b._x.toFixed(1) + ' ' + b._y.toFixed(1),
         fill: 'none',
-        stroke: rel.color,
+        stroke: color,
         'stroke-width': (0.8 + strength * 3.2).toFixed(2),
         'stroke-opacity': 0.55
       });
       var tip = svgEl('title', {});
-      tip.textContent = rel.name + '：' + (a.name || e.from) + ' → ' +
+      tip.textContent = (REL_TYPES[e.type] ? REL_TYPES[e.type].name : e.type) +
+        '：' + (a.name || e.from) + ' → ' +
         (b.name || e.to) + '（强度 ' + Math.round(strength * 100) + '%）';
       path.appendChild(tip);
       svg.appendChild(path);
     });
 
-    // 节点在上层：按 category 分色
+    // 节点在上层：按 category 分色（描边取卡片底色，与浅色/深色底自然融合）
     var catIndex = {};
     nodes.forEach(function (n) {
       if (!(n.category in catIndex)) catIndex[n.category] = Object.keys(catIndex).length;
@@ -208,7 +312,7 @@
       var circle = svgEl('circle', {
         cx: n._x.toFixed(1), cy: n._y.toFixed(1), r: n._r.toFixed(1),
         fill: color, 'fill-opacity': 0.9,
-        stroke: '#16161e', 'stroke-width': 1.5
+        stroke: nodeStroke, 'stroke-width': 1.5
       });
       var tip = svgEl('title', {});
       tip.textContent = (n.name || n.id) + '\n' + (LEVEL_TEXT[n.level] || n.level || '') +
@@ -224,7 +328,7 @@
         x: lx.toFixed(1), y: ly.toFixed(1),
         'text-anchor': anchor,
         'dominant-baseline': sin > 0.6 ? 'hanging' : (sin < -0.6 ? 'auto' : 'middle'),
-        'font-size': 10.5, fill: '#7c8598'
+        'font-size': 10.5, fill: labelColor
       });
       label.textContent = truncate(n.name || n.id, 12);
       svg.appendChild(label);
@@ -240,7 +344,7 @@
       item.className = 'lg';
       var swatch = document.createElement('span');
       swatch.className = 'swatch';
-      swatch.style.background = rel.color;
+      swatch.style.background = relColor(type);
       item.appendChild(swatch);
       item.appendChild(document.createTextNode(rel.name));
       legend.appendChild(item);
@@ -278,6 +382,7 @@
   window.addEventListener('message', function (event) {
     var msg = event.data;
     if (!msg || msg.protocol !== 'craft-pages/v1') return;
+    document.body.classList.add('in-host');
     if (msg.type === 'init' && msg.payload && msg.payload.snapshot) {
       applySnapshot(msg.payload.snapshot);
     } else if (msg.type === 'data' && msg.payload) {

@@ -177,10 +177,14 @@ def _ability_block(scores) -> tuple[dict, int]:
 def _recent_unlocked(achievements: dict | None, limit: int = 3) -> list[dict]:
     """最近解锁 limit 个徽章。
 
+    achievements 工具彻底失败时返回 []（与 unlocked_count=0 的降级值
+    保持一致，避免"已解锁 0/0 却展示最近徽章"的矛盾渲染）。
     首选解锁历史（~/.zenskill/.../growth/achievements.json）按
     unlocked_at 倒序；历史不可读/为空时回退为已解锁徽章前 limit 个。
     """
-    badges = (achievements or {}).get("badges", []) or []
+    if achievements is None:
+        return []
+    badges = achievements.get("badges", []) or []
     by_id = {b.get("id"): b for b in badges if isinstance(b, dict)}
     try:
         from zenskill.core.paths import get_user_data_dir
@@ -398,6 +402,8 @@ def build_snapshot() -> dict:
     trend = _composite_trend()
     if trend:
         series["ability_composite_trend"] = trend
+        # 历史快照无 satisfaction/memory，趋势仅反映三维，标记为部分口径
+        series["series_quality"] = "partial"
 
     now_ms = int(time.time() * 1000)
     kv = {

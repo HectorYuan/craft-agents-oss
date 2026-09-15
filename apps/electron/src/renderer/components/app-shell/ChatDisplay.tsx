@@ -978,7 +978,7 @@ export const ChatDisplay = React.forwardRef<ChatDisplayHandle, ChatDisplayProps>
   const [overlayState, setOverlayState] = useState<OverlayState>(null)
 
   // Diff viewer settings - loaded from user preferences on mount, persisted on change
-  // These settings are stored in ~/.craft-agent/preferences.json (not localStorage)
+  // These settings are stored in ~/.zenskill/preferences.json (not localStorage)
   const [diffViewerSettings, setDiffViewerSettings] = useState<Partial<DiffViewerSettings>>({})
 
   // Load diff viewer settings from preferences on mount
@@ -2172,6 +2172,11 @@ function ErrorMessage({ message, onOpenUrl, sessionId, onRetry }: { message: Mes
       >
         <div className="text-xs text-destructive/50 mb-0.5 font-semibold">
           {message.errorTitle || t('common.error')}
+          {typeof (message as { timestamp?: number }).timestamp === 'number' && (
+            <span className="ml-2 font-normal">
+              {new Date((message as { timestamp?: number }).timestamp!).toLocaleString()}
+            </span>
+          )}
         </div>
         <p className="text-sm text-destructive">{message.content}</p>
 

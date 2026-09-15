@@ -16,11 +16,115 @@ class AgentPage:
     def __init__(self, console: Console, data=None):
         self.console = console
         self.data = data
+        # 搜索状态
+        self._search_mode = False
+        self._search_input = ""
+        self._search_results = []
+        self._selected_index = -1
+        # 会话切换请求标记：app.py 主循环检测此字段并执行实际切换
+        self._pending_session_switch: str | None = None
+
+    def handle_key(self, key: str) -> bool:
+        """处理键盘输入。返回 True 表示事件已消费。"""
+        if not self._search_mode:
+            if key == "/":
+                self._search_mode = True
+                self._selected_index = 0
+                return True
+            return False
+        if key == "/":
+            return True
+        if key == "tab":
+            if self._search_results:
+                self._selected_index = (self._selected_index + 1) % len(self._search_results)
+            return True
+        if key == "enter":
+            if self._search_results and 0 <= self._selected_index < len(self._search_results):
+                result = self._search_results[self._selected_index]
+                self._pending_session_switch = result.get("session_id")
+                self._search_mode = False
+                return True
+            elif self._search_input.strip():
+                # 无选中但有输入：执行搜索
+                self.do_search(self._search_input)
+                return True
+            return True
+        if key == "escape":
+            self._search_mode = False
+            self._search_input = ""
+            self._search_results = []
+            self._selected_index = 0
+            return True
+        if key == "backspace":
+            self._search_input = self._search_input[:-1]
+            return True
+        if len(key) == 1 and key.isprintable():
+            self._search_input += key
+            self._selected_index = 0
+            return True
+        return False
+
+    def get_selected_session(self) -> str | None:
+        """返回当前选中的搜索结果会话 ID。"""
+        if self._search_results and 0 <= self._selected_index < len(self._search_results):
+            return self._search_results[self._selected_index].get("session_id")
+        return None
+
+    def do_search(self, query: str, limit: int = 20) -> None:
+        """执行会话搜索，结果存入 _search_results。"""
+        if not query.strip():
+            return
+        try:
+            from zenskill.runtime.agent.session import SessionManager
+            manager = SessionManager()
+            results = []
+            query_lower = query.lower()
+            for s_info in manager.list_sessions():
+                sid = s_info["id"]
+                try:
+                    sess = manager.load(sid)
+                except Exception:
+                    continue
+                for entry in sess.entries:
+                    if entry.type != "message":
+                        continue
+                    msg_dict = entry.data.get("message") or {}
+                    content = msg_dict.get("content")
+                    if content is None:
+                        continue
+                    texts = []
+                    if isinstance(content, str):
+                        texts.append(content)
+                    elif isinstance(content, list):
+                        for b in content:
+                            if isinstance(b, dict) and b.get("type") == "text":
+                                texts.append(b.get("text", ""))
+                    full = " ".join(texts)
+                    if query_lower not in full.lower():
+                        continue
+                    results.append({
+                        "session_id": sid,
+                        "entry_id": entry.id,
+                        "preview": full[:100].replace("\n", " "),
+                    })
+                    if len(results) >= limit:
+                        break
+                if len(results) >= limit:
+                    break
+            self._search_results = results
+            self._selected_index = 0 if results else -1
+        except Exception:
+            self._search_results = []
 
     def render(self, agent_session=None, **kwargs) -> None:
         """渲染 agent 状态。"""
         if agent_session is None:
             self.console.print("[yellow]Agent engine 未初始化[/yellow]")
+            return
+
+        # 搜索模式：输入框 + 结果列表
+        if self._search_mode:
+            self._render_search()
             return
 
         info = agent_session.session_info()
@@ -191,3 +295,24 @@ class AgentPage:
             self.console.print(Panel(table, border_style="dim"))
         except Exception:
             pass  # 日志失败不影响 agent 页核心信息
+
+    def _render_search(self) -> None:
+        """渲染会话搜索界面。"""
+        # 执行搜索（输入变化时）
+        self.do_search(self._search_input)
+        # 输入框
+        self.console.print(
+            Panel(f"[bold]🔍 搜索会话[/bold]  输入关键词，Tab 选择，Enter 切换，Esc 退出",
+                  border_style="yellow"))
+        self.console.print(f"  搜索: {self._search_input}_")
+        # 结果列表
+        if self._search_results:
+            for i, r in enumerate(self._search_results):
+                mark = "▸" if i == self._selected_index else " "
+                sid = r.get("session_id", "")[:12]
+                preview = r.get("preview", "")[:60]
+                self.console.print(f"  {mark} [{sid}] {preview}")
+        elif self._search_input.strip():
+            self.console.print("  [dim]未找到匹配结果[/dim]")
+        else:
+            self.console.print("  [dim]输入关键词开始搜索...[/dim]")

@@ -17,6 +17,16 @@ import './index.css'
 // Initialize i18n before any React rendering
 setupI18n([LanguageDetector, initReactI18next])
 
+// 品牌迁移：localStorage 键由 craft- 前缀迁至 zenskill-（保留旧键以便回滚）
+if (typeof localStorage !== 'undefined') {
+  for (let i = localStorage.length - 1; i >= 0; i--) {
+    const key = localStorage.key(i)
+    if (key?.startsWith('craft-') && localStorage.getItem(`zenskill-${key.slice(6)}`) === null) {
+      localStorage.setItem(`zenskill-${key.slice(6)}`, localStorage.getItem(key) as string)
+    }
+  }
+}
+
 // One-shot bootstrap: ensure the main process's i18n + preferences.json learn
 // the language we just restored from localStorage. The main-process IPC handler
 // validates the code and persists idempotently, so this is safe to run on every

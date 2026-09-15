@@ -48,8 +48,17 @@ class CoreSettingsCollector(BaseCollector):
         self._settings_path = Path.home() / ".claude" / "settings.json"
         self._stats = {}
 
+    @staticmethod
+    def _readable(p: Path) -> bool:
+        # Path.exists() 在部分 Python 版本（3.11.x）对不可读父目录直接抛
+        # PermissionError 而非返回 False，扫描外部路径必须显式吞 OSError
+        try:
+            return p.exists()
+        except OSError:
+            return False
+
     def is_available(self) -> bool:
-        return any(r.exists() for r in self.PROJECT_ROOTS) or self._settings_path.exists()
+        return any(self._readable(r) for r in self.PROJECT_ROOTS) or self._readable(self._settings_path)
 
     def collect_full(self) -> List[Dict[str, Any]]:
         now = time.time()
@@ -92,7 +101,7 @@ class CoreSettingsCollector(BaseCollector):
 
         for root in self.PROJECT_ROOTS:
             claude_md = root / "CLAUDE.md"
-            if not claude_md.exists():
+            if not self._readable(claude_md):
                 continue
 
             try:

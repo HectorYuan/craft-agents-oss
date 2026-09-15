@@ -19,6 +19,7 @@ from .incubating import IncubatingEngine, IncubatingItem
 from .migrate import GTDMigrator
 from .report import GTDReportEngine
 from .health import GTDHealthEngine
+from .progression import TaskProgressionEngine, TaskProgression
 
 __all__ = [
     "InboxEngine", "InboxItem",
@@ -28,4 +29,5 @@ __all__ = [
     "CalendarEngine", "CalendarEvent",
     "IncubatingEngine", "IncubatingItem",
     "GTDMigrator", "GTDReportEngine", "GTDHealthEngine",
+    "TaskProgressionEngine", "TaskProgression",
 ]

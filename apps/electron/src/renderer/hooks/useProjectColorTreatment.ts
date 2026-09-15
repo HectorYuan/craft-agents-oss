@@ -5,7 +5,7 @@ import {
   type ProjectColorTreatment,
 } from '@/utils/project-colors'
 
-const STORAGE_EVENT = 'craft-project-color-treatment-changed'
+const STORAGE_EVENT = 'zenskill-project-color-treatment-changed'
 
 function read(): ProjectColorTreatment {
   const value = storage.get<ProjectColorTreatment>(

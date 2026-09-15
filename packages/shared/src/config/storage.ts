@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync, rmSync, statSync, readdirSync } from 'fs';
+import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync, rmSync, statSync, readdirSync } from 'fs';
 import { join, dirname, basename } from 'path';
 import { getCredentialManager } from '../credentials/index.ts';
 import { getOrCreateLatestSession, type SessionConfig } from '../sessions/index.ts';
@@ -113,7 +113,7 @@ let configDefaultsSynced = false;
 /** Minimal config-defaults used when bundled assets aren't available (CI, standalone server). */
 const FALLBACK_CONFIG_DEFAULTS: ConfigDefaults = {
   version: '1.0',
-  description: 'Default configuration values for Craft Agents',
+  description: 'Default configuration values for ZenSkill',
   defaults: {
     notificationsEnabled: true,
     colorTheme: 'default',
@@ -164,7 +164,7 @@ function syncConfigDefaults(): void {
 }
 
 /**
- * Load config defaults from ~/.craft-agent/config-defaults.json
+ * Load config defaults from ~/.zenskill/config-defaults.json
  * This file is synced from bundled assets on every launch.
  */
 export function loadConfigDefaults(): ConfigDefaults {
@@ -252,7 +252,7 @@ export function ensureConfigDir(): void {
   // Snapshot an existing config.json (dated, keep last 3) before anything can
   // mutate or — in a failure path — overwrite the workspace registry.
   backupConfigFile();
-  // Initialize bundled docs (creates ~/.craft-agent/docs/ with sources.md, agents.md, permissions.md)
+  // Initialize bundled docs (creates ~/.zenskill/docs/ with sources.md, agents.md, permissions.md)
   initializeDocs();
 
   // Initialize config defaults
@@ -323,7 +323,10 @@ export function saveConfig(config: StoredConfig): void {
     })),
   };
 
-  writeFileSync(CONFIG_FILE, JSON.stringify(storageConfig, null, 2), 'utf-8');
+  // 原子写：临时文件 + rename，防进程竞态下的半截 JSON
+  const tmpFile = CONFIG_FILE + '.tmp';
+  writeFileSync(tmpFile, JSON.stringify(storageConfig, null, 2), 'utf-8');
+  renameSync(tmpFile, CONFIG_FILE);
 }
 
 // Legacy updateApiKey() removed - use setupLlmConnection IPC handler instead.
@@ -1243,7 +1246,7 @@ const APP_THEME_FILE = join(CONFIG_DIR, 'theme.json');
 const APP_THEMES_DIR = join(CONFIG_DIR, 'themes');
 
 /**
- * Get the path to the app-level theme override file (~/.craft-agent/theme.json).
+ * Get the path to the app-level theme override file (~/.zenskill/theme.json).
  */
 export function getAppThemePath(): string {
   return APP_THEME_FILE;
@@ -1254,7 +1257,7 @@ let presetsInitialized = false;
 
 /**
  * Get the app-level themes directory.
- * Preset themes are stored at ~/.craft-agent/themes/
+ * Preset themes are stored at ~/.zenskill/themes/
  */
 export function getAppThemesDir(): string {
   return APP_THEMES_DIR;
@@ -1885,16 +1888,20 @@ function withUpdatedModelEntry(
   entry: ModelDefinition | string,
   nextId: string,
 ): ModelDefinition | string {
+  // The registry may not carry Claude entries anymore (R2 DeepSeek catalog);
+  // fall back to the bare ID instead of spreading `undefined` into config.
+  const opusEntry = nextId === OPUS_DEFAULT_ID ? getModelById(OPUS_DEFAULT_ID) : undefined;
+
   if (typeof entry === 'string') {
-    if (connection.providerType === 'anthropic' && nextId === OPUS_DEFAULT_ID) {
-      return { ...getModelById(OPUS_DEFAULT_ID)! };
+    if (connection.providerType === 'anthropic' && opusEntry) {
+      return { ...opusEntry };
     }
     return nextId;
   }
 
   const nextEntry: ModelDefinition = { ...entry, id: nextId };
-  if (connection.providerType === 'anthropic' && nextId === OPUS_DEFAULT_ID) {
-    return { ...getModelById(OPUS_DEFAULT_ID)! };
+  if (connection.providerType === 'anthropic' && opusEntry) {
+    return { ...opusEntry };
   }
   if (nextEntry.name && /Opus 4\.[56]/.test(nextEntry.name)) {
     nextEntry.name = displayNameForMigratedModel(nextId);
@@ -1904,7 +1911,10 @@ function withUpdatedModelEntry(
 
 function modelEntryForDefault(connection: LlmConnection, modelId: string): ModelDefinition | string {
   if (connection.providerType === 'anthropic' && modelId === OPUS_DEFAULT_ID) {
-    return { ...getModelById(OPUS_DEFAULT_ID)! };
+    // The registry may not carry Claude entries anymore (R2 DeepSeek catalog);
+    // fall back to the bare ID instead of spreading `undefined` into config.
+    const registered = getModelById(OPUS_DEFAULT_ID);
+    if (registered) return { ...registered };
   }
   return modelId;
 }
@@ -3041,7 +3051,7 @@ import { copyFileSync } from 'fs';
 const TOOL_ICONS_DIR_NAME = 'tool-icons';
 
 /**
- * Returns the path to the tool-icons directory: ~/.craft-agent/tool-icons/
+ * Returns the path to the tool-icons directory: ~/.zenskill/tool-icons/
  */
 export function getToolIconsDir(): string {
   return join(CONFIG_DIR, TOOL_ICONS_DIR_NAME);

@@ -11,6 +11,8 @@ export interface RadarChartProps {
   size?: number
   highlight?: string
   onHover?: (key: string | null) => void
+  /** Optional display labels per dimension; falls back to the Chinese defaults below. */
+  labels?: Record<string, string>
 }
 
 const DIM_LABELS: Record<string, string> = {
@@ -30,7 +32,7 @@ function pentagonPoints(cx: number, cy: number, r: number, n: number): string[] 
   return points
 }
 
-export function RadarChart({ scores, size = 200, highlight, onHover }: RadarChartProps) {
+export function RadarChart({ scores, size = 200, highlight, onHover, labels }: RadarChartProps) {
   const [internalHighlight, setInternalHighlight] = useState<string | null>(null)
   const activeHighlight = highlight ?? internalHighlight
 
@@ -106,7 +108,7 @@ export function RadarChart({ scores, size = 200, highlight, onHover }: RadarChar
           onMouseEnter={() => handleMouseEnter(dim)}
           onMouseLeave={handleMouseLeave}
         >
-          {DIM_LABELS[dim] ?? dim}
+          {labels?.[dim] ?? DIM_LABELS[dim] ?? dim}
         </text>
       ))}
     </svg>

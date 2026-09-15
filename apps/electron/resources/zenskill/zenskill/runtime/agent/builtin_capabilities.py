@@ -1,4 +1,4 @@
-"""内建 Capability：Memory（M4-2）与 Reflection（M4-3）。
+"""内建 Capability：Memory（M4-2）、Reflection（M4-3）与 TaskProgression（MVP-2b）。
 
 MemoryCapability：把 runtime/memory 三层存储接入 agent 循环——
 before_turn 注入相关记忆（修复"记忆从未进 prompt"的断裂），
@@ -7,10 +7,16 @@ after_turn 记录任务级 episode，暴露 memory_remember/memory_recall 工具
 ReflectionCapability：把 runtime/reflection 降级为观察者——
 after_tool 对错误结果做 SelfEvaluator 分类并写入 ERROR 记忆，
 重试决策完全交还 LLM 循环（M1 已验证模型自纠）。
+
+GtdProgressionCapability：conversational_gtd_proposal.md 层 3 注入通道——
+before_turn（桥接 AgentLoop transform_context，注入不落库、不累积）
+把 TaskProgressionEngine 的 top-N 推进建议注入 LLM context，
+让 Agent 在对话中主动提及重要推进事项。
 """
 from __future__ import annotations
 
 import logging
+import zlib
 from typing import Any, Dict, List, Optional
 
 from .capability import AgentCapability
@@ -339,3 +345,104 @@ class TaskTypeCapability(AgentCapability):
                 injected = UserMessage(content=f"[system] {strategy}")
                 return [injected] + list(messages)
         return None
+
+
+_PROGRESSION_PREFIX = "[task-progression]"
+_PROGRESSION_CONSTRAINT = "仅供参考，除非与用户话题相关，不要主动重复提及"
+
+
+class GtdProgressionCapability(AgentCapability):
+    """推进建议注入（conversational_gtd_proposal.md 层 3，transform_context 模式）。
+
+    通过 before_turn 桥接 AgentLoopConfig.transform_context（每轮 LLM 调用前
+    以 list(context.messages) 拷贝触发，返回值仅作为本轮 llm_messages），
+    注入消息不落 context、不跨轮累积；与 prepare_next_turn（消息累积）相比
+    天然避免建议在 context 中膨胀。
+
+    频率语义：
+    - 会话首轮必注入一次（有建议时）
+    - 后续轮次仅在建议集版本号变化时重新注入（数据变更后建议更新）
+    - 版本未变化时不注入：首轮已让 Agent 感知，避免每轮重复出现诱导
+      LLM 反复提及（与注入文案中的行为约束一致）
+    - 注入始终幂等替换：先移除上一条 [task-progression] 消息再插入
+    - 建议为空时不注入（并清除历史注入消息与注入状态）
+
+    数据缓存（TTL 30s + zenskill:changed 文件指纹失效）由
+    TaskProgressionEngine 类级缓存承担，本 Capability 只做版本比对。
+    """
+    name = "task_progression"
+    priority = 15
+
+    def __init__(self, data_dir: str = "", max_items: int = 3) -> None:
+        self._data_dir = str(data_dir or "")
+        self._max = max(1, int(max_items or 3))
+        self._last_version: Optional[int] = None  # 已注入建议集的版本指纹
+
+    def reset(self) -> None:
+        """清除注入状态（新会话重新按首轮语义注入）"""
+        self._last_version = None
+
+    # ── 数据 ──
+
+    def _load_progressions(self) -> List[Dict[str, Any]]:
+        from ...systems.gtd.progression import TaskProgressionEngine
+        result = TaskProgressionEngine(
+            data_dir=self._data_dir
+        ).generate_progressions(limit=self._max)
+        return list(result.get("progressions") or [])
+
+    @staticmethod
+    def _version_of(progressions: List[Dict[str, Any]]) -> int:
+        """建议集版本指纹：trigger + suggestion 决定注入内容是否变化"""
+        payload = "\n".join(
+            "{}|{}".format(p.get("trigger", ""), p.get("suggestion", ""))
+            for p in progressions
+        )
+        return zlib.crc32(payload.encode("utf-8"))
+
+    # ── 渲染 / 清理 ──
+
+    def _render(self, progressions: List[Dict[str, Any]]) -> str:
+        lines: List[str] = []
+        for i, p in enumerate(progressions[: self._max], 1):
+            suggestion = str(p.get("suggestion") or "").strip()
+            prompt = str(p.get("prompt") or "").strip()
+            line = f"{i}. {suggestion}" if suggestion else f"{i}."
+            if prompt:
+                line += f"（建议提示词：{prompt}）"
+            lines.append(line)
+        body = "\n".join(lines)
+        return (
+            f"{_PROGRESSION_PREFIX} 当前推进建议（{_PROGRESSION_CONSTRAINT}）：\n"
+            f"{body}"
+        )
+
+    @staticmethod
+    def _strip_progression_messages(messages: List[Message]) -> List[Message]:
+        """移除历史注入的 [task-progression] 消息（幂等替换的防御侧）"""
+        return [
+            m for m in messages
+            if not (isinstance(m, UserMessage)
+                    and m.text().startswith(_PROGRESSION_PREFIX))
+        ]
+
+    # ── AgentLoop 钩子（CapabilityHost 桥接为 transform_context）──
+
+    async def before_turn(self, messages: List[Message]) -> Optional[List[Message]]:
+        rest = self._strip_progression_messages(messages)
+        removed = len(rest) != len(messages)
+        try:
+            progressions = self._load_progressions()
+        except Exception as e:
+            logger.debug("GtdProgressionCapability: load degraded: %s: %s",
+                         type(e).__name__, e)
+            progressions = []
+        if not progressions:
+            self._last_version = None
+            return rest if removed else None
+        version = self._version_of(progressions)
+        if version == self._last_version:
+            return rest if removed else None
+        injected = UserMessage(content=self._render(progressions))
+        self._last_version = version
+        return [injected] + rest

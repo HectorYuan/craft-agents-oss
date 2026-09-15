@@ -63,7 +63,15 @@ export {
   sourceExists,
   // Parsing utilities
   parseGuideMarkdown,
+  // ZenSkill seed
+  getZenskillSeedDismissMarker,
 } from './storage.ts';
+
+// ZenSkill MCP source seeding (fresh installs ship the engine pack, not a source)
+export {
+  ZENSKILL_SOURCE_SLUG as ZENSKILL_SEED_SOURCE_SLUG,
+  seedZenskillSource,
+} from './zenskill-seed.ts';
 
 // Credential Manager (unified credential operations)
 export {

@@ -1701,12 +1701,18 @@ export function getPathHint(targetPath: string, plansFolderPath: string, dataFol
   }
 
   // Case: Writing to workspace root instead of session
-  if (normalizedTarget.includes('/.craft-agent/workspaces/') && !normalizedTarget.includes('/sessions/')) {
+  // (both the .zenskill dir and the pre-migration legacy dir count as app data)
+  const inAppDataDir =
+    normalizedTarget.includes('/.zenskill/') || normalizedTarget.includes('/.craft-agent/');
+  const inAppWorkspacesDir =
+    normalizedTarget.includes('/.zenskill/workspaces/') ||
+    normalizedTarget.includes('/.craft-agent/workspaces/');
+  if (inAppWorkspacesDir && !normalizedTarget.includes('/sessions/')) {
     return 'Hint: Write to the session plans or data folder, not the workspace root.';
   }
 
-  // Case: Writing outside .craft-agent entirely
-  if (!normalizedTarget.includes('/.craft-agent/')) {
+  // Case: Writing outside the app data dir entirely
+  if (!inAppDataDir) {
     return 'Hint: Files must be written to the session plans or data folder. Use plansFolderPath or dataFolderPath from <session_state>.';
   }
 

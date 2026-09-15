@@ -8,7 +8,7 @@
 
 import { atomWithStorage } from 'jotai/utils'
 
-const STORAGE_KEY = 'craft-workspace-avatar-colors'
+const STORAGE_KEY = 'zenskill-workspace-avatar-colors';
 
 export type WorkspaceAvatarColors = Record<string, string>
 

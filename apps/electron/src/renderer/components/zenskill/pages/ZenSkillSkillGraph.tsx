@@ -12,8 +12,7 @@ import { useMcpTool } from '@/hooks/zenskill/useMcpTool'
 import { ErrorBoundary } from '../panels/ErrorBoundary'
 import { PageToChatBridge } from '../PageToChatBridge'
 import { ZS } from '../panels/tokens'
-
-const ZENSKILL_SOURCE_SLUG = 'zenskill'
+import { ZENSKILL_SOURCE_SLUG } from '../zenskill-registry'
 
 interface SkillNode {
   skill_id: string

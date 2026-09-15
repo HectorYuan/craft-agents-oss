@@ -183,7 +183,7 @@ async def stream_from_agent(
     if with_skills:
         try:
             from zenskill.runtime.agent.mcp_capability import format_skills_prompt
-            section = format_skills_prompt()
+            section = format_skills_prompt(scenario=user_input)
             if section:
                 prompt = host.build_system_prompt(prompt) + "\n\n" + section
         except Exception:

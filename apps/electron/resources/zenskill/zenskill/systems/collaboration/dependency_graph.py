@@ -80,6 +80,22 @@ class SkillRelation:
     def __post_init__(self):
         if self.evidence is None:
             self.evidence = []
+        # 发现时间默认当前（历史行为；discover_* 工厂与直接构造一致）
+        now_iso = datetime.now().isoformat()
+        if self.discovered_at is None:
+            self.discovered_at = now_iso
+        if self.last_updated_at is None:
+            self.last_updated_at = now_iso
+
+    @property
+    def source_id(self) -> str:
+        # 8P-8V 系列方法历史上用 source_id/target_id 命名访问边端点，
+        # 数据类字段实为 from_skill/to_skill —— 别名统一两套口径。
+        return self.from_skill
+
+    @property
+    def target_id(self) -> str:
+        return self.to_skill
         if self.discovered_at is None:
             self.discovered_at = datetime.now().isoformat()
         if self.last_updated_at is None:

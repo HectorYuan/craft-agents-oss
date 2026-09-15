@@ -1,5 +1,13 @@
 import { describe, it, expect, mock, beforeEach } from 'bun:test'
 
+// The system prompt pipeline reads config-defaults.json from CONFIG_DIR, which
+// is captured at module load and depends on how the developer's environment is
+// initialized. Stub the only config piece `system.ts` uses so these tests stay
+// hermetic regardless of which config dir this process resolved.
+mock.module('../../config/storage.ts', () => ({
+  getBrowserToolEnabled: () => true,
+}))
+
 // Stub the preferences module so we can toggle `getCoAuthorPreference` per test
 // without touching disk. `formatPreferencesForPrompt` is stubbed to '' because
 // it's unrelated to the behavior under test here.
@@ -9,7 +17,7 @@ mock.module('../../config/preferences.ts', () => ({
   formatPreferencesForPrompt: () => '',
 }))
 
-import { getSystemPrompt, formatProjectContextForPrompt } from '../system'
+const { getSystemPrompt, formatProjectContextForPrompt } = await import('../system')
 import type { ProjectPromptContext } from '../../projects/types.ts'
 
 const GIT_CONVENTIONS_HEADING = '## Git Conventions'

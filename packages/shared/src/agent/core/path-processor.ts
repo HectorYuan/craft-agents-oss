@@ -28,13 +28,14 @@ export { expandPath, normalizePath, pathStartsWith, toPortablePath };
 /**
  * Known configuration file patterns that may need validation before writing.
  * These files have specific formats (JSON, TOML, YAML) that can break apps if malformed.
+ * Both the ZenSkill dir (.zenskill) and the pre-migration legacy dir are matched.
  */
 const CONFIG_FILE_PATTERNS = [
-  // Craft Agent configs
-  /\.craft-agent\/.*\/(config|permissions|theme|guide|labels|statuses)\.json$/,
-  /\.craft-agent\/config\.json$/,
-  /\.craft-agent\/preferences\.json$/,
-  /\.craft-agent\/.*\/SKILL\.md$/,
+  // App configs
+  /\.(?:zenskill|craft-agent)\/.*\/(config|permissions|theme|guide|labels|statuses)\.json$/,
+  /\.(?:zenskill|craft-agent)\/config\.json$/,
+  /\.(?:zenskill|craft-agent)\/preferences\.json$/,
+  /\.(?:zenskill|craft-agent)\/.*\/SKILL\.md$/,
   // Common config files
   /package\.json$/,
   /tsconfig\.json$/,

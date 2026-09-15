@@ -1,5 +1,4 @@
 # ZenSkill - 有生命的技能系统
-# 扣子技能版本 v1.0.0
 
 import warnings
 
@@ -55,7 +54,7 @@ from .mirroring import (
     PrivacyLayer,
 )
 
-__version__ = "2.7.1"
+__version__ = "2.9.0"
 __author__ = "ZenSkill Team"
 
 __all__ = [

@@ -237,9 +237,17 @@ class Session:
         return collected, model
 
     def build_context(self, leaf_id: Optional[str] = None) -> Dict[str, Any]:
-        """产出 {messages, model}；分支上的 compaction entry 把被压缩前缀替换为摘要"""
+        """产出 {messages, model}；分支上的 compaction entry 把被压缩前缀替换为摘要。
+
+        空壳 assistant（错误/中止残留，无 text 无 tool_calls）不进 LLM 上下文，
+        避免下一轮请求被 API 以 400 拒绝；jsonl 中仍保留供 UI 展示。
+        """
         collected, model = self.collect_pairs(leaf_id)
-        return {"messages": [m for _, m in collected], "model": model}
+        messages = [
+            m for _, m in collected
+            if not (isinstance(m, AssistantMessage) and not m.text() and not m.tool_calls())
+        ]
+        return {"messages": messages, "model": model}
 
 
 _health_hint_shown = False
@@ -294,6 +302,61 @@ def session_health_hints(manager: "SessionManager", *, force: bool = False) -> l
             "运行 zenskill agent-engine session prune --older-than 30 --delete 清理"
         )
     return hints
+
+
+# ── 会话导出 ──────────────────────────────────────────────────────
+
+def export_markdown(session: "Session", leaf_id: Optional[str] = None,
+                    include_tools: bool = True,
+                    include_thinking: bool = False) -> str:
+    """导出当前分支为 Markdown 对话记录。"""
+    from datetime import datetime as _dt
+    built = session.build_context(leaf_id)
+    messages = built.get("messages", [])
+    lines = [
+        "# ZenSkill 对话记录",
+        "",
+        f"- **Session ID**: `{session.id}`",
+        f"- **导出时间**: {_dt.now().strftime('%Y-%m-%d %H:%M')}",
+        f"- **消息数**: {len(messages)}",
+        "",
+        "---",
+        "",
+    ]
+    for m in messages:
+        mtype = type(m).__name__
+        if mtype == "UserMessage":
+            text = m.text() if hasattr(m, "text") else str(m)
+            if text.strip():
+                lines.append(f"## 👤 用户\n\n{text}\n")
+        elif mtype == "AssistantMessage":
+            text = m.text() if hasattr(m, "text") else ""
+            if text.strip():
+                lines.append(f"## 🤖 Agent\n\n{text}\n")
+            if include_thinking and hasattr(m, "content"):
+                thinking = "".join(
+                    b.thinking for b in m.content
+                    if type(b).__name__ == "ThinkingContent"
+                )
+                if thinking:
+                    lines.append(f"<details><summary>💭 思考过程</summary>\n\n{thinking}\n</details>\n")
+            if include_tools and hasattr(m, "content"):
+                for b in m.content:
+                    if type(b).__name__ == "ToolCall":
+                        args_str = json.dumps(b.arguments, ensure_ascii=False)[:120]
+                        lines.append(f"> 🔧 **{b.name}**({args_str})\n")
+        elif mtype == "ToolResultMessage":
+            if include_tools:
+                text = ""
+                if hasattr(m, "content"):
+                    for b in m.content:
+                        if hasattr(b, "text"):
+                            text = b.text[:500]
+                            break
+                status = "✗" if getattr(m, "is_error", False) else "✓"
+                lines.append(f"<details><summary>🔧 结果 {status}</summary>\n\n{text}\n</details>\n")
+    lines.extend(["---", "", "*由 ZenSkill Agent 自动导出*", ""])
+    return "\n".join(lines)
 
 
 class SessionManager:

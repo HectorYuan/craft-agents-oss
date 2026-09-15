@@ -6,6 +6,7 @@
 import * as React from 'react'
 import { Search, Download, Loader2, Check } from 'lucide-react'
 import { toast } from 'sonner'
+import { ZENSKILL_SOURCE_SLUG } from './zenskill-registry'
 
 export function ZenSkillMarketSearch({ workspaceId }: { workspaceId?: string }) {
   const [marketQuery, setMarketQuery] = React.useState('')
@@ -21,7 +22,7 @@ export function ZenSkillMarketSearch({ workspaceId }: { workspaceId?: string }) 
     marketTimerRef.current = setTimeout(async () => {
       setMarketLoading(true)
       try {
-        const res = await window.electronAPI.callMcpTool(workspaceId!, 'zenskill', 'skill_search', { query: query.trim(), top_k: 6 })
+        const res = await window.electronAPI.callMcpTool(workspaceId!, ZENSKILL_SOURCE_SLUG, 'skill_search', { query: query.trim(), top_k: 6 })
         const text = (res as any)?.result?.content?.[0]?.text
         if (text) {
           const data = JSON.parse(text)
@@ -35,7 +36,7 @@ export function ZenSkillMarketSearch({ workspaceId }: { workspaceId?: string }) 
   const installSkill = React.useCallback(async (uri: string, name: string) => {
     setInstallingUri(uri)
     try {
-      const res = await window.electronAPI.callMcpTool(workspaceId!, 'zenskill', 'skill_install', { uri })
+      const res = await window.electronAPI.callMcpTool(workspaceId!, ZENSKILL_SOURCE_SLUG, 'skill_install', { uri })
       const text = (res as any)?.result?.content?.[0]?.text
       const data = text ? JSON.parse(text) : {}
       if (data.ok) {

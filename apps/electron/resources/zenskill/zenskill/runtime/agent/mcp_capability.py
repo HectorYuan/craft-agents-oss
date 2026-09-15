@@ -154,39 +154,11 @@ def _escape_prompt_attr(s: str) -> str:
 
 
 def format_skills_prompt(skills_dirs: Optional[List[str]] = None,
-                         max_skills: int = 100) -> Optional[str]:
-    """扫描 SKILL.md 目录，返回系统提示词 XML 块（渐进披露：只含元数据）"""
-    if skills_dirs is None:
-        skills_dirs = [str(Path.home() / ".agents" / "skills")]
-    entries: List[str] = []
-    for base in skills_dirs:
-        root = Path(base)
-        if not root.is_dir():
-            continue
-        for skill_md in sorted(root.glob("*/SKILL.md")):
-            try:
-                from ...skills.frontmatter import parse_skill_md
-                meta, _ = parse_skill_md(skill_md)
-                raw = meta.to_dict() if hasattr(meta, "to_dict") else {}
-            except Exception:
-                continue
-            if not raw:
-                continue
-            name = str(raw.get("name") or skill_md.parent.name)
-            desc = str(raw.get("description") or "").strip()
-            if not desc:
-                continue
-            safe_name = _escape_prompt_attr(name)
-            safe_desc = _escape_prompt_text(desc[:400])
-            entries.append(f'<skill name="{safe_name}">\n{safe_desc}\n</skill>')
-            if len(entries) >= max_skills:
-                break
-    if not entries:
-        return None
-    return (
-        "<available-skills>\n"
-        "Skills below are detailed guides. To use one, call the skill_load tool "
-        "(or read its SKILL.md with the read tool as fallback).\n"
-        + "\n".join(entries)
-        + "\n</available-skills>"
-    )
+                         scenario: Optional[str] = None) -> Optional[str]:
+    """扫描 SKILL.md 目录，返回系统提示词 XML 块（渐进披露：只含元数据）。
+
+    有 scenario 时走 top-K 检索（任务级），无 scenario 时走全量（会话级）。
+    统一入口：delegates to build_skills_section（skill_tools.py）。
+    """
+    from .skill_tools import build_skills_section
+    return build_skills_section(scenario=scenario, top_k=10, skills_dirs=skills_dirs)

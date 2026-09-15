@@ -23,6 +23,8 @@ class InboxItem:
     raw_text: str
     source: str = "cli"
     profile: str = ""  # 所属 profile（空=当前激活）
+    source_session_id: str = ""  # 创建来源 session（空=非 agent 会话/GUI 手动）
+    created_by: str = "user"  # "agent"=agent 自动创建 / "user"=用户手动
     created_at: str = field(default_factory=lambda: time.strftime("%Y-%m-%dT%H:%M:%S"))
     status: str = "unprocessed"  # unprocessed / clarified / archived
     clarify_result: dict = field(default_factory=dict)
@@ -31,6 +33,8 @@ class InboxItem:
         return {
             "id": self.id, "raw_text": self.raw_text, "source": self.source,
             "profile": self.profile,
+            "source_session_id": self.source_session_id,
+            "created_by": self.created_by,
             "created_at": self.created_at, "status": self.status,
             "clarify_result": self.clarify_result,
         }
@@ -41,6 +45,8 @@ class InboxItem:
             id=data.get("id", ""), raw_text=data.get("raw_text", ""),
             source=data.get("source", "cli"),
             profile=data.get("profile", ""),
+            source_session_id=data.get("source_session_id", ""),
+            created_by=data.get("created_by", "user"),
             created_at=data.get("created_at", ""),
             status=data.get("status", "unprocessed"),
             clarify_result=data.get("clarify_result", {}),
@@ -86,13 +92,17 @@ class InboxEngine:
         except Exception:
             return "default"
 
-    def add(self, raw_text: str, source: str = "cli") -> InboxItem:
+    def add(self, raw_text: str, source: str = "cli",
+            source_session_id: str = "", created_by: str = "user") -> InboxItem:
         item = InboxItem(
             id=InboxEngine._next_id(),
             raw_text=raw_text, source=source,
             profile=self._current_profile(),
+            source_session_id=source_session_id,
+            created_by=created_by,
         )
         self._append(item)
+        self._sync_to_sqlite(item)
         self._bridge_to_memory(item)
         return item
 
@@ -113,8 +123,10 @@ class InboxEngine:
         for item in items:
             if item.id == item_id:
                 item.status = "clarified"
-                item.clarify_result = {"type": result_type, "target_id": target_id}
+                item.clarify_result = {"type": result_type, "target_id": target_id,
+                                       "clarified_at": time.strftime("%Y-%m-%dT%H:%M:%S")}
                 self._rewrite(items)
+                self._sync_to_sqlite(item)
                 return True
         return False
 
@@ -123,12 +135,21 @@ class InboxEngine:
         for item in items:
             if item.id == item_id:
                 item.status = "archived"
+                if not isinstance(item.clarify_result, dict):
+                    item.clarify_result = {}
+                item.clarify_result.setdefault(
+                    "archived_at", time.strftime("%Y-%m-%dT%H:%M:%S"))
                 self._rewrite(items)
+                self._sync_to_sqlite(item)
                 return True
         return False
 
     def count(self) -> int:
         return len([i for i in self._read_all() if i.status == "unprocessed"])
+
+    def count_pending(self) -> int:
+        """未处理条目数（count() 别名）— TUI/概览用"""
+        return self.count()
 
     def auto_classify(self, text: str) -> str:
         """自动意图归类"""
@@ -184,3 +205,24 @@ class InboxEngine:
             asyncio.get_event_loop().run_until_complete(mem.episodic.store(mem_item))
         except Exception:
             pass
+
+    def _sync_to_sqlite(self, item: InboxItem) -> None:
+        """JSONL 写入后同步到 SQLite（逐条，WAL 模式）。失败仅 warning 不阻塞。"""
+        try:
+            from ...core.database import db
+            with db.connect() as conn:
+                conn.execute(
+                    """INSERT OR REPLACE INTO gtd_inbox
+                       (item_id, content, source, status, target_type, target_id,
+                        source_session_id, created_by, created_at, clarified_at)
+                       VALUES (?,?,?,?,?,?,?,?,?,?)""",
+                    (item.id, item.raw_text, item.source, item.status,
+                     item.clarify_result.get("type", "") if isinstance(item.clarify_result, dict) else "",
+                     item.clarify_result.get("target_id", "") if isinstance(item.clarify_result, dict) else "",
+                     item.source_session_id, item.created_by,
+                     item.created_at,
+                     (item.clarify_result.get("clarified_at", "")
+                      if isinstance(item.clarify_result, dict) else ""))
+                )
+        except Exception:
+            logger.warning("SQLite sync failed for inbox item %s, JSONL is authoritative", item.id)

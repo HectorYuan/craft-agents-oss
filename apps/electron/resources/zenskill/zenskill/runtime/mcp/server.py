@@ -15,6 +15,7 @@ import json
 import sys
 from typing import Any, BinaryIO, Optional
 
+from ... import __version__
 from .protocol import (
     LATEST_PROTOCOL_VERSION,
     SUPPORTED_PROTOCOL_VERSIONS,
@@ -91,7 +92,8 @@ class MCPServer:
         return {
             "protocolVersion": version,
             "capabilities": {"tools": {}},
-            "serverInfo": {"name": self._name, "version": "2.6.0"},
+            # 跟随包版本，避免握手自报的仍是发版时被写死的旧号
+            "serverInfo": {"name": self._name, "version": __version__},
         }
 
     def _call_tool(self, params: dict[str, Any]) -> dict[str, Any]:

@@ -42,6 +42,7 @@ def cmd_chain_list(args: argparse.Namespace) -> None:
 def cmd_chain_show(args: argparse.Namespace) -> None:
     """显示技能链定义 (从 JSON 文件加载)"""
     import json
+    import sys
     from pathlib import Path
     from ..runtime import SkillChain
 
@@ -79,8 +80,9 @@ def cmd_chain_run(args: argparse.Namespace) -> None:
     """执行技能链 (使用内置执行器)"""
     import asyncio
     import json
+    import sys
     from pathlib import Path
-    from ..runtime import SkillChain, ChainExecutor, BuiltinExecutor
+    from ..runtime import SkillChain, ChainExecutor
 
     path = Path(args.file)
     if not path.exists():
@@ -92,8 +94,30 @@ def cmd_chain_run(args: argparse.Namespace) -> None:
     data = json.loads(path.read_text(encoding="utf-8"))
     chain = SkillChain.from_dict(data)
 
+    class _AgentToolsExecutor:
+        # 原 runtime/execution.BuiltinExecutor 已随旧引擎退役（fd24889），
+        # 此处用 agent 内置工具等价适配 ChainExecutor 的 duck-type 接口。
+        def __init__(self, cwd: str = "."):
+            from ..runtime.agent.tools import create_default_tools
+            self._tools = {t.name: t for t in create_default_tools(cwd)}
+
+        async def execute(self, tool_name: str, args: dict, context: dict | None = None):
+            from types import SimpleNamespace
+            from uuid import uuid4
+            from ..runtime.agent.types import ToolCall
+            tool = self._tools.get(tool_name)
+            if tool is None:
+                return SimpleNamespace(success=False, content=f"Unknown tool: {tool_name}", error=f"Unknown tool: {tool_name}")
+            result = await tool.run(f"chain-{uuid4().hex[:8]}", args)
+            text = result.content[0].text if result.content else ""
+            return SimpleNamespace(
+                success=not result.is_error,
+                content=text,
+                error=text if result.is_error else None,
+            )
+
     async def _run():
-        executor = BuiltinExecutor()
+        executor = _AgentToolsExecutor()
         chain_executor = ChainExecutor(executor)
         return await chain_executor.execute(chain)
 

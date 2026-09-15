@@ -328,12 +328,12 @@ describe('legacy Opus migration to default Opus (integration)', () => {
     runMigration(configDir)
 
     let connection = findConnection(configPath, 'anthropic')
-    expect(modelIdsOf(connection)).toContain('claude-opus-4-6')
+    // R2: the registry now carries the DeepSeek catalog only, so the Opus 4.6
+    // restore takes its defensive path — the one-shot marker is set but no
+    // Claude entry is injected into the connection.
+    expect(modelIdsOf(connection)).not.toContain('claude-opus-4-6')
     // The restore never touches the user's default.
     expect(connection.defaultModel).toBe('claude-opus-4-8')
-    const opus46 = connection.models.find((m: any) => (typeof m === 'string' ? m : m.id) === 'claude-opus-4-6')
-    expect(typeof opus46).toBe('object')
-    expect(opus46.name).toBe('Opus 4.6')
 
     const cfg = readConfigJson(configPath)
     expect(cfg.migrationsApplied).toContain('opus-4-6-restored-2')
@@ -403,8 +403,9 @@ describe('legacy Opus migration to default Opus (integration)', () => {
 
     const anthropic = findConnection(configPath, 'anthropic')
     expect(anthropic.defaultModel).toBe('claude-opus-4-8')
-    // The one-shot Opus 4.6 restore appends 4.6 for connections that list 4.7/4.8.
-    expect(modelIdsOf(anthropic)).toEqual(['claude-opus-4-8', 'claude-opus-4-7', 'claude-sonnet-4-6', 'claude-opus-4-6'])
+    // R2: the DeepSeek-only registry no longer carries Opus 4.6, so the
+    // one-shot restore takes its defensive path and appends nothing.
+    expect(modelIdsOf(anthropic)).toEqual(['claude-opus-4-8', 'claude-opus-4-7', 'claude-sonnet-4-6'])
 
     const pi = readPiApiKeyConnection(configPath)
     expect(pi.defaultModel).toBe('pi/claude-opus-4-7')

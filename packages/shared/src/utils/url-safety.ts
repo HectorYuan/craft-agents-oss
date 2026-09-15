@@ -30,7 +30,13 @@ const DANGEROUS_SCHEMES: ReadonlyMap<string, string> = new Map([
   ],
 ])
 
-const INTERNAL_DEEPLINK_SCHEME = 'craftagents:'
+// Single source of truth for the app's deeplink scheme lives in ../brand.ts.
+// Kept as `brand.SCHEME + ':'` (P1 A3④ source-level assertion: no 'craftagents:'
+// literal may remain in this file — the OPEN_URL upstream classifier must never
+// classify the internal scheme as safe-external).
+import * as brand from '../brand'
+
+const INTERNAL_DEEPLINK_SCHEME = brand.SCHEME + ':'
 
 export function classifyExternalUrl(rawUrl: string): UrlClassification {
   if (typeof rawUrl !== 'string' || rawUrl.trim() === '') {

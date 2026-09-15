@@ -490,9 +490,15 @@ export interface UpdateOnLaunchResult {
  * - Auto-downloads if update available
  */
 export async function checkForUpdatesOnLaunch(): Promise<UpdateOnLaunchResult> {
+  // ZenSkill 发行版不接上游 electron 更新 feed（品牌化改造，发版走 GitHub Releases）。
+  // 启动探测默认关闭；需要手动排查时设 ZENSKILL_UPDATE_CHECK=1。
+  if (process.env.ZENSKILL_UPDATE_CHECK !== '1') {
+    autoUpdateLog.info('[auto-update] Launch check skipped (ZENSKILL_UPDATE_CHECK not set)')
+    return { action: 'none' }
+  }
   autoUpdateLog.info('Checking for updates on launch...')
 
-  const info = await checkForUpdates({ autoDownload: true })
+  const info = await checkForUpdates({ autoDownload: false })
 
   if (!info.available) {
     return { action: 'none' }

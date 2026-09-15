@@ -292,7 +292,7 @@ class ErrorRecoverer:
             raise Exception("达到最大重试次数")
         
         # 等待一段时间（退避策略）
-        wait_time = min(2 ** (attempt - 1)
+        wait_time = min(2 ** (attempt - 1), 60)
         await asyncio.sleep(wait_time)
         
         # 执行重试

@@ -1,5 +1,6 @@
 import { Menu, app, shell, BrowserWindow } from 'electron'
 import { i18n } from '@craft-agent/shared/i18n'
+import { APP_NAME, DOCS_URL } from '@craft-agent/shared/brand'
 import { RPC_CHANNELS, type BroadcastEventMap } from '../shared/types'
 import { EDIT_MENU, VIEW_MENU, WINDOW_MENU } from '../shared/menu-schema'
 import type { MenuItem } from '../shared/menu-schema'
@@ -16,7 +17,7 @@ let cachedClientResolver: ClientResolver | null = null
 
 /**
  * Creates and sets the application menu for macOS.
- * Includes only relevant items for the Craft Agents app.
+ * Includes only relevant items for the ZenSkill app.
  *
  * Call rebuildMenu() when update state changes to refresh the menu.
  */
@@ -40,7 +41,7 @@ export function setMenuEventSink(sink: EventSink, resolver: ClientResolver): voi
  * Rebuilds the application menu with current update state.
  * Call this when update availability changes.
  *
- * On Windows/Linux: Menu is hidden - all functionality is in the Craft logo menu.
+ * On Windows/Linux: Menu is hidden - all functionality is in the app logo menu.
  * On macOS: Native menu is required by Apple guidelines, so we keep it synced.
  */
 export async function rebuildMenu(): Promise<void> {
@@ -50,7 +51,7 @@ export async function rebuildMenu(): Promise<void> {
   const isMac = process.platform === 'darwin'
 
   // On Windows/Linux, hide the native menu entirely
-  // Users access menu via the Craft logo dropdown in the app
+  // Users access menu via the app logo dropdown in the app
   if (!isMac) {
     Menu.setApplicationMenu(null)
     return
@@ -79,7 +80,7 @@ export async function rebuildMenu(): Promise<void> {
   const template: Electron.MenuItemConstructorOptions[] = [
     // App menu (macOS only)
     ...(isMac ? [{
-      label: 'Craft Agents',
+      label: APP_NAME,
       submenu: [
         { role: 'about' as const, label: i18n.t('menu.aboutCraftAgents') },
         updateMenuItem,
@@ -234,7 +235,7 @@ export async function rebuildMenu(): Promise<void> {
       submenu: [
         {
           label: i18n.t("menu.helpAndDocs"),
-          click: () => shell.openExternal('https://thecraftagents.com/docs')
+          click: () => shell.openExternal(DOCS_URL)
         },
         {
           label: i18n.t("menu.keyboardShortcuts"),

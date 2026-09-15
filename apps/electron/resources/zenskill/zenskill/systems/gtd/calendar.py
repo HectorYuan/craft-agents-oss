@@ -99,6 +99,7 @@ class CalendarEngine:
             hour = int(event.time_str.split(":")[0])
             event.period = "morning" if hour < 12 else ("afternoon" if hour < 18 else "evening")
         self._append(event)
+        self._sync_to_sqlite(event)
         return event
 
     def schedule_action(self, action_id: str, date: str, time_str: str = "09:00",
@@ -133,18 +134,20 @@ class CalendarEngine:
         if not month:
             month = datetime.now().month
         all_events = self._read_all()
-        by_date: dict[int, int] = {}  # day → count
-        for e in all_events:
-            try:
-                d = datetime.strptime(e.date, "%Y-%m-%d")
-                if d.year == year and d.month == month:
-                    by_date[d.day] = by_date.get(d.day, 0) + 1
-            except Exception:
-                continue
+        by_date: dict[str, int] = {}  # YYYY-MM-DD → count
+        all_month_events: list[dict] = []  # flat array (frontend filter expects list)
+        _, days_in_month = cal_mod.monthrange(year, month)
+        for day in range(1, days_in_month + 1):
+            date_str = f"{year:04d}-{month:02d}-{day:02d}"
+            day_events = self._collect_day(all_events, date_str)
+            if day_events:
+                by_date[date_str] = len(day_events)
+                all_month_events.extend(e.to_dict() for e in day_events)
         return {
             "year": year, "month": month,
             "month_name": cal_mod.month_name[month],
             "days": by_date,
+            "events": all_month_events,
         }
 
     def suggest(self) -> list[dict]:
@@ -167,31 +170,76 @@ class CalendarEngine:
 
         suggestions = []
         slots = ["09:00", "10:00", "14:00", "16:00", "20:00"]
+        hour_period = {"09": "morning", "10": "morning",
+                       "14": "afternoon", "16": "afternoon", "20": "evening"}
         for slot in slots:
             if slot not in busy_times:
                 suggestions.append({"date": today, "time": slot,
-                                    "period": periods.get(slot[:2], "morning")})
+                                    "period": hour_period.get(slot[:2], best_period)})
         return suggestions[:3]
+
+    def update(self, event_id: str, **kwargs) -> Optional[CalendarEvent]:
+        """更新日程事件字段（读取全部 → 原地修改 → rewrite）。
+
+        time_str 变更时自动重算 period（显式传 period 除外）；
+        成功后同步 SQLite（JSONL 为准，失败仅 warning）。
+        """
+        events = self._read_all()
+        found: Optional[CalendarEvent] = None
+        allowed = set(CalendarEvent.__dataclass_fields__) - {"id"}
+        for e in events:
+            if e.id != event_id:
+                continue
+            for k, v in kwargs.items():
+                if k in allowed and v is not None:
+                    setattr(e, k, v)
+            if "time_str" in kwargs and "period" not in kwargs and e.time_str:
+                try:
+                    hour = int(e.time_str.split(":")[0])
+                    e.period = "morning" if hour < 12 else (
+                        "afternoon" if hour < 18 else "evening")
+                except (ValueError, IndexError):
+                    pass
+            found = e
+        if found is None:
+            return None
+        self._rewrite(events)
+        self._sync_to_sqlite(found)
+        return found
 
     def delete(self, event_id: str) -> bool:
         events = self._read_all()
         filtered = [e for e in events if e.id != event_id]
         if len(filtered) != len(events):
             self._rewrite(filtered)
+            self._delete_from_sqlite(event_id)
             return True
         return False
 
     # ── 内部 ──
 
     def _on_date(self, date_str: str) -> list[CalendarEvent]:
-        events = self._read_all()
-        result = []
+        return self._collect_day(self._read_all(), date_str)
+
+    def _collect_day(self, events: list[CalendarEvent], date_str: str) -> list[CalendarEvent]:
+        """收集指定日期事件（精确匹配 + 重复规则展开）。
+
+        按 (id, date) 去重：同一条事件同一天只出现一次——精确匹配命中后
+        不再走 repeat 展开，避免 daily/weekly 事件在起始日出现双份。"""
+        result: list[CalendarEvent] = []
+        seen: set[tuple[str, str]] = set()
         for e in events:
-            # 精确日期匹配 或 重复规则匹配
             if e.date == date_str:
-                result.append(e)
+                key = (e.id, date_str)
+                if key not in seen:
+                    seen.add(key)
+                    result.append(e)
             elif e.repeat_rule:
-                result.extend(self._expand_repeat(e, date_str))
+                for x in self._expand_repeat(e, date_str):
+                    key = (x.id, x.date or date_str)
+                    if key not in seen:
+                        seen.add(key)
+                        result.append(x)
         result.sort(key=lambda e: e.time_str or "23:59")
         return result
 
@@ -236,3 +284,29 @@ class CalendarEngine:
     def _rewrite(self, events: list[CalendarEvent]) -> None:
         lines = [json.dumps(e.to_dict(), ensure_ascii=False) for e in events]
         self._file.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+    def _sync_to_sqlite(self, event: CalendarEvent) -> None:
+        """JSONL 写入后同步到 SQLite（逐条，WAL 模式）。失败仅 warning 不阻塞。"""
+        try:
+            from ...core.database import db
+            with db.connect() as conn:
+                conn.execute(
+                    """INSERT OR REPLACE INTO gtd_calendar
+                       (event_id, title, date, time_str, period,
+                        repeat_rule, status, created_at)
+                       VALUES (?,?,?,?,?,?,?,?)""",
+                    (event.id, event.title, event.date, event.time_str,
+                     event.period, event.repeat_rule, "scheduled",
+                     event.created_at)
+                )
+        except Exception:
+            logger.warning("SQLite sync failed for calendar event %s, JSONL is authoritative", event.id)
+
+    def _delete_from_sqlite(self, event_id: str) -> None:
+        """从 SQLite 删除日程事件（JSONL rewrite 后调用）。失败仅 warning 不阻塞。"""
+        try:
+            from ...core.database import db
+            with db.connect() as conn:
+                conn.execute("DELETE FROM gtd_calendar WHERE event_id=?", (event_id,))
+        except Exception:
+            logger.warning("SQLite delete failed for calendar event %s", event_id)

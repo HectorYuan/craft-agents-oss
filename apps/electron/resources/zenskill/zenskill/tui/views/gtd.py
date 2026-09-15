@@ -26,41 +26,36 @@ class GTDVM(ViewModel):
     def load(cls) -> "GTDVM":
         vm = cls()
         try:
-            from zenskill.core.database import db
+            from zenskill.systems.gtd.action import ActionEngine
+            from zenskill.systems.gtd.inbox import InboxEngine
+            from zenskill.systems.gtd.project import ProjectEngine
 
-            # Actions
+            # Actions（未完成，按创建时间倒序）
             try:
-                rows = db.execute(
-                    "SELECT * FROM gtd_actions WHERE status != 'done' ORDER BY created_at DESC LIMIT 15"
-                )
-                for r in rows:
+                for a in ActionEngine().list_pending(limit=15):
                     vm.actions.append({
-                        "id": r.get("id", ""),
-                        "title": r.get("title", "?"),
-                        "status": r.get("status", "todo"),
-                        "priority": r.get("priority", "medium"),
+                        "id": a.id,
+                        "title": a.title or "?",
+                        "status": a.status or "pending",
+                        "priority": a.priority or "P2",
                     })
             except Exception:
                 pass
 
-            # Projects
+            # Projects（活跃）
             try:
-                rows = db.execute(
-                    "SELECT * FROM gtd_projects WHERE status = 'active' ORDER BY created_at DESC LIMIT 5"
-                )
-                for r in rows:
+                for p in ProjectEngine().list_active(limit=5):
                     vm.projects.append({
-                        "id": r.get("id", ""),
-                        "name": r.get("name", "?"),
-                        "progress": r.get("progress", 0),
+                        "id": p.id,
+                        "name": p.name or "?",
+                        "progress": 0,
                     })
             except Exception:
                 pass
 
-            # Inbox
+            # Inbox（未处理条目）
             try:
-                rows = db.execute("SELECT count(*) as c FROM gtd_inbox")
-                vm.inbox_count = rows[0]["c"] if rows else 0
+                vm.inbox_count = InboxEngine().count_pending()
             except Exception:
                 pass
 

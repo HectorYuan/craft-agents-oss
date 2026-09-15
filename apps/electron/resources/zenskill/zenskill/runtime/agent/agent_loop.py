@@ -57,6 +57,7 @@ from .types import (
     record_usage_sample,
 )
 from .validation import ToolValidationError, validate_tool_arguments
+from .providers.retry import is_permanent_http_error
 
 
 async def _maybe_call(fn, *args):
@@ -88,11 +89,39 @@ class AgentLoopConfig:
     abort_event: Optional[asyncio.Event] = None
     on_entry: Optional[Callable] = None  # (message) -> None，每个新增消息回调（会话持久化）
     tool_executor: Optional[Callable] = None  # async (tool_call, params) -> ToolResultMessage，代理模式
+    source_context: Optional[Dict[str, Any]] = None  # 写前缀工具注入的来源标记（内部 kwargs，不入 inputSchema）
     max_turn_retries: int = 2  # 流式失败后 turn 级重试次数（0 = 不重试）
 
 
 def _model_name(model: Any) -> str:
     return str(getattr(model, "id", model))
+
+
+def _is_source_tracked_tool(name: str) -> bool:
+    """写前缀工具判定（来源标记注入范围）。
+
+    与 ServerToolRegistry.is_write_tool 同源判定，兼容 Mode C 的
+    mcp__ 前缀包装名；registry 导入失败回退到本地前缀表。
+    """
+    bare = name[5:] if name.startswith("mcp__") else name
+    try:
+        from ..mcp.registry import ServerToolRegistry
+        return ServerToolRegistry.is_write_tool(bare)
+    except Exception:
+        return bare.startswith(
+            ("gtd_", "inbox_", "action_", "project_", "incubating_"))
+
+
+def _with_source_context(
+    name: str, params: Dict[str, Any], source_context: Dict[str, Any]
+) -> Dict[str, Any]:
+    """写前缀工具调用注入来源标记（trusted 层覆盖 LLM 自带同名键）。
+
+    内部键经 arguments JSON 跨进程透传到 registry handler，
+    不改变工具 inputSchema（对外接口不变）。"""
+    if not _is_source_tracked_tool(name):
+        return params
+    return {**params, **source_context}
 
 
 # ---------------------------------------------------------------------------
@@ -263,9 +292,11 @@ class AgentLoop:
                     final_msg.stop_reason = StopReason.ERROR
                     final_msg.error_message = "stream ended without terminal event"
 
-                # Retry on ERROR (not ABORTED) if retries remain
+                # Retry on ERROR (not ABORTED) if retries remain;
+                # 永久性 4xx（402/400 等）重试必然同样失败，跳过
                 if (final_msg.stop_reason == StopReason.ERROR
                         and turn_retries < self.config.max_turn_retries
+                        and not is_permanent_http_error(final_msg.error_message)
                         and not (self.config.abort_event is not None and self.config.abort_event.is_set())):
                     turn_retries += 1
                     yield MessageEnd(final_msg)
@@ -289,13 +320,30 @@ class AgentLoop:
                     pass
 
             yield MessageEnd(final_msg)
-            context.messages.append(final_msg)
-            new_messages.append(final_msg)
+            # 错误/中止空壳（无 text 无 tool_calls）不进 LLM 上下文：原样发送会被
+            # API 以 400 拒绝并随历史滚雪球锁死会话；持久化保留供 UI 展示
+            is_shell = (final_msg.stop_reason in (StopReason.ERROR, StopReason.ABORTED)
+                        and not final_msg.text() and not final_msg.tool_calls())
+            if not is_shell:
+                context.messages.append(final_msg)
+                new_messages.append(final_msg)
             self._emit_entry(final_msg)
 
             tool_calls = final_msg.tool_calls()
 
             if final_msg.stop_reason in (StopReason.ERROR, StopReason.ABORTED):
+                if tool_calls:
+                    # 中断前已产生的 tool_calls 不补 tool result，下轮请求会因
+                    # tool_calls 后缺 tool 消息被 API 拒绝（与空壳同类的锁死）；
+                    # 补失败结果保持序列合法，LLM 可据此继续
+                    for r in _fail_unexecuted_tool_calls(
+                        final_msg,
+                        "stream was interrupted before this tool call was executed; "
+                        "arguments may be incomplete",
+                    ):
+                        context.messages.append(r)
+                        new_messages.append(r)
+                        self._emit_entry(r)
                 turn_dur = int((time.monotonic() - turn_start) * 1000)
                 yield TurnEnd(final_msg, [], turn_duration_ms=turn_dur)
                 break
@@ -303,7 +351,11 @@ class AgentLoop:
             results: List[ToolResultMessage] = []
             if final_msg.stop_reason == StopReason.LENGTH and tool_calls:
                 hit_length = True
-                results = _fail_tool_calls_from_truncated(final_msg)
+                results = _fail_unexecuted_tool_calls(
+                    final_msg,
+                    "assistant message was truncated (stop_reason=length); "
+                    "tool call arguments may be incomplete and were not executed",
+                )
                 for r in results:
                     context.messages.append(r)
                     new_messages.append(r)
@@ -473,6 +525,9 @@ class AgentLoop:
                     blocked.terminate = True
                 results[i] = blocked
                 continue
+            # 来源标记注入：veto 之后、执行之前（权限提示不暴露内部键）
+            if self.config.source_context:
+                params = _with_source_context(tc.name, params, self.config.source_context)
             pending.append((i, tool, params))
 
         # 阶段 2：执行（可选并行；on_update 事件实时流出，结果消息不落 context）
@@ -685,12 +740,9 @@ def _error_result(tc: ToolCall, message: str) -> ToolResultMessage:
     )
 
 
-def _fail_tool_calls_from_truncated(message: AssistantMessage) -> List[ToolResultMessage]:
+def _fail_unexecuted_tool_calls(message: AssistantMessage, reason: str) -> List[ToolResultMessage]:
+    """为未执行的 tool_calls 合成失败 tool result，保持消息序列对 API 合法。"""
     return [
-        _error_result(
-            tc,
-            "assistant message was truncated (stop_reason=length); "
-            "tool call arguments may be incomplete and were not executed",
-        )
+        _error_result(tc, reason)
         for tc in message.tool_calls()
     ]

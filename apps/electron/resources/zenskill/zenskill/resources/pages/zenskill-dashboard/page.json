@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "id": "page_b7f1d5a3",
+  "slug": "zenskill-dashboard",
+  "name": "总览",
+  "description": "ZenSkill Dashboard 首页：时间感知问候、能量环、待办统计、今日复盘、最新洞察、推荐行动、习惯连续打卡与成就进度（每小时自动刷新）",
+  "kind": "interactive",
+  "createdAt": 1788220800000,
+  "updatedAt": 1788220800000,
+  "refresh": {
+    "cron": "0 * * * *",
+    "script": "pages/zenskill-dashboard/scripts/refresh.py",
+    "runtime": "python3",
+    "timeoutMs": 60000,
+    "enabled": true
+  }
+}

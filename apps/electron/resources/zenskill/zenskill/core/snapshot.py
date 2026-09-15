@@ -51,6 +51,8 @@ def create_snapshot() -> SnapshotInfo:
     ts = datetime.now()
     snap_id = f"{ts.strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:8]}"
     snap_dir = _snapshots_dir() / snap_id
+    # 源目录全缺失时下方循环不会 mkdir，manifest 写入会 FileNotFoundError
+    snap_dir.mkdir(parents=True, exist_ok=True)
     user_dir = get_user_data_dir()
     file_count = 0
 

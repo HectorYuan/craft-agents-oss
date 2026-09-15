@@ -1,3 +1,12 @@
+# ============================================================================
+# DEPRECATED (ZenSkill fork) — 本脚本为上游遗留，勿用于 ZenSkill。
+#
+# 该脚本面向上游 thecraftagents.com 分发渠道（S3 manifest + 下载安装），
+# 不适用于 ZenSkill：ZenSkill 走 GitHub Releases 分发，且应用内自动更新
+# 已禁用。保留本文件仅作上游同步参考，逻辑不再维护。
+#
+# ZenSkill Windows 安装：从 GitHub Releases 下载 ZenSkill-x64.exe 安装包。
+# ============================================================================
 # Craft Agents Windows Installer
 # Usage: irm https://thecraftagents.com/install-app.ps1 | iex
 

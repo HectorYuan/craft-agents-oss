@@ -11,7 +11,9 @@
  * handled via the same wire format as PiAgent.
  */
 
-import { spawn, type ChildProcess } from 'node:child_process';
+import { spawn, type ChildProcess, type SpawnOptions } from "node:child_process";
+import { ZENSKILL_MODEL_REGISTRY } from '../../config/models-zenskill.ts';
+import { DEFAULT_MODEL } from '../../config/models.ts';
 import { createInterface, type Interface as ReadlineInterface } from 'node:readline';
 import { BaseAgent } from '../base-agent.ts';
 import type { AgentEvent } from '@craft-agent/core/types';
@@ -263,23 +265,30 @@ export class ZenskillAgent extends BaseAgent {
     if (mappedPerm) args.push('--permission', mappedPerm);
     if (this.workingDirectory) args.push('--cwd', this.workingDirectory);
     if (this._model) {
-      // craft 的模型名带自家 provider 前缀（如 'pi/deepseek-v4-flash'）。
-      // engine 的 resolve_model 只认它自己的注册表前缀（deepseek/anthropic/
-      // openai/...），未知前缀会兜底成 openai + api.openai.com，把 DeepSeek
-      // key 打到 OpenAI 官方（401 非 SSE 响应被流解析器吞掉，表现为挂起）。
-      // 剥前缀后 engine 走模型目录解析到正确的 provider/base_url。
-      args.push('--model', this._model.replace(/^[a-z]+\//i, ''));
-    }
+      // GUI 连接的模型 ID 带 providerType 前缀（如 `pi/deepseek-v4-flash`）。
+      // 引擎已不是 pi 后端：`pi/...` 会落进未知提供方静默空回合（实测：
+      // 兜底 openai + api.openai.com，DeepSeek key 打 OpenAI 官方返回
+      // 401 非 SSE 响应，被流解析器吞掉表现为挂起）；剥掉前缀让引擎按
+      // PREDEFINED_MODELS/registry 正常路由。
+      const engineModel = this._model.replace(/^pi\//i, '');
+      // 旧会话可能持久化了引擎注册表之外的模型（如修复前的默认 claude-opus-4-8）：
+      // 未知模型走未知提供方兜底必然失败，回退到注册表第一项（当前默认）
+      const known = ZENSKILL_MODEL_REGISTRY.some((m) => m.id === engineModel);
+      args.push('--model', known ? engineModel : DEFAULT_MODEL);
     if (this._faux) args.push('--faux');
 
     const env = { ...process.env };
+    // Windows 中文环境：引擎子进程缺 PYTHONUTF8 时按系统代码页（GBK）读写
+    // stdio，中文消息会变乱码并产生 lone surrogate 打挂 LLM 请求
+    env['PYTHONUTF8'] = '1';
+    env['PYTHONIOENCODING'] = 'utf-8';
     const apiKey = await this.resolveApiKey(this.config.connectionSlug);
     if (apiKey) {
       env['DEEPSEEK_API_KEY'] = apiKey;
-      // agent-engine 的 pi 后端按 provider 走 openai-compat 协议时读取
-      // OPENAI_API_KEY（错误信息 "missing API key: set OPENAI_API_KEY"），
-      // DEEPSEEK_API_KEY 单独注入不会被 pi 的凭据解析命中。
-      env['OPENAI_API_KEY'] = env['OPENAI_API_KEY'] || apiKey;
+      // 引擎 agent 循环的 OpenAI 兼容路径（pi/deepseek-*，runtime/agent/providers）
+      // 读取 OPENAI_API_KEY 鉴权；DEEPSEEK_API_KEY 单独注入不会被 pi 的凭据
+      // 解析命中。单连接（ZenSkill Backend）下两键同值即完成路由。
+      env['OPENAI_API_KEY'] = apiKey;
     }
 
     // Set CRAFT_ZENSKILL for wrapper scripts
@@ -294,11 +303,47 @@ export class ZenskillAgent extends BaseAgent {
       );
     }
 
-    const child = spawn(zenskillPath, args, {
-      cwd: this.workingDirectory || process.cwd(),
+    // Windows: Node ≥20.12 refuses to spawn .cmd/.bat without shell:true
+    // (CVE-2024-27980 mitigation) → packaged installs get `spawn EINVAL` because
+    // _resolveZenSkillPath() resolves to zenskill-cmd.cmd. Bypass the wrapper by
+    // invoking the bundled uv.exe directly with the wrapper's semantics:
+    // cd %CRAFT_ZENSKILL% && uv run --project %CRAFT_ZENSKILL% --python 3.12 zenskill ...
+    let command = zenskillPath;
+    let spawnArgs = args;
+    const expandTilde = (p: string): string =>
+      p.startsWith('~') ? require('path').join(require('os').homedir(), p.slice(1)) : p;
+    let cwd = this.workingDirectory ? expandTilde(this.workingDirectory) : process.cwd();
+    if (process.platform === 'win32' && /\.cmd$/i.test(zenskillPath) && env['CRAFT_UV'] && env['CRAFT_ZENSKILL']) {
+      command = env['CRAFT_UV'] as string;
+      spawnArgs = [
+        'run', '--project', env['CRAFT_ZENSKILL'] as string, '--python', '3.12',
+        'zenskill', ...args,
+      ];
+      if (!env['UV_PROJECT_ENVIRONMENT']) {
+        env['UV_PROJECT_ENVIRONMENT'] = require('path').join(
+          env['USERPROFILE'] || require('os').homedir(), '.zenskill', 'electron-venv',
+        );
+      }
+      if (!env['UV_PYTHON_INSTALL_DIR']) {
+        env['UV_PYTHON_INSTALL_DIR'] = require('path').join(env['CRAFT_ZENSKILL'], 'python');
+      }
+      cwd = env['CRAFT_ZENSKILL'] as string;
+    }
+
+    const spawnOpts: SpawnOptions = {
       stdio: ['pipe', 'pipe', 'pipe'],
       env,
-    });
+      windowsHide: true,
+    };
+    // Residual .cmd case (dev runtime without CRAFT_* env): shell escapes EINVAL.
+    // Args are code-controlled, so shell:true is acceptable here.
+    if (process.platform === 'win32' && /\.(cmd|bat)$/i.test(command)) {
+      spawnOpts.shell = true;
+    } else {
+      spawnOpts.cwd = cwd;
+    }
+
+    const child = spawn(command, spawnArgs, spawnOpts);
 
     this.subprocess = child;
 
@@ -329,7 +374,8 @@ export class ZenskillAgent extends BaseAgent {
 
     // Wait for server_hello
     await new Promise<void>((resolve, reject) => {
-      const timeout = setTimeout(() => reject(new Error('ZenSkill subprocess timeout (no server_hello)')), 15000);
+      // uv 冷启动（首装 venv 同步）可超过 1 分钟，15s 会误判握手超时
+      const timeout = setTimeout(() => reject(new Error('ZenSkill subprocess timeout (no server_hello; uv first-run may still be syncing deps — retry once)')), 90000);
       const check = setInterval(() => {
         if (this.serverReady) {
           clearInterval(check);
@@ -1021,27 +1067,35 @@ export class ZenskillAgent extends BaseAgent {
   // ============================================================
 
   override async runMiniCompletion(prompt: string): Promise<string | null> {
-    try {
-      await this.ensureSubprocess();
-      const id = `mc-${++this.rpcIdCounter}`;
-      return await new Promise<string | null>((resolve) => {
-        const timeout = setTimeout(() => resolve(null), 30000);
-        const handler = (line: string) => {
-          try {
-            const msg = JSON.parse(line);
-            if (msg.type === 'response' && msg.command === 'mini_completion' && msg.id === id) {
-              clearTimeout(timeout);
-              this.readline?.off('line', handler);
-              resolve(msg.success ? msg.data?.text ?? null : null);
+    // Errors are propagated (reject) instead of swallowed as null so callers
+    // can surface the real failure — e.g. testBackendConnection shows the
+    // provider error instead of a generic "no response" hint. Callers that
+    // treat failure as "no result" (title generation, summarization) already
+    // wrap this in try/catch.
+    await this.ensureSubprocess();
+    const id = `mc-${++this.rpcIdCounter}`;
+    return await new Promise<string | null>((resolve, reject) => {
+      const timeout = setTimeout(() => resolve(null), 30000);
+      const handler = (line: string) => {
+        try {
+          const msg = JSON.parse(line);
+          if (msg.type === 'response' && msg.command === 'mini_completion' && msg.id === id) {
+            clearTimeout(timeout);
+            this.readline?.off('line', handler);
+            if (msg.success) {
+              resolve(msg.data?.text ?? null);
+            } else {
+              const error = typeof msg.error === 'string' && msg.error.trim()
+                ? msg.error.trim()
+                : 'mini_completion failed (no error detail from engine)';
+              reject(new Error(error));
             }
-          } catch { /* ignore */ }
-        };
-        this.readline?.on('line', handler);
-        this.send({ type: 'mini_completion', id, prompt });
-      });
-    } catch {
-      return null;
-    }
+          }
+        } catch { /* ignore */ }
+      };
+      this.readline?.on('line', handler);
+      this.send({ type: 'mini_completion', id, prompt });
+    });
   }
 
   override async queryLlm(_request: LLMQueryRequest): Promise<LLMQueryResult> {
