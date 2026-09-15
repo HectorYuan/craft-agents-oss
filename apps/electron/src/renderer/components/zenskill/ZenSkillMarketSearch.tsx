@@ -41,7 +41,12 @@ export function ZenSkillMarketSearch({ workspaceId }: { workspaceId?: string }) 
       const data = text ? JSON.parse(text) : {}
       if (data.ok) {
         setInstalledUris(prev => new Set(prev).add(uri))
-        toast.success(`Installed: ${name}`)
+        // frontmatter v2 校验警告（warn 不 block）
+        if (data.warnings?.length) {
+          toast.warning(`Installed: ${name}`, { description: data.warnings.join('；') })
+        } else {
+          toast.success(`Installed: ${name}`)
+        }
       } else {
         toast.error(data.message || `Failed to install ${name}`)
       }
