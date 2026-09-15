@@ -539,14 +539,14 @@ rg -n "session|OAuth|\"level\":\"error\"" "${logFilePath}" | tail -n 50
  * Get the ZenSkill environment marker for SDK JSONL detection.
  * This marker is embedded in the system prompt and allows us to identify
  * ZenSkill sessions when importing from Claude Code.
- * (Tag name `craft_agent_environment` is kept for session-detection compat.)
+ * (Tag name `zenskill_environment` is kept for session-detection compat.)
  */
-function getCraftAgentEnvironmentMarker(): string {
+function getZenskillEnvironmentMarker(): string {
   const platform = process.platform; // 'darwin', 'win32', 'linux'
   const arch = process.arch; // 'arm64', 'x64'
   const osVersion = os.release(); // OS kernel version
 
-  return `<craft_agent_environment version="${APP_VERSION}" platform="${platform}" arch="${arch}" os_version="${osVersion}" />`;
+  return `<zenskill_environment version="${APP_VERSION}" platform="${platform}" arch="${arch}" os_version="${osVersion}" />`;
 }
 
 /**
@@ -570,7 +570,7 @@ function getCraftAssistantPrompt(workspaceRootPath?: string, backendName: string
     || '{workspaceId}';
 
   // Environment marker for SDK JSONL detection
-  const environmentMarker = getCraftAgentEnvironmentMarker();
+  const environmentMarker = getZenskillEnvironmentMarker();
 
   const browserToolsSection = getBrowserToolEnabled() ? `
 ## Browser Tools

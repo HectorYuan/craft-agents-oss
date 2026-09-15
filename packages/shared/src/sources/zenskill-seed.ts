@@ -3,7 +3,7 @@
  *
  * A fresh install ships the ZenSkill engine pack under resources/zenskill but
  * no user-facing configuration: sources are workspace data living under
- * ~/.zenskill/desktop/workspaces/<id>/sources/. This module seeds a ready-to-use
+ * ~/.zenskill/workspaces/<id>/sources/. This module seeds a ready-to-use
  * ZenSkill MCP source into workspaces that don't have one, so ZenSkill tools
  * (GTD inbox, memory, skills, growth) resolve out of the box.
  *
@@ -119,7 +119,7 @@ function buildZenskillConfig(): FolderSourceConfig | null {
         // Keep uv's virtualenv out of a potentially read-only install dir.
         UV_PROJECT_ENVIRONMENT: join(CONFIG_DIR, 'zenskill', 'venv'),
         // Point the engine's config/data dir at the desktop registry
-        // (~/.zenskill/desktop) so the Python side resolves the same
+        // (~/.zenskill) so the Python side resolves the same
         // workspaces/profiles as this app instead of the CLI's ~/.zenskill.
         ZENSKILL_CONFIG_DIR: CONFIG_DIR,
       },

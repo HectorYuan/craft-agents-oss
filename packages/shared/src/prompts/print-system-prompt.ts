@@ -58,7 +58,7 @@ printAnnotation('The SDK also uses preset: "claude_code" which adds Claude Code\
 printAnnotation('');
 printAnnotation('Composed of:');
 printAnnotation('  1. User Preferences (if set) - formatPreferencesForPrompt()');
-printAnnotation('  2. ZenSkill Environment Marker (craft_agent_environment tag) - version, platform, arch');
+printAnnotation('  2. ZenSkill Environment Marker (zenskill_environment tag) - version, platform, arch');
 printAnnotation('  3. Core Instructions - capabilities, sources, guidelines');
 printAnnotation('  4. Configuration Documentation Refs - permissions, skills, themes, statuses');
 printAnnotation('  5. Permission Modes Documentation - inlined in system prompt');

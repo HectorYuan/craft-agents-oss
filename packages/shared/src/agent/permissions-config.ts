@@ -5,8 +5,8 @@
  * Users can create permissions.json files to extend the default rules.
  *
  * File locations:
- * - Workspace: ~/.zenskill/desktop/workspaces/{slug}/permissions.json
- * - Per-source: ~/.zenskill/desktop/workspaces/{slug}/sources/{sourceSlug}/permissions.json
+ * - Workspace: ~/.zenskill/workspaces/{slug}/permissions.json
+ * - Per-source: ~/.zenskill/workspaces/{slug}/sources/{sourceSlug}/permissions.json
  *
  * Rules are additive - custom configs extend the defaults (more permissive).
  */
@@ -41,7 +41,7 @@ let permissionsInitialized = false;
 
 /**
  * Get the app-level permissions directory.
- * Default permissions are stored at ~/.zenskill/desktop/permissions/
+ * Default permissions are stored at ~/.zenskill/permissions/
  * Reads env vars dynamically so tests can override via ZENSKILL_CONFIG_DIR
  * (or the legacy CRAFT_CONFIG_DIR).
  */
@@ -182,7 +182,7 @@ function migratePermissions(
 }
 
 /**
- * Load default permissions from ~/.zenskill/desktop/permissions/default.json
+ * Load default permissions from ~/.zenskill/permissions/default.json
  * Returns null if file doesn't exist or is invalid.
  */
 export function loadDefaultPermissions(): PermissionsCustomConfig | null {
@@ -576,12 +576,12 @@ class PermissionsConfigCache {
   private sourceConfigs: Map<string, PermissionsCustomConfig | null> = new Map();
   private mergedConfigs: Map<string, MergedPermissionsConfig> = new Map();
 
-  // App-level default permissions (loaded from ~/.zenskill/desktop/permissions/default.json)
+  // App-level default permissions (loaded from ~/.zenskill/permissions/default.json)
   private defaultConfig: PermissionsCustomConfig | null | undefined = undefined; // undefined = not loaded yet
 
   /**
    * Get or load app-level default permissions
-   * These come from ~/.zenskill/desktop/permissions/default.json
+   * These come from ~/.zenskill/permissions/default.json
    */
   private getDefaultConfig(): PermissionsCustomConfig | null {
     if (this.defaultConfig === undefined) {

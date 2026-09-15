@@ -23,7 +23,7 @@ interface AddWorkspaceStep_CreateNewProps {
  *
  * Fields:
  * - Workspace name (required)
- * - Location: Default (~/.zenskill/desktop/workspaces/) or Custom
+ * - Location: Default (~/.zenskill/workspaces/) or Custom
  */
 export function AddWorkspaceStep_CreateNew({
   onBack,
