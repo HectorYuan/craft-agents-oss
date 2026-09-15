@@ -8,14 +8,21 @@
 
 ### P0-1 lucide-react 全量打包（1,417 kB 源码）— tree-shaking 失效
 
-- 根因：3 个文件使用命名空间导入，显式绕过 tree-shaking，全量 1,500+ 图标进包：
+- 根因：8 个文件使用命名空间导入，显式绕过 tree-shaking，全量 1,500+ 图标进包
+  （2026-09-15 核对基线，含 GUI Batch 2+3 新增）：
   - `src/renderer/components/app-menu/MobileMenuPage.tsx:2`
   - `src/renderer/components/app-menu/DesktopAppMenu.tsx:3`
+  - `src/renderer/components/app-menu/MobileAppMenu.tsx:5`
+  - `src/renderer/components/app-menu/MobileMenuItem.tsx:2`
   - `src/renderer/components/browser/BrowserTabStrip.tsx:10`
+  - `src/renderer/components/browser/BrowserTabBadge.tsx:9`
+  - `src/renderer/components/app-shell/TopBar.tsx:11`
+  - `src/renderer/playground/registry/browser-ui.tsx:2`
 - 副作用：lucide 被三入口（main/playground/toolbar）共享，rollup 将其与 sonner
   同桶，导致 sonner chunk 2.2MB 名不副实
-- 修法：枚举显式导入。三处均为"图标名 → 组件"的固定菜单映射，把清单内图标
-  逐个 `import { X, Y } from 'lucide-react'` 后建局部映射表即可，业务逻辑零改动
+- 修法：枚举显式导入。均为"图标名 → 组件"的固定映射（菜单/Tab 徽标/Playground
+  注册表），把清单内图标逐个 `import { X, Y } from 'lucide-react'` 后建局部
+  映射表即可，业务逻辑零改动
 - 预期：lucide 1,417 kB → ~30-80 kB；sonner chunk 2.2MB → ~100 kB
 
 ### P0-2 elkjs 1,589 kB（经 beautiful-mermaid 静态进主包）
