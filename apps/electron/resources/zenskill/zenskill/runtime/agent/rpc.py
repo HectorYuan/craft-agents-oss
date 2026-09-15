@@ -189,7 +189,7 @@ class AgentServer:
         self._proxy_tools: Dict[str, Any] = {}  # name -> tool spec
         self._proxy_pending: Dict[str, asyncio.Future] = {}  # requestId -> Future
         self._pre_tool_pending: Dict[str, asyncio.Future] = {}  # requestId -> Future
-        self._host_system_prompt: str = ""  # Craft 注入的 system prompt
+        self._host_system_prompt: str = ""  # 桌面端注入的 system prompt
         self._thinking_level: str = "medium"  # 思考深度
         self._auto_compaction: bool = True  # 自动压缩开关
         self._config: Dict[str, Any] = {}  # 运行时配置
@@ -201,7 +201,7 @@ class AgentServer:
         self._phase1_ready = False
         self._phase2_ready = False
         self._init_error: Optional[str] = None
-        # 记忆桥接（统一模式方案：brain 层公共能力，craft/python 两种运行
+        # 记忆桥接（统一模式方案：brain 层公共能力，desktop/python 两种运行
         # 模式共享；上移自 ws_server 的 Mode C 专用实现）
         self._event_collector = None
         try:
@@ -348,7 +348,7 @@ class AgentServer:
                 "_created_by": "agent",
             },
         )
-        # 注入 Craft system prompt（合并到 Context.system_prompt）
+        # 注入桌面端 system prompt（合并到 Context.system_prompt）
         if self._host_system_prompt:
             config._host_system_prompt = self._host_system_prompt
         return AgentLoop(config)
@@ -358,7 +358,7 @@ class AgentServer:
         表外工具（builtin：ls/bash/read...）走进程内执行。
 
         此前无条件转发所有工具——宿主 routeToolCall 只认 MCP 代理工具，
-        导致 builtin 工具全部返回 Unknown tool（craft 模式基础工具断裂根因）。
+        导致 builtin 工具全部返回 Unknown tool（desktop 模式基础工具断裂根因）。
         """
         proxy_tools = self._proxy_tools
         proxy_pending = self._proxy_pending
@@ -726,7 +726,7 @@ class AgentServer:
                 return AgentToolResult(content=[TC("proxy tool: execution delegated to host")], is_error=True)
             pt.run = _fallback_run
             tools.append(pt)
-        # 合并 system prompt：Craft 注入的 + 能力提示词 + 技能提示词 + 默认
+        # 合并 system prompt：桌面端注入的 + 能力提示词 + 技能提示词 + 默认
         final_system_prompt = DEFAULT_SYSTEM_PROMPT
         if self._capability_host is not None:
             final_system_prompt = self._capability_host.build_system_prompt(final_system_prompt)
@@ -1074,7 +1074,11 @@ async def _stdin_lines() -> AsyncIterator[str]:
         loop = asyncio.get_event_loop()
         with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
             while True:
-                line = await loop.run_in_executor(pool, sys.stdin.readline)
+                # 显式按 UTF-8 解码：Windows 默认编码（GBK/cp936）会把 UTF-8 中文
+                # 读成乱码，字节错位时产生 lone surrogate 写进 LLM 请求导致 HTTP 400
+                line = await loop.run_in_executor(
+                    pool, lambda: sys.stdin.buffer.readline().decode("utf-8", errors="replace")
+                )
                 if not line:
                     return
                 yield line
@@ -1090,8 +1094,9 @@ def _stdout_write(line: Optional[str]) -> None:
     if line is None:
         sys.stdout.flush()
         return
-    sys.stdout.write(line + "\n")
-    sys.stdout.flush()
+    # 显式 UTF-8 写出：Windows GBK 环境下 sys.stdout 会把中文回复写成乱码
+    sys.stdout.buffer.write((line + "\n").encode("utf-8"))
+    sys.stdout.buffer.flush()
 
 
 def serve_main(args: Any) -> int:

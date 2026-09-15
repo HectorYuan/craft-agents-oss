@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync, rmSync, statSync, readdirSync } from 'fs';
+import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync, rmSync, statSync, readdirSync } from 'fs';
 import { join, dirname, basename } from 'path';
 import { getCredentialManager } from '../credentials/index.ts';
 import { getOrCreateLatestSession, type SessionConfig } from '../sessions/index.ts';
@@ -323,7 +323,10 @@ export function saveConfig(config: StoredConfig): void {
     })),
   };
 
-  writeFileSync(CONFIG_FILE, JSON.stringify(storageConfig, null, 2), 'utf-8');
+  // 原子写：临时文件 + rename，防进程竞态下的半截 JSON
+  const tmpFile = CONFIG_FILE + '.tmp';
+  writeFileSync(tmpFile, JSON.stringify(storageConfig, null, 2), 'utf-8');
+  renameSync(tmpFile, CONFIG_FILE);
 }
 
 // Legacy updateApiKey() removed - use setupLlmConnection IPC handler instead.

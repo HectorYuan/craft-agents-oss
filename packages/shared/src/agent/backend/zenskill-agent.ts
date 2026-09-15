@@ -272,6 +272,10 @@ export class ZenskillAgent extends BaseAgent {
     if (this._faux) args.push('--faux');
 
     const env = { ...process.env };
+    // Windows 中文环境：引擎子进程缺 PYTHONUTF8 时按系统代码页（GBK）读写
+    // stdio，中文消息会变乱码并产生 lone surrogate 打挂 LLM 请求
+    env['PYTHONUTF8'] = '1';
+    env['PYTHONIOENCODING'] = 'utf-8';
     const apiKey = await this.resolveApiKey(this.config.connectionSlug);
     if (apiKey) {
       env['DEEPSEEK_API_KEY'] = apiKey;
