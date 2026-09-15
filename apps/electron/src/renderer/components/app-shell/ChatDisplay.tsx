@@ -2172,6 +2172,11 @@ function ErrorMessage({ message, onOpenUrl, sessionId, onRetry }: { message: Mes
       >
         <div className="text-xs text-destructive/50 mb-0.5 font-semibold">
           {message.errorTitle || t('common.error')}
+          {typeof (message as { timestamp?: number }).timestamp === 'number' && (
+            <span className="ml-2 font-normal">
+              {new Date((message as { timestamp?: number }).timestamp!).toLocaleString()}
+            </span>
+          )}
         </div>
         <p className="text-sm text-destructive">{message.content}</p>
 

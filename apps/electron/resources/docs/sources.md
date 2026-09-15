@@ -12,7 +12,7 @@ When a user wants to add a new source, follow this conversational setup process 
 
 ### 0. Check for a Specialized Source Guide (REQUIRED FIRST STEP)
 
-**Before doing anything else**, check the product documentation at https://thecraftagents.com/docs for a service-specific setup guide (fetch pages with your web tools, e.g. search for "{service} source setup").
+**Before doing anything else**, check the product documentation at the product documentation index (DOC_REFS) for a service-specific setup guide (fetch pages with your web tools, e.g. search for "{service} source setup").
 
 **Available guides:** GitHub, Linear, Slack, Gmail, Google Calendar, Google Drive, Google Docs, Google Sheets, Outlook, Microsoft Calendar, Teams, SharePoint, Craft, Filesystem, Brave Search, Memory
 
@@ -204,7 +204,7 @@ Concrete examples tailored to the user's workflow:
 ```
 User: I want to add Linear
 
-Agent: [FIRST: Fetches the Linear setup guide from https://thecraftagents.com/docs]
+Agent: [FIRST: Fetches the Linear setup guide from the product documentation index]
 
 Agent: I found the Linear setup guide! A few questions:
 1. What will you primarily use Linear for? (issue tracking, sprint planning, reporting?)
@@ -830,7 +830,7 @@ Requires user-provided OAuth credentials in the source config:
 - `googleOAuthClientId`: Your Google OAuth Client ID
 - `googleOAuthClientSecret`: Your Google OAuth Client Secret
 
-Create credentials at [Google Cloud Console](https://console.cloud.google.com/apis/credentials) as a **Web application** client (not "Desktop app"), and add `https://thecraftagents.com/auth/callback` as an authorized redirect URI. A client secret is required.
+Create credentials at [Google Cloud Console](https://console.cloud.google.com/apis/credentials) as a **Web application** client (not "Desktop app"), and add the product OAuth callback URL (see branding config) as an authorized redirect URI. A client secret is required.
 Uses OAuth via `source_google_oauth_trigger`.
 
 ### Linear
