@@ -1,5 +1,4 @@
 import { useCallback, useMemo, useState } from 'react'
-import * as Icons from 'lucide-react'
 import type { ComponentEntry } from './types'
 import {
   BrowserControls,

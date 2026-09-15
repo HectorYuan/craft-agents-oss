@@ -67,11 +67,16 @@ import {
   ShikiThemeProvider,
   PlatformProvider,
   ImagePreviewOverlay,
-  PDFPreviewOverlay,
   CodePreviewOverlay,
   DocumentFormattedMarkdownOverlay,
   JSONPreviewOverlay,
 } from '@craft-agent/ui'
+// PDF preview (react-pdf → pdfjs-dist, ~825 kB source) is loaded on demand —
+// only needed when the user opens a PDF link/pdf fence, not on app start.
+const PDFPreviewOverlay = React.lazy(async () => {
+  const m = await import('@craft-agent/ui/overlay/PDFPreviewOverlay')
+  return { default: m.PDFPreviewOverlay }
+})
 import { useLinkInterceptor, type FilePreviewState } from '@/hooks/useLinkInterceptor'
 import { useTransportConnectionState } from '@/hooks/useTransportConnectionState'
 import { useStaleSessionRecovery } from '@/hooks/useStaleSessionRecovery'
@@ -2175,13 +2180,15 @@ function FilePreviewRenderer({
 
     case 'pdf':
       return (
-        <PDFPreviewOverlay
-          isOpen
-          onClose={onClose}
-          filePath={state.filePath}
-          loadPdfData={loadPdfData}
-          theme={theme}
-        />
+        <React.Suspense fallback={null}>
+          <PDFPreviewOverlay
+            isOpen
+            onClose={onClose}
+            filePath={state.filePath}
+            loadPdfData={loadPdfData}
+            theme={theme}
+          />
+        </React.Suspense>
       )
 
     case 'code':
