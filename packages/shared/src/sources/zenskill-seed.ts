@@ -3,7 +3,7 @@
  *
  * A fresh install ships the ZenSkill engine pack under resources/zenskill but
  * no user-facing configuration: sources are workspace data living under
- * ~/.zenskill/workspaces/<id>/sources/. This module seeds a ready-to-use
+ * ~/.zenskill/desktop/workspaces/<id>/sources/. This module seeds a ready-to-use
  * ZenSkill MCP source into workspaces that don't have one, so ZenSkill tools
  * (GTD inbox, memory, skills, growth) resolve out of the box.
  *
@@ -25,6 +25,7 @@ import type { FolderSourceConfig } from './types.ts';
 import {
   getZenskillSeedDismissMarker,
   loadSourceConfig,
+  loadSourceGuide,
   saveSourceConfig,
   saveSourceGuide,
 } from './storage.ts';
@@ -117,6 +118,10 @@ function buildZenskillConfig(): FolderSourceConfig | null {
       env: {
         // Keep uv's virtualenv out of a potentially read-only install dir.
         UV_PROJECT_ENVIRONMENT: join(CONFIG_DIR, 'zenskill', 'venv'),
+        // Point the engine's config/data dir at the desktop registry
+        // (~/.zenskill/desktop) so the Python side resolves the same
+        // workspaces/profiles as this app instead of the CLI's ~/.zenskill.
+        ZENSKILL_CONFIG_DIR: CONFIG_DIR,
       },
     },
     isAuthenticated: true,
@@ -173,11 +178,28 @@ export function seedZenskillSource(workspaceRootPath: string): void {
       uvPath,
       engineDir,
       venvDir: join(CONFIG_DIR, 'zenskill', 'venv'),
+      configDir: CONFIG_DIR,
     })) {
       saveSourceConfig(workspaceRootPath, config);
       debug(
         `[zenskill-seed] Self-healed stale engine paths for ${ZENSKILL_SOURCE_SLUG} in ${workspaceRootPath}`
       );
+    }
+
+    // Brand refresh (TC-09): sources seeded before the ZenSkill rebrand carry
+    // a guide.md that describes the product as "…接入 Craft Agents 的智能体" —
+    // the model reads that guide and repeats the claim in chat. Rewrite any
+    // guide that still contains the legacy brand with the current copy.
+    try {
+      const guide = loadSourceGuide(workspaceRootPath, ZENSKILL_SOURCE_SLUG);
+      if (guide?.raw && /craft agents/i.test(guide.raw)) {
+        saveSourceGuide(workspaceRootPath, ZENSKILL_SOURCE_SLUG, { raw: ZENSKILL_GUIDE });
+        debug(
+          `[zenskill-seed] Refreshed legacy-brand guide for ${ZENSKILL_SOURCE_SLUG} in ${workspaceRootPath}`
+        );
+      }
+    } catch {
+      // Guide refresh is best-effort — never block startup over it.
     }
   } catch (error) {
     // Never block startup over seeding.
@@ -191,15 +213,16 @@ export function seedZenskillSource(workspaceRootPath: string): void {
 /**
  * Rewrite a ZenSkill source config whose `mcp.command` points at a missing
  * file: command/args are replaced with the current install's uv + engine
- * pack paths, and UV_PROJECT_ENVIRONMENT is re-derived from CONFIG_DIR when
- * it references the legacy `.craft-agent` directory.
+ * pack paths, UV_PROJECT_ENVIRONMENT is re-derived from CONFIG_DIR when
+ * it references the legacy `.craft-agent` directory, and a missing
+ * ZENSKILL_CONFIG_DIR is backfilled so the engine reads the desktop registry.
  *
  * Pure (no fs/IO apart from the caller's existsSync inputs decision) and
  * exported for tests. Returns true when `config` was mutated.
  */
 export function applyZenskillSelfHeal(
   config: FolderSourceConfig,
-  paths: { uvPath: string; engineDir: string; venvDir: string }
+  paths: { uvPath: string; engineDir: string; venvDir: string; configDir?: string }
 ): boolean {
   const mcp = config.mcp;
   if (!mcp || mcp.transport !== 'stdio' || !mcp.command) return false;
@@ -223,6 +246,9 @@ export function applyZenskillSelfHeal(
     env.UV_PROJECT_ENVIRONMENT.includes('.craft-agent')
   ) {
     env.UV_PROJECT_ENVIRONMENT = paths.venvDir;
+  }
+  if (paths.configDir && !env.ZENSKILL_CONFIG_DIR) {
+    env.ZENSKILL_CONFIG_DIR = paths.configDir;
   }
   mcp.env = env;
   return true;

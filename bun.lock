@@ -130,7 +130,7 @@
     },
     "apps/electron": {
       "name": "zenskill",
-      "version": "0.13.1",
+      "version": "2.9.1",
       "dependencies": {
         "@craft-agent/core": "workspace:*",
         "@craft-agent/messaging-gateway": "workspace:*",
@@ -323,7 +323,7 @@
     },
     "packages/shared": {
       "name": "@craft-agent/shared",
-      "version": "0.13.1",
+      "version": "2.9.1",
       "dependencies": {
         "@craft-agent/core": "workspace:*",
         "@craft-agent/session-tools-core": "workspace:*",

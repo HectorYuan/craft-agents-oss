@@ -39,6 +39,7 @@ const NEW_PATHS = {
   uvPath: '/new/install/bin/uv.exe',
   engineDir: '/new/install/resources/zenskill',
   venvDir: '/home/user/.zenskill/desktop/zenskill/venv',
+  configDir: '/home/user/.zenskill/desktop',
 };
 
 describe('applyZenskillSelfHeal', () => {
@@ -50,6 +51,12 @@ describe('applyZenskillSelfHeal', () => {
       'run', '--project', NEW_PATHS.engineDir, '--python', '3.12', 'zenskill', 'mcp', 'serve',
     ]);
     expect(config.mcp?.env?.UV_PROJECT_ENVIRONMENT).toBe(NEW_PATHS.venvDir);
+  });
+
+  it('backfills a missing ZENSKILL_CONFIG_DIR with the desktop config dir', () => {
+    const config = makeConfig();
+    expect(applyZenskillSelfHeal(config, NEW_PATHS)).toBe(true);
+    expect(config.mcp?.env?.ZENSKILL_CONFIG_DIR).toBe(NEW_PATHS.configDir);
   });
 
   it('treats a command that exists on disk as healthy and does not touch it', () => {

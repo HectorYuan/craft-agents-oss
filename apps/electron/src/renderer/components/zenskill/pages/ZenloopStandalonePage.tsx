@@ -59,7 +59,10 @@ export function ZenloopStandalonePage({ workspaceId }: ZenloopStandalonePageProp
   const totalActive = status.data?.active ?? 0
 
   return (
-    <div className="flex flex-col h-full">
+    // min-w-0 + overflow-x-hidden keep the page strictly inside the main
+    // content panel — a wide child must never extend the page box over the
+    // left sidebar (TC-08b: sidebar clicks were swallowed by the page layer).
+    <div className="flex flex-col h-full min-w-0 overflow-x-hidden">
       {/* Header */}
       <div className={`${ZS.pagePad} border-b border-border/30 shrink-0`}>
         <div className="flex items-center justify-between">

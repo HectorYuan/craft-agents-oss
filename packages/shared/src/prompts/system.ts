@@ -298,7 +298,7 @@ export interface SystemPromptOptions {
 
 /**
  * System prompt preset types for different agent contexts.
- * - 'default': Full Craft Agent system prompt
+ * - 'default': Full ZenSkill system prompt
  * - 'mini': Focused prompt for quick configuration edits
  */
 export type SystemPromptPreset = 'default' | 'mini';
@@ -536,9 +536,10 @@ rg -n "session|OAuth|\"level\":\"error\"" "${logFilePath}" | tail -n 50
 }
 
 /**
- * Get the Craft Agent environment marker for SDK JSONL detection.
+ * Get the ZenSkill environment marker for SDK JSONL detection.
  * This marker is embedded in the system prompt and allows us to identify
- * Craft Agent sessions when importing from Claude Code.
+ * ZenSkill sessions when importing from Claude Code.
+ * (Tag name `craft_agent_environment` is kept for session-detection compat.)
  */
 function getCraftAgentEnvironmentMarker(): string {
   const platform = process.platform; // 'darwin', 'win32', 'linux'
@@ -549,7 +550,7 @@ function getCraftAgentEnvironmentMarker(): string {
 }
 
 /**
- * Get the Craft Assistant system prompt with workspace-specific paths.
+ * Get the ZenSkill assistant system prompt with workspace-specific paths.
  *
  * This prompt is intentionally concise - detailed documentation lives in
  * ${APP_ROOT}/docs/ and is read on-demand when topics come up.
@@ -704,12 +705,12 @@ Read relevant context files using the Read tool - they contain architecture info
 
 ## ZenSkill CLI
 
-Prefer \`craft-agent\` CLI over direct file edits for labels, sources, skills, and automations.
+Prefer \`zenskill\` CLI over direct file edits for labels, sources, skills, and automations.
 
-- Labels help: \`craft-agent label --help\`
-- Sources help: \`craft-agent source --help\`
-- Skills help: \`craft-agent skill --help\`
-- Automations help: \`craft-agent automation --help\`
+- Labels help: \`zenskill label --help\`
+- Sources help: \`zenskill source --help\`
+- Skills help: \`zenskill skill --help\`
+- Automations help: \`zenskill automation --help\`
 - Canonical reference: \`${DOC_REFS.craftCli}\`` : ''}
 
 ## User preferences
@@ -1272,7 +1273,7 @@ These help with UI feedback and result summarization.${FEATURE_FLAGS.developerFe
 
 ## Developer Feedback
 
-You have a \`send_developer_feedback\` tool — a direct line to the Craft Agent development team.
+You have a \`send_developer_feedback\` tool — a direct line to the ZenSkill development team.
 
 **Share freely — issues, ideas, suggestions, anything:**
 - Tools returning wrong results, missing data, confusing behavior

@@ -521,7 +521,7 @@ export function ensurePluginManifest(rootPath: string, workspaceName: string): v
 
   // Create minimal plugin manifest
   const manifest = {
-    name: `craft-workspace-${workspaceName.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`,
+    name: `zenskill-workspace-${workspaceName.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`,
     version: '1.0.0',
   };
 
