@@ -12,6 +12,8 @@
  */
 
 import { spawn, type ChildProcess, type SpawnOptions } from "node:child_process";
+import { ZENSKILL_MODEL_REGISTRY } from '../../config/models-zenskill.ts';
+import { DEFAULT_MODEL } from '../../config/models.ts';
 import { createInterface, type Interface as ReadlineInterface } from 'node:readline';
 import { BaseAgent } from '../base-agent.ts';
 import type { AgentEvent } from '@craft-agent/core/types';
@@ -267,7 +269,10 @@ export class ZenskillAgent extends BaseAgent {
       // 引擎已不是 pi 后端：`pi/...` 会落进未知提供方静默空回合；
       // 剥掉前缀让引擎按 PREDEFINED_MODELS/registry 正常路由。
       const engineModel = this._model.replace(/^pi\//i, '');
-      args.push('--model', engineModel);
+      // 旧会话可能持久化了引擎注册表之外的模型（如修复前的默认 claude-opus-4-8）：
+      // 未知模型走未知提供方兜底必然失败，回退到注册表第一项（当前默认）
+      const known = ZENSKILL_MODEL_REGISTRY.some((m) => m.id === engineModel);
+      args.push('--model', known ? engineModel : DEFAULT_MODEL);
     }
     if (this._faux) args.push('--faux');
 
