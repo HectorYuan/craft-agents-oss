@@ -72,3 +72,6 @@ credentials.enc
 # act (local GitHub Actions runner)
 .secrets
 .actrc
+
+# 会话工具运行时状态（不入库）
+.mimosa/

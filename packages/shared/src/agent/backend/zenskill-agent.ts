@@ -275,6 +275,7 @@ export class ZenskillAgent extends BaseAgent {
       // 未知模型走未知提供方兜底必然失败，回退到注册表第一项（当前默认）
       const known = ZENSKILL_MODEL_REGISTRY.some((m) => m.id === engineModel);
       args.push('--model', known ? engineModel : DEFAULT_MODEL);
+    }
     if (this._faux) args.push('--faux');
 
     const env = { ...process.env };
