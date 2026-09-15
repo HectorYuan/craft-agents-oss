@@ -1,5 +1,10 @@
 # Vite Renderer Bundle 优化方案 v2
 
+> **落地状态（d647f5c3，2026-09-15）**：P0-1 / P0-2 / P1-4 已实施，
+> 主包 4,510 → 2,447 kB（-46%，gzip 1,377 → 751 kB）。
+> 剩余：P1-3 katex（管线重构，单独批次）。
+> 运行时冒烟（PDF 链接预览 / mermaid 图 / 图标菜单）待真机确认。
+
 > v1（manualChunks 分组搬运）已被 v2 取代：sourcemap 字节级分析发现优化收益主要在
 > 源码级改造（lazy 化 + 修复 tree-shaking 失效），而非 chunk 分组搬运。
 > 分析基线：2026-09-09 构建（docs 同期 commit）。
