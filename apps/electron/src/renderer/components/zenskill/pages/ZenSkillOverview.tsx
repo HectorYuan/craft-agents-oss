@@ -87,6 +87,10 @@ export function ZenSkillOverview({ workspaceId, onNavigateToChat }: ZenSkillOver
   const insights = useMcpTool<{
     items?: { type?: string; title?: string; content?: string; level?: string }[]
   }>(secondaryLoaded ? workspaceId : undefined, ZENSKILL_SOURCE_SLUG, 'proactive_insight', {})
+  const skillBrowse = useMcpTool<{
+    total?: number
+    categories?: { name: string; count: number; skills?: { skill_id: string; name: string }[] }[]
+  }>(secondaryLoaded ? workspaceId : undefined, ZENSKILL_SOURCE_SLUG, 'skill_browse', { limit: 5 })
 
   const isLoading = companion.loading || review.loading || habits.loading || dashboard.loading || energy.loading
   const hasError = companion.error || review.error || habits.error || dashboard.error || energy.error
@@ -237,6 +241,26 @@ export function ZenSkillOverview({ workspaceId, onNavigateToChat }: ZenSkillOver
                 <div className="text-lg font-semibold capitalize">
                   {energy.data?.status?.level ?? '—'}
                 </div>
+              </div>
+            </div>
+          )}
+
+          {/* Skill categories breakdown (九域分域 chips) */}
+          {skillBrowse.data?.categories && skillBrowse.data.categories.length > 0 && (
+            <div className={ZS.card}>
+              <div className="text-muted-foreground text-xs mb-2">
+                {t('zenskill.overview.skillCategories', '技能分类')} ({skillBrowse.data.total ?? 0})
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {skillBrowse.data.categories.map((cat) => (
+                  <span
+                    key={cat.name}
+                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-accent/10 text-accent"
+                  >
+                    {cat.name}
+                    <span className="text-muted-foreground">{cat.count}</span>
+                  </span>
+                ))}
               </div>
             </div>
           )}

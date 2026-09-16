@@ -1,5 +1,10 @@
 # Vite Renderer Bundle 优化方案 v2
 
+> **落地状态（d647f5c3，2026-09-15）**：P0-1 / P0-2 / P1-4 已实施，
+> 主包 4,510 → 2,447 kB（-46%，gzip 1,377 → 751 kB）。
+> 剩余：P1-3 katex（管线重构，单独批次）。
+> 运行时冒烟（PDF 链接预览 / mermaid 图 / 图标菜单）待真机确认。
+
 > v1（manualChunks 分组搬运）已被 v2 取代：sourcemap 字节级分析发现优化收益主要在
 > 源码级改造（lazy 化 + 修复 tree-shaking 失效），而非 chunk 分组搬运。
 > 分析基线：2026-09-09 构建（docs 同期 commit）。
@@ -8,14 +13,21 @@
 
 ### P0-1 lucide-react 全量打包（1,417 kB 源码）— tree-shaking 失效
 
-- 根因：3 个文件使用命名空间导入，显式绕过 tree-shaking，全量 1,500+ 图标进包：
+- 根因：8 个文件使用命名空间导入，显式绕过 tree-shaking，全量 1,500+ 图标进包
+  （2026-09-15 核对基线，含 GUI Batch 2+3 新增）：
   - `src/renderer/components/app-menu/MobileMenuPage.tsx:2`
   - `src/renderer/components/app-menu/DesktopAppMenu.tsx:3`
+  - `src/renderer/components/app-menu/MobileAppMenu.tsx:5`
+  - `src/renderer/components/app-menu/MobileMenuItem.tsx:2`
   - `src/renderer/components/browser/BrowserTabStrip.tsx:10`
+  - `src/renderer/components/browser/BrowserTabBadge.tsx:9`
+  - `src/renderer/components/app-shell/TopBar.tsx:11`
+  - `src/renderer/playground/registry/browser-ui.tsx:2`
 - 副作用：lucide 被三入口（main/playground/toolbar）共享，rollup 将其与 sonner
   同桶，导致 sonner chunk 2.2MB 名不副实
-- 修法：枚举显式导入。三处均为"图标名 → 组件"的固定菜单映射，把清单内图标
-  逐个 `import { X, Y } from 'lucide-react'` 后建局部映射表即可，业务逻辑零改动
+- 修法：枚举显式导入。均为"图标名 → 组件"的固定映射（菜单/Tab 徽标/Playground
+  注册表），把清单内图标逐个 `import { X, Y } from 'lucide-react'` 后建局部
+  映射表即可，业务逻辑零改动
 - 预期：lucide 1,417 kB → ~30-80 kB；sonner chunk 2.2MB → ~100 kB
 
 ### P0-2 elkjs 1,589 kB（经 beautiful-mermaid 静态进主包）

@@ -3,6 +3,7 @@ import '../../../tests/setup/register-pi-model-resolver.ts'
 import {
   getDefaultModelsForConnection,
   getDefaultModelForConnection,
+  PI_PREFERRED_DEFAULTS,
   isCompatProvider,
   isAnthropicProvider,
   isPiProvider,
@@ -11,7 +12,7 @@ import {
   normalizeBedrockModelId,
   deriveBedrockRegionPrefix,
 } from '../llm-connections'
-import { ANTHROPIC_MODELS, getModelDisplayName, getModelContextWindow, getModelShortName, isClaudeModel } from '../models'
+import { ANTHROPIC_MODELS, getModelDisplayName, getModelContextWindow, getModelShortName, isClaudeModel, normalizeDeprecatedModelId } from '../models'
 
 // ============================================================
 // getDefaultModelsForConnection

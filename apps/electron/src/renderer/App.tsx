@@ -67,11 +67,16 @@ import {
   ShikiThemeProvider,
   PlatformProvider,
   ImagePreviewOverlay,
-  PDFPreviewOverlay,
   CodePreviewOverlay,
   DocumentFormattedMarkdownOverlay,
   JSONPreviewOverlay,
 } from '@craft-agent/ui'
+// PDF preview (react-pdf → pdfjs-dist, ~825 kB source) is loaded on demand —
+// only needed when the user opens a PDF link/pdf fence, not on app start.
+const PDFPreviewOverlay = React.lazy(async () => {
+  const m = await import('@craft-agent/ui/overlay/PDFPreviewOverlay')
+  return { default: m.PDFPreviewOverlay }
+})
 import { useLinkInterceptor, type FilePreviewState } from '@/hooks/useLinkInterceptor'
 import { useTransportConnectionState } from '@/hooks/useTransportConnectionState'
 import { useStaleSessionRecovery } from '@/hooks/useStaleSessionRecovery'
@@ -679,7 +684,7 @@ export default function App() {
       // Still transition to ready — the app can recover via reconnect
     }
     setAppState('ready')
-  }, [])
+  }, [setWindowWorkspaceId])
 
   // Onboarding hook — onConfigSaved fires immediately when billing is saved,
   // ensuring connection state updates before the wizard closes.
@@ -737,7 +742,7 @@ export default function App() {
     }
 
     initialize()
-  }, [])
+  }, [setWindowWorkspaceId])
 
   // Session selection state
   const [sessionSelection, setSession] = useSession()
@@ -792,7 +797,7 @@ export default function App() {
     })
     // Load app-level theme
     window.electronAPI.getAppTheme().then(setAppTheme)
-  }, [appState, loadSessionsFromServer, resolveDefaultConnectionSlug])
+  }, [appState, loadSessionsFromServer, resolveDefaultConnectionSlug, t])
 
   // Subscribe to theme change events (live updates when theme.json changes)
   useEffect(() => {
@@ -819,6 +824,44 @@ export default function App() {
     }
   }, [windowWorkspaceId, refreshLlmConnections])
 
+  // --- Draft input handlers（上移至 effect 之前以满足依赖声明顺序）---
+  // Write a debounced snapshot of the current ref entry to disk.
+  const schedulePersistDraft = useCallback((sessionId: string) => {
+    const existingTimeout = draftSaveTimeoutRef.current.get(sessionId)
+    if (existingTimeout) {
+      clearTimeout(existingTimeout)
+    }
+    const timeout = setTimeout(() => {
+      const draft = sessionDraftsRef.current.get(sessionId) ?? { text: '' }
+      window.electronAPI.setDraft(sessionId, draft)
+      draftSaveTimeoutRef.current.delete(sessionId)
+    }, DRAFT_SAVE_DEBOUNCE_MS)
+    draftSaveTimeoutRef.current.set(sessionId, timeout)
+  }, [])
+
+  const handleInputChange = useCallback((sessionId: string, value: string) => {
+    const text = coerceInputText(value)
+    const existing = sessionDraftsRef.current.get(sessionId)
+    const existingAttachments = Array.isArray(existing?.attachments) ? existing.attachments : []
+    const nextDraft: SessionDraft = {
+      text,
+      ...(existingAttachments.length > 0
+        ? { attachments: existingAttachments }
+        : {}),
+    }
+    const isEmpty = !nextDraft.text && (!nextDraft.attachments || nextDraft.attachments.length === 0)
+    if (isEmpty) {
+      sessionDraftsRef.current.delete(sessionId)
+    } else {
+      sessionDraftsRef.current.set(sessionId, nextDraft)
+    }
+    schedulePersistDraft(sessionId)
+  }, [schedulePersistDraft])
+
+  const handleOpenSettings = useCallback(() => {
+    navigate(routes.view.settings())
+  }, [])
+
   // Listen for session events - uses centralized event processor for consistent state transitions
   //
   // SOURCE OF TRUTH LOGIC:
@@ -831,6 +874,9 @@ export default function App() {
   // This is simpler and more robust than checking event types - we just ask
   // "is this session currently streaming?" and route accordingly.
   useEffect(() => {
+
+
+
     // Handoff events signal end of streaming - need to sync back to React state
     // Also includes todo_state_changed so status updates immediately reflect in sidebar
     // async_operation included so shimmer effect on session titles updates in real-time
@@ -1075,6 +1121,7 @@ export default function App() {
   }, [
     processAgentEvent,
     trackSessionActivity,
+    handleInputChange,
     windowWorkspaceId,
     store,
     updateSessionDirect,
@@ -1159,7 +1206,7 @@ export default function App() {
       unsubSettings()
       unsubShortcuts()
     }
-  }, [])
+  }, [handleOpenSettings])
 
   const handleCreateSession = useCallback(async (workspaceId: string, options?: import('../shared/types').CreateSessionOptions): Promise<Session> => {
     const session = await window.electronAPI.createSession(workspaceId, options)
@@ -1428,7 +1475,7 @@ export default function App() {
         ]
       }))
     }
-  }, [sessionOptions, updateSessionById, skills, sources, windowWorkspaceId])
+  }, [updateSessionById, skills, sources, store, windowWorkspaceSlug])
 
   /**
    * Unified handler for all session option changes.
@@ -1451,16 +1498,17 @@ export default function App() {
       // Sync thinking level change with backend (session-level, persisted)
       window.electronAPI.sessionCommand(sessionId, { type: 'setThinkingLevel', level: updates.thinkingLevel })
     }
-  }, [sessionOptions])
+  }, [])
 
   // Handle input draft changes per session with debounced persistence
   const draftSaveTimeoutRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map())
 
   // Cleanup draft save timers on unmount to prevent memory leaks
   useEffect(() => {
+    const timersRef = draftSaveTimeoutRef
     return () => {
-      draftSaveTimeoutRef.current.forEach(clearTimeout)
-      draftSaveTimeoutRef.current.clear()
+      timersRef.current.forEach(clearTimeout)
+      timersRef.current.clear()
     }
   }, [])
 
@@ -1510,38 +1558,6 @@ export default function App() {
     return results.filter((a): a is FileAttachment => a !== null)
   }, [])
 
-  // Write a debounced snapshot of the current ref entry to disk.
-  const schedulePersistDraft = useCallback((sessionId: string) => {
-    const existingTimeout = draftSaveTimeoutRef.current.get(sessionId)
-    if (existingTimeout) {
-      clearTimeout(existingTimeout)
-    }
-    const timeout = setTimeout(() => {
-      const draft = sessionDraftsRef.current.get(sessionId) ?? { text: '' }
-      window.electronAPI.setDraft(sessionId, draft)
-      draftSaveTimeoutRef.current.delete(sessionId)
-    }, DRAFT_SAVE_DEBOUNCE_MS)
-    draftSaveTimeoutRef.current.set(sessionId, timeout)
-  }, [])
-
-  const handleInputChange = useCallback((sessionId: string, value: string) => {
-    const text = coerceInputText(value)
-    const existing = sessionDraftsRef.current.get(sessionId)
-    const existingAttachments = Array.isArray(existing?.attachments) ? existing.attachments : []
-    const nextDraft: SessionDraft = {
-      text,
-      ...(existingAttachments.length > 0
-        ? { attachments: existingAttachments }
-        : {}),
-    }
-    const isEmpty = !nextDraft.text && (!nextDraft.attachments || nextDraft.attachments.length === 0)
-    if (isEmpty) {
-      sessionDraftsRef.current.delete(sessionId)
-    } else {
-      sessionDraftsRef.current.set(sessionId, nextDraft)
-    }
-    schedulePersistDraft(sessionId)
-  }, [schedulePersistDraft])
 
   const handleAttachmentsChange = useCallback((sessionId: string, attachments: FileAttachment[]) => {
     const existing = sessionDraftsRef.current.get(sessionId)
@@ -1720,14 +1736,11 @@ export default function App() {
       const message = error instanceof Error ? error.message : 'Unknown error'
       toast.error(t('toast.reconnectFailed'), { description: message })
     })
-  }, [])
+  }, [t])
 
   const handleOpenFile = linkInterceptor.handleOpenFile
   const handleOpenUrl = linkInterceptor.handleOpenUrl
 
-  const handleOpenSettings = useCallback(() => {
-    navigate(routes.view.settings())
-  }, [])
 
   const handleOpenKeyboardShortcuts = useCallback(() => {
     navigate(routes.view.settings('shortcuts'))
@@ -1765,7 +1778,7 @@ export default function App() {
     } finally {
       setShowResetDialog(false)
     }
-  }, [onboarding, initializeSessions])
+  }, [onboarding, initializeSessions, setWindowWorkspaceId])
 
   // Handle workspace selection
   // - Default: switch workspace in same window (in-window switching)
@@ -1818,7 +1831,7 @@ export default function App() {
       // Sessions and theme will reload automatically due to windowWorkspaceId dependency
       // in useEffect hooks.
     }
-  }, [windowWorkspaceId, setSession, store])
+  }, [windowWorkspaceId, setSession, store, setWindowWorkspaceId])
 
   // Handle workspace switch by slug (called by NavigationContext on popstate when ?ws= changes)
   const handleSwitchWorkspaceBySlug = useCallback((slug: string) => {
@@ -2175,13 +2188,15 @@ function FilePreviewRenderer({
 
     case 'pdf':
       return (
-        <PDFPreviewOverlay
-          isOpen
-          onClose={onClose}
-          filePath={state.filePath}
-          loadPdfData={loadPdfData}
-          theme={theme}
-        />
+        <React.Suspense fallback={null}>
+          <PDFPreviewOverlay
+            isOpen
+            onClose={onClose}
+            filePath={state.filePath}
+            loadPdfData={loadPdfData}
+            theme={theme}
+          />
+        </React.Suspense>
       )
 
     case 'code':

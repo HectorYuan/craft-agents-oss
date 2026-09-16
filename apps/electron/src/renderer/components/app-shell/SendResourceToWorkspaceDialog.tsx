@@ -74,6 +74,8 @@ export function SendResourceToWorkspaceDialog({
   const targetWorkspaces = workspaces.filter(w => w.id !== activeWorkspaceId)
 
   // Health-check remote workspaces when dialog opens
+  // Stable primitive dep extracted from the complex expression below
+  const targetWorkspaceKey = targetWorkspaces.map(w => w.id).join(', ')
   useEffect(() => {
     if (!open) {
       healthCheckAbort.current?.abort()
@@ -108,7 +110,7 @@ export function SendResourceToWorkspaceDialog({
     }
 
     return () => abort.abort()
-  }, [open, targetWorkspaces.map(w => w.id).join(',')])
+  }, [open, targetWorkspaceKey, targetWorkspaces])
 
   const handleSend = useCallback(async () => {
     if (!selectedWorkspaceId || !activeWorkspaceId || resourceIds.length === 0) return

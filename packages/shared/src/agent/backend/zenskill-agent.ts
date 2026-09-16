@@ -273,8 +273,10 @@ export class ZenskillAgent extends BaseAgent {
     if (this.workingDirectory) args.push('--cwd', this.workingDirectory);
     if (this._model) {
       // GUI 连接的模型 ID 带 providerType 前缀（如 `pi/deepseek-v4-flash`）。
-      // 引擎已不是 pi 后端：`pi/...` 会落进未知提供方静默空回合；
-      // 剥掉前缀让引擎按 PREDEFINED_MODELS/registry 正常路由。
+      // 引擎已不是 pi 后端：`pi/...` 会落进未知提供方静默空回合（实测：
+      // 兜底 openai + api.openai.com，DeepSeek key 打 OpenAI 官方返回
+      // 401 非 SSE 响应，被流解析器吞掉表现为挂起）；剥掉前缀让引擎按
+      // PREDEFINED_MODELS/registry 正常路由。
       const engineModel = this._model.replace(/^pi\//i, '');
       // 旧会话可能持久化了引擎注册表之外的模型（如修复前的默认 claude-opus-4-8）：
       // 未知模型走未知提供方兜底必然失败，回退到注册表第一项（当前默认）
@@ -295,7 +297,8 @@ export class ZenskillAgent extends BaseAgent {
     if (apiKey) {
       env['DEEPSEEK_API_KEY'] = apiKey;
       // 引擎 agent 循环的 OpenAI 兼容路径（pi/deepseek-*，runtime/agent/providers）
-      // 读取 OPENAI_API_KEY 鉴权；单连接（ZenSkill Backend）下两键同值即完成路由
+      // 读取 OPENAI_API_KEY 鉴权；DEEPSEEK_API_KEY 单独注入不会被 pi 的凭据
+      // 解析命中。单连接（ZenSkill Backend）下两键同值即完成路由。
       env['OPENAI_API_KEY'] = apiKey;
     }
 

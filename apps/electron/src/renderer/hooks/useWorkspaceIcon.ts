@@ -114,7 +114,7 @@ export function useWorkspaceIcon(workspace: Workspace | undefined): string | und
     return () => {
       cancelled = true
     }
-  }, [workspace?.id, workspace?.iconUrl])
+  }, [workspace?.id, workspace?.iconUrl, workspace])
 
   return iconUrl
 }

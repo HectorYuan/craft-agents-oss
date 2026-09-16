@@ -15,7 +15,13 @@ import { MarkdownSpreadsheetBlock } from './MarkdownSpreadsheetBlock'
 import { MarkdownHtmlBlock } from './MarkdownHtmlBlock'
 import { MarkdownImageBlock } from './MarkdownImageBlock'
 import { MarkdownLatexBlock } from './MarkdownLatexBlock'
-import { MarkdownPdfBlock } from './MarkdownPdfBlock'
+// PDF rendering (react-pdf → pdfjs-dist, ~766 kB source) is loaded on demand:
+// only sessions containing a pdf fence need it. The component itself renders a
+// code-block fallback while loading / on failure.
+const MarkdownPdfBlock = React.lazy(async () => {
+  const m = await import('./MarkdownPdfBlock')
+  return { default: m.MarkdownPdfBlock }
+})
 import { MarkdownDocBlock } from './MarkdownDocBlock'
 import { preprocessLinks } from './linkify'
 import { resolveMarkdownLinkTarget } from './link-target'
@@ -296,7 +302,7 @@ function createComponents(
           }
           // PDF preview blocks → inline first page with expand to full viewer
           if (match?.[1] === 'pdf-preview' && isPreviewEnabled('pdf-preview')) {
-            return wrapBlock('pdf-preview', code, <MarkdownPdfBlock code={code} className="my-2" />, props.node?.position)
+            return wrapBlock('pdf-preview', code, <React.Suspense fallback={null}><MarkdownPdfBlock code={code} className="my-2" /></React.Suspense>, props.node?.position)
           }
           // Image preview blocks → inline image with expand to full viewer
           if (match?.[1] === 'image-preview' && isPreviewEnabled('image-preview')) {
@@ -434,7 +440,7 @@ function createComponents(
         }
         // PDF preview blocks → inline first page with expand to full viewer
         if (match?.[1] === 'pdf-preview' && isPreviewEnabled('pdf-preview')) {
-          return wrapBlock('pdf-preview', code, <MarkdownPdfBlock code={code} className="my-2" />, props.node?.position)
+          return wrapBlock('pdf-preview', code, <React.Suspense fallback={null}><MarkdownPdfBlock code={code} className="my-2" /></React.Suspense>, props.node?.position)
         }
         // Image preview blocks → inline image with expand to full viewer
         if (match?.[1] === 'image-preview' && isPreviewEnabled('image-preview')) {

@@ -187,10 +187,7 @@ export function SessionList({
   }, [
     workspaceId,
     groupingMode,
-    currentFilter?.kind,
-    currentFilter && 'stateId' in currentFilter ? currentFilter.stateId : undefined,
-    currentFilter && 'labelId' in currentFilter ? currentFilter.labelId : undefined,
-    currentFilter && 'viewId' in currentFilter ? currentFilter.viewId : undefined,
+    currentFilter,
   ])
 
   const readCollapsedGroupsForScope = useCallback((scopeSuffix: string): Set<string> => {
@@ -500,7 +497,7 @@ export function SessionList({
       rows,
       groups: orderedGroups,
     }
-  }, [isSearchMode, matchingFilterItems, otherResultItems, flatItems, groupingMode, sessionStatuses, projects, collapsedGroupsMeta, t])
+  }, [isSearchMode, matchingFilterItems, otherResultItems, flatItems, groupingMode, sessionStatuses, projects, collapsedGroupsMeta, t, i18n.resolvedLanguage])
 
   const flatRows = rowData.rows
 

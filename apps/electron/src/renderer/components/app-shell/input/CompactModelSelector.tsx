@@ -76,7 +76,7 @@ export function CompactModelSelector({
   const [expandedConnection, setExpandedConnection] = React.useState<string | null>(null)
 
   const appShellCtx = useOptionalAppShellContext()
-  const llmConnections = appShellCtx?.llmConnections ?? []
+  const llmConnections = React.useMemo(() => appShellCtx?.llmConnections ?? [], [appShellCtx?.llmConnections])
   const workspaceDefaultConnection = appShellCtx?.workspaceDefaultLlmConnection
 
   const toggleVision = useModelVisionToggle()

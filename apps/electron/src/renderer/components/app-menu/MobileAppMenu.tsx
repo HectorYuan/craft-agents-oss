@@ -2,7 +2,7 @@ import * as React from 'react'
 import { createPortal } from 'react-dom'
 import { useEffect, useMemo, useReducer, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import * as Icons from 'lucide-react'
+import { MENU_ICONS } from '../icons/MenuIcons'
 import { motion, AnimatePresence } from 'motion/react'
 import { useRegisterDismissibleLayer } from '@/context/DismissibleLayerContext'
 import { ZenSkillSymbol } from '../icons/ZenSkillSymbol'
@@ -56,7 +56,7 @@ function stackReducer(state: SheetState, action: StackAction): SheetState {
 }
 
 function getIcon(name: string): React.ComponentType<{ className?: string }> | null {
-  const IconComponent = Icons[name as keyof typeof Icons] as React.ComponentType<{ className?: string }> | undefined
+  const IconComponent = MENU_ICONS[name]
   return IconComponent ?? null
 }
 

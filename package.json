@@ -1,6 +1,6 @@
 {
   "name": "craft-agent",
-  "version": "0.13.1",
+  "version": "0.13.3",
   "license": "Apache-2.0",
   "description": "Claude Code-like agent for Craft documents",
   "type": "module",
@@ -36,6 +36,7 @@
     "server:build:darwin-arm64": "bun run scripts/build-server.ts --platform=darwin --arch=arm64 --compress",
     "server:build:darwin-x64": "bun run scripts/build-server.ts --platform=darwin --arch=x64 --compress",
     "typecheck:electron": "cd apps/electron && bun run typecheck",
+    "typecheck:pages-worker": "if [ -d workers/pages ]; then cd workers/pages && bun run typecheck; else echo 'workers/pages not present (OSS export) - skipping'; fi",
     "test:shared:llm-connections": "cd packages/shared && bun test tests/llm-connections.test.ts",
     "test:shared:models-pi": "cd packages/shared && bun test tests/models-pi.test.ts",
     "test:shared:config": "cd packages/shared && bun test src/config/__tests__/llm-connections.test.ts src/config/__tests__/storage-migrations.test.ts src/config/__tests__/storage-startup-migration.test.ts src/config/__tests__/default-thinking-level.test.ts",

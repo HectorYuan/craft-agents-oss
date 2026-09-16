@@ -41,7 +41,7 @@ export function ResetConfirmationDialog({
     const a = Math.floor(Math.random() * 50) + 10
     const b = Math.floor(Math.random() * 50) + 10
     return { a, b, sum: a + b }
-  }, [open]) // Regenerate when dialog opens
+  }, []) // Regenerate when dialog opens
 
   const isCorrect = parseInt(answer) === problem.sum
 

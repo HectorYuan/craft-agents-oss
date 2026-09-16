@@ -1,5 +1,4 @@
 import * as React from 'react'
-import { renderMermaidSVG } from 'beautiful-mermaid'
 import { Maximize2 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { CodeBlock } from './CodeBlock'
@@ -7,6 +6,22 @@ import { MermaidPreviewOverlay } from '../overlay/MermaidPreviewOverlay'
 import { normalizeMermaidSource } from './mermaid-source'
 import { useScrollFade } from './useScrollFade'
 import { useTranslation } from 'react-i18next'
+
+// Mermaid rendering (beautiful-mermaid → elkjs, ~1.6 MB source) is loaded
+// on demand: most sessions never contain a mermaid fence, so the module must
+// not sit in the entry chunk. Until the dynamic import resolves (or on error)
+// we render the source as a plain code block — same fallback UI as before.
+const MERMADE_THEME = {
+  bg: 'var(--background)',
+  fg: 'var(--foreground)',
+  accent: 'var(--accent)',
+  line: 'var(--foreground-30)',
+  muted: 'var(--muted-foreground)',
+  surface: 'var(--foreground-3)',
+  border: 'var(--foreground-20)',
+  transparent: true,
+  interactive: true,
+} as const
 
 // ============================================================================
 // MarkdownMermaidBlock — renders mermaid code fences as SVG diagrams.
@@ -60,29 +75,30 @@ interface MarkdownMermaidBlockProps {
 
 export function MarkdownMermaidBlock({ code, className, showExpandButton = true, tapToOpen = true, minHeight }: MarkdownMermaidBlockProps) {
   const { t } = useTranslation()
-  // Render synchronously — no flash between CodeBlock and SVG.
-  // Colors are CSS variable references so the SVG inherits from the app's theme
-  // via CSS cascade. Theme switches apply automatically without re-rendering.
-  const { svg, error } = React.useMemo(() => {
-    try {
-      return {
-        svg: renderMermaidSVG(normalizeMermaidSource(code), {
-          bg: 'var(--background)',
-          fg: 'var(--foreground)',
-          accent: 'var(--accent)',
-          line: 'var(--foreground-30)',
-          muted: 'var(--muted-foreground)',
-          surface: 'var(--foreground-3)',
-          border: 'var(--foreground-20)',
-          transparent: true,
-          interactive: true,
-        }),
-        error: null,
-      }
-    } catch (err) {
-      return { svg: null, error: err instanceof Error ? err : new Error(String(err)) }
+  // Async render — colors are CSS variable references so the SVG inherits from
+  // the app's theme via CSS cascade. While the module loads (or on error) the
+  // code-block fallback below is shown.
+  const [rendered, setRendered] = React.useState<{ svg: string | null; error: Error | null }>({ svg: null, error: null })
+
+  React.useEffect(() => {
+    let cancelled = false
+    import('beautiful-mermaid')
+      .then(({ renderMermaidSVG }) => {
+        if (cancelled) return
+        try {
+          setRendered({ svg: renderMermaidSVG(normalizeMermaidSource(code), MERMADE_THEME), error: null })
+        } catch (err) {
+          setRendered({ svg: null, error: err instanceof Error ? err : new Error(String(err)) })
+        }
+      })
+      .catch((err) => {
+        if (!cancelled) setRendered({ svg: null, error: err instanceof Error ? err : new Error(String(err)) })
+      })
+    return () => {
+      cancelled = true
     }
   }, [code])
+  const { svg, error } = rendered
 
   const [isFullscreen, setIsFullscreen] = React.useState(false)
   const { scrollRef, maskImage } = useScrollFade(FADE_SIZE)

@@ -318,7 +318,7 @@ const ChatPage = React.memo(function ChatPage({ sessionId }: ChatPageProps) {
     const connection = connectionSlug ? llmConnections.find(c => c.slug === connectionSlug) : null
 
     return connection?.defaultModel ?? ''
-  }, [session?.id, session?.model, session?.llmConnection, workspaceDefaultLlmConnection, llmConnections, connectionUnavailable])
+  }, [session?.model, session?.llmConnection, workspaceDefaultLlmConnection, llmConnections, connectionUnavailable])
 
   // Working directory for this session
   const workingDirectory = session?.workingDirectory
@@ -381,7 +381,7 @@ const ChatPage = React.memo(function ChatPage({ sessionId }: ChatPageProps) {
 
       onOpenFile(resolved)
     },
-    [onOpenFile, workingDirectory, activeWorkspace?.rootPath]
+    [onOpenFile, workingDirectory, activeWorkspace?.rootPath, t]
   )
 
   const handleOpenUrl = React.useCallback(
@@ -514,7 +514,7 @@ const ChatPage = React.memo(function ChatPage({ sessionId }: ChatPageProps) {
     } else {
       toast.error(t('toast.failedToShare'), { description: result?.error || t('toast.unknownError') })
     }
-  }, [sessionId])
+  }, [sessionId, t])
 
   const handleOpenInBrowser = React.useCallback(() => {
     if (sharedUrl) window.electronAPI.openUrl(sharedUrl)
@@ -525,7 +525,7 @@ const ChatPage = React.memo(function ChatPage({ sessionId }: ChatPageProps) {
       await navigator.clipboard.writeText(sharedUrl)
       toast.success(t('toast.linkCopied'))
     }
-  }, [sharedUrl])
+  }, [sharedUrl, t])
 
   const handleUpdateShare = React.useCallback(async () => {
     const result = await window.electronAPI.sessionCommand(sessionId, { type: 'updateShare' }) as { success: boolean; error?: string } | undefined
@@ -534,7 +534,7 @@ const ChatPage = React.memo(function ChatPage({ sessionId }: ChatPageProps) {
     } else {
       toast.error(t('chat.failedToUpdateShare'), { description: result?.error })
     }
-  }, [sessionId])
+  }, [sessionId, t])
 
   const handleRevokeShare = React.useCallback(async () => {
     const result = await window.electronAPI.sessionCommand(sessionId, { type: 'revokeShare' }) as { success: boolean; error?: string } | undefined
@@ -543,7 +543,7 @@ const ChatPage = React.memo(function ChatPage({ sessionId }: ChatPageProps) {
     } else {
       toast.error(t('chat.failedToStopSharing'), { description: result?.error })
     }
-  }, [sessionId])
+  }, [sessionId, t])
 
   // Share button with dropdown menu rendered in PanelHeader actions slot
   const shareButton = React.useMemo(() => (
@@ -605,7 +605,7 @@ const ChatPage = React.memo(function ChatPage({ sessionId }: ChatPageProps) {
         )}
       </StyledDropdownMenuContent>
     </DropdownMenu>
-  ), [sharedUrl, handleShare, handleOpenInBrowser, handleCopyLink, handleUpdateShare, handleRevokeShare])
+  ), [sharedUrl, handleShare, handleOpenInBrowser, handleCopyLink, handleUpdateShare, handleRevokeShare, t])
 
   const compactInfoButton = React.useMemo(() => {
     if (!isCompactMode || !sessionMeta) return undefined
@@ -623,7 +623,7 @@ const ChatPage = React.memo(function ChatPage({ sessionId }: ChatPageProps) {
         )}
       />
     )
-  }, [isCompactMode, sessionId, session?.sessionFolderPath, sessionMeta])
+  }, [isCompactMode, sessionId, session?.sessionFolderPath, sessionMeta, t])
 
   // Pencil opens the Task editor for orchestrator sessions; rendered before the
   // share/info action. The slot div has no gap of its own, so compose with one here.

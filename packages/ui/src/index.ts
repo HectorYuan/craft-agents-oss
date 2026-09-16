@@ -207,7 +207,6 @@ export {
   DataTableOverlay,
   DocumentFormattedMarkdownOverlay,
   ImagePreviewOverlay,
-  PDFPreviewOverlay,
   detectLanguage,
   detectLanguageFromPath,
   type CodePreviewOverlayProps,

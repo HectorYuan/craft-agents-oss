@@ -18,7 +18,11 @@ export { JSONPreviewOverlay, type JSONPreviewOverlayProps } from './JSONPreviewO
 export { DataTableOverlay, type DataTableOverlayProps } from './DataTableOverlay'
 export { DocumentFormattedMarkdownOverlay, type DocumentFormattedMarkdownOverlayProps } from './DocumentFormattedMarkdownOverlay'
 export { ImagePreviewOverlay, type ImagePreviewOverlayProps } from './ImagePreviewOverlay'
-export { PDFPreviewOverlay, type PDFPreviewOverlayProps } from './PDFPreviewOverlay'
+// PDFPreviewOverlay is NOT re-exported here: it pulls react-pdf → pdfjs-dist
+// (~825 kB source). Consumers import it via '@craft-agent/ui/overlay/PDFPreviewOverlay'
+// (lazy in App.tsx) or the file path directly (MarkdownPdfBlock), keeping pdfjs
+// out of the entry chunk. Type re-export only — types carry no runtime cost.
+export type { PDFPreviewOverlayProps } from './PDFPreviewOverlay'
 export { MermaidPreviewOverlay, type MermaidPreviewOverlayProps } from './MermaidPreviewOverlay'
 export { HTMLPreviewOverlay, type HTMLPreviewOverlayProps } from './HTMLPreviewOverlay'
 export { ActivityCardsOverlay, type ActivityCardsOverlayProps } from './ActivityCardsOverlay'
