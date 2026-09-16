@@ -419,11 +419,15 @@ function ScrollOnMount({
   onScroll?: () => void
   skip?: boolean
 }) {
+  // Ref indirection: onScroll may be an unmemoized parent callback; adding it
+  // as a dep would re-trigger the scroll on every parent render.
+  const onScrollRef = React.useRef(onScroll)
+  onScrollRef.current = onScroll
   React.useLayoutEffect(() => {
     if (skip) return
     targetRef.current?.scrollIntoView({ behavior: 'instant' })
-    onScroll?.()
-  }, [skip])
+    onScrollRef.current?.()
+  }, [skip, targetRef])
   return null
 }
 
@@ -610,7 +614,7 @@ export const ChatDisplay = React.forwardRef<ChatDisplayHandle, ChatDisplayProps>
     if (session && !isSearchModeActive && isFocused && isFocusedPanel) {
       textareaRef.current?.focus()
     }
-  }, [session?.id, isFocused, isSearchModeActive, isFocusedPanel])
+  }, [session, isFocused, isSearchModeActive, isFocusedPanel, textareaRef])
 
   useEffect(() => {
     let isMounted = true
@@ -958,7 +962,7 @@ export const ChatDisplay = React.forwardRef<ChatDisplayHandle, ChatDisplayProps>
     matchCount: validMatches.length,
     currentMatchIndex,
     isHighlighting,
-  }), [goToNextMatch, goToPrevMatch, validMatches.length, currentMatchIndex])
+  }), [goToNextMatch, goToPrevMatch, validMatches.length, currentMatchIndex, isHighlighting])
 
   // Notify parent when match info (count, index, highlighting state) changes
   useEffect(() => {
@@ -1295,7 +1299,7 @@ export const ChatDisplay = React.forwardRef<ChatDisplayHandle, ChatDisplayProps>
         detail: { sessionId: session.id },
       }))
     }, 0)
-  }, [session, isInputDisabled, disableSend, connectionUnavailable])
+  }, [session, isInputDisabled, disableSend, connectionUnavailable, t])
 
   // Handle stop request from InputContainer
   // silent=true when redirecting (sending new message), silent=false when user clicks Stop button
@@ -1386,10 +1390,12 @@ export const ChatDisplay = React.forwardRef<ChatDisplayHandle, ChatDisplayProps>
   }, [pendingPermission, pendingCredential])
 
   // Memoize turn grouping - avoids O(n) iteration on every render/keystroke
+  const sessionMessages = session?.messages
+  const sessionIsProcessing = session?.isProcessing
   const allTurns = React.useMemo(() => {
-    if (!session) return []
-    return groupMessagesByTurn(session.messages, { isSessionProcessing: session.isProcessing })
-  }, [session?.messages, session?.isProcessing])
+    if (!sessionMessages) return []
+    return groupMessagesByTurn(sessionMessages, { isSessionProcessing: sessionIsProcessing })
+  }, [sessionMessages, sessionIsProcessing])
 
   // Keep ref in sync for scroll handler
   totalTurnCountRef.current = allTurns.length
