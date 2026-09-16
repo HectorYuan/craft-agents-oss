@@ -13,7 +13,7 @@ import { ErrorBoundary } from '../panels/ErrorBoundary'
 
 // Must match ZENSKILL_SOURCE_SLUG in ../zenskill-registry. Imported values are
 // avoided here because the registry imports every page (import cycle).
-const ZENSKILL_SOURCE_SLUG = 'zenskill-4'
+const ZENSKILL_SOURCE_SLUG = 'zenskill'
 
 interface LearningStep {
   skill_id: string

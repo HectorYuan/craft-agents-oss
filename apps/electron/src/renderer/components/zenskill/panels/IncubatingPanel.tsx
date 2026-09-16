@@ -116,7 +116,7 @@ export function IncubatingPanel({
   // Parked (no fetch) while workspaceId is absent — useMcpTool short-circuits
   // on a falsy workspace id before using sourceSlug.
   // NB: the workspace id slot must stay workspaceId — passing sourceSlug here
-  // made callMcpTool resolve the workspace by slug ("zenskill-4"), which no
+  // made callMcpTool resolve the workspace by slug ("zenskill"), which no
   // workspace matches, surfacing as "Workspace not found" in the panel.
   const incubating = useMcpTool<IncubatingData>(
     workspaceId,

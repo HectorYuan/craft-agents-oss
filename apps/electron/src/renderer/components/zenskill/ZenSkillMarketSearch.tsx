@@ -1,6 +1,6 @@
 /**
  * ZenSkillMarketSearch — Marketplace search + one-click install UI backed by
- * the zenskill-4 MCP source (skill_search / skill_install). Rendered at the
+ * the zenskill MCP source (skill_search / skill_install). Rendered at the
  * top of SkillsListPanel when a workspace is active.
  */
 import * as React from 'react'

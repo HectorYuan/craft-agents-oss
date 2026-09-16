@@ -402,7 +402,7 @@ export class ZenskillAgent extends BaseAgent {
     this.send({ type: 'set_auto_compaction', enabled: true });
 
     // Register MCP pool tools with subprocess (critical: without this the
-    // model cannot see mcp__zenskill-4__* tools)
+    // model cannot see mcp__zenskill__* tools)
     this.registerPoolTools();
   }
 
@@ -809,7 +809,7 @@ export class ZenskillAgent extends BaseAgent {
             // Growth feedback instruction
             parts.push('');
             parts.push('## Growth Feedback Rule');
-            parts.push('After completing a user task, ALWAYS call `growth_report` (or `growth_milestone` for level-up detection) via the mcp__zenskill-4__ tools, and report skill growth to the user in this format:');
+            parts.push('After completing a user task, ALWAYS call `growth_report` (or `growth_milestone` for level-up detection) via the mcp__zenskill__ tools, and report skill growth to the user in this format:');
             parts.push('📈 [skill] 成长：[old_level] → [new_level]（已使用 N 次，成功率 X%）');
           }
         }

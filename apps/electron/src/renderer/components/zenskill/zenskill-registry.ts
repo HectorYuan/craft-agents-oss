@@ -26,13 +26,13 @@ import { ZenloopStandalonePage } from './pages/ZenloopStandalonePage'
 /**
  * The ZenSkill MCP source slug all ZenSkill pages talk to.
  *
- * MUST stay "zenskill-4": the seeded source uses this slug (see
+ * MUST stay "zenskill": the seeded source uses this slug (see
  * packages/shared/src/sources/zenskill-seed.ts), the "ZenSkill Data" panel in
  * SourceInfoPage keys off it, and backend system prompts hardcode the tool
- * prefix `mcp__zenskill-4__*`. Changing it makes every ZenSkill page fall back
+ * prefix `mcp__zenskill__*`. Changing it makes every ZenSkill page fall back
  * to "Source not found".
  */
-export const ZENSKILL_SOURCE_SLUG = 'zenskill-4'
+export const ZENSKILL_SOURCE_SLUG = 'zenskill'
 
 export interface ZenSkillPageProps {
   workspaceId?: string

@@ -1101,7 +1101,7 @@ export interface SessionCompletionEvent {
   toolUseCount?: number
   firstUserMessage?: string
   /** Session's MCP pool (process-local reference) — lets listeners call
-   *  proxy tools (e.g. zenskill-4 session_summary) without re-resolving sources. */
+   *  proxy tools (e.g. zenskill session_summary) without re-resolving sources. */
   mcpPool?: McpClientPool
 }
 

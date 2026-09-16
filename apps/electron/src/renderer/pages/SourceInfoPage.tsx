@@ -483,7 +483,7 @@ export default function SourceInfoPage({ sourceSlug, workspaceId, onDelete }: So
             </Info_Section>
           )}
 
-          {/* ZenSkill mount point (L0): Data panel for the zenskill-4 MCP source */}
+          {/* ZenSkill mount point (L0): Data panel for the zenskill MCP source */}
           <ZenSkillSourceMount sourceType={source.config.type} sourceSlug={sourceSlug} workspaceId={workspaceId} />
 
           {/* Permissions - for MCP sources */}

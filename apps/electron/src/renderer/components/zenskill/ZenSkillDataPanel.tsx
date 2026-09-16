@@ -1,7 +1,7 @@
 /**
  * ZenSkillDataPanel — Shows GTD inbox, memory, skill summary,
  * energy level, growth stats, achievements, and habits.
- * Embedded in SourceInfoPage for the zenskill-4 MCP source.
+ * Embedded in SourceInfoPage for the zenskill MCP source.
  *
  * C1 迁移：15 个手动 callMcpTool → useMcpTool hook；
  * 内联可视化代码替换为 panels/ 下的复用组件；字符串 i18n 化。

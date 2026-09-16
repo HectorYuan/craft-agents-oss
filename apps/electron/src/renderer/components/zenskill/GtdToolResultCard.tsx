@@ -49,7 +49,7 @@ type GtdTab = 'inbox' | 'actions' | 'calendar' | 'projects'
 
 /**
  * Loose GTD tool matching — Mode B (agent sessions) names carry the MCP
- * prefix (`mcp__zenskill-4__action_add`) while Mode C (companion bridge)
+ * prefix (`mcp__zenskill__action_add`) while Mode C (companion bridge)
  * uses bare names (`action_add`), so substring match by design.
  */
 export function isGtdToolName(toolName?: string): boolean {
