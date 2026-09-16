@@ -96,7 +96,7 @@ describe('applyZenskillSelfHeal', () => {
     expect(applyZenskillSelfHeal(makeConfig({ mcp: undefined }), NEW_PATHS)).toBe(false);
   });
 
-  it('keeps the seeded slug at zenskill-4', () => {
-    expect(ZENSKILL_SOURCE_SLUG).toBe('zenskill-4');
+  it('keeps the seeded slug at zenskill (R-series slug unification)', () => {
+    expect(ZENSKILL_SOURCE_SLUG).toBe('zenskill');
   });
 });

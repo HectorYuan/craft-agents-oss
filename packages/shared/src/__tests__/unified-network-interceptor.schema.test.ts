@@ -125,9 +125,16 @@ describe('sanitizeEmptyTextCacheControl', () => {
 describe('upgradePromptCacheTtl', () => {
   // Derive from the same CONFIG_FILE the interceptor reads (respects
   // ZENSKILL_CONFIG_DIR / CRAFT_CONFIG_DIR and the migrated default dir).
-  const configFile = CONFIG_FILE;
-  const configDir = dirname(configFile);
+  // Deferred to beforeAll: CONFIG_FILE is assigned by the dynamic import in
+  // the top-level beforeAll, which runs AFTER describe registration.
+  let configFile: string;
+  let configDir: string;
   let originalConfig: string | null = null;
+
+  beforeAll(() => {
+    configFile = CONFIG_FILE;
+    configDir = dirname(configFile);
+  });
 
   beforeEach(() => {
     // Save original config if it exists
