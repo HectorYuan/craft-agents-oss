@@ -824,6 +824,44 @@ export default function App() {
     }
   }, [windowWorkspaceId, refreshLlmConnections])
 
+  // --- Draft input handlers（上移至 effect 之前以满足依赖声明顺序）---
+  // Write a debounced snapshot of the current ref entry to disk.
+  const schedulePersistDraft = useCallback((sessionId: string) => {
+    const existingTimeout = draftSaveTimeoutRef.current.get(sessionId)
+    if (existingTimeout) {
+      clearTimeout(existingTimeout)
+    }
+    const timeout = setTimeout(() => {
+      const draft = sessionDraftsRef.current.get(sessionId) ?? { text: '' }
+      window.electronAPI.setDraft(sessionId, draft)
+      draftSaveTimeoutRef.current.delete(sessionId)
+    }, DRAFT_SAVE_DEBOUNCE_MS)
+    draftSaveTimeoutRef.current.set(sessionId, timeout)
+  }, [])
+
+  const handleInputChange = useCallback((sessionId: string, value: string) => {
+    const text = coerceInputText(value)
+    const existing = sessionDraftsRef.current.get(sessionId)
+    const existingAttachments = Array.isArray(existing?.attachments) ? existing.attachments : []
+    const nextDraft: SessionDraft = {
+      text,
+      ...(existingAttachments.length > 0
+        ? { attachments: existingAttachments }
+        : {}),
+    }
+    const isEmpty = !nextDraft.text && (!nextDraft.attachments || nextDraft.attachments.length === 0)
+    if (isEmpty) {
+      sessionDraftsRef.current.delete(sessionId)
+    } else {
+      sessionDraftsRef.current.set(sessionId, nextDraft)
+    }
+    schedulePersistDraft(sessionId)
+  }, [schedulePersistDraft])
+
+  const handleOpenSettings = useCallback(() => {
+    navigate(routes.view.settings())
+  }, [])
+
   // Listen for session events - uses centralized event processor for consistent state transitions
   //
   // SOURCE OF TRUTH LOGIC:
@@ -836,6 +874,9 @@ export default function App() {
   // This is simpler and more robust than checking event types - we just ask
   // "is this session currently streaming?" and route accordingly.
   useEffect(() => {
+
+
+
     // Handoff events signal end of streaming - need to sync back to React state
     // Also includes todo_state_changed so status updates immediately reflect in sidebar
     // async_operation included so shimmer effect on session titles updates in real-time
@@ -1080,6 +1121,7 @@ export default function App() {
   }, [
     processAgentEvent,
     trackSessionActivity,
+    handleInputChange,
     windowWorkspaceId,
     store,
     updateSessionDirect,
@@ -1164,7 +1206,7 @@ export default function App() {
       unsubSettings()
       unsubShortcuts()
     }
-  }, [])
+  }, [handleOpenSettings])
 
   const handleCreateSession = useCallback(async (workspaceId: string, options?: import('../shared/types').CreateSessionOptions): Promise<Session> => {
     const session = await window.electronAPI.createSession(workspaceId, options)
@@ -1516,38 +1558,6 @@ export default function App() {
     return results.filter((a): a is FileAttachment => a !== null)
   }, [])
 
-  // Write a debounced snapshot of the current ref entry to disk.
-  const schedulePersistDraft = useCallback((sessionId: string) => {
-    const existingTimeout = draftSaveTimeoutRef.current.get(sessionId)
-    if (existingTimeout) {
-      clearTimeout(existingTimeout)
-    }
-    const timeout = setTimeout(() => {
-      const draft = sessionDraftsRef.current.get(sessionId) ?? { text: '' }
-      window.electronAPI.setDraft(sessionId, draft)
-      draftSaveTimeoutRef.current.delete(sessionId)
-    }, DRAFT_SAVE_DEBOUNCE_MS)
-    draftSaveTimeoutRef.current.set(sessionId, timeout)
-  }, [])
-
-  const handleInputChange = useCallback((sessionId: string, value: string) => {
-    const text = coerceInputText(value)
-    const existing = sessionDraftsRef.current.get(sessionId)
-    const existingAttachments = Array.isArray(existing?.attachments) ? existing.attachments : []
-    const nextDraft: SessionDraft = {
-      text,
-      ...(existingAttachments.length > 0
-        ? { attachments: existingAttachments }
-        : {}),
-    }
-    const isEmpty = !nextDraft.text && (!nextDraft.attachments || nextDraft.attachments.length === 0)
-    if (isEmpty) {
-      sessionDraftsRef.current.delete(sessionId)
-    } else {
-      sessionDraftsRef.current.set(sessionId, nextDraft)
-    }
-    schedulePersistDraft(sessionId)
-  }, [schedulePersistDraft])
 
   const handleAttachmentsChange = useCallback((sessionId: string, attachments: FileAttachment[]) => {
     const existing = sessionDraftsRef.current.get(sessionId)
@@ -1731,9 +1741,6 @@ export default function App() {
   const handleOpenFile = linkInterceptor.handleOpenFile
   const handleOpenUrl = linkInterceptor.handleOpenUrl
 
-  const handleOpenSettings = useCallback(() => {
-    navigate(routes.view.settings())
-  }, [])
 
   const handleOpenKeyboardShortcuts = useCallback(() => {
     navigate(routes.view.settings('shortcuts'))
