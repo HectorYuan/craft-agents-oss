@@ -33,6 +33,8 @@ import {
 
 import type { CustomEndpointApi, CustomEndpointConfig } from '@config/llm-connections'
 
+const DEFAULT_ENDPOINT_PROVIDERS = new Set(['anthropic', 'openai', 'pi', 'google'])
+
 export type ApiKeyStatus = 'idle' | 'validating' | 'success' | 'error'
 
 export type { CustomEndpointApi }
@@ -231,8 +233,6 @@ export function ApiKeyInput({
 
   const isPiApiKeyFlow = providerType === 'pi_api_key'
   const isBedrock = activePreset === 'amazon-bedrock'
-  // Hide endpoint/model fields for providers with well-known endpoints handled by the SDK
-  const DEFAULT_ENDPOINT_PROVIDERS = new Set(['anthropic', 'openai', 'pi', 'google'])
   const isDefaultProviderPreset = DEFAULT_ENDPOINT_PROVIDERS.has(activePreset)
 
   // Provider-specific placeholders from the active preset

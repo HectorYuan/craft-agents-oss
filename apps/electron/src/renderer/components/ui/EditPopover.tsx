@@ -753,13 +753,13 @@ export function EditPopover({
   const [internalOpen, setInternalOpen] = useState(false)
   const isControlled = controlledOpen !== undefined
   const open = isControlled ? controlledOpen : internalOpen
-  const setOpen = (value: boolean) => {
+  const setOpen = React.useCallback((value: boolean) => {
     if (isControlled) {
       controlledOnOpenChange?.(value)
     } else {
       setInternalOpen(value)
     }
-  }
+  }, [isControlled, controlledOnOpenChange])
 
   // Use App context for session management (same code path as main chat)
   const { onCreateSession, onSendMessage, onRespondToPermission, onRespondToCredential } = useAppShellContext()

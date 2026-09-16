@@ -84,6 +84,8 @@ export function SendToWorkspaceDialog({
   const remoteTargets = targetWorkspaces.filter(w => w.remoteServer)
 
   // Check connectivity for remote targets when dialog opens (locals are always reachable)
+  // Stable primitive dep extracted from the complex expression below
+  const targetWorkspaceKey = targetWorkspaces.map(w => w.id).join(', ')
   useEffect(() => {
     if (!open) {
       healthCheckAbort.current?.abort()
@@ -118,7 +120,7 @@ export function SendToWorkspaceDialog({
     }
 
     return () => abort.abort()
-  }, [open, remoteTargets.map(w => w.id).join(',')])
+  }, [open, remoteTargets.map(w => w.id).join(', '), remoteTargets])
 
   const handleTransfer = useCallback(async () => {
     if (!selectedWorkspaceId || sessionIds.length === 0) return
@@ -161,7 +163,7 @@ export function SendToWorkspaceDialog({
     } finally {
       setIsTransferring(false)
     }
-  }, [selectedWorkspaceId, sessionIds, workspaces, onOpenChange, onTransferComplete])
+  }, [selectedWorkspaceId, sessionIds, workspaces, onOpenChange, onTransferComplete, t])
 
   const count = sessionIds.length
 

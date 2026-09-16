@@ -24,7 +24,7 @@ export type ToggleModelVision = (
 export function useModelVisionToggle(): ToggleModelVision {
   const { t } = useTranslation()
   const appShellCtx = useOptionalAppShellContext()
-  const llmConnections = appShellCtx?.llmConnections ?? []
+  const llmConnections = React.useMemo(() => appShellCtx?.llmConnections ?? [], [appShellCtx?.llmConnections])
   const refreshLlmConnections = appShellCtx?.refreshLlmConnections
 
   return React.useCallback(async (connectionSlug, modelId, enabled) => {

@@ -79,7 +79,7 @@ export function useUpdateChecker(): UseUpdateCheckerResult {
         description: error instanceof Error ? error.message : 'Unknown error',
       })
     }
-  }, [])
+  }, [t])
 
   // Load initial state and check if update ready
   useEffect(() => {
@@ -142,7 +142,7 @@ export function useUpdateChecker(): UseUpdateCheckerResult {
         description: error instanceof Error ? error.message : 'Unknown error',
       })
     }
-  }, [showUpdateToast, installUpdate])
+  }, [showUpdateToast, installUpdate, t])
 
   return {
     updateInfo,

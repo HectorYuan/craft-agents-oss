@@ -519,7 +519,7 @@ export function KanbanBoardContainer() {
         initialTitle: meta ? getSessionTitle(meta) : undefined,
       })
     },
-    [metaMap]
+    [metaMap, setEditorTarget]
   )
 
   if (editorTarget && activeWorkspaceId) {

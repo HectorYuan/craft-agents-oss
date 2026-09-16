@@ -218,7 +218,7 @@ export default function SourceInfoPage({ sourceSlug, workspaceId, onDelete }: So
     return () => {
       isMounted = false
     }
-  }, [workspaceId, sourceSlug])
+  }, [workspaceId, sourceSlug, t])
 
   // Load MCP tools when source is loaded and is MCP type
   useEffect(() => {
@@ -255,7 +255,7 @@ export default function SourceInfoPage({ sourceSlug, workspaceId, onDelete }: So
     return () => {
       isMounted = false
     }
-  }, [source, workspaceId, sourceSlug])
+  }, [source, workspaceId, sourceSlug, t])
 
   // Load workspace settings (for localMcpEnabled)
   useEffect(() => {
@@ -348,7 +348,7 @@ export default function SourceInfoPage({ sourceSlug, workspaceId, onDelete }: So
         description: err instanceof Error ? err.message : undefined,
       })
     }
-  }, [source, workspaceId, sourceSlug, onDelete, navigateToSource])
+  }, [source, workspaceId, sourceSlug, onDelete, navigateToSource, t])
 
   // Handle opening in new window
   const handleOpenInNewWindow = useCallback(() => {
