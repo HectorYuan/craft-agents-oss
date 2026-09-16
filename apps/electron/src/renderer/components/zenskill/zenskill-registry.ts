@@ -19,7 +19,7 @@ import { ZenSkillOverview } from './pages/ZenSkillOverview'
 import { ZenSkillInsights } from './pages/ZenSkillInsights'
 import { ZenSkillProfile } from './pages/ZenSkillProfile'
 import { ZenSkillCollaboration } from './pages/ZenSkillCollaboration'
-import { ZenSkillSkillGraph } from './pages/ZenSkillSkillGraph'
+import { SkillGraphRedirect } from './pages/SkillGraphRedirect'
 import { LearningPathPage } from './pages/LearningPathPage'
 import { ZenloopStandalonePage } from './pages/ZenloopStandalonePage'
 
@@ -83,7 +83,7 @@ export const ZENSKILL_PAGES: ZenSkillPageRegistration[] = [
   },
   {
     slug: 'skill-graph',
-    component: ZenSkillSkillGraph,
+    component: SkillGraphRedirect,
     icon: Network,
     i18nLabelKey: 'zenskill.skillGraph.title',
   },
