@@ -282,6 +282,9 @@ export class ZenskillAgent extends BaseAgent {
       args.push('--model', known ? engineModel : DEFAULT_MODEL);
     }
     if (this._faux) args.push('--faux');
+    // C5: --debug 取证链 —— 宿主 debug 模式时引擎同步开 DEBUG 日志（stderr →
+    // 上方 stderr 转发 → 控制台），prompt 组装/续接回放可在日志直接定位
+    if (this.config.debugMode?.enabled) args.push('--debug');
 
     const env = { ...process.env };
     // Windows 中文环境：引擎子进程缺 PYTHONUTF8 时按系统代码页（GBK）读写
@@ -515,6 +518,12 @@ export class ZenskillAgent extends BaseAgent {
         `engine session resume FAILED for ${targetSid} — continuing with a fresh engine context ` +
         '(host session.jsonl stays UI-only for the model this turn)',
       );
+      // C4: 失败显式化 —— 历史未能续接时用户必须知道本轮从空白上下文开始，
+      // 禁止静默兜底（信息级事件，UI 以 info 行呈现，不与错误气泡混淆）
+      this.eventQueue.enqueue({
+        type: 'info',
+        message: `历史会话未能续接（引擎会话 ${targetSid} 加载失败），本轮对话从空白上下文开始`,
+      });
     }
   }
 
@@ -1024,6 +1033,10 @@ export class ZenskillAgent extends BaseAgent {
 
     try {
       await this.ensureSubprocess();
+
+      // C5: prompt 组装留痕 —— engineSid 为空说明引擎会话尚未建立/未续接；
+      // 引擎侧对应日志为 `prompt assemble: sid=… replayed=…`（--debug）
+      this.debug(`prompt assemble: engineSid=${this.engineSessionId ?? '∅'}`);
 
       const turnId = `turn-${++this.rpcIdCounter}`;
       const systemPrompt = await this.buildSystemPrompt();

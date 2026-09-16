@@ -3507,7 +3507,7 @@ export class SessionManager implements ISessionManager {
         },
       }) as AgentInstance
 
-      sessionLog.info(`Created ${provider} agent for session ${managed.id} (model: ${backendContext.resolvedModel})${managed.sdkSessionId ? ' (resuming)' : ''}`)
+      sessionLog.info(`Created ${provider} agent for session ${managed.id} (model: ${backendContext.resolvedModel})${managed.sdkSessionId ? ` (persisted sdkSessionId=${managed.sdkSessionId}; engine resume via switch_session on spawn)` : ''}`)
 
       // ============================================================
       // Post-construction: debug callback, auth callback, postInit()
