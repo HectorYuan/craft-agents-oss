@@ -245,6 +245,7 @@ export function ApiKeyInput({
 
   // Fetch Pi SDK models when a provider is selected in pi_api_key flow.
   // Returns all models sorted by cost (expensive-first) for the searchable tier dropdowns.
+  const initialValuesModels = initialValues?.models
   const loadPiModels = useCallback(async (provider: string) => {
     if (!isPiApiKeyFlow || !provider || provider === 'custom' || DEFAULT_ENDPOINT_PROVIDERS.has(provider) || OPENAI_COMPAT_CUSTOM_URL_PRESETS.has(provider)) {
       setPiModels([])
@@ -256,7 +257,7 @@ export function ApiKeyInput({
       setPiModels(result.models)
 
       if (hydratedTierProviderRef.current !== provider) {
-        const tiers = resolveTierModels(result.models, provider === initialPreset ? initialValues?.models : undefined)
+        const tiers = resolveTierModels(result.models, provider === initialPreset ? initialValuesModels : undefined)
         setBestModel(tiers.best)
         setDefaultModel(tiers.default_)
         setCheapModel(tiers.cheap)
@@ -268,7 +269,7 @@ export function ApiKeyInput({
     } finally {
       setPiModelsLoading(false)
     }
-  }, [isPiApiKeyFlow])
+  }, [isPiApiKeyFlow, initialPreset, initialValuesModels])
 
   useEffect(() => {
     loadPiModels(activePreset)

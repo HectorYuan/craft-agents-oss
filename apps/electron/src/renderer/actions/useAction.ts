@@ -28,6 +28,9 @@ export function useAction(
   useEffect(() => {
     handlerRef.current = handler
     optionsRef.current = options
+    // deps is the caller-provided dependency list by design; the spread is
+    // intentional and cannot be statically verified.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [handler, options, ...deps])
 
   // Register handler

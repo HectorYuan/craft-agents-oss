@@ -120,7 +120,7 @@ export function SendToWorkspaceDialog({
     }
 
     return () => abort.abort()
-  }, [open, remoteTargets.map(w => w.id).join(', '), remoteTargets])
+  }, [open, targetWorkspaceKey, remoteTargets])
 
   const handleTransfer = useCallback(async () => {
     if (!selectedWorkspaceId || sessionIds.length === 0) return
