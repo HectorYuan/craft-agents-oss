@@ -191,6 +191,13 @@ export class ZenskillAgent extends BaseAgent {
   private _faux = false;
   private _cachedSystemPrompt: string | null = null;
 
+  // C1: 引擎侧会话续接 —— 模型上下文活在引擎子进程内存与其自身会话文件
+  // (~/.zenskill/agent/sessions/{sid}.jsonl) 里，宿主 session.jsonl 只服务 UI。
+  // engineSessionId 记录当前绑定的引擎会话（含崩溃重启前捕获值，供重启后重续）；
+  // reportedEngineSessionId 对宿主落库回调去重。
+  private engineSessionId: string | null = null;
+  private reportedEngineSessionId: string | null = null;
+
   // G3: Crash-restart policy — idle crashes auto-restart with backoff;
   // in-flight crashes report instead (silently restarting would drop the
   // conversation context without the user noticing).
@@ -401,6 +408,10 @@ export class ZenskillAgent extends BaseAgent {
     // Register MCP pool tools with subprocess (critical: without this the
     // model cannot see mcp__zenskill-4__* tools)
     this.registerPoolTools();
+
+    // C1: 有已知引擎会话 id 时续接（应用重启 / 崩溃重启 / auth-retry 重建 agent
+    // 后模型上下文不再从零开始）。必须在首条 prompt 前完成（引擎运行中拒切）。
+    await this.resumeEngineSession();
   }
 
   // P0-1 + G3: Handle subprocess crash — distinguish idle vs in-flight
@@ -463,6 +474,59 @@ export class ZenskillAgent extends BaseAgent {
         this.scheduleIdleRestart();
       }
     }, delay);
+  }
+
+  // ============================================================
+  // C1: Engine session resume —— 模型上下文跨子进程存活
+  // ============================================================
+
+  /**
+   * spawn 后、首条 prompt 前，用已知引擎会话 id 执行 switch_session，让引擎
+   * build_context 沿 entry 链全量重建历史（含 compaction 摘要）。
+   * 目标 sid 优先取本轮子进程已捕获的 engineSessionId（崩溃重启场景，引擎
+   * 文件未变可直接重挂），否则回落宿主 header 持久化的 sdkSessionId（应用
+   * 重启 / agent 重建场景）。失败不阻断对话：引擎将懒创建空白会话，新 sid
+   * 随 prompt 响应回传并落库自愈；显式 debug 留痕便于 --debug 取证。
+   */
+  private async resumeEngineSession(): Promise<void> {
+    const targetSid = this.engineSessionId ?? this.config.session?.sdkSessionId;
+    if (!targetSid) return;
+    const id = `resume-${++this.rpcIdCounter}`;
+    const switched = await new Promise<boolean>((resolve) => {
+      const timeout = setTimeout(() => resolve(false), 15000);
+      const handler = (line: string) => {
+        try {
+          const msg = JSON.parse(line);
+          if (msg.type === 'response' && msg.command === 'switch_session' && msg.id === id) {
+            clearTimeout(timeout);
+            this.readline?.off('line', handler);
+            resolve(!!msg.success);
+          }
+        } catch { /* ignore */ }
+      };
+      this.readline?.on('line', handler);
+      this.send({ type: 'switch_session', id, sessionId: targetSid });
+    });
+    if (switched) {
+      this.captureEngineSessionId(targetSid);
+      this.debug(`engine session resumed: ${targetSid}`);
+    } else {
+      this.debug(
+        `engine session resume FAILED for ${targetSid} — continuing with a fresh engine context ` +
+        '(host session.jsonl stays UI-only for the model this turn)',
+      );
+    }
+  }
+
+  /** 引擎回传的 sid → 经 onSdkSessionIdUpdate 通知宿主落库 header.sdkSessionId */
+  private captureEngineSessionId(sid: string): void {
+    this.engineSessionId = sid;
+    if (this.reportedEngineSessionId === sid) return;
+    this.reportedEngineSessionId = sid;
+    if (sid === this.config.session?.sdkSessionId) return; // 与宿主持有值一致，无需回写
+    try {
+      this.config.onSdkSessionIdUpdate?.(sid);
+    } catch { /* 落库失败不能阻断对话 */ }
   }
 
   // P0-2: Error deduplication
@@ -582,7 +646,14 @@ export class ZenskillAgent extends BaseAgent {
         this.handlePreToolUseRequest(msg as PreToolUseRequest);
         break;
 
-      case 'response':
+      case 'response': {
+        // prompt / switch_session / ensure_session_ready 的响应都在 data 里回传
+        // 引擎侧 sessionId —— 捕获并落库，供下次 spawn 时 switch_session 续接。
+        const sid = msg.data?.sessionId;
+        if (typeof sid === 'string' && sid) this.captureEngineSessionId(sid);
+        break;
+      }
+
       case 'entry_appended':
       case 'queue_update':
       case 'agent_settled':
