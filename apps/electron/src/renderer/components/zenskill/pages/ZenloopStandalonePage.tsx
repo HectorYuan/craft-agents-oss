@@ -7,7 +7,7 @@
 import React, { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { RefreshCw, Sprout, Play, Pause } from 'lucide-react'
+import { RefreshCw, Sprout, Play, Pause, Lightbulb } from 'lucide-react'
 import { useMcpTool, extractMcpJson } from '@/hooks/zenskill/useMcpTool'
 import { ZS } from '../panels/tokens'
 import { ErrorBoundary } from '../panels/ErrorBoundary'
@@ -21,6 +21,14 @@ interface ZenloopStatusData {
   by_channel?: Record<string, number>
   top?: { id: string; channel: string; maturity: number; concept: string }[]
   message?: string
+}
+
+interface InsightItem {
+  id?: string
+  type?: string
+  title?: string
+  content?: string
+  level?: string
 }
 
 interface ZenloopStandalonePageProps {
@@ -45,6 +53,14 @@ export function ZenloopStandalonePage({ workspaceId }: ZenloopStandalonePageProp
     workspaceId,
     ZENSKILL_SOURCE_SLUG,
     'zenloop_status',
+    {},
+  )
+
+  // W3.3: insights feed（复用 proactive_insight 洞察数据）
+  const insights = useMcpTool<{ items?: InsightItem[] }>(
+    workspaceId,
+    ZENSKILL_SOURCE_SLUG,
+    'proactive_insight',
     {},
   )
 
@@ -180,6 +196,61 @@ export function ZenloopStandalonePage({ workspaceId }: ZenloopStandalonePageProp
                   >
                     {channel}: {count}
                   </span>
+                ))}
+              </div>
+
+              {/* W3.3: 通道成熟度看板（top 条目 + 进度条） */}
+              {topItems.length > 0 && (
+                <div className="mt-3 space-y-1.5">
+                  <div className="text-[10px] text-muted-foreground font-medium">通道明细</div>
+                  {topItems.slice(0, 6).map((item) => (
+                    <div key={item.id} className="flex items-center gap-2 text-[11px]">
+                      <span className={`px-1.5 py-0.5 rounded text-[9px] shrink-0 ${CHANNEL_COLORS[item.channel] || 'bg-muted text-muted-foreground'}`}>
+                        {item.channel}
+                      </span>
+                      <span className="flex-1 truncate text-muted-foreground">{item.concept}</span>
+                      <div className="w-14 h-1.5 rounded-full bg-muted overflow-hidden shrink-0">
+                        <div
+                          className="h-full rounded-full bg-accent/60 transition-all"
+                          style={{ width: `${Math.round(item.maturity * 100)}%` }}
+                        />
+                      </div>
+                      <span className="text-[9px] text-muted-foreground w-8 text-right shrink-0">
+                        {Math.round(item.maturity * 100)}%
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* W3.3: Insights feed */}
+          {insights.data?.items && insights.data.items.length > 0 && (
+            <div className={ZS.card}>
+              <div className={ZS.sectionHeader}>
+                <Lightbulb className="h-3.5 w-3.5 text-muted-foreground" />
+                <span className={ZS.body + ' font-medium text-muted-foreground'}>
+                  {t('zenskill.zenloop.insights', '循环洞察')}
+                </span>
+              </div>
+              <div className="space-y-2 mt-2">
+                {insights.data.items.slice(0, 5).map((item, i) => (
+                  <div key={item.id || i} className="text-[11px] flex items-start gap-1.5">
+                    <span className={`px-1.5 py-0.5 rounded text-[9px] shrink-0 ${
+                      item.type === 'celebration' ? 'bg-green-500/15 text-green-400' :
+                      item.type === 'warning' ? 'bg-red-500/15 text-red-400' :
+                      'bg-blue-500/15 text-blue-400'
+                    }`}>
+                      {item.type || 'info'}
+                    </span>
+                    <div className="min-w-0">
+                      <div className="font-medium truncate">{item.title}</div>
+                      {item.content && (
+                        <div className="text-muted-foreground line-clamp-2">{item.content}</div>
+                      )}
+                    </div>
+                  </div>
                 ))}
               </div>
             </div>
