@@ -6,12 +6,15 @@
  */
 import React, { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 import { RefreshCw, Sprout, Play, Pause } from 'lucide-react'
-import { useMcpTool } from '@/hooks/zenskill/useMcpTool'
+import { useMcpTool, extractMcpJson } from '@/hooks/zenskill/useMcpTool'
 import { ZS } from '../panels/tokens'
 import { ErrorBoundary } from '../panels/ErrorBoundary'
 import { IncubatingPanel } from '../panels/IncubatingPanel'
 import { ZENSKILL_SOURCE_SLUG } from '../zenskill-registry'
+
+interface ToolOutcome { ok?: boolean; executed?: number; message?: string }
 
 interface ZenloopStatusData {
   active?: number
@@ -36,6 +39,7 @@ const CHANNEL_COLORS: Record<string, string> = {
 export function ZenloopStandalonePage({ workspaceId }: ZenloopStandalonePageProps) {
   const { t } = useTranslation()
   const [busyId, setBusyId] = useState<string | null>(null)
+  const [incubatingRefresh, setIncubatingRefresh] = useState(0)
 
   const status = useMcpTool<ZenloopStatusData>(
     workspaceId,
@@ -44,14 +48,69 @@ export function ZenloopStandalonePage({ workspaceId }: ZenloopStandalonePageProp
     {},
   )
 
-  const runCycle = async (loopType: string) => {
+  // zenloop_run / zenloop_bridge_run are not write tools backend-side, so no
+  // zenskill:changed broadcast follows — refresh the reads manually here.
+  const runCycle = async (tool: string, args: Record<string, unknown>, busyKey: string) => {
     if (!workspaceId) return
-    setBusyId(loopType)
+    setBusyId(busyKey)
     try {
-      await window.electronAPI.callMcpTool(workspaceId, ZENSKILL_SOURCE_SLUG, 'zenloop_bridge_run', {})
+      const result = await window.electronAPI.callMcpTool(workspaceId, ZENSKILL_SOURCE_SLUG, tool, args)
+      const data = extractMcpJson(result) as ToolOutcome | null
+      if (data?.ok === false) {
+        toast.error(t('zenskill.toast.toolFailed'), {
+          description: typeof data.message === 'string' ? data.message : undefined,
+        })
+      } else {
+        toast.success(t('zenskill.zenloop.runDone', '循环执行完成'), {
+          description: typeof data?.message === 'string' ? data.message : undefined,
+        })
+      }
+      status.refresh()
+      setIncubatingRefresh((n) => n + 1)
+    } catch {
+      toast.error(t('zenskill.toast.toolFailed'))
     } finally {
       setBusyId(null)
     }
+  }
+
+  const runLoop = (loopType: string) => runCycle('zenloop_run', { loop_type: loopType }, loopType)
+  const runBridge = () => runCycle('zenloop_bridge_run', {}, 'bridge')
+
+  const batchPromote = async (itemIds: string[]) => {
+    if (!workspaceId || itemIds.length === 0) return
+    setBusyId('batch-promote')
+    let promoted = 0
+    let failed = 0
+    try {
+      for (const itemId of itemIds) {
+        try {
+          const result = await window.electronAPI.callMcpTool(
+            workspaceId, ZENSKILL_SOURCE_SLUG, 'incubating_promote', { item_id: itemId },
+          )
+          const data = extractMcpJson(result) as ToolOutcome | null
+          if (!data || data.ok === false) failed += 1
+          else promoted += 1
+        } catch {
+          failed += 1
+        }
+      }
+    } finally {
+      setBusyId(null)
+    }
+    if (failed > 0) {
+      toast.error(t('zenskill.toast.batchPromotePartial', {
+        promoted,
+        failed,
+        defaultValue: '{{promoted}} 项已提升，{{failed}} 项失败',
+      }))
+    } else {
+      toast.success(t('zenskill.toast.batchPromoted', {
+        n: promoted,
+        defaultValue: '已批量提升 {{n}} 项',
+      }))
+    }
+    setIncubatingRefresh((n) => n + 1)
   }
 
   const byChannel = status.data?.by_channel ?? {}
@@ -138,7 +197,7 @@ export function ZenloopStandalonePage({ workspaceId }: ZenloopStandalonePageProp
               {['reflection', 'consolidation', 'insight', 'purification'].map((type) => (
                 <button
                   key={type}
-                  onClick={() => runCycle(type)}
+                  onClick={() => runLoop(type)}
                   disabled={busyId !== null}
                   className="px-3 py-2 rounded border border-border/30 text-xs hover:bg-muted/50 disabled:opacity-40 transition-colors"
                 >
@@ -150,6 +209,18 @@ export function ZenloopStandalonePage({ workspaceId }: ZenloopStandalonePageProp
                 </button>
               ))}
             </div>
+            <button
+              onClick={runBridge}
+              disabled={busyId !== null}
+              className="mt-2 w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded border border-border/30 text-xs hover:bg-muted/50 disabled:opacity-40 transition-colors"
+            >
+              {busyId === 'bridge' ? (
+                <RefreshCw className="h-3 w-3 animate-spin" />
+              ) : (
+                <Sprout className="h-3 w-3" />
+              )}
+              {t('zenskill.zenloop.bridgeRun', 'GTD 联动桥')}
+            </button>
           </div>
 
           {/* Incubating pool */}
@@ -159,11 +230,13 @@ export function ZenloopStandalonePage({ workspaceId }: ZenloopStandalonePageProp
               workspaceId={workspaceId}
               sourceSlug={ZENSKILL_SOURCE_SLUG}
               busyId={busyId}
+              refreshSignal={incubatingRefresh}
               onPromote={(itemId) => {
                 setBusyId(itemId)
                 window.electronAPI.callMcpTool(workspaceId!, ZENSKILL_SOURCE_SLUG, 'incubating_promote', { item_id: itemId })
                   .finally(() => setBusyId(null))
               }}
+              onBatchPromote={(itemIds) => void batchPromote(itemIds)}
             />
           </ErrorBoundary>
         </div>

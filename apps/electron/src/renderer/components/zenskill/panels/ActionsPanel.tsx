@@ -15,7 +15,7 @@
  */
 import React, { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ArrowRight, CalendarCheck, CalendarPlus, Check, Circle, CircleDashed, Pencil, Plus, Trash2, X } from 'lucide-react'
+import { ArrowRight, CalendarCheck, CalendarPlus, Check, Circle, CircleDashed, Pencil, Plus, Sprout, Trash2, X } from 'lucide-react'
 import { navigate, routes } from '@/lib/navigate'
 import { PRIORITY_COLOR, energyChipClass, parseIsoDate, weekKey, type GtdAction } from './types'
 
@@ -67,6 +67,8 @@ export interface ActionsPanelProps {
   onSchedule?: (input: { actionId: string; title: string; date: string }) => void
   /** full variant: action_id → scheduled calendar date; rows with an entry render a scheduled-state icon */
   scheduledDates?: Record<string, string>
+  /** Z1: park an action into the incubating pool (incubating_add with action_id) */
+  onParkToIncubating?: (input: { actionId: string; title: string }) => void
 }
 
 const STATUS_FILTERS: ActionStatusFilter[] = ['pending', 'next', 'done']
@@ -154,6 +156,7 @@ export function ActionsPanel({
   nextActions,
   onSchedule,
   scheduledDates,
+  onParkToIncubating,
 }: ActionsPanelProps) {
   const isFull = variant === 'full'
   const isDoneView = isFull && status === 'done'
@@ -443,6 +446,16 @@ export function ActionsPanel({
                 >
                   <ArrowRight className="h-3 w-3" />
                 </button>
+                {isFull && onParkToIncubating && (
+                  <button
+                    className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-accent/20 text-muted-foreground hover:text-accent shrink-0"
+                    title={t('zenskill.gtd.incubating.addTitle', '存入孵化池')}
+                    disabled={busyId === a.id}
+                    onClick={() => onParkToIncubating({ actionId: a.id, title: a.title })}
+                  >
+                    <Sprout className="h-3 w-3" />
+                  </button>
+                )}
                 <button
                   className={`opacity-0 group-hover:opacity-100 p-0.5 rounded shrink-0 ${
                     activeConfirmId === a.id

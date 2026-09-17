@@ -507,7 +507,11 @@ export function CalendarPanel({
                       }
                       return (
                         <div key={eventId ?? `event-${i}`} className="flex items-center gap-1.5 text-xs rounded px-2 py-0.5 hover:bg-muted/50 group">
-                          {time && <span className="text-[10px] text-muted-foreground shrink-0 tabular-nums">{time}</span>}
+                          {time && (
+                            <span className="text-[10px] text-muted-foreground shrink-0 tabular-nums">
+                              {time}{e.end_time ? `–${e.end_time}` : ''}
+                            </span>
+                          )}
                           <span className="truncate flex-1">{e.title ?? ''}</span>
                           {eventId && onUpdateEvent && (
                             <button

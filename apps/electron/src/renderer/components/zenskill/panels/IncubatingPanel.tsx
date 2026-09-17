@@ -8,15 +8,24 @@
  * (full variant) — promote relies on the zenskill:changed broadcast for
  * refresh, like every other write.
  */
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Sprout, TrendingUp } from 'lucide-react'
-import { useMcpTool } from '@/hooks/zenskill/useMcpTool'
-import type { GtdIncubatingItem } from './types'
+import { Plus, Sprout, TrendingUp } from 'lucide-react'
+import { toast } from 'sonner'
+import { useMcpTool, extractMcpJson } from '@/hooks/zenskill/useMcpTool'
+import { parseIsoDate, type GtdIncubatingItem } from './types'
 
 const CHANNELS = ['reflect', 'consolidate', 'insight', 'purify'] as const
 /** Backend gate: incubating_promote rejects maturity < 0.8 */
 const PROMOTE_THRESHOLD_PCT = 80
+
+const STATUS_COLOR: Record<string, string> = {
+  active: 'bg-accent/10 text-accent',
+  mature: 'bg-green-500/15 text-green-400',
+  matured: 'bg-green-500/15 text-green-400',
+  promoted: 'bg-muted text-muted-foreground',
+  archived: 'bg-muted text-muted-foreground/70',
+}
 
 interface IncubatingData {
   count?: number
@@ -40,6 +49,8 @@ export interface IncubatingPanelProps {
   onPromote?: (itemId: string) => void
   /** B2: 批量操作回调 */
   onBatchPromote?: (itemIds: string[]) => void
+  /** Bump to force an incubating_list refetch (zenloop cycles emit no zenskill:changed) */
+  refreshSignal?: number
 }
 
 function IncubatingEntry({
@@ -60,6 +71,12 @@ function IncubatingEntry({
   const { t } = useTranslation()
   const pct = Math.round(Math.min(Math.max(item.maturity ?? 0, 0), 1) * 100)
   const mature = pct >= PROMOTE_THRESHOLD_PCT
+  const now = new Date()
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const checkDate = parseIsoDate(item.check_after)
+  const checkInDays = checkDate
+    ? Math.ceil((checkDate.getTime() - todayStart.getTime()) / 86400000)
+    : null
   return (
     <div className="text-xs rounded px-2 py-1 hover:bg-muted/50 group">
       <div className="flex items-center gap-1.5">
@@ -72,6 +89,20 @@ function IncubatingEntry({
           />
         )}
         <span className="truncate flex-1" title={item.raw_concept}>{item.raw_concept}</span>
+        {item.status && (
+          <span
+            className={`text-[9px] px-1 py-px rounded shrink-0 ${STATUS_COLOR[item.status] || 'bg-muted text-muted-foreground'}`}
+          >
+            {t(`zenskill.gtd.incubating.status.${item.status}`, item.status)}
+          </span>
+        )}
+        {checkInDays !== null && (
+          <span className="text-[9px] text-muted-foreground/60 shrink-0 tabular-nums" title={item.check_after}>
+            {checkInDays > 0
+              ? t('zenskill.gtd.incubating.checkIn', { days: checkInDays, defaultValue: '{{days}} 天后复查' })
+              : t('zenskill.gtd.incubating.checkDue', '已到复查期')}
+          </span>
+        )}
         <span className="text-[9px] text-muted-foreground/60 tabular-nums shrink-0" title={t('zenskill.gtd.incubating.maturity')}>
           {pct}%
         </span>
@@ -107,11 +138,16 @@ export function IncubatingPanel({
   busyId,
   onPromote,
   onBatchPromote,
+  refreshSignal,
 }: IncubatingPanelProps) {
   const { t } = useTranslation()
   const isFull = variant === 'full'
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [filterChannel, setFilterChannel] = useState<string | null>(null)
+  const [addConcept, setAddConcept] = useState('')
+  const [addChannel, setAddChannel] = useState<string>('reflect')
+  const [addDays, setAddDays] = useState('')
+  const [adding, setAdding] = useState(false)
 
   // Parked (no fetch) while workspaceId is absent — useMcpTool short-circuits
   // on a falsy workspace id before using sourceSlug.
@@ -125,6 +161,11 @@ export function IncubatingPanel({
     { limit: 100 },
   )
   const items = incubating.data?.items ?? []
+  const refreshIncubating = incubating.refresh
+
+  useEffect(() => {
+    if (refreshSignal) refreshIncubating()
+  }, [refreshSignal, refreshIncubating])
 
   const groups: ChannelGroup[] = CHANNELS.map((channel) => ({
     key: channel,
@@ -148,6 +189,35 @@ export function IncubatingPanel({
     if (onBatchPromote && selectedIds.size > 0) {
       onBatchPromote(Array.from(selectedIds))
       setSelectedIds(new Set())
+    }
+  }
+
+  // Z1: incubating_add — the tool is new (parallel backend line), so every
+  // failure path degrades to a friendly toast instead of throwing.
+  const submitAdd = async () => {
+    const concept = addConcept.trim()
+    if (!concept || !workspaceId || adding) return
+    setAdding(true)
+    try {
+      const args: Record<string, unknown> = { concept, channel: addChannel }
+      const days = Number(addDays)
+      if (addDays !== '' && Number.isFinite(days) && days > 0) args.check_after_days = days
+      const result = await window.electronAPI.callMcpTool(workspaceId, sourceSlug ?? '', 'incubating_add', args)
+      const data = extractMcpJson(result) as { ok?: boolean; message?: string } | null
+      if (data?.ok === false) {
+        toast.error(t('zenskill.toast.toolFailed'), {
+          description: typeof data.message === 'string' ? data.message : undefined,
+        })
+      } else {
+        toast.success(t('zenskill.toast.incubatingAdded', '已存入孵化池'))
+        setAddConcept('')
+        setAddDays('')
+        incubating.refresh()
+      }
+    } catch {
+      toast.error(t('zenskill.toast.toolFailed'))
+    } finally {
+      setAdding(false)
     }
   }
 
@@ -179,6 +249,53 @@ export function IncubatingPanel({
         <div className="text-[11px] text-destructive/80 italic pl-2" title={incubating.error}>{incubating.error}</div>
       ) : (
         <>
+          {/* Z1: inline add form (incubating_add) */}
+          {workspaceId && (
+            <div className="flex items-center gap-1.5 mb-2 px-2">
+              <input
+                value={addConcept}
+                onChange={(e) => setAddConcept(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.nativeEvent.isComposing) void submitAdd()
+                }}
+                placeholder={t('zenskill.gtd.incubating.addPlaceholder', '记录一个想法...')}
+                disabled={adding}
+                className="flex-1 min-w-0 text-xs bg-muted/40 rounded px-2 py-1 outline-none focus:ring-1 focus:ring-accent/40 disabled:opacity-50"
+              />
+              <select
+                value={addChannel}
+                onChange={(e) => setAddChannel(e.target.value)}
+                disabled={adding}
+                aria-label={t('zenskill.gtd.incubating.channel.reflect')}
+                className="w-20 shrink-0 text-xs bg-muted/40 rounded px-1 py-1 outline-none focus:ring-1 focus:ring-accent/40 text-muted-foreground disabled:opacity-50"
+              >
+                {CHANNELS.map((ch) => (
+                  <option key={ch} value={ch}>{t(`zenskill.gtd.incubating.channel.${ch}`)}</option>
+                ))}
+              </select>
+              <input
+                type="number"
+                min={1}
+                value={addDays}
+                onChange={(e) => setAddDays(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.nativeEvent.isComposing) void submitAdd()
+                }}
+                placeholder={t('zenskill.gtd.incubating.addDays', '复查天数')}
+                disabled={adding}
+                className="w-16 shrink-0 text-xs bg-muted/40 rounded px-1 py-1 outline-none focus:ring-1 focus:ring-accent/40 text-muted-foreground disabled:opacity-50"
+              />
+              <button
+                onClick={() => void submitAdd()}
+                disabled={adding || !addConcept.trim()}
+                className="p-1 rounded bg-accent/10 text-accent hover:bg-accent/20 disabled:opacity-40 shrink-0"
+                title={t('zenskill.gtd.incubating.addTitle', '存入孵化池')}
+              >
+                <Plus className="h-3 w-3" />
+              </button>
+            </div>
+          )}
+
           {/* Channel filter buttons */}
           <div className="flex gap-1 mb-2 px-2" role="group" aria-label={t('zenskill.gtd.incubating.filterAll', 'Channel filter')}>
             <button

@@ -248,6 +248,8 @@ export function GtdWorkspace({ workspaceId, initialTab }: GtdWorkspaceProps) {
         toast.success(t('zenskill.toast.scheduled', { date: String(args.date ?? '') }))
       } else if (tool === 'incubating_promote') {
         toast.success(t('zenskill.toast.promoted'))
+      } else if (tool === 'incubating_add') {
+        toast.success(t('zenskill.toast.incubatingAdded'))
       }
     } finally {
       setBusyId(null)
@@ -285,6 +287,47 @@ export function GtdWorkspace({ workspaceId, initialTab }: GtdWorkspaceProps) {
   const scheduleAction = useCallback(({ actionId, title, date }: { actionId: string; title: string; date: string }) => {
     void runTool('calendar_add', { date, title, action_id: actionId })
   }, [runTool])
+
+  // Z1: park an action into the incubating pool (concept = action title)
+  const parkToIncubating = useCallback(({ actionId, title }: { actionId: string; title: string }) => {
+    void runTool('incubating_add', { concept: title, action_id: actionId })
+  }, [runTool])
+
+  // Z13: batch promote — sequential awaits keep feedback ordered; a summary
+  // toast replaces the per-item "promoted" toast of runTool. Refresh is
+  // driven by the zenskill:changed broadcast of each incubating_promote.
+  const batchPromoteIncubating = useCallback(async (itemIds: string[]) => {
+    if (!workspaceId || itemIds.length === 0) return
+    setBusyId('batch-promote')
+    let promoted = 0
+    let failed = 0
+    try {
+      for (const itemId of itemIds) {
+        try {
+          const result = await window.electronAPI.callMcpTool(workspaceId, sourceSlug, 'incubating_promote', { item_id: itemId })
+          const data = extractMcpJson(result) as WriteToolPayload | null
+          if (!data || data.ok === false) failed += 1
+          else promoted += 1
+        } catch {
+          failed += 1
+        }
+      }
+    } finally {
+      setBusyId(null)
+    }
+    if (failed > 0) {
+      toast.error(t('zenskill.toast.batchPromotePartial', {
+        promoted,
+        failed,
+        defaultValue: '{{promoted}} 项已提升，{{failed}} 项失败',
+      }))
+    } else {
+      toast.success(t('zenskill.toast.batchPromoted', {
+        n: promoted,
+        defaultValue: '已批量提升 {{n}} 项',
+      }))
+    }
+  }, [workspaceId, sourceSlug, t])
 
   // B10: batch-classify every unprocessed inbox item by its AI suggestion.
   // Sequential awaits keep busyId/toast feedback ordered; each clarify
@@ -570,6 +613,7 @@ export function GtdWorkspace({ workspaceId, initialTab }: GtdWorkspaceProps) {
                 projects={projects.data?.items ?? []}
                 nextActions={nextActions.data?.items ?? []}
                 onSchedule={scheduleAction}
+                onParkToIncubating={parkToIncubating}
                 scheduledDates={scheduledMap}
                 statusLabels={{
                   pending: t('zenskill.gtd.actions.status.pending'),
@@ -643,6 +687,7 @@ export function GtdWorkspace({ workspaceId, initialTab }: GtdWorkspaceProps) {
                 sourceSlug={sourceSlug}
                 busyId={busyId}
                 onPromote={(itemId) => runTool('incubating_promote', { item_id: itemId })}
+                onBatchPromote={(itemIds) => void batchPromoteIncubating(itemIds)}
               />
             </ErrorBoundary>
           )}

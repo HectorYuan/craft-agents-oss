@@ -30,6 +30,8 @@ export interface GtdAction {
 export interface GtdCalendarEvent {
   date: string
   time: string
+  /** end time (contract-pending) — rendered as "time–end_time" in day detail */
+  end_time?: string
   title: string
   /** linked action id (calendar_list) — drives the ActionsPanel scheduled-state icon */
   action_id?: string
