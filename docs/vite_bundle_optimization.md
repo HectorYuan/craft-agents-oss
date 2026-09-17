@@ -1,9 +1,11 @@
 # Vite Renderer Bundle 优化方案 v2
 
-> **落地状态（d647f5c3，2026-09-15）**：P0-1 / P0-2 / P1-4 已实施，
-> 主包 4,510 → 2,447 kB（-46%，gzip 1,377 → 751 kB）。
-> 剩余：P1-3 katex（管线重构，单独批次）。
-> 运行时冒烟（PDF 链接预览 / mermaid 图 / 图标菜单）待真机确认。
+> **落地状态（42c5476c，2026-09-17）**：P0-1 / P0-2 / P1-3 / P1-4 全部实施。
+> 首屏静态链 katex 0 kB（原 589 kB）；主包（DRhz1l56 系）不再含 katex。
+> P1-3 要点：MarkdownLatexBlock 动态 import katex + code fallback；
+> Markdown.tsx math 工具链（remark-math+rehype-katex）按 $$ 定界条件挂载。
+> 真机交互回归（PDF 链接预览 / 数学公式 / mermaid 图）待用户 GUI 操作确认。
+> 历史基线：主包 4,510 → 2,437 kB（-46%），另 mermaid/PDF/math 均为按需 chunk。
 
 > v1（manualChunks 分组搬运）已被 v2 取代：sourcemap 字节级分析发现优化收益主要在
 > 源码级改造（lazy 化 + 修复 tree-shaking 失效），而非 chunk 分组搬运。
