@@ -15,7 +15,7 @@
  */
 import React, { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ArrowRight, CalendarCheck, CalendarPlus, Check, Circle, CircleDashed, Pencil, Plus, Sprout, Trash2, X } from 'lucide-react'
+import { ArrowRight, Bot, CalendarCheck, CalendarPlus, Check, Circle, CircleDashed, LayoutGrid, List, Pencil, Plus, Sprout, Trash2, X } from 'lucide-react'
 import { navigate, routes } from '@/lib/navigate'
 import { PRIORITY_COLOR, energyChipClass, parseIsoDate, weekKey, type GtdAction } from './types'
 
@@ -196,6 +196,9 @@ export function ActionsPanel({
   // full variant: inline schedule-to-calendar state (B13)
   const [schedulingId, setSchedulingId] = useState<string | null>(null)
   const [scheduleDate, setScheduleDate] = useState('')
+
+  // W3.1: board ⇄ list view toggle
+  const [viewMode, setViewMode] = useState<'list' | 'board'>('list')
 
   const submitAdd = () => {
     const title = formTitle.trim()
@@ -456,6 +459,14 @@ export function ActionsPanel({
                     <Sprout className="h-3 w-3" />
                   </button>
                 )}
+                {/* W3.2: 用 Agent 执行 */}
+                <button
+                  className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-accent/20 text-muted-foreground hover:text-accent shrink-0"
+                  title="用 Agent 执行"
+                  onClick={() => navigate(routes.action.newSession({ input: `执行行动: ${a.title}。完成后用 action_done 标记 ${a.id}。` }))}
+                >
+                  <Bot className="h-3 w-3" />
+                </button>
                 <button
                   className={`opacity-0 group-hover:opacity-100 p-0.5 rounded shrink-0 ${
                     activeConfirmId === a.id
@@ -552,6 +563,14 @@ export function ActionsPanel({
                 {t(`zenskill.gtd.actions.group.${mode}`)}
               </button>
             ))}
+            {/* W3.1: board ⇄ list toggle */}
+            <button
+              onClick={() => setViewMode(viewMode === 'list' ? 'board' : 'list')}
+              className="ml-auto p-1 text-[11px] rounded text-muted-foreground hover:bg-muted/60 hover:text-foreground transition-colors"
+              title={viewMode === 'list' ? '切换看板' : '切换列表'}
+            >
+              {viewMode === 'list' ? <LayoutGrid className="h-3.5 w-3.5" /> : <List className="h-3.5 w-3.5" />}
+            </button>
           </div>
           {/* Row 1: title + submit */}
           <div className="flex items-center gap-1.5">
@@ -682,7 +701,57 @@ export function ActionsPanel({
           </div>
         </div>
       )}
-      {filtered.length === 0 ? (
+      {isFull && viewMode === 'board' ? (
+        /* W3.1: 三列看板（pending/next/done）*/
+        <div className="grid grid-cols-3 gap-2">
+          {STATUS_FILTERS.map((col) => {
+            const colItems = filtered.filter((a) => (col === 'done' ? a.status === 'done' : col === 'next' ? a.status === 'next' : a.status !== 'done' && a.status !== 'next'))
+            return (
+              <div
+                key={col}
+                className="rounded border border-border/30 p-1.5 min-h-[80px] bg-muted/20"
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={(e) => {
+                  e.preventDefault()
+                  const actionId = e.dataTransfer.getData('text/action-id')
+                  if (!actionId) return
+                  if (col === 'done') onDone?.(actionId)
+                  else if (col === 'next') onMarkNext?.(actionId)
+                }}
+              >
+                <div className="text-[10px] font-medium text-muted-foreground mb-1 flex items-center justify-between">
+                  <span>{labelFor(col)}</span>
+                  <span className="text-muted-foreground/60">{colItems.length}</span>
+                </div>
+                <div className="space-y-1">
+                  {colItems.slice(0, 10).map((a) => (
+                    <div
+                      key={a.id}
+                      draggable
+                      onDragStart={(e) => e.dataTransfer.setData('text/action-id', a.id)}
+                      className="px-1.5 py-1 rounded bg-background border border-border/20 text-[11px] cursor-grab active:cursor-grabbing hover:border-accent/30 transition-colors group"
+                    >
+                      <div className="truncate">{a.title}</div>
+                      <div className="flex items-center gap-1 mt-0.5">
+                        <span className={`text-[9px] px-1 rounded ${a.priority === 'P0' ? 'bg-red-500/15 text-red-400' : a.priority === 'P1' ? 'bg-orange-500/15 text-orange-400' : 'bg-muted text-muted-foreground'}`}>
+                          {a.priority}
+                        </span>
+                        <button
+                          onClick={() => navigate(routes.action.newSession({ input: `执行行动: ${a.title}。完成后用 action_done 标记 ${a.id}。` }))}
+                          className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-accent"
+                          title="用 Agent 执行"
+                        >
+                          <Bot className="h-3 w-3" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      ) : filtered.length === 0 ? (
         isFull ? (
           <div className="flex flex-col items-center gap-1 py-3 text-muted-foreground/60">
             <CircleDashed className="h-4 w-4" />
