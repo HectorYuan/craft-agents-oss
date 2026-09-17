@@ -1,10 +1,11 @@
 import * as React from 'react'
 import ReactMarkdown, { defaultUrlTransform, type Components } from 'react-markdown'
-import rehypeKatex from 'rehype-katex'
+import type { PluggableList } from 'unified'
+import type rehypeKatex from 'rehype-katex'
+import 'katex/dist/katex.min.css'
 import rehypeRaw from 'rehype-raw'
 import remarkGfm from 'remark-gfm'
-import remarkMath from 'remark-math'
-import 'katex/dist/katex.min.css'
+import type remarkMath from 'remark-math'
 import { cn } from '../../lib/utils'
 import { CodeBlock, InlineCode } from './CodeBlock'
 import { MarkdownDiffBlock } from './MarkdownDiffBlock'
@@ -607,27 +608,54 @@ export function Markdown({
     [children]
   )
 
-  // Conditionally include the collapsible sections plugin.
-  // IMPORTANT: Disable single-dollar inline math so currency like $2M–$4M
-  // stays plain text. Math should use $$...$$ delimiters.
-  const remarkPlugins = React.useMemo(
-    () => {
-      const mathPlugin: [typeof remarkMath, typeof MARKDOWN_MATH_OPTIONS] = [
-        remarkMath,
-        MARKDOWN_MATH_OPTIONS
-      ]
-      return collapsible
-        ? [remarkGfm, mathPlugin, remarkCollapsibleSections]
-        : [remarkGfm, mathPlugin]
-    },
-    [collapsible]
+  // The math toolchain (remark-math → micromark-extension-math → katex,
+  // ~589 kB source) is loaded on demand: math fences are rare and the chain
+  // must not sit in the entry chunk. Content is scanned for $$...$$ (the only
+  // enabled delimiter — see MARKDOWN_MATH_OPTIONS); while the dynamic import
+  // resolves, math nodes simply render as plain text.
+  const hasMath = React.useMemo(() => processedContent.includes('$$'), [processedContent])
+  const [mathPlugins, setMathPlugins] = React.useState<{
+    remark: unknown
+    rehype: typeof rehypeKatex
+  } | null>(null)
+  React.useEffect(() => {
+    if (!hasMath || mathPlugins) return
+    let cancelled = false
+    Promise.all([
+      import('remark-math'),
+      import('rehype-katex'),
+    ])
+      .then(([mathMod, katexMod]) => {
+        if (cancelled) return
+        setMathPlugins({
+          remark: [mathMod.default, MARKDOWN_MATH_OPTIONS],
+          rehype: katexMod.default,
+        })
+      })
+      .catch(() => {
+        // math toolchain unavailable — math stays unrendered, non-fatal
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [hasMath, mathPlugins])
+
+  const remarkPlugins = React.useMemo(() => {
+    const base: PluggableList = [remarkGfm]
+    if (mathPlugins) base.push(mathPlugins.remark as PluggableList[number])
+    return (collapsible ? [...base, remarkCollapsibleSections] : base) as PluggableList
+  }, [collapsible, mathPlugins])
+
+  const rehypePlugins = React.useMemo(
+    () => (mathPlugins ? [mathPlugins.rehype, rehypeRaw] : [rehypeRaw]),
+    [mathPlugins]
   )
 
   return (
     <div className={cn('markdown-content', className)}>
       <ReactMarkdown
         remarkPlugins={remarkPlugins}
-        rehypePlugins={[rehypeKatex, rehypeRaw]}
+        rehypePlugins={rehypePlugins}
         components={components}
         urlTransform={markdownUrlTransform}
       >

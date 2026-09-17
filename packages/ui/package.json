@@ -14,6 +14,7 @@
     "./chat/turn-utils": "./src/components/chat/turn-utils.ts",
     "./overlay/PDFPreviewOverlay": "./src/components/overlay/PDFPreviewOverlay.tsx",
     "./markdown": "./src/components/markdown/index.ts",
+    "./markdown/TiptapMarkdownEditor": "./src/components/markdown/TiptapMarkdownEditor.tsx",
     "./annotations/follow-up-state": "./src/components/annotations/follow-up-state.ts",
     "./ui/drawer": "./src/components/ui/drawer.tsx",
     "./context": "./src/context/index.ts",

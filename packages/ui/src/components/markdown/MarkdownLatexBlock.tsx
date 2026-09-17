@@ -1,5 +1,4 @@
 import * as React from 'react'
-import katex from 'katex'
 import { cn } from '../../lib/utils'
 
 interface MarkdownLatexBlockProps {
@@ -14,15 +13,33 @@ interface MarkdownLatexBlockProps {
  * On parse errors, shows the raw source with an error message.
  */
 export function MarkdownLatexBlock({ code, className }: MarkdownLatexBlockProps) {
-  const html = React.useMemo(() => {
-    try {
-      return katex.renderToString(code.trim(), {
-        displayMode: true,
-        throwOnError: false,
-        strict: false,
+  // KaTeX (~589 kB source) is loaded on demand — latex fences are rare, and
+  // the library must not sit in the entry chunk. While the dynamic import
+  // resolves (or on error) the raw source is shown in a code block, mirroring
+  // the MarkdownMermaidBlock fallback pattern.
+  const [html, setHtml] = React.useState<string | null>(null)
+
+  React.useEffect(() => {
+    let cancelled = false
+    setHtml(null)
+    import('katex')
+      .then((katex) => {
+        if (cancelled) return
+        try {
+          setHtml(katex.renderToString(code.trim(), {
+            displayMode: true,
+            throwOnError: false,
+            strict: false,
+          }))
+        } catch {
+          setHtml(null)
+        }
       })
-    } catch {
-      return null
+      .catch(() => {
+        if (!cancelled) setHtml(null)
+      })
+    return () => {
+      cancelled = true
     }
   }, [code])
 

@@ -18,4 +18,7 @@ export {
   type MarkdownPreviewSpec,
 } from './markdown-preview-helpers'
 export { ImageCardStack, type ImageCardStackProps, type ImageCardStackItem } from './ImageCardStack'
-export { TiptapMarkdownEditor, type TiptapMarkdownEditorProps, type MarkdownEngine } from './TiptapMarkdownEditor'
+// TiptapMarkdownEditor is NOT re-exported here: it pulls @tiptap/extension-mathematics
+// → katex (~589 kB source) into the entry chunk. Consumers import the file directly
+// via '@craft-agent/ui/markdown/TiptapMarkdownEditor'.
+export type { TiptapMarkdownEditorProps, MarkdownEngine } from './TiptapMarkdownEditor'
