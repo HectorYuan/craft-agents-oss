@@ -128,7 +128,7 @@ export function ClarifyModal({ item, pendingActions, busy, onConfirm, onClose }:
 
         {resultType === 'action' && (pendingActions?.length ?? 0) > 0 && (
           <div className="mb-2.5">
-            <div className="text-[10px] text-muted-foreground mb-1">{t('zenskill.modal.clarify.targetLabel')}</div>
+            <div className="text-xs text-muted-foreground mb-1">{t('zenskill.modal.clarify.targetLabel')}</div>
             <select
               value={targetId}
               onChange={(e) => setTargetId(e.target.value)}

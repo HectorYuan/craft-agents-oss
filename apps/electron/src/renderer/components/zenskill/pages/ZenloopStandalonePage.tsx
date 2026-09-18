@@ -152,8 +152,8 @@ export function ZenloopStandalonePage({ workspaceId }: ZenloopStandalonePageProp
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto px-5 py-4">
-        <div className="max-w-2xl space-y-4">
+      <div className="flex-1 overflow-y-auto px-6 py-5">
+        <div className="space-y-4">
           {/* Loading */}
           {status.loading && !status.data && (
             <div className="space-y-3">
@@ -179,11 +179,11 @@ export function ZenloopStandalonePage({ workspaceId }: ZenloopStandalonePageProp
               <div className="grid grid-cols-2 gap-3 mt-2">
                 <div className="text-center">
                   <div className="text-lg font-semibold">{totalActive}</div>
-                  <div className="text-[10px] text-muted-foreground">活跃条目</div>
+                  <div className="text-xs text-muted-foreground">活跃条目</div>
                 </div>
                 <div className="text-center">
                   <div className="text-lg font-semibold">{Object.keys(byChannel).length}</div>
-                  <div className="text-[10px] text-muted-foreground">通道数</div>
+                  <div className="text-xs text-muted-foreground">通道数</div>
                 </div>
               </div>
 
@@ -192,7 +192,7 @@ export function ZenloopStandalonePage({ workspaceId }: ZenloopStandalonePageProp
                 {Object.entries(byChannel).map(([channel, count]) => (
                   <span
                     key={channel}
-                    className={`text-[10px] px-2 py-0.5 rounded ${CHANNEL_COLORS[channel] || 'bg-muted text-muted-foreground'}`}
+                    className={`text-xs px-2 py-0.5 rounded ${CHANNEL_COLORS[channel] || 'bg-muted text-muted-foreground'}`}
                   >
                     {channel}: {count}
                   </span>
@@ -202,10 +202,10 @@ export function ZenloopStandalonePage({ workspaceId }: ZenloopStandalonePageProp
               {/* W3.3: 通道成熟度看板（top 条目 + 进度条） */}
               {topItems.length > 0 && (
                 <div className="mt-3 space-y-1.5">
-                  <div className="text-[10px] text-muted-foreground font-medium">通道明细</div>
+                  <div className="text-xs text-muted-foreground font-medium">通道明细</div>
                   {topItems.slice(0, 6).map((item) => (
-                    <div key={item.id} className="flex items-center gap-2 text-[11px]">
-                      <span className={`px-1.5 py-0.5 rounded text-[9px] shrink-0 ${CHANNEL_COLORS[item.channel] || 'bg-muted text-muted-foreground'}`}>
+                    <div key={item.id} className="flex items-center gap-2 text-sm">
+                      <span className={`px-1.5 py-0.5 rounded text-xs shrink-0 ${CHANNEL_COLORS[item.channel] || 'bg-muted text-muted-foreground'}`}>
                         {item.channel}
                       </span>
                       <span className="flex-1 truncate text-muted-foreground">{item.concept}</span>
@@ -215,7 +215,7 @@ export function ZenloopStandalonePage({ workspaceId }: ZenloopStandalonePageProp
                           style={{ width: `${Math.round(item.maturity * 100)}%` }}
                         />
                       </div>
-                      <span className="text-[9px] text-muted-foreground w-8 text-right shrink-0">
+                      <span className="text-xs text-muted-foreground w-8 text-right shrink-0">
                         {Math.round(item.maturity * 100)}%
                       </span>
                     </div>
@@ -236,8 +236,8 @@ export function ZenloopStandalonePage({ workspaceId }: ZenloopStandalonePageProp
               </div>
               <div className="space-y-2 mt-2">
                 {insights.data.items.slice(0, 5).map((item, i) => (
-                  <div key={item.id || i} className="text-[11px] flex items-start gap-1.5">
-                    <span className={`px-1.5 py-0.5 rounded text-[9px] shrink-0 ${
+                  <div key={item.id || i} className="text-sm flex items-start gap-1.5">
+                    <span className={`px-1.5 py-0.5 rounded text-xs shrink-0 ${
                       item.type === 'celebration' ? 'bg-green-500/15 text-green-400' :
                       item.type === 'warning' ? 'bg-red-500/15 text-red-400' :
                       'bg-blue-500/15 text-blue-400'

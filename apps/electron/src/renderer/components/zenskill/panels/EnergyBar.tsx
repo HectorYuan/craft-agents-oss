@@ -28,7 +28,7 @@ export function EnergyBar({ level, pct, current, max }: EnergyBarProps) {
           style={{ width: `${Math.round(pct * 100)}%` }}
         />
       </div>
-      <span className="text-[10px] text-muted-foreground w-8 text-right shrink-0">
+      <span className="text-xs text-muted-foreground w-8 text-right shrink-0">
         {Math.round(pct * 100)}%
       </span>
     </div>

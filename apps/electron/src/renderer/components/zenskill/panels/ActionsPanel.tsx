@@ -325,7 +325,7 @@ export function ActionsPanel({
           <>
             {!isDoneView && (
               <span
-                className={`text-[9px] px-1 py-px rounded shrink-0 ${PRIORITY_COLOR[a.priority || 'P2'] || PRIORITY_COLOR.P2}`}
+                className={`text-xs px-1 py-px rounded shrink-0 ${PRIORITY_COLOR[a.priority || 'P2'] || PRIORITY_COLOR.P2}`}
               >
                 {a.priority || 'P2'}
               </span>
@@ -339,7 +339,7 @@ export function ActionsPanel({
             </span>
             {!isDoneView && energy !== null && (
               <span
-                className={`text-[9px] px-1 py-px rounded shrink-0 tabular-nums ${energyChipClass(energy)}`}
+                className={`text-xs px-1 py-px rounded shrink-0 tabular-nums ${energyChipClass(energy)}`}
                 title={t('zenskill.gtd.actions.energy')}
               >
                 ⚡{energy}
@@ -347,7 +347,7 @@ export function ActionsPanel({
             )}
             {skillId && (
               <button
-                className="text-[9px] px-1 py-px rounded shrink-0 bg-accent/10 text-accent hover:bg-accent/25 transition-colors"
+                className="text-xs px-1 py-px rounded shrink-0 bg-accent/10 text-accent hover:bg-accent/25 transition-colors"
                 title={t('zenskill.gtd.actions.openSkill')}
                 onClick={(e) => {
                   e.stopPropagation()
@@ -359,14 +359,14 @@ export function ActionsPanel({
             )}
             {isFull && (a.created_by === 'agent' || a.created_by === 'user') && (
               <span
-                className="text-[9px] px-1 py-px rounded shrink-0 bg-muted/60 text-muted-foreground/70"
+                className="text-xs px-1 py-px rounded shrink-0 bg-muted/60 text-muted-foreground/70"
                 title={t('zenskill.gtd.actions.source', { origin: a.created_by })}
               >
                 {a.created_by}
               </span>
             )}
             {a.due_date && !isDoneView && schedulingId !== a.id && (
-              <span className="text-[10px] text-muted-foreground shrink-0">{a.due_date.slice(5)}</span>
+              <span className="text-xs text-muted-foreground shrink-0">{a.due_date.slice(5)}</span>
             )}
             {!isDoneView && isFull && schedulingId === a.id && (
               <div className="flex items-center gap-1 shrink-0">
@@ -502,7 +502,7 @@ export function ActionsPanel({
     <div className="space-y-0.5">
       {gs.map((g) => (
         <div key={g.key}>
-          <div className={`flex items-center gap-1 text-[10px] font-medium px-2 pt-1.5 ${g.danger ? 'text-red-400' : 'text-muted-foreground'}`}>
+          <div className={`flex items-center gap-1 text-xs font-medium px-2 pt-1.5 ${g.danger ? 'text-red-400' : 'text-muted-foreground'}`}>
             {g.label}
             <span className="text-muted-foreground/60">({g.items.length})</span>
           </div>
@@ -529,7 +529,7 @@ export function ActionsPanel({
               <button
                 key={key}
                 onClick={() => onStatusChange?.(key)}
-                className={`px-2 py-1 text-[11px] rounded transition-colors ${
+                className={`px-2 py-1 text-sm rounded transition-colors ${
                   status === key
                     ? 'bg-accent/15 text-accent'
                     : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'
@@ -541,7 +541,7 @@ export function ActionsPanel({
             <select
               value={priorityFilter}
               onChange={(e) => setPriorityFilter(e.target.value as ActionPriorityFilter)}
-              className="ml-auto text-[11px] bg-muted/40 rounded px-1 py-0.5 outline-none focus:ring-1 focus:ring-accent/40 text-muted-foreground"
+              className="ml-auto text-sm bg-muted/40 rounded px-1 py-0.5 outline-none focus:ring-1 focus:ring-accent/40 text-muted-foreground"
             >
               <option value="all">{t('zenskill.gtd.actions.priority.all')}</option>
               {PRIORITIES.map((p) => (
@@ -554,7 +554,7 @@ export function ActionsPanel({
               <button
                 key={mode}
                 onClick={() => setGroupMode(mode)}
-                className={`px-2 py-0.5 text-[11px] rounded transition-colors ${
+                className={`px-2 py-0.5 text-sm rounded transition-colors ${
                   groupMode === mode
                     ? 'bg-accent/15 text-accent'
                     : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'
@@ -566,7 +566,7 @@ export function ActionsPanel({
             {/* W3.1: board ⇄ list toggle */}
             <button
               onClick={() => setViewMode(viewMode === 'list' ? 'board' : 'list')}
-              className="ml-auto p-1 text-[11px] rounded text-muted-foreground hover:bg-muted/60 hover:text-foreground transition-colors"
+              className="ml-auto p-1 text-sm rounded text-muted-foreground hover:bg-muted/60 hover:text-foreground transition-colors"
               title={viewMode === 'list' ? '切换看板' : '切换列表'}
             >
               {viewMode === 'list' ? <LayoutGrid className="h-3.5 w-3.5" /> : <List className="h-3.5 w-3.5" />}
@@ -672,7 +672,7 @@ export function ActionsPanel({
       )}
       {isFull && status === 'pending' && nextActions && nextActions.length > 0 && (
         <div className="mb-1.5 pb-2 border-b border-border/30">
-          <div className="flex items-center gap-1 text-[10px] font-medium text-accent px-2 pb-1">
+          <div className="flex items-center gap-1 text-xs font-medium text-accent px-2 pb-1">
             <ArrowRight className="h-3 w-3" />
             {t('zenskill.gtd.actions.nextSection')}
           </div>
@@ -683,7 +683,7 @@ export function ActionsPanel({
                 className="flex items-center gap-1.5 text-xs rounded px-2 py-1 hover:bg-muted/50 group"
               >
                 <span
-                  className={`text-[9px] px-1 py-px rounded shrink-0 ${PRIORITY_COLOR[a.priority || 'P2'] || PRIORITY_COLOR.P2}`}
+                  className={`text-xs px-1 py-px rounded shrink-0 ${PRIORITY_COLOR[a.priority || 'P2'] || PRIORITY_COLOR.P2}`}
                 >
                   {a.priority || 'P2'}
                 </span>
@@ -719,7 +719,7 @@ export function ActionsPanel({
                   else if (col === 'next') onMarkNext?.(actionId)
                 }}
               >
-                <div className="text-[10px] font-medium text-muted-foreground mb-1 flex items-center justify-between">
+                <div className="text-xs font-medium text-muted-foreground mb-1 flex items-center justify-between">
                   <span>{labelFor(col)}</span>
                   <span className="text-muted-foreground/60">{colItems.length}</span>
                 </div>
@@ -729,11 +729,11 @@ export function ActionsPanel({
                       key={a.id}
                       draggable
                       onDragStart={(e) => e.dataTransfer.setData('text/action-id', a.id)}
-                      className="px-1.5 py-1 rounded bg-background border border-border/20 text-[11px] cursor-grab active:cursor-grabbing hover:border-accent/30 transition-colors group"
+                      className="px-1.5 py-1 rounded bg-background border border-border/20 text-sm cursor-grab active:cursor-grabbing hover:border-accent/30 transition-colors group"
                     >
                       <div className="truncate">{a.title}</div>
                       <div className="flex items-center gap-1 mt-0.5">
-                        <span className={`text-[9px] px-1 rounded ${a.priority === 'P0' ? 'bg-red-500/15 text-red-400' : a.priority === 'P1' ? 'bg-orange-500/15 text-orange-400' : 'bg-muted text-muted-foreground'}`}>
+                        <span className={`text-xs px-1 rounded ${a.priority === 'P0' ? 'bg-red-500/15 text-red-400' : a.priority === 'P1' ? 'bg-orange-500/15 text-orange-400' : 'bg-muted text-muted-foreground'}`}>
                           {a.priority}
                         </span>
                         <button
@@ -755,7 +755,7 @@ export function ActionsPanel({
         isFull ? (
           <div className="flex flex-col items-center gap-1 py-3 text-muted-foreground/60">
             <CircleDashed className="h-4 w-4" />
-            <span className="text-[11px] italic">{t('zenskill.gtd.actions.empty', 'No pending actions')}</span>
+            <span className="text-sm italic">{t('zenskill.gtd.actions.empty', 'No pending actions')}</span>
           </div>
         ) : (
           <div className="text-xs text-muted-foreground italic pl-5">{t('zenskill.gtd.actions.empty', 'No pending actions')}</div>
@@ -773,7 +773,7 @@ export function ActionsPanel({
       {!isFull && doneActions && doneActions.length > 0 && (
         <div className="mt-1.5 pl-5 space-y-0.5">
           {doneActions.slice(0, doneMaxItems).map((a) => (
-            <div key={a.id} className="flex items-center gap-1.5 text-[11px] text-muted-foreground/70">
+            <div key={a.id} className="flex items-center gap-1.5 text-sm text-muted-foreground/70">
               <Check className="h-2.5 w-2.5 text-green-500/60 shrink-0" />
               <span className="truncate line-through decoration-muted-foreground/40">{a.title}</span>
             </div>

@@ -15,7 +15,7 @@ export function HabitHeatmap({ completed, days = 7 }: HabitHeatmapProps) {
   const entries = Object.entries(completed).slice(-days)
 
   if (entries.length === 0) {
-    return <span className="text-[9px] text-muted-foreground/60">—</span>
+    return <span className="text-xs text-muted-foreground/60">—</span>
   }
 
   return (
@@ -27,7 +27,7 @@ export function HabitHeatmap({ completed, days = 7 }: HabitHeatmapProps) {
           className={`h-2.5 w-2.5 rounded-[3px] ${ok ? 'bg-green-500/70' : 'bg-muted/60'}`}
         />
       ))}
-      <span className="text-[9px] text-muted-foreground/60 ml-1">{days}d</span>
+      <span className="text-xs text-muted-foreground/60 ml-1">{days}d</span>
     </div>
   )
 }

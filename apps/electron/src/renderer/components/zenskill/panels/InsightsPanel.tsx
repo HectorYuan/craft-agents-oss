@@ -133,7 +133,7 @@ export function InsightsPanel({
                 </span>
 
                 {/* 级别标签 */}
-                <span className={`text-[9px] px-1 py-0.5 rounded shrink-0 ${LEVEL_COLORS[insight.level] || LEVEL_COLORS.low}`}>
+                <span className={`text-xs px-1 py-0.5 rounded shrink-0 ${LEVEL_COLORS[insight.level] || LEVEL_COLORS.low}`}>
                   {insight.level}
                 </span>
               </div>
@@ -141,11 +141,11 @@ export function InsightsPanel({
               {/* 展开的详情 */}
               {isExpanded && (
                 <div className="mt-2 ml-5 pl-2 border-l border-border/30">
-                  <div className="text-[11px] text-muted-foreground/80 whitespace-pre-wrap">
+                  <div className="text-sm text-muted-foreground/80 whitespace-pre-wrap">
                     {insight.content}
                   </div>
                   {insight.timestamp && (
-                    <div className="text-[9px] text-muted-foreground/60 mt-1">
+                    <div className="text-xs text-muted-foreground/60 mt-1">
                       {insight.timestamp}
                     </div>
                   )}

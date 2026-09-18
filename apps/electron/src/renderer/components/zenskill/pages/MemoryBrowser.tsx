@@ -158,13 +158,13 @@ export function MemoryBrowser({ workspaceId }: ZenSkillPageProps) {
   return (
     <div className="flex flex-col h-full">
       {/* Page header */}
-      <div className="flex items-center justify-between px-5 pt-4 pb-3 border-b border-border/30 shrink-0">
+      <div className="flex items-center justify-between px-6 pt-5 pb-3 border-b border-border/30 shrink-0">
         <div className="flex items-center gap-2">
           <Brain className="h-4 w-4 text-accent" />
           <div className="text-sm font-medium">{t('zenskill.memory.title')}</div>
         </div>
         <div className="flex items-center gap-2">
-          <span className="text-[11px] text-muted-foreground tabular-nums">{totalCount}</span>
+          <span className="text-sm text-muted-foreground tabular-nums">{totalCount}</span>
           {loading && (
             <div className="h-1.5 w-16 rounded bg-muted/60 overflow-hidden">
               <div className="h-full w-1/2 bg-accent/50 animate-pulse" />
@@ -187,7 +187,7 @@ export function MemoryBrowser({ workspaceId }: ZenSkillPageProps) {
 
       {/* Search bar */}
       <div className="px-5 pt-3 shrink-0">
-        <div className="relative max-w-2xl">
+        <div className="relative">
           <Search className="h-3.5 w-3.5 text-muted-foreground absolute left-2.5 top-1/2 -translate-y-1/2" />
           <input
             value={queryInput}
@@ -199,8 +199,8 @@ export function MemoryBrowser({ workspaceId }: ZenSkillPageProps) {
       </div>
 
       {/* Memory list */}
-      <div className="flex-1 overflow-y-auto px-5 py-4">
-        <div className="max-w-2xl">
+      <div className="flex-1 overflow-y-auto px-6 py-5">
+        <div className="">
           {showSkeleton ? (
             <ListSkeleton rows={6} />
           ) : items.length === 0 ? (
@@ -249,13 +249,13 @@ export function MemoryBrowser({ workspaceId }: ZenSkillPageProps) {
                     </div>
                     <div className="flex items-center gap-1.5 mt-1">
                       {item.action && (
-                        <span className="text-[9px] px-1 py-px rounded bg-accent/10 text-accent shrink-0">{item.action}</span>
+                        <span className="text-xs px-1 py-px rounded bg-accent/10 text-accent shrink-0">{item.action}</span>
                       )}
                       {item.skill_id && (
-                        <span className="text-[10px] text-muted-foreground truncate">{item.skill_id}</span>
+                        <span className="text-xs text-muted-foreground truncate">{item.skill_id}</span>
                       )}
                       {item.date && (
-                        <span className="text-[10px] text-muted-foreground/60 shrink-0 ml-auto">{item.date}</span>
+                        <span className="text-xs text-muted-foreground/60 shrink-0 ml-auto">{item.date}</span>
                       )}
                     </div>
                   </div>

@@ -80,8 +80,8 @@ export function LearningPathPage({ workspaceId, onNavigateToChat }: LearningPath
       </div>
 
       {/* Search input */}
-      <div className="px-5 pt-4 shrink-0">
-        <div className="flex gap-2 max-w-2xl">
+      <div className="px-6 pt-5 shrink-0">
+        <div className="flex gap-2">
           <div className="relative flex-1">
             <Search className="h-3.5 w-3.5 text-muted-foreground absolute left-2.5 top-1/2 -translate-y-1/2" />
             <input
@@ -103,8 +103,8 @@ export function LearningPathPage({ workspaceId, onNavigateToChat }: LearningPath
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto px-5 py-4">
-        <div className="max-w-2xl space-y-4">
+      <div className="flex-1 overflow-y-auto px-6 py-5">
+        <div className="space-y-4">
           {/* Loading */}
           {path.loading && (
             <div className="space-y-3">
@@ -142,7 +142,7 @@ export function LearningPathPage({ workspaceId, onNavigateToChat }: LearningPath
                   )}
                 </div>
                 {data.owned_skills && data.owned_skills.length > 0 && (
-                  <div className="text-[10px] text-muted-foreground/60 mt-1">
+                  <div className="text-xs text-muted-foreground/60 mt-1">
                     已有技能: {data.owned_skills.join(', ')}
                   </div>
                 )}
@@ -158,7 +158,7 @@ export function LearningPathPage({ workspaceId, onNavigateToChat }: LearningPath
                         className={`${ZS.card} flex items-start gap-3`}
                       >
                         {/* Step number */}
-                        <div className="shrink-0 w-6 h-6 rounded-full bg-accent/10 text-accent flex items-center justify-center text-[10px] font-medium">
+                        <div className="shrink-0 w-6 h-6 rounded-full bg-accent/10 text-accent flex items-center justify-center text-xs font-medium">
                           {index + 1}
                         </div>
 
@@ -166,16 +166,16 @@ export function LearningPathPage({ workspaceId, onNavigateToChat }: LearningPath
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2">
                             <span className="text-xs font-medium truncate">{step.name}</span>
-                            <span className={`text-[9px] px-1 py-0.5 rounded ${DIFFICULTY_COLORS[step.difficulty] || DIFFICULTY_COLORS.beginner}`}>
+                            <span className={`text-xs px-1 py-0.5 rounded ${DIFFICULTY_COLORS[step.difficulty] || DIFFICULTY_COLORS.beginner}`}>
                               {step.difficulty}
                             </span>
                           </div>
                           {step.description && (
-                            <div className="text-[10px] text-muted-foreground/70 mt-0.5 line-clamp-2">
+                            <div className="text-xs text-muted-foreground/70 mt-0.5 line-clamp-2">
                               {step.description}
                             </div>
                           )}
-                          <div className="flex items-center gap-2 mt-1 text-[10px] text-muted-foreground/60">
+                          <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground/60">
                             <span>~{step.estimated_interactions} 次交互</span>
                           </div>
                         </div>

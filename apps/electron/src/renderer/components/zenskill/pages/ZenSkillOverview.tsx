@@ -199,8 +199,8 @@ export function ZenSkillOverview({ workspaceId, onNavigateToChat }: ZenSkillOver
       )}
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto px-5 py-4">
-        <div className="max-w-2xl space-y-4">
+      <div className="flex-1 overflow-y-auto px-6 py-5">
+        <div className="space-y-4">
           {/* Loading skeleton */}
           {isLoading && !anyData && (
             <div className="space-y-3">
@@ -255,7 +255,7 @@ export function ZenSkillOverview({ workspaceId, onNavigateToChat }: ZenSkillOver
                 {skillBrowse.data.categories.map((cat) => (
                   <span
                     key={cat.name}
-                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-accent/10 text-accent"
+                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-sm font-medium bg-accent/10 text-accent"
                   >
                     {cat.name}
                     <span className="text-muted-foreground">{cat.count}</span>
@@ -324,7 +324,7 @@ export function ZenSkillOverview({ workspaceId, onNavigateToChat }: ZenSkillOver
                 </div>
                 <div className="flex flex-wrap gap-1">
                   {achievements.data.badges!.slice(0, 8).map((b) => (
-                    <span key={b.id} className="text-[10px] px-1.5 py-0.5 rounded bg-accent/10 text-accent inline-flex items-center gap-1"
+                    <span key={b.id} className="text-xs px-1.5 py-0.5 rounded bg-accent/10 text-accent inline-flex items-center gap-1"
                       title={b.detail}>
                       {b.icon || '🏅'} {b.title || b.name}
                     </span>

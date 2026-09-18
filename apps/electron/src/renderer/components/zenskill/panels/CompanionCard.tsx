@@ -33,7 +33,7 @@ export function CompanionCard({ companion, suggestions, dailyReviewMsg, onNaviga
       <EnergyBar {...companion.energy} />
 
       {(companion.overdue > 0 || companion.due_today > 0) && (
-        <div className="flex gap-3 text-[10px]">
+        <div className="flex gap-3 text-xs">
           {companion.overdue > 0 && (
             <span className="text-red-400">⚠ {companion.overdue} overdue</span>
           )}
@@ -45,7 +45,7 @@ export function CompanionCard({ companion, suggestions, dailyReviewMsg, onNaviga
 
       {companion.top_insight && (
         <button
-          className="flex items-start gap-1.5 text-[10px] text-muted-foreground/70 text-left w-full"
+          className="flex items-start gap-1.5 text-xs text-muted-foreground/70 text-left w-full"
           onClick={() => onNavigateToChat?.(`帮我分析这个洞察: ${companion.top_insight!.title}`)}
         >
           <Lightbulb className="h-3 w-3 mt-px shrink-0 text-yellow-500/60" />
@@ -54,14 +54,14 @@ export function CompanionCard({ companion, suggestions, dailyReviewMsg, onNaviga
       )}
 
       {suggestions && suggestions.length > 0 && (
-        <div className="flex items-start gap-1.5 text-[10px] text-muted-foreground/70">
+        <div className="flex items-start gap-1.5 text-xs text-muted-foreground/70">
           <Lightbulb className="h-3 w-3 mt-px shrink-0 text-yellow-500/60" />
           <span>{suggestions[0]}</span>
         </div>
       )}
 
       {dailyReviewMsg && (
-        <div className="flex items-start gap-1.5 text-[10px] text-muted-foreground/70 border-t border-border/30 pt-1.5 mt-1.5">
+        <div className="flex items-start gap-1.5 text-xs text-muted-foreground/70 border-t border-border/30 pt-1.5 mt-1.5">
           <span className="shrink-0">📊</span>
           <span className="truncate" title={dailyReviewMsg}>{dailyReviewMsg}</span>
         </div>

@@ -91,24 +91,24 @@ function IncubatingEntry({
         <span className="truncate flex-1" title={item.raw_concept}>{item.raw_concept}</span>
         {item.status && (
           <span
-            className={`text-[9px] px-1 py-px rounded shrink-0 ${STATUS_COLOR[item.status] || 'bg-muted text-muted-foreground'}`}
+            className={`text-xs px-1 py-px rounded shrink-0 ${STATUS_COLOR[item.status] || 'bg-muted text-muted-foreground'}`}
           >
             {t(`zenskill.gtd.incubating.status.${item.status}`, item.status)}
           </span>
         )}
         {checkInDays !== null && (
-          <span className="text-[9px] text-muted-foreground/60 shrink-0 tabular-nums" title={item.check_after}>
+          <span className="text-xs text-muted-foreground/60 shrink-0 tabular-nums" title={item.check_after}>
             {checkInDays > 0
               ? t('zenskill.gtd.incubating.checkIn', { days: checkInDays, defaultValue: '{{days}} 天后复查' })
               : t('zenskill.gtd.incubating.checkDue', '已到复查期')}
           </span>
         )}
-        <span className="text-[9px] text-muted-foreground/60 tabular-nums shrink-0" title={t('zenskill.gtd.incubating.maturity')}>
+        <span className="text-xs text-muted-foreground/60 tabular-nums shrink-0" title={t('zenskill.gtd.incubating.maturity')}>
           {pct}%
         </span>
         {isFull && mature && onPromote && (
           <button
-            className="flex items-center gap-0.5 px-1 py-0.5 rounded bg-green-500/10 text-green-400 hover:bg-green-500/20 shrink-0 text-[10px] disabled:opacity-40"
+            className="flex items-center gap-0.5 px-1 py-0.5 rounded bg-green-500/10 text-green-400 hover:bg-green-500/20 shrink-0 text-xs disabled:opacity-40"
             title={t('zenskill.gtd.incubating.promote')}
             disabled={busyId === item.id}
             onClick={() => onPromote(item.id)}
@@ -246,7 +246,7 @@ export function IncubatingPanel({
           ))}
         </div>
       ) : incubating.error && !incubating.data ? (
-        <div className="text-[11px] text-destructive/80 italic pl-2" title={incubating.error}>{incubating.error}</div>
+        <div className="text-sm text-destructive/80 italic pl-2" title={incubating.error}>{incubating.error}</div>
       ) : (
         <>
           {/* Z1: inline add form (incubating_add) */}
@@ -300,7 +300,7 @@ export function IncubatingPanel({
           <div className="flex gap-1 mb-2 px-2" role="group" aria-label={t('zenskill.gtd.incubating.filterAll', 'Channel filter')}>
             <button
               onClick={() => setFilterChannel(null)}
-              className={`px-2 py-0.5 rounded text-[10px] ${!filterChannel ? 'bg-accent/20 text-accent' : 'text-muted-foreground hover:bg-muted/50'}`}
+              className={`px-2 py-0.5 rounded text-xs ${!filterChannel ? 'bg-accent/20 text-accent' : 'text-muted-foreground hover:bg-muted/50'}`}
               aria-pressed={!filterChannel}
             >
               {t('zenskill.gtd.incubating.filterAll', '全部')}
@@ -309,7 +309,7 @@ export function IncubatingPanel({
               <button
                 key={ch}
                 onClick={() => setFilterChannel(filterChannel === ch ? null : ch)}
-                className={`px-2 py-0.5 rounded text-[10px] ${filterChannel === ch ? 'bg-accent/20 text-accent' : 'text-muted-foreground hover:bg-muted/50'}`}
+                className={`px-2 py-0.5 rounded text-xs ${filterChannel === ch ? 'bg-accent/20 text-accent' : 'text-muted-foreground hover:bg-muted/50'}`}
                 aria-pressed={filterChannel === ch}
               >
                 {t(`zenskill.gtd.incubating.channel.${ch}`)}
@@ -322,7 +322,7 @@ export function IncubatingPanel({
             <div className="flex items-center gap-2 mb-2 px-2">
               <button
                 onClick={handleSelectAll}
-                className="text-[10px] text-muted-foreground hover:text-foreground"
+                className="text-xs text-muted-foreground hover:text-foreground"
               >
                 {selectedIds.size === filteredItems.length
                   ? t('zenskill.gtd.incubating.deselectAll', '取消全选')
@@ -331,7 +331,7 @@ export function IncubatingPanel({
               {selectedIds.size > 0 && (
                 <button
                   onClick={handleBatchPromote}
-                  className="flex items-center gap-1 px-2 py-0.5 rounded bg-green-500/10 text-green-400 hover:bg-green-500/20 text-[10px]"
+                  className="flex items-center gap-1 px-2 py-0.5 rounded bg-green-500/10 text-green-400 hover:bg-green-500/20 text-xs"
                 >
                   <TrendingUp className="h-3 w-3" />
                   {t('zenskill.gtd.incubating.batchPromote', '批量提升')} ({selectedIds.size})
@@ -343,7 +343,7 @@ export function IncubatingPanel({
           <div className="space-y-3">
             {groups.filter(g => !filterChannel || g.key === filterChannel).map((g) => (
               <div key={g.key}>
-                <div className="flex items-center gap-1 text-[10px] font-medium text-muted-foreground px-2 pt-0.5">
+                <div className="flex items-center gap-1 text-xs font-medium text-muted-foreground px-2 pt-0.5">
                   {g.label}
                   <span className="text-muted-foreground/60">({g.items.length})</span>
                 </div>
@@ -377,7 +377,7 @@ export function IncubatingPanel({
               </div>
             ))}
           </div>
-          <div className="flex items-center gap-1 text-[10px] text-muted-foreground/60 pl-2 pt-2.5">
+          <div className="flex items-center gap-1 text-xs text-muted-foreground/60 pl-2 pt-2.5">
             <Sprout className="h-3 w-3 shrink-0" />
             {t('zenskill.gtd.incubating.zenloopHint')}
           </div>

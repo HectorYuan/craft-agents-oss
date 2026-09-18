@@ -46,9 +46,9 @@ export function HabitList({ habits, maxItems = 4, onCheckIn }: HabitListProps) {
               <span className="truncate">{h.title || h.name || h.id}</span>
               <div className="flex items-center gap-2 shrink-0">
                 {(h.streak ?? 0) > 0 && (
-                  <span className="text-[10px] text-orange-500">🔥{h.streak}</span>
+                  <span className="text-xs text-orange-500">🔥{h.streak}</span>
                 )}
-                <span className="text-[10px] text-muted-foreground">
+                <span className="text-xs text-muted-foreground">
                   {Math.round((h.completion_rate ?? 0) * 100)}%
                 </span>
                 {onCheckIn && (

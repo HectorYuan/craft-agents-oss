@@ -91,7 +91,7 @@ function EmptyHint({ icon: Icon, text }: { icon: React.ComponentType<{ className
   return (
     <div className="flex flex-col items-center gap-1 py-3 text-muted-foreground/60">
       <Icon className="h-4 w-4" />
-      <span className="text-[11px] italic">{text}</span>
+      <span className="text-sm italic">{text}</span>
     </div>
   )
 }
@@ -216,7 +216,7 @@ export function CalendarPanel({
           <div className="space-y-0.5">
             {events.map((e, i) => (
               <div key={i} className="flex items-center gap-1.5 text-xs rounded px-2 py-0.5">
-                {e.time && <span className="text-[10px] text-muted-foreground shrink-0">{e.time}</span>}
+                {e.time && <span className="text-xs text-muted-foreground shrink-0">{e.time}</span>}
                 <span className="truncate">{e.title}</span>
               </div>
             ))}
@@ -235,7 +235,7 @@ export function CalendarPanel({
           <span className="ml-auto flex items-center gap-1">
             <button
               onClick={() => onToggleSuggest?.()}
-              className={`flex items-center gap-1 px-2 py-0.5 text-[11px] rounded transition-colors ${
+              className={`flex items-center gap-1 px-2 py-0.5 text-sm rounded transition-colors ${
                 suggestActive
                   ? 'bg-accent/15 text-accent'
                   : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'
@@ -249,7 +249,7 @@ export function CalendarPanel({
               <button
                 key={key}
                 onClick={() => onScopeChange?.(key)}
-                className={`px-2 py-0.5 text-[11px] rounded transition-colors ${
+                className={`px-2 py-0.5 text-sm rounded transition-colors ${
                   scope === key
                     ? 'bg-accent/15 text-accent'
                     : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'
@@ -272,7 +272,7 @@ export function CalendarPanel({
               <div className="space-y-0.5">
                 {events.map((e, i) => (
                   <div key={i} className="flex items-center gap-1.5 text-xs rounded px-2 py-0.5 hover:bg-muted/50">
-                    {e.time && <span className="text-[10px] text-muted-foreground shrink-0">{e.time}</span>}
+                    {e.time && <span className="text-xs text-muted-foreground shrink-0">{e.time}</span>}
                     <span className="truncate">{e.title}</span>
                   </div>
                 ))}
@@ -303,7 +303,7 @@ export function CalendarPanel({
               {/* Weekday header */}
               <div className="grid grid-cols-7 gap-0.5 mb-0.5">
                 {weekdays.map((wd) => (
-                  <div key={wd} className="text-center text-[9px] text-muted-foreground/70 uppercase">{wd}</div>
+                  <div key={wd} className="text-center text-xs text-muted-foreground/70 uppercase">{wd}</div>
                 ))}
               </div>
               {/* Day cells */}
@@ -331,14 +331,14 @@ export function CalendarPanel({
                       <div className={`h-full rounded-sm px-0.5 pt-0.5 ${heatClass(cellCountNum)}`}>
                         <div className="flex items-center justify-between">
                           {isToday ? (
-                            <span className="inline-flex h-3.5 min-w-[14px] px-0.5 items-center justify-center rounded-full bg-accent text-[9px] font-semibold text-white">
+                            <span className="inline-flex h-3.5 min-w-[14px] px-0.5 items-center justify-center rounded-full bg-accent text-xs font-semibold text-white">
                               {day}
                             </span>
                           ) : (
-                            <span className="text-[10px] text-muted-foreground tabular-nums">{day}</span>
+                            <span className="text-xs text-muted-foreground tabular-nums">{day}</span>
                           )}
                           {cellCountNum > 0 && (
-                            <span className="text-[9px] text-accent/80 tabular-nums" title={`${cellCountNum}`}>
+                            <span className="text-xs text-accent/80 tabular-nums" title={`${cellCountNum}`}>
                               {cellCountNum}
                             </span>
                           )}
@@ -346,7 +346,7 @@ export function CalendarPanel({
                         {cellEvents.slice(0, 2).map((e, j) => {
                           const time = eventTimeOf(e)
                           return (
-                            <div key={j} className="truncate text-[9px] leading-[13px] rounded bg-background/70 px-0.5 text-foreground/80">
+                            <div key={j} className="truncate text-xs leading-[13px] rounded bg-background/70 px-0.5 text-foreground/80">
                               {time && <span className="text-accent/80 mr-0.5 tabular-nums">{time}</span>}
                               {e.title ?? ''}
                             </div>
@@ -371,7 +371,7 @@ export function CalendarPanel({
               <div className="text-xs font-medium border-b border-border/30 pb-1">
                 {format(selectedDateObj, 'EEE, MMM d', { locale: dateLocale })}
                 {selectedDate === todayIso && (
-                  <span className="ml-1.5 text-[9px] px-1 py-px rounded bg-accent/15 text-accent align-middle">
+                  <span className="ml-1.5 text-xs px-1 py-px rounded bg-accent/15 text-accent align-middle">
                     {labelFor('today')}
                   </span>
                 )}
@@ -380,7 +380,7 @@ export function CalendarPanel({
               {/* Suggested slots (calendar_suggest) — chips prefill the add form */}
               {suggestActive && (
                 <div className="rounded border border-border/30 p-1.5">
-                  <div className="text-[10px] font-medium text-muted-foreground mb-1 flex items-center gap-1">
+                  <div className="text-xs font-medium text-muted-foreground mb-1 flex items-center gap-1">
                     <Wand2 className="h-3 w-3" />
                     {t('zenskill.gtd.calendar.suggestTitle')}
                   </div>
@@ -390,7 +390,7 @@ export function CalendarPanel({
                       <div className="h-4 w-2/3 rounded bg-muted/60 animate-pulse" />
                     </div>
                   ) : !suggestions?.length ? (
-                    <div className="text-[10px] text-muted-foreground italic">{t('zenskill.gtd.calendar.suggestEmpty')}</div>
+                    <div className="text-xs text-muted-foreground italic">{t('zenskill.gtd.calendar.suggestEmpty')}</div>
                   ) : (
                     <div className="flex flex-wrap gap-1">
                       {suggestions.slice(0, 3).map((s, i) => {
@@ -403,7 +403,7 @@ export function CalendarPanel({
                               onSelectDate?.(s.date)
                               setFormTime(s.time ?? s.time_str ?? '')
                             }}
-                            className="px-1.5 py-0.5 text-[10px] rounded bg-accent/10 text-accent hover:bg-accent/20 transition-colors tabular-nums"
+                            className="px-1.5 py-0.5 text-xs rounded bg-accent/10 text-accent hover:bg-accent/20 transition-colors tabular-nums"
                           >
                             {d ? format(d, 'MM-dd', { locale: dateLocale }) : (s.date ?? '?')}
                             {(s.time ?? s.time_str) ? ` ${s.time ?? s.time_str}` : ''}
@@ -447,7 +447,7 @@ export function CalendarPanel({
 
               {/* Day events */}
               <div>
-                <div className="text-[10px] font-medium text-muted-foreground mb-0.5">
+                <div className="text-xs font-medium text-muted-foreground mb-0.5">
                   {t('zenskill.gtd.calendar.dayEvents')} ({dayEvents?.length ?? 0})
                 </div>
                 {!dayEvents?.length ? (
@@ -508,7 +508,7 @@ export function CalendarPanel({
                       return (
                         <div key={eventId ?? `event-${i}`} className="flex items-center gap-1.5 text-xs rounded px-2 py-0.5 hover:bg-muted/50 group">
                           {time && (
-                            <span className="text-[10px] text-muted-foreground shrink-0 tabular-nums">
+                            <span className="text-xs text-muted-foreground shrink-0 tabular-nums">
                               {time}{e.end_time ? `–${e.end_time}` : ''}
                             </span>
                           )}
@@ -546,7 +546,7 @@ export function CalendarPanel({
 
               {/* Due actions on the selected day */}
               <div>
-                <div className="text-[10px] font-medium text-muted-foreground mb-0.5">
+                <div className="text-xs font-medium text-muted-foreground mb-0.5">
                   {t('zenskill.gtd.calendar.dayActions')} ({dayActions?.length ?? 0})
                 </div>
                 {!dayActions?.length ? (
@@ -555,7 +555,7 @@ export function CalendarPanel({
                   <div className="space-y-0.5">
                     {dayActions.map((a) => (
                       <div key={a.id} className="flex items-center gap-1.5 text-xs rounded px-2 py-0.5 hover:bg-muted/50">
-                        <span className={`text-[9px] px-1 py-px rounded shrink-0 ${PRIORITY_BG(a.priority)}`}>
+                        <span className={`text-xs px-1 py-px rounded shrink-0 ${PRIORITY_BG(a.priority)}`}>
                           {a.priority || 'P2'}
                         </span>
                         <span className="truncate flex-1">{a.title}</span>

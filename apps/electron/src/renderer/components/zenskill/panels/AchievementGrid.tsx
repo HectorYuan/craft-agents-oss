@@ -51,7 +51,7 @@ export function AchievementGrid({ unlocked, locked, completionRate, onNavigateTo
           {unlocked.map((a) => (
             <span
               key={a.id}
-              className="text-[10px] px-1.5 py-0.5 rounded bg-accent/10 text-accent inline-flex items-center gap-1"
+              className="text-xs px-1.5 py-0.5 rounded bg-accent/10 text-accent inline-flex items-center gap-1"
               title={`${a.description ?? ''}\n${a.detail ?? ''}`}
             >
               <span>{a.icon || '🏅'}</span>
@@ -68,7 +68,7 @@ export function AchievementGrid({ unlocked, locked, completionRate, onNavigateTo
             .filter((a) => (a.progress ?? 0) > 0)
             .slice(0, 3)
             .map((a) => (
-              <div key={a.id} className="flex items-center gap-1.5 text-[10px]" title={a.description}>
+              <div key={a.id} className="flex items-center gap-1.5 text-xs" title={a.description}>
                 <span className="text-muted-foreground/40">{a.icon || '🔒'}</span>
                 <span className="text-muted-foreground/70 truncate flex-1">{a.title || a.name}</span>
                 <div className="w-10 h-1 rounded bg-muted/60 overflow-hidden shrink-0">

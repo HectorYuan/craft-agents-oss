@@ -375,20 +375,20 @@ export function ZenSkillProfile({ workspaceId }: ZenSkillProfileProps) {
         <div className={`${ZS.errorBanner} mx-5 mt-3`}>{growth.error}</div>
       )}
 
-      <div className="flex-1 overflow-y-auto px-5 py-4">
-        <div className="max-w-2xl space-y-4">
+      <div className="flex-1 overflow-y-auto px-6 py-5">
+        <div className="space-y-4">
           {/* 1. Header: Realm + Score + Energy */}
           <div className={`${ZS.card}`}>
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2">
                 <span className="text-sm font-semibold text-accent">{realm}</span>
                 {nextRealm !== '—' && (
-                  <span className="text-[9px] text-muted-foreground">
+                  <span className="text-xs text-muted-foreground">
                     {t('zenskill.profile.nextRealm', 'Next:')} {nextRealm}
                   </span>
                 )}
               </div>
-              <span className="text-[10px] text-muted-foreground">
+              <span className="text-xs text-muted-foreground">
                 {t('zenskill.profile.interactions', '{{total}} interactions', { total: totalInteractions })}
               </span>
             </div>
@@ -401,9 +401,9 @@ export function ZenSkillProfile({ workspaceId }: ZenSkillProfileProps) {
             </div>
             <div className="flex items-center gap-1">
               <Zap className="h-3 w-3 text-muted-foreground" />
-              <span className="text-[10px] text-muted-foreground">{t('zenskill.profile.energy', 'Energy')}</span>
-              <span className="text-[10px] font-medium capitalize">{energyLevel}</span>
-              <span className="text-[9px] text-muted-foreground ml-auto">{Math.round(energyPct * 100)}%</span>
+              <span className="text-xs text-muted-foreground">{t('zenskill.profile.energy', 'Energy')}</span>
+              <span className="text-xs font-medium capitalize">{energyLevel}</span>
+              <span className="text-xs text-muted-foreground ml-auto">{Math.round(energyPct * 100)}%</span>
             </div>
           </div>
 
@@ -423,8 +423,8 @@ export function ZenSkillProfile({ workspaceId }: ZenSkillProfileProps) {
               <div className="flex justify-center gap-3 mt-2">
                 {FIVE_DIMS.map((dim) => (
                   <div key={dim} className="text-center">
-                    <div className="text-[9px] text-muted-foreground">{dimLabels[dim] ?? dim}</div>
-                    <div className="text-[10px] font-medium">{radarScores[dim] ?? 0}</div>
+                    <div className="text-xs text-muted-foreground">{dimLabels[dim] ?? dim}</div>
+                    <div className="text-xs font-medium">{radarScores[dim] ?? 0}</div>
                   </div>
                 ))}
               </div>
@@ -439,7 +439,7 @@ export function ZenSkillProfile({ workspaceId }: ZenSkillProfileProps) {
                 {t('zenskill.profile.realmProgress', 'Realm Progress')}
               </span>
             </div>
-            <div className="flex items-center gap-2 text-[10px]">
+            <div className="flex items-center gap-2 text-xs">
               <span className="font-medium">{realm}</span>
               <div className="flex-1 h-1 rounded bg-muted/60 overflow-hidden">
                 <div className="h-full bg-accent/70" style={{ width: `${Math.min(realmProgress * 100, 100)}%` }} />
@@ -490,12 +490,12 @@ export function ZenSkillProfile({ workspaceId }: ZenSkillProfileProps) {
             </div>
             <div className="flex flex-wrap gap-1">
               {badges.map((b) => (
-                <span key={b.id} className="text-[10px] px-1.5 py-0.5 rounded bg-accent/10 text-accent inline-flex items-center gap-1" title={b.detail}>
+                <span key={b.id} className="text-xs px-1.5 py-0.5 rounded bg-accent/10 text-accent inline-flex items-center gap-1" title={b.detail}>
                   {b.icon || '🏅'} {b.title || b.name}
                 </span>
               ))}
               {locked.slice(0, 4).map((b) => (
-                <span key={b.id} className="text-[10px] px-1.5 py-0.5 rounded bg-muted/40 text-muted-foreground inline-flex items-center gap-1" title={t('zenskill.profile.locked', 'Locked')}>
+                <span key={b.id} className="text-xs px-1.5 py-0.5 rounded bg-muted/40 text-muted-foreground inline-flex items-center gap-1" title={t('zenskill.profile.locked', 'Locked')}>
                   🔒 {b.title || b.name}
                 </span>
               ))}
@@ -510,7 +510,7 @@ export function ZenSkillProfile({ workspaceId }: ZenSkillProfileProps) {
                 {t('zenskill.profile.habits', 'Habits')} ({habitEntries.length})
               </span>
               {streak > 0 && (
-                <span className="text-[10px] text-orange-400 ml-auto">
+                <span className="text-xs text-orange-400 ml-auto">
                   🔥 {streak} {t('zenskill.profile.streak', 'day streak')}
                 </span>
               )}
@@ -529,9 +529,9 @@ export function ZenSkillProfile({ workspaceId }: ZenSkillProfileProps) {
                         <span className="truncate">{h.title || habitId}</span>
                         <div className="flex items-center gap-2 shrink-0">
                           {(h.streak ?? 0) > 0 && (
-                            <span className="text-[10px] text-orange-500">🔥{h.streak}</span>
+                            <span className="text-xs text-orange-500">🔥{h.streak}</span>
                           )}
-                          <span className="text-[10px] text-muted-foreground tabular-nums">
+                          <span className="text-xs text-muted-foreground tabular-nums">
                             {Math.round((h.completion_rate ?? 0) * 100)}%
                           </span>
                           <button
@@ -604,7 +604,7 @@ export function ZenSkillProfile({ workspaceId }: ZenSkillProfileProps) {
                   <button
                     onClick={() => void submitHabit()}
                     disabled={!hfTitle.trim() || busyTool === 'habit_set'}
-                    className="flex items-center gap-1 px-2 py-1 text-[11px] rounded bg-accent/10 text-accent hover:bg-accent/20 disabled:opacity-40"
+                    className="flex items-center gap-1 px-2 py-1 text-sm rounded bg-accent/10 text-accent hover:bg-accent/20 disabled:opacity-40"
                     title={t('zenskill.profile.habits.addTitle')}
                   >
                     <Check className="h-3 w-3" />
@@ -612,7 +612,7 @@ export function ZenSkillProfile({ workspaceId }: ZenSkillProfileProps) {
                   </button>
                   <button
                     onClick={() => setHabitFormOpen(false)}
-                    className="flex items-center gap-1 px-2 py-1 text-[11px] rounded text-muted-foreground hover:bg-muted/60"
+                    className="flex items-center gap-1 px-2 py-1 text-sm rounded text-muted-foreground hover:bg-muted/60"
                     title={t('zenskill.gtd.projects.cancel', 'Cancel')}
                   >
                     <X className="h-3 w-3" />
@@ -624,7 +624,7 @@ export function ZenSkillProfile({ workspaceId }: ZenSkillProfileProps) {
               <button
                 onClick={() => setHabitFormOpen(true)}
                 disabled={!workspaceId || busyTool === 'habit_set'}
-                className="mt-2 flex items-center gap-1 px-2 py-1 text-[11px] rounded text-accent hover:bg-accent/10 transition-colors disabled:opacity-40"
+                className="mt-2 flex items-center gap-1 px-2 py-1 text-sm rounded text-accent hover:bg-accent/10 transition-colors disabled:opacity-40"
                 title={t('zenskill.profile.habits.addTitle')}
               >
                 <Plus className="h-3 w-3" />
@@ -708,15 +708,15 @@ export function ZenSkillProfile({ workspaceId }: ZenSkillProfileProps) {
                           <div className="flex items-center justify-between gap-2">
                             <div className="flex items-center gap-1.5 min-w-0">
                               <span className="truncate font-medium">{dimLabel}</span>
-                              <span className={`text-[9px] px-1 py-px rounded shrink-0 ${goalStatusBadgeClass(rawStatus)}`}>
+                              <span className={`text-xs px-1 py-px rounded shrink-0 ${goalStatusBadgeClass(rawStatus)}`}>
                                 {statusLabel}
                               </span>
                               {g.deadline && (
-                                <span className="text-[9px] text-muted-foreground shrink-0 tabular-nums">{g.deadline}</span>
+                                <span className="text-xs text-muted-foreground shrink-0 tabular-nums">{g.deadline}</span>
                               )}
                             </div>
                             <div className="flex items-center gap-1 shrink-0">
-                              <span className="text-[10px] text-muted-foreground tabular-nums">
+                              <span className="text-xs text-muted-foreground tabular-nums">
                                 {current}/{target}
                               </span>
                               <button
@@ -745,7 +745,7 @@ export function ZenSkillProfile({ workspaceId }: ZenSkillProfileProps) {
                             <div className="flex-1 h-1 rounded bg-muted/60 overflow-hidden">
                               <div className="h-full bg-accent/70" style={{ width: `${Math.min(pct, 100)}%` }} />
                             </div>
-                            <span className="text-[9px] text-muted-foreground tabular-nums">{Math.round(pct)}%</span>
+                            <span className="text-xs text-muted-foreground tabular-nums">{Math.round(pct)}%</span>
                           </div>
                         </>
                       )}
@@ -794,7 +794,7 @@ export function ZenSkillProfile({ workspaceId }: ZenSkillProfileProps) {
                   <button
                     onClick={() => void submitGoal()}
                     disabled={!gfTarget || busyTool === 'goal_set'}
-                    className="flex items-center gap-1 px-2 py-1 text-[11px] rounded bg-accent/10 text-accent hover:bg-accent/20 disabled:opacity-40"
+                    className="flex items-center gap-1 px-2 py-1 text-sm rounded bg-accent/10 text-accent hover:bg-accent/20 disabled:opacity-40"
                     title={t('zenskill.profile.goals.addTitle')}
                   >
                     <Check className="h-3 w-3" />
@@ -802,7 +802,7 @@ export function ZenSkillProfile({ workspaceId }: ZenSkillProfileProps) {
                   </button>
                   <button
                     onClick={() => setGoalFormOpen(false)}
-                    className="flex items-center gap-1 px-2 py-1 text-[11px] rounded text-muted-foreground hover:bg-muted/60"
+                    className="flex items-center gap-1 px-2 py-1 text-sm rounded text-muted-foreground hover:bg-muted/60"
                     title={t('zenskill.gtd.projects.cancel', 'Cancel')}
                   >
                     <X className="h-3 w-3" />
@@ -814,7 +814,7 @@ export function ZenSkillProfile({ workspaceId }: ZenSkillProfileProps) {
               <button
                 onClick={() => setGoalFormOpen(true)}
                 disabled={!workspaceId || busyTool === 'goal_set'}
-                className="mt-2 flex items-center gap-1 px-2 py-1 text-[11px] rounded text-accent hover:bg-accent/10 transition-colors disabled:opacity-40"
+                className="mt-2 flex items-center gap-1 px-2 py-1 text-sm rounded text-accent hover:bg-accent/10 transition-colors disabled:opacity-40"
                 title={t('zenskill.profile.goals.addTitle')}
               >
                 <Plus className="h-3 w-3" />
@@ -850,7 +850,7 @@ export function ZenSkillProfile({ workspaceId }: ZenSkillProfileProps) {
             {energySuggestions.length > 0 && (
               <div className="mt-2 space-y-1">
                 {energySuggestions.slice(0, 3).map((s, i) => (
-                  <div key={i} className="text-[10px] text-muted-foreground/80 flex items-start gap-1">
+                  <div key={i} className="text-xs text-muted-foreground/80 flex items-start gap-1">
                     <span className="text-accent">•</span> {s}
                   </div>
                 ))}

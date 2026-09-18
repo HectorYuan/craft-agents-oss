@@ -364,7 +364,7 @@ function InsightsList({ insights }: { insights: InsightItem[] }) {
           <button
             key={opt.value}
             onClick={() => setFilter(opt.value)}
-            className={`text-[9px] px-1.5 py-0.5 rounded transition-colors ${
+            className={`text-xs px-1.5 py-0.5 rounded transition-colors ${
               filter === opt.value
                 ? 'bg-accent/20 text-accent'
                 : 'text-muted-foreground hover:bg-muted/50'
@@ -379,7 +379,7 @@ function InsightsList({ insights }: { insights: InsightItem[] }) {
           const cfg = INSIGHT_TYPE_CONFIG[item.type ?? ''] ?? { icon: Info, color: '#666' }
           const Icon = cfg.icon
           return (
-            <div key={idx} className="flex items-start gap-2 text-[10px] p-1.5 rounded hover:bg-muted/30">
+            <div key={idx} className="flex items-start gap-2 text-xs p-1.5 rounded hover:bg-muted/30">
               <Icon className="h-3 w-3 mt-0.5 shrink-0" style={{ color: cfg.color }} />
               <div className="flex-1 min-w-0">
                 <div className="font-medium truncate">{item.title ?? item.type}</div>
@@ -432,12 +432,12 @@ function TransferPatterns({ patterns }: { patterns: TransferItem[] }) {
       <div className="space-y-2 mt-2">
         {patterns.map((p, idx) => (
           <div key={idx} className="p-1.5 rounded bg-muted/20">
-            <div className="flex items-center gap-1.5 text-[10px]">
+            <div className="flex items-center gap-1.5 text-xs">
               <span className="font-medium">{p.source_skill}</span>
               <ArrowRight className="h-3 w-3 text-accent" />
               <span className="font-medium">{p.target_skill}</span>
               {p.confidence != null && (
-                <span className="ml-auto text-[9px] px-1 py-0.5 rounded bg-accent/10 text-accent">
+                <span className="ml-auto text-xs px-1 py-0.5 rounded bg-accent/10 text-accent">
                   {Math.round(p.confidence * 100)}%
                 </span>
               )}
@@ -560,7 +560,7 @@ function SkillStats({ skills }: { skills: GrowthSkill[] }) {
       <SectionHeader icon={BarChart3} title={t('zenskill.collaboration.stats', 'Skill Statistics')} />
       <div className="space-y-1.5 mt-2">
         {skills.map((sk) => (
-          <div key={sk.skill_id} className="flex items-center gap-2 text-[10px] p-1 rounded hover:bg-muted/30">
+          <div key={sk.skill_id} className="flex items-center gap-2 text-xs p-1 rounded hover:bg-muted/30">
             <div className="w-20 truncate font-medium">{sk.skill_id}</div>
             {sk.level && (
               <span className="text-[8px] px-1 py-0.5 rounded bg-accent/10 text-accent shrink-0">{sk.level}</span>
@@ -655,8 +655,8 @@ export function ZenSkillCollaboration({ workspaceId }: ZenSkillCollaborationProp
         <div className={`${ZS.errorBanner} mx-5 mt-3`}>{dashboard.error || growth.error}</div>
       )}
 
-      <div className="flex-1 overflow-y-auto px-5 py-4">
-        <div className="max-w-2xl space-y-3">
+      <div className="flex-1 overflow-y-auto px-6 py-5">
+        <div className="space-y-3">
           {/* Section 1: Overview */}
           {isLoading ? <SkeletonBlock lines={4} /> : (
             <OverviewStats dashboard={dashboard.data} growth={effectiveSkills} />

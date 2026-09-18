@@ -474,12 +474,12 @@ export function GtdWorkspace({ workspaceId, initialTab }: GtdWorkspaceProps) {
   return (
     <div className="flex flex-col h-full">
       {/* Page header */}
-      <div className="flex items-center justify-between px-5 pt-4 pb-3 border-b border-border/30 shrink-0">
+      <div className="flex items-center justify-between px-6 pt-5 pb-3 border-b border-border/30 shrink-0">
         <div className="flex items-center gap-2">
           <Zap className="h-4 w-4 text-accent" />
           <div>
             <div className="text-sm font-medium">{t('zenskill.gtd.title')}</div>
-            <div className="text-[11px] text-muted-foreground">{t('zenskill.gtd.subtitle')}</div>
+            <div className="text-sm text-muted-foreground">{t('zenskill.gtd.subtitle')}</div>
           </div>
         </div>
         <div className="flex items-center gap-3">
@@ -524,7 +524,7 @@ export function GtdWorkspace({ workspaceId, initialTab }: GtdWorkspaceProps) {
         <div
           role="radiogroup"
           aria-label={t('zenskill.progression.mode.modeLabel')}
-          className="mx-5 mt-2 flex items-center justify-end gap-1.5 shrink-0 text-[11px]"
+          className="mx-5 mt-2 flex items-center justify-end gap-1.5 shrink-0 text-sm"
         >
           <span className="text-muted-foreground">{t('zenskill.progression.mode.modeLabel')}</span>
           {PROGRESSION_MODES.map((mode) => (
@@ -573,7 +573,7 @@ export function GtdWorkspace({ workspaceId, initialTab }: GtdWorkspaceProps) {
       </div>
 
       {/* Tab content */}
-      <div className="flex-1 overflow-y-auto px-5 py-4">
+      <div className="flex-1 overflow-y-auto px-6 py-5">
         <div className="space-y-4">
           {activeTab === 'inbox' && (
             inbox.loading && !inbox.data ? <TabSkeleton rows={4} /> : (

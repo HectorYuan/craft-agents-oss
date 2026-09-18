@@ -57,15 +57,15 @@ export function GrowthCard({ skills, maxItems = 3, onNavigateToChat }: GrowthCar
               <span className="truncate font-medium">{g.skill_id}</span>
               <div className="flex items-center gap-1.5 shrink-0">
                 {g.level && (
-                  <span className="text-[9px] px-1 py-px rounded bg-accent/10 text-accent">
+                  <span className="text-xs px-1 py-px rounded bg-accent/10 text-accent">
                     {g.level}
                   </span>
                 )}
                 {g.usage_count != null && (
-                  <span className="text-[10px] text-muted-foreground">{g.usage_count}次</span>
+                  <span className="text-xs text-muted-foreground">{g.usage_count}次</span>
                 )}
                 {g.success_rate != null && (
-                  <span className="text-[10px] text-green-500/80">
+                  <span className="text-xs text-green-500/80">
                     {Math.round(g.success_rate * 100)}%
                   </span>
                 )}

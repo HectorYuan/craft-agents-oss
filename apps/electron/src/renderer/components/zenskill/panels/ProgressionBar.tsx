@@ -365,7 +365,7 @@ export function ProgressionBar({ workspaceId, progressions, mode }: ProgressionB
             type="button"
             onClick={() => void sendPrompt(top, 0)}
             disabled={!prompt || busy}
-            className="inline-flex shrink-0 items-center gap-1 rounded bg-accent px-2.5 py-1 text-[11px] font-medium text-white transition-colors hover:bg-accent/90 disabled:opacity-40"
+            className="inline-flex shrink-0 items-center gap-1 rounded bg-accent px-2.5 py-1 text-sm font-medium text-white transition-colors hover:bg-accent/90 disabled:opacity-40"
           >
             <RitualIcon className="h-3 w-3" />
             {t(style.confirmKey)}
@@ -374,7 +374,7 @@ export function ProgressionBar({ workspaceId, progressions, mode }: ProgressionB
             type="button"
             onClick={() => dismiss(ritual)}
             disabled={busy}
-            className="inline-flex shrink-0 items-center rounded px-2 py-1 text-[11px] text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground disabled:opacity-40"
+            className="inline-flex shrink-0 items-center rounded px-2 py-1 text-sm text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground disabled:opacity-40"
           >
             {t(style.dismissKey)}
           </button>
@@ -411,7 +411,7 @@ export function ProgressionBar({ workspaceId, progressions, mode }: ProgressionB
                     {t('zenskill.progression.lowEnergy')}
                   </span>
                   {lightCount !== null && (
-                    <span className="ml-auto shrink-0 rounded-full border border-orange-500/30 bg-orange-500/10 px-1.5 py-px text-[10px] font-medium text-orange-600 dark:text-orange-400">
+                    <span className="ml-auto shrink-0 rounded-full border border-orange-500/30 bg-orange-500/10 px-1.5 py-px text-xs font-medium text-orange-600 dark:text-orange-400">
                       ⚡ {lightCount}
                     </span>
                   )}
@@ -427,7 +427,7 @@ export function ProgressionBar({ workspaceId, progressions, mode }: ProgressionB
                     onClick={() => void sendPrompt(progression, index)}
                     disabled={!prompt || busy}
                     title={t('zenskill.progression.send')}
-                    className="inline-flex shrink-0 items-center gap-1 rounded bg-orange-500/90 px-2.5 py-1 text-[11px] font-medium text-white transition-colors hover:bg-orange-500 disabled:opacity-40"
+                    className="inline-flex shrink-0 items-center gap-1 rounded bg-orange-500/90 px-2.5 py-1 text-sm font-medium text-white transition-colors hover:bg-orange-500 disabled:opacity-40"
                   >
                     <ArrowRight className={`h-3 w-3 ${busy ? 'animate-pulse' : ''}`} />
                     {t('zenskill.progression.send')}
@@ -470,7 +470,7 @@ export function ProgressionBar({ workspaceId, progressions, mode }: ProgressionB
                     onClick={() => void handleShareCard()}
                     disabled={busy || sharing}
                     title={t('zenskill.progression.shareCard')}
-                    className="inline-flex shrink-0 items-center gap-1 rounded bg-amber-500/90 px-2.5 py-1 text-[11px] font-medium text-white transition-colors hover:bg-amber-500 disabled:opacity-40"
+                    className="inline-flex shrink-0 items-center gap-1 rounded bg-amber-500/90 px-2.5 py-1 text-sm font-medium text-white transition-colors hover:bg-amber-500 disabled:opacity-40"
                   >
                     <Sparkles className={`h-3 w-3 ${sharing ? 'animate-pulse' : ''}`} />
                     {t('zenskill.progression.shareCard')}
@@ -479,7 +479,7 @@ export function ProgressionBar({ workspaceId, progressions, mode }: ProgressionB
                     type="button"
                     onClick={() => void sendPrompt(progression, index)}
                     disabled={!prompt || busy}
-                    className="inline-flex shrink-0 items-center gap-1 rounded border border-amber-500/40 bg-amber-500/10 px-2 py-1 text-[11px] font-medium text-amber-600 transition-colors hover:bg-amber-500/20 dark:text-amber-400 disabled:opacity-40"
+                    className="inline-flex shrink-0 items-center gap-1 rounded border border-amber-500/40 bg-amber-500/10 px-2 py-1 text-sm font-medium text-amber-600 transition-colors hover:bg-amber-500/20 dark:text-amber-400 disabled:opacity-40"
                   >
                     <ArrowRight className="h-3 w-3" />
                     {t('zenskill.progression.celebrationReview')}
@@ -519,7 +519,7 @@ export function ProgressionBar({ workspaceId, progressions, mode }: ProgressionB
               onClick={() => void sendPrompt(progression, index)}
               disabled={!prompt || busy}
               title={t('zenskill.progression.send')}
-              className="ml-auto inline-flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-medium text-accent transition-colors hover:bg-accent/10 disabled:opacity-40"
+              className="ml-auto inline-flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-sm font-medium text-accent transition-colors hover:bg-accent/10 disabled:opacity-40"
             >
               <ArrowRight className={`h-3 w-3 ${busy ? 'animate-pulse' : ''}`} />
               {t('zenskill.progression.send')}

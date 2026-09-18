@@ -156,18 +156,18 @@ export function ZenSkillSkillGraph({ workspaceId }: ZenSkillSkillGraphProps) {
         <div className={`${ZS.errorBanner} mx-5 mt-3`}>{growth.error}</div>
       )}
 
-      <div className="flex-1 overflow-y-auto px-5 py-4">
-        <div className="max-w-2xl space-y-4">
+      <div className="flex-1 overflow-y-auto px-6 py-5">
+        <div className="space-y-4">
           {/* Stats */}
           <div className={`${ZS.card}`}>
             <div className="grid grid-cols-3 gap-2 text-center">
               <div>
                 <div className="text-lg font-semibold">{skills.length}</div>
-                <div className="text-[9px] text-muted-foreground">{t('zenskill.skillGraph.nodes', 'Nodes')}</div>
+                <div className="text-xs text-muted-foreground">{t('zenskill.skillGraph.nodes', 'Nodes')}</div>
               </div>
               <div>
                 <div className="text-lg font-semibold">{edges.length}</div>
-                <div className="text-[9px] text-muted-foreground">{t('zenskill.skillGraph.edges', 'Edges')}</div>
+                <div className="text-xs text-muted-foreground">{t('zenskill.skillGraph.edges', 'Edges')}</div>
               </div>
               <div>
                 <div className="text-lg font-semibold">
@@ -180,7 +180,7 @@ export function ZenSkillSkillGraph({ workspaceId }: ZenSkillSkillGraphProps) {
                       }, 0) / skills.length)
                     : 0}
                 </div>
-                <div className="text-[9px] text-muted-foreground">{t('zenskill.skillGraph.avgScore', 'Avg Score')}</div>
+                <div className="text-xs text-muted-foreground">{t('zenskill.skillGraph.avgScore', 'Avg Score')}</div>
               </div>
             </div>
           </div>
@@ -191,7 +191,7 @@ export function ZenSkillSkillGraph({ workspaceId }: ZenSkillSkillGraphProps) {
               {Object.entries(RELATION_COLORS).map(([relation, color]) => (
                 <div key={relation} className="flex items-center gap-1">
                   <span className="h-2 w-2 rounded-full" style={{ backgroundColor: color }} />
-                  <span className="text-[9px] text-muted-foreground capitalize">{relation}</span>
+                  <span className="text-xs text-muted-foreground capitalize">{relation}</span>
                 </div>
               ))}
             </div>
@@ -262,12 +262,12 @@ export function ZenSkillSkillGraph({ workspaceId }: ZenSkillSkillGraphProps) {
             {/* Hover tooltip */}
             {hoveredNode && (
               <div className="absolute top-2 right-2 bg-popover border border-border/30 rounded p-2 shadow-modal-small pointer-events-none" style={{ minWidth: 140 }}>
-                <div className="text-[10px] font-medium mb-1">{hoveredNode.skill_id}</div>
+                <div className="text-xs font-medium mb-1">{hoveredNode.skill_id}</div>
                 {hoveredNode.level && (
-                  <div className="text-[9px] text-muted-foreground">Level: {hoveredNode.level}</div>
+                  <div className="text-xs text-muted-foreground">Level: {hoveredNode.level}</div>
                 )}
                 {hoveredNode.usage_count != null && (
-                  <div className="text-[9px] text-muted-foreground">Uses: {hoveredNode.usage_count}</div>
+                  <div className="text-xs text-muted-foreground">Uses: {hoveredNode.usage_count}</div>
                 )}
                 {hoveredNode.scores && (
                   <div className="mt-1 space-y-0.5">
@@ -295,10 +295,10 @@ export function ZenSkillSkillGraph({ workspaceId }: ZenSkillSkillGraphProps) {
                   {selectedNode.skill_id}
                 </span>
                 {selectedNode.level && (
-                  <span className="text-[9px] px-1 py-0.5 rounded bg-accent/10 text-accent ml-auto">{selectedNode.level}</span>
+                  <span className="text-xs px-1 py-0.5 rounded bg-accent/10 text-accent ml-auto">{selectedNode.level}</span>
                 )}
               </div>
-              <div className="grid grid-cols-2 gap-2 text-[10px]">
+              <div className="grid grid-cols-2 gap-2 text-xs">
                 {FIVE_DIMS.map((dim) => (
                   <div key={dim} className="flex items-center gap-1">
                     <span className="text-muted-foreground w-20">{dim}</span>
@@ -310,12 +310,12 @@ export function ZenSkillSkillGraph({ workspaceId }: ZenSkillSkillGraphProps) {
                 ))}
               </div>
               {selectedNode.usage_count != null && (
-                <div className="text-[10px] text-muted-foreground mt-2">
+                <div className="text-xs text-muted-foreground mt-2">
                   {t('zenskill.skillGraph.uses', 'Usage count:')} {selectedNode.usage_count}
                 </div>
               )}
               {selectedNode.success_rate != null && (
-                <div className="text-[10px] text-muted-foreground">
+                <div className="text-xs text-muted-foreground">
                   {t('zenskill.skillGraph.successRate', 'Success rate:')} {Math.round(selectedNode.success_rate * 100)}%
                 </div>
               )}

@@ -32,7 +32,7 @@ export function AutoClassifyBadge({ suggestedType, onClassify, busy }: AutoClass
 
   return (
     <button
-      className={`opacity-0 group-hover:opacity-100 flex items-center gap-0.5 px-1 py-0.5 rounded text-[9px] shrink-0 transition-opacity ${TYPE_COLORS[type]} disabled:opacity-40`}
+      className={`opacity-0 group-hover:opacity-100 flex items-center gap-0.5 px-1 py-0.5 rounded text-xs shrink-0 transition-opacity ${TYPE_COLORS[type]} disabled:opacity-40`}
       title={t('zenskill.inbox.suggestBadge', 'AI 分类建议，点击采纳')}
       disabled={busy}
       onClick={(e) => {

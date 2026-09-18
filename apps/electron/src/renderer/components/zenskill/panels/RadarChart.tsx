@@ -102,7 +102,7 @@ export function RadarChart({ scores, size = 200, highlight, onHover, labels }: R
           y={y}
           textAnchor="middle"
           dominantBaseline="middle"
-          className={`text-[9px] fill-current transition-colors ${
+          className={`text-xs fill-current transition-colors ${
             activeHighlight === dim ? 'text-accent font-medium' : 'text-muted-foreground/70'
           }`}
           onMouseEnter={() => handleMouseEnter(dim)}

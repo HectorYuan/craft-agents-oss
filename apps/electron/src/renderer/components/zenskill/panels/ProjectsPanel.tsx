@@ -60,11 +60,11 @@ function ProjectActions({ projectId, workspaceId, sourceSlug }: { projectId: str
     )
   }
   if (actions.error && !actions.data) {
-    return <div className="pl-6 pb-1 text-[11px] text-destructive/80 italic truncate" title={actions.error}>{actions.error}</div>
+    return <div className="pl-6 pb-1 text-sm text-destructive/80 italic truncate" title={actions.error}>{actions.error}</div>
   }
   if (items.length === 0) {
     return (
-      <div className="pl-6 pb-1 flex items-center gap-1 text-[11px] text-muted-foreground/60 italic">
+      <div className="pl-6 pb-1 flex items-center gap-1 text-sm text-muted-foreground/60 italic">
         <CircleDashed className="h-3 w-3" />
         {t('zenskill.gtd.projects.actionsEmpty')}
       </div>
@@ -73,12 +73,12 @@ function ProjectActions({ projectId, workspaceId, sourceSlug }: { projectId: str
   return (
     <div className="pl-6 pb-1 space-y-0.5">
       {items.map((a) => (
-        <div key={a.id} className="flex items-center gap-1.5 text-[11px] rounded px-1.5 py-0.5 hover:bg-muted/40">
-          <span className={`text-[9px] px-1 py-px rounded shrink-0 ${PRIORITY_COLOR[a.priority || 'P2'] || PRIORITY_COLOR.P2}`}>
+        <div key={a.id} className="flex items-center gap-1.5 text-sm rounded px-1.5 py-0.5 hover:bg-muted/40">
+          <span className={`text-xs px-1 py-px rounded shrink-0 ${PRIORITY_COLOR[a.priority || 'P2'] || PRIORITY_COLOR.P2}`}>
             {a.priority || 'P2'}
           </span>
           <span className="truncate flex-1" title={a.title}>{a.title}</span>
-          {a.due_date && <span className="text-[10px] text-muted-foreground shrink-0">{a.due_date.slice(5)}</span>}
+          {a.due_date && <span className="text-xs text-muted-foreground shrink-0">{a.due_date.slice(5)}</span>}
         </div>
       ))}
     </div>
@@ -157,7 +157,7 @@ export function ProjectsPanel({
             <button
               onClick={() => setFormOpen((v) => !v)}
               disabled={addProjectDisabled}
-              className="ml-auto flex items-center gap-1 px-2 py-0.5 text-[11px] rounded text-accent hover:bg-accent/10 transition-colors disabled:opacity-40"
+              className="ml-auto flex items-center gap-1 px-2 py-0.5 text-sm rounded text-accent hover:bg-accent/10 transition-colors disabled:opacity-40"
               title={t('zenskill.gtd.projects.addTitle')}
             >
               <Plus className="h-3 w-3" />
@@ -212,12 +212,12 @@ export function ProjectsPanel({
         isFull ? (
           <div className="flex flex-col items-center gap-1 py-3 text-muted-foreground/60">
             <FolderKanban className="h-4 w-4" />
-            <span className="text-[11px] italic">{t('zenskill.gtd.projects.empty')}</span>
+            <span className="text-sm italic">{t('zenskill.gtd.projects.empty')}</span>
             {onAddProject && (
               <button
                 onClick={() => setFormOpen(true)}
                 disabled={addProjectDisabled}
-                className="text-[11px] text-accent hover:underline disabled:opacity-40"
+                className="text-sm text-accent hover:underline disabled:opacity-40"
               >
                 {t('zenskill.gtd.projects.createFirst')}
               </button>
@@ -244,7 +244,7 @@ export function ProjectsPanel({
                     </button>
                   ) : null}
                   <span className="truncate flex-1">{p.name}</span>
-                  {p.status && <span className="text-[9px] text-muted-foreground/60 shrink-0">{p.status}</span>}
+                  {p.status && <span className="text-xs text-muted-foreground/60 shrink-0">{p.status}</span>}
                   {isFull && typeof p.progress === 'number' && (
                     <div className="w-12 h-1 rounded bg-muted/60 overflow-hidden shrink-0" title={`${Math.round(p.progress * 100)}%`}>
                       <div className="h-full bg-accent/60" style={{ width: `${Math.round(p.progress * 100)}%` }} />
@@ -325,7 +325,7 @@ export function ProjectsPanel({
                         <button
                           onClick={() => startEdit(p)}
                           disabled={editProjectDisabled}
-                          className="mb-1 flex items-center gap-1 px-1.5 py-0.5 text-[10px] rounded text-muted-foreground hover:bg-accent/10 hover:text-accent transition-colors disabled:opacity-40"
+                          className="mb-1 flex items-center gap-1 px-1.5 py-0.5 text-xs rounded text-muted-foreground hover:bg-accent/10 hover:text-accent transition-colors disabled:opacity-40"
                           title={t('zenskill.gtd.projects.edit')}
                         >
                           <Pencil className="h-3 w-3" />

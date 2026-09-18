@@ -107,8 +107,8 @@ export function ZenSkillInsights({ workspaceId }: ZenSkillInsightsProps) {
         <div className={`${ZS.errorBanner} mx-5 mt-3`}>{insights.error}</div>
       )}
 
-      <div className="flex-1 overflow-y-auto px-5 py-4">
-        <div className="max-w-2xl space-y-4">
+      <div className="flex-1 overflow-y-auto px-6 py-5">
+        <div className="space-y-4">
           {/* Filters */}
           <div className="flex items-center gap-3 flex-wrap">
             <Filter className="h-3.5 w-3.5 text-muted-foreground" />
@@ -117,7 +117,7 @@ export function ZenSkillInsights({ workspaceId }: ZenSkillInsightsProps) {
                 <button
                   key={opt.value}
                   onClick={() => setTypeFilter(opt.value)}
-                  className={`text-[10px] px-2 py-1 rounded transition-colors ${
+                  className={`text-xs px-2 py-1 rounded transition-colors ${
                     typeFilter === opt.value
                       ? 'bg-accent/20 text-accent'
                       : 'text-muted-foreground hover:bg-muted/50'
@@ -133,7 +133,7 @@ export function ZenSkillInsights({ workspaceId }: ZenSkillInsightsProps) {
                 <button
                   key={opt.value}
                   onClick={() => setLevelFilter(opt.value)}
-                  className={`text-[10px] px-2 py-1 rounded transition-colors ${
+                  className={`text-xs px-2 py-1 rounded transition-colors ${
                     levelFilter === opt.value
                       ? 'bg-accent/20 text-accent'
                       : 'text-muted-foreground hover:bg-muted/50'
@@ -146,7 +146,7 @@ export function ZenSkillInsights({ workspaceId }: ZenSkillInsightsProps) {
           </div>
 
           {/* Stats */}
-          <div className="text-[10px] text-muted-foreground">
+          <div className="text-xs text-muted-foreground">
             {t('zenskill.insights.showing', 'Showing')} {filteredInsights.length} / {(insights.data?.items ?? []).length} {t('zenskill.insights.insights', 'insights')}
           </div>
 
