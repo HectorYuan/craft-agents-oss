@@ -18,7 +18,7 @@
 import React, { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { format } from 'date-fns'
-import { CalendarOff, Check, ChevronLeft, ChevronRight, CircleDashed, Pencil, Plus, Trash2, Wand2, X } from 'lucide-react'
+import { CalendarCheck, CalendarOff, Check, ChevronLeft, ChevronRight, CircleDashed, Pencil, Plus, Trash2, Wand2, X } from 'lucide-react'
 import type { Locale } from 'date-fns'
 import { getDateLocale } from '@craft-agent/shared/i18n'
 import type { GtdAction, GtdCalendarEvent, GtdCalendarEventWithId, GtdCalendarMonthData, GtdCalendarSuggestion } from './types'
@@ -514,14 +514,26 @@ export function CalendarPanel({
                           )}
                           <span className="truncate flex-1">{e.title ?? ''}</span>
                           {eventId && onUpdateEvent && (
-                            <button
-                              className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-accent/20 text-muted-foreground hover:text-accent shrink-0"
-                              title={t('zenskill.gtd.calendar.editEvent')}
-                              disabled={updateEventDisabled}
-                              onClick={() => startEventEdit(e)}
-                            >
-                              <Pencil className="h-3 w-3" />
-                            </button>
+                            <>
+                              <button
+                                className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-accent/20 text-muted-foreground hover:text-accent shrink-0"
+                                title={t('zenskill.gtd.calendar.editEvent')}
+                                disabled={updateEventDisabled}
+                                onClick={() => startEventEdit(e)}
+                              >
+                                <Pencil className="h-3 w-3" />
+                              </button>
+                              {e.date && selectedDate && e.date !== selectedDate && (
+                                <button
+                                  className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-blue-500/20 text-muted-foreground hover:text-blue-400 shrink-0"
+                                  title={`移到 ${selectedDate}`}
+                                  disabled={updateEventDisabled}
+                                  onClick={() => onUpdateEvent({ eventId, title: e.title ?? '', date: selectedDate, timeStr: eventTimeOf(e) })}
+                                >
+                                  <CalendarCheck className="h-3 w-3" />
+                                </button>
+                              )}
+                            </>
                           )}
                           {eventId && onDeleteEvent && (
                             <button
