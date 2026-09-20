@@ -275,7 +275,7 @@ export function ActionsPanel({
     return (
       <div
         key={a.id}
-        className={`flex items-center gap-1.5 text-xs rounded px-2 py-1 hover:bg-muted/50 group transition-colors duration-300 ${isJustDone ? 'bg-green-500/10' : ''}`}
+        className={`flex items-center gap-1.5 text-sm rounded-lg px-3 py-2 hover:bg-muted/50 group transition-colors duration-300 ${isJustDone ? 'bg-green-500/10' : ''}`}
       >
         {isFull && !isDoneView && editing && editing.id === a.id ? (
           <div className="flex items-center gap-1 flex-1 min-w-0">
@@ -474,7 +474,7 @@ export function ActionsPanel({
                 <button
                   className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-accent/20 text-muted-foreground hover:text-accent shrink-0"
                   title="用 Agent 执行"
-                  onClick={() => navigate(routes.action.newSession({ input: `执行行动: ${a.title}。完成后用 action_done 标记 ${a.id}。` }))}
+                  onClick={() => navigate(routes.action.newSession({ input: `执行行动: ${a.title}。完成后用 action_done 标记 ${a.id}。`, label: `gtd-action::${a.id}` }))}
                 >
                   <Bot className="h-3 w-3" />
                 </button>
@@ -510,7 +510,7 @@ export function ActionsPanel({
   }
 
   const renderGrouped = (gs: ActionGroup[]) => (
-    <div className="space-y-0.5">
+    <div className="space-y-1">
       {gs.map((g) => (
         <div key={g.key}>
           <div className={`flex items-center gap-1 text-xs font-medium px-2 pt-1.5 ${g.danger ? 'text-red-400' : 'text-muted-foreground'}`}>
@@ -534,7 +534,7 @@ export function ActionsPanel({
         </div>
       )}
       {isFull && (
-        <div className="space-y-1.5 mb-1.5">
+        <div className="space-y-2 mb-1.5">
           <div className="flex items-center gap-0.5">
             {STATUS_FILTERS.map((key) => (
               <button
@@ -748,7 +748,7 @@ export function ActionsPanel({
                           {a.priority}
                         </span>
                         <button
-                          onClick={() => navigate(routes.action.newSession({ input: `执行行动: ${a.title}。完成后用 action_done 标记 ${a.id}。` }))}
+                          onClick={() => navigate(routes.action.newSession({ input: `执行行动: ${a.title}。完成后用 action_done 标记 ${a.id}。`, label: `gtd-action::${a.id}` }))}
                           className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-accent"
                           title="用 Agent 执行"
                         >
