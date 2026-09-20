@@ -170,6 +170,11 @@ export function ZenSkillInsights({ workspaceId }: ZenSkillInsightsProps) {
                 maxItems={mappedInsights.length}
                 variant="full"
                 showHeader={false}
+                onMarkRead={(id) => {
+                  if (workspaceId) {
+                    window.electronAPI.callMcpTool(workspaceId, ZENSKILL_SOURCE_SLUG, 'insight_mark_read', { id })
+                  }
+                }}
               />
             </ErrorBoundary>
           )}
