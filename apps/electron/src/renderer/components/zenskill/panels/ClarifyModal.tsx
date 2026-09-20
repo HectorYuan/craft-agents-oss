@@ -51,6 +51,19 @@ export function ClarifyModal({ item, pendingActions, busy, onConfirm, onClose }:
   const [resultType, setResultType] = useState<ClarifyResultType>('action')
   const [targetId, setTargetId] = useState('')
 
+  // 数字键快捷分类：1=action 2=project 3=calendar 4=reference
+  useEffect(() => {
+    if (!item) return
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === '1') { setResultType('action'); setTargetId('') }
+      else if (e.key === '2') { setResultType('project'); setTargetId('') }
+      else if (e.key === '3') { setResultType('calendar'); setTargetId('') }
+      else if (e.key === '4') { setResultType('reference'); setTargetId('') }
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [item])
+
   // Fresh selection every time a different item is opened — pre-select via
   // local keyword heuristic so the user only needs to confirm or adjust.
   useEffect(() => {
@@ -104,7 +117,7 @@ export function ClarifyModal({ item, pendingActions, busy, onConfirm, onClose }:
         </div>
 
         <div className="flex flex-col gap-1 mb-2.5">
-          {RESULT_TYPES.map((type) => (
+          {RESULT_TYPES.map((type, idx) => (
             <label
               key={type}
               className={`flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer transition-colors ${
@@ -113,6 +126,7 @@ export function ClarifyModal({ item, pendingActions, busy, onConfirm, onClose }:
                   : 'hover:bg-muted/60 text-muted-foreground hover:text-foreground'
               }`}
             >
+              <span className="text-[10px] text-muted-foreground/50 font-mono w-3">{idx + 1}</span>
               <input
                 type="radio"
                 name="clarify-type"
