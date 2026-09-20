@@ -365,6 +365,17 @@ export function ActionsPanel({
                 {a.created_by}
               </span>
             )}
+            {isFull && a.project_id && (() => {
+              const proj = (projects ?? []).find((p) => p.id === a.project_id)
+              return proj ? (
+                <span
+                  className="text-[10px] px-1 py-px rounded shrink-0 bg-accent/10 text-accent"
+                  title={proj.name}
+                >
+                  {proj.name}
+                </span>
+              ) : null
+            })()}
             {a.due_date && !isDoneView && schedulingId !== a.id && (
               <span className="text-xs text-muted-foreground shrink-0">{a.due_date.slice(5)}</span>
             )}
