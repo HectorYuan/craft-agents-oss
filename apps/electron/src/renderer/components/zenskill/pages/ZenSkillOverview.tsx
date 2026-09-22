@@ -91,6 +91,13 @@ export function ZenSkillOverview({ workspaceId, onNavigateToChat }: ZenSkillOver
     total?: number
     categories?: { name: string; count: number; skills?: { skill_id: string; name: string }[] }[]
   }>(secondaryLoaded ? workspaceId : undefined, ZENSKILL_SOURCE_SLUG, 'skill_browse', { limit: 5 })
+  const sectionStats = useMcpTool<{
+    injected_count?: number
+    tier_counts?: Record<string, number>
+  }>(secondaryLoaded ? workspaceId : undefined, ZENSKILL_SOURCE_SLUG, 'skills_section_stats', {})
+  const doctorOverview = useMcpTool<{
+    overview?: { total?: number; by_state?: Record<string, number>; avg_quality?: number }
+  }>(secondaryLoaded ? workspaceId : undefined, ZENSKILL_SOURCE_SLUG, 'skills_doctor', { section: 'overview' })
 
   const isLoading = companion.loading || review.loading || habits.loading || dashboard.loading || energy.loading
   const hasError = companion.error || review.error || habits.error || dashboard.error || energy.error
@@ -264,6 +271,30 @@ export function ZenSkillOverview({ workspaceId, onNavigateToChat }: ZenSkillOver
               </div>
             </div>
           )}
+
+          {/* Tier / 状态 chips（skills_section_stats + skills_doctor，仅展示） */}
+          {(() => {
+            const tierEntries = Object.entries(sectionStats.data?.tier_counts ?? {})
+              .sort(([a], [b]) => a.localeCompare(b))
+            const dormant = doctorOverview.data?.overview?.by_state?.dormant
+            if (tierEntries.length === 0 && dormant == null) return null
+            return (
+              <div className="flex flex-wrap gap-1.5">
+                {tierEntries.length > 0 && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-sm font-medium bg-accent/10 text-accent cursor-default">
+                    {t('zenskill.overview.tiers', 'Tiers')}
+                    <span>{tierEntries.map(([k, v]) => `${k} ${v}`).join(' / ')}</span>
+                  </span>
+                )}
+                {dormant != null && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-sm font-medium bg-muted text-muted-foreground cursor-default">
+                    {t('zenskill.overview.dormant', 'Dormant')}
+                    <span>{dormant}</span>
+                  </span>
+                )}
+              </div>
+            )
+          })()}
 
           {/* Energy bar (if companion not available but energy is) */}
           {!companion.data && energy.data?.status && (

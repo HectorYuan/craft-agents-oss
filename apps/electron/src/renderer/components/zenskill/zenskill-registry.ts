@@ -12,7 +12,7 @@
  */
 import type { ComponentType } from 'react'
 import type { LucideIcon } from 'lucide-react'
-import { Brain, Inbox, Zap, Lightbulb, User, Network, GitBranch, BookOpen, RefreshCw } from 'lucide-react'
+import { Brain, Inbox, Zap, Lightbulb, User, Network, GitBranch, BookOpen, RefreshCw, Store } from 'lucide-react'
 import { GtdWorkspace } from './pages/GtdWorkspace'
 import { MemoryBrowser } from './pages/MemoryBrowser'
 import { ZenSkillOverview } from './pages/ZenSkillOverview'
@@ -20,6 +20,7 @@ import { ZenSkillInsights } from './pages/ZenSkillInsights'
 import { ZenSkillProfile } from './pages/ZenSkillProfile'
 import { ZenSkillCollaboration } from './pages/ZenSkillCollaboration'
 import { SkillGraphRedirect } from './pages/SkillGraphRedirect'
+import { SkillMarketPage } from './pages/SkillMarketPage'
 import { LearningPathPage } from './pages/LearningPathPage'
 import { ZenloopStandalonePage } from './pages/ZenloopStandalonePage'
 
@@ -86,6 +87,12 @@ export const ZENSKILL_PAGES: ZenSkillPageRegistration[] = [
     component: SkillGraphRedirect,
     icon: Network,
     i18nLabelKey: 'zenskill.skillGraph.title',
+  },
+  {
+    slug: 'skill-market',
+    component: SkillMarketPage,
+    icon: Store,
+    i18nLabelKey: 'zenskill.market.title',
   },
   {
     slug: 'collaboration',
