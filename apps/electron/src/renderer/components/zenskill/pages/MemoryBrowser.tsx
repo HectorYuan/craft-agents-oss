@@ -275,6 +275,30 @@ export function MemoryBrowser({ workspaceId }: ZenSkillPageProps) {
         )}
       </div>
 
+      {/* Layer capacity strip — L1 working / L2 episodic / L3 semantic */}
+      {stats.data && (
+        <div className="px-5 pt-2 shrink-0">
+          <div className="flex items-center gap-3 text-[10px] text-muted-foreground">
+            {([
+              ['L1 工作', stats.data.working?.count ?? 0, stats.data.working?.capacity ?? 0, 'bg-blue-500/60'],
+              ['L2 情景', stats.data.episodic?.count ?? 0, stats.data.episodic?.capacity ?? 0, 'bg-accent/60'],
+              ['L3 语义', stats.data.semantic?.total_facts ?? 0, null, 'bg-purple-500/60'],
+            ] as const).map(([label, used, cap, color]) => {
+              const pct = cap ? Math.min(100, Math.round((used / cap) * 100)) : null
+              return (
+                <div key={label} className="flex items-center gap-1.5 min-w-0">
+                  <span className="shrink-0">{label}</span>
+                  <div className="h-1 w-10 rounded bg-muted/60 overflow-hidden shrink-0">
+                    <div className={`h-full ${color}`} style={{ width: `${pct ?? 100}%` }} />
+                  </div>
+                  <span className="tabular-nums shrink-0">{cap != null ? `${used}/${cap}` : used}</span>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Memory list (episodes tab) */}
       {tab === 'episodes' && (
       <div className="flex-1 overflow-y-auto px-6 py-5">

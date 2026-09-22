@@ -6,7 +6,7 @@
  */
 import React, { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { BookOpen, Search, ArrowRight, Clock, ChevronRight } from 'lucide-react'
+import { BookOpen, Search, ArrowRight, Clock, ChevronRight, Play } from 'lucide-react'
 import { useMcpTool } from '@/hooks/zenskill/useMcpTool'
 import { ZS } from '../panels/tokens'
 import { ErrorBoundary } from '../panels/ErrorBoundary'
@@ -48,6 +48,7 @@ export function LearningPathPage({ workspaceId, onNavigateToChat }: LearningPath
   const { t } = useTranslation()
   const [target, setTarget] = useState('')
   const [query, setQuery] = useState('')
+  const [starting, setStarting] = useState<string | null>(null)
 
   const path = useMcpTool<LearningPathData>(
     query ? workspaceId : undefined,
@@ -59,6 +60,24 @@ export function LearningPathPage({ workspaceId, onNavigateToChat }: LearningPath
   const handleSubmit = () => {
     const trimmed = target.trim()
     if (trimmed) setQuery(trimmed)
+  }
+
+  const handleStartStep = async (skillId: string) => {
+    if (!workspaceId) return
+    setStarting(skillId)
+    try {
+      const result = await (window as any).electronAPI?.callMcpTool(
+        workspaceId, 'zenskill', 'learning_path_start',
+        { skill_id: skillId, scenario: query || undefined },
+      )
+      if (result?.chat_route && onNavigateToChat) {
+        onNavigateToChat(result.chat_route)
+      }
+    } catch {
+      // learning_path_start may not be available
+    } finally {
+      setStarting(null)
+    }
   }
 
   const data = path.data
@@ -137,7 +156,7 @@ export function LearningPathPage({ workspaceId, onNavigateToChat }: LearningPath
                   {data.estimated_total_interactions && (
                     <span className="flex items-center gap-1 ml-auto">
                       <Clock className="h-3 w-3" />
-                      ~{data.estimated_total_interactions} 次交互
+                      ~{data.estimated_total_interactions} {t('zenskill.learningPath.interactions', '次交互')}
                     </span>
                   )}
                 </div>
@@ -176,7 +195,16 @@ export function LearningPathPage({ workspaceId, onNavigateToChat }: LearningPath
                             </div>
                           )}
                           <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground/60">
-                            <span>~{step.estimated_interactions} 次交互</span>
+                            <span>~{step.estimated_interactions} {t('zenskill.learningPath.interactions', '次交互')}</span>
+                            <span className="text-muted-foreground/30">·</span>
+                            <button
+                              onClick={() => handleStartStep(step.skill_id)}
+                              disabled={starting === step.skill_id}
+                              className="inline-flex items-center gap-1 text-accent hover:text-accent/80 disabled:opacity-50 transition-colors"
+                            >
+                              <Play className="h-3 w-3" />
+                              {starting === step.skill_id ? t('zenskill.learningPath.starting', '启动中…') : t('zenskill.learningPath.start', '开始学习')}
+                            </button>
                           </div>
                         </div>
 
