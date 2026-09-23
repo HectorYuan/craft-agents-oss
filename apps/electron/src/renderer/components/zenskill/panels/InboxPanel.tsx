@@ -83,7 +83,7 @@ export function InboxPanel({
         <div className="flex items-center gap-1.5 mb-1.5">
           <Inbox className="h-3.5 w-3.5 text-muted-foreground" />
           <span className="text-xs font-medium text-muted-foreground">
-            GTD Inbox ({items.length})
+            {t('zenskill.inbox.title', 'Inbox')} ({items.length})
           </span>
         </div>
       )}
@@ -95,7 +95,7 @@ export function InboxPanel({
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.nativeEvent.isComposing) submitCapture()
             }}
-            placeholder={capturePlaceholder ?? 'Capture a thought... (Enter)'}
+            placeholder={capturePlaceholder ?? t('zenskill.inbox.capturePlaceholder', 'Capture a thought... (Enter)')}
             disabled={captureDisabled}
             className="flex-1 text-xs bg-muted/40 rounded px-2 py-1.5 outline-none focus:ring-1 focus:ring-accent/40 disabled:opacity-50"
           />
@@ -103,7 +103,8 @@ export function InboxPanel({
             onClick={submitCapture}
             disabled={captureDisabled || !captureText.trim()}
             className="p-1.5 rounded bg-accent/10 text-accent hover:bg-accent/20 disabled:opacity-40"
-            title="Capture (gtd_capture)"
+            aria-label={t('zenskill.inbox.capture', 'Capture to inbox')}
+            title={t('zenskill.inbox.capture', 'Capture to inbox')}
           >
             <Plus className="h-3.5 w-3.5" />
           </button>

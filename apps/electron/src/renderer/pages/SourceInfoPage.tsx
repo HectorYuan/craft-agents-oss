@@ -403,7 +403,7 @@ export default function SourceInfoPage({ sourceSlug, workspaceId, onDelete }: So
             actions={
               // EditPopover for AI-assisted config.json editing with "Edit File" as secondary action
               <EditPopover
-                trigger={<EditButton />}
+                trigger={<EditButton aria-label={`${t('common.edit')} ${t('sourceInfo.connection')}`} />}
                 {...getEditConfig('source-config', source.folderPath)}
                 secondaryAction={{
                   label: t('common.editFile'),
@@ -445,7 +445,7 @@ export default function SourceInfoPage({ sourceSlug, workspaceId, onDelete }: So
               actions={
                 // EditPopover for AI-assisted permissions.json editing
                 <EditPopover
-                  trigger={<EditButton />}
+                  trigger={<EditButton aria-label={`${t('common.edit')} ${t('sourceInfo.permissions')}`} />}
                   {...getEditConfig('source-permissions', source.folderPath)}
                   secondaryAction={{
                     label: t('common.editFile'),
@@ -466,7 +466,7 @@ export default function SourceInfoPage({ sourceSlug, workspaceId, onDelete }: So
               actions={
                 // EditPopover for AI-assisted tool permissions editing
                 <EditPopover
-                  trigger={<EditButton />}
+                  trigger={<EditButton aria-label={`${t('common.edit')} ${t('sourceInfo.tools')}`} />}
                   {...getEditConfig('source-tool-permissions', source.folderPath)}
                   secondaryAction={{
                     label: t('common.editFile'),
@@ -494,7 +494,7 @@ export default function SourceInfoPage({ sourceSlug, workspaceId, onDelete }: So
               actions={
                 // EditPopover for AI-assisted permissions.json editing
                 <EditPopover
-                  trigger={<EditButton />}
+                  trigger={<EditButton aria-label={`${t('common.edit')} ${t('sourceInfo.permissions')}`} />}
                   {...getEditConfig('source-permissions', source.folderPath)}
                   secondaryAction={{
                     label: t('common.editFile'),
@@ -515,7 +515,7 @@ export default function SourceInfoPage({ sourceSlug, workspaceId, onDelete }: So
               actions={
                 // EditPopover for AI-assisted guide.md editing with "Edit File" as secondary action
                 <EditPopover
-                  trigger={<EditButton />}
+                  trigger={<EditButton aria-label={`${t('common.edit')} ${t('sourceInfo.documentation')}`} />}
                   {...getEditConfig('source-guide', source.folderPath)}
                   secondaryAction={{
                     label: t('common.editFile'),
