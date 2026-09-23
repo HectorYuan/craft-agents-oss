@@ -81,6 +81,30 @@ export interface CreatePageInput {
 }
 
 /**
+ * One entry of the on-disk page template pool (zenskill/resources/pages —
+ * page packages demoted to templates by the product decision).
+ */
+export interface PageTemplateInfo {
+  /** Template directory name; doubles as the create-from-template slug */
+  slug: string;
+  name: string;
+  description: string;
+  /** Pool members are templates by definition */
+  template: true;
+}
+
+/**
+ * CREATE_FROM_TEMPLATE payload — workspaceId rides in the object (unlike the
+ * positional workspaceId of the other pages:* mutations).
+ */
+export interface CreatePageFromTemplateInput {
+  workspaceId: string;
+  templateSlug: string;
+  /** Display name; absent/blank = template name + sequence (CLI parity) */
+  name?: string;
+}
+
+/**
  * Fully loaded page (config + folder paths)
  */
 export interface LoadedPage {

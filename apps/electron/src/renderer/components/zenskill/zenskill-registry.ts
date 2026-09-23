@@ -19,7 +19,7 @@ import { ZenSkillOverview } from './pages/ZenSkillOverview'
 import { ZenSkillInsights } from './pages/ZenSkillInsights'
 import { ZenSkillProfile } from './pages/ZenSkillProfile'
 import { ZenSkillCollaboration } from './pages/ZenSkillCollaboration'
-import { SkillGraphRedirect } from './pages/SkillGraphRedirect'
+import { ZenSkillSkillGraph } from './pages/ZenSkillSkillGraph'
 import { SkillMarketPage } from './pages/SkillMarketPage'
 import { LearningPathPage } from './pages/LearningPathPage'
 import { ZenloopStandalonePage } from './pages/ZenloopStandalonePage'
@@ -84,7 +84,7 @@ export const ZENSKILL_PAGES: ZenSkillPageRegistration[] = [
   },
   {
     slug: 'skill-graph',
-    component: SkillGraphRedirect,
+    component: ZenSkillSkillGraph,
     icon: Network,
     i18nLabelKey: 'zenskill.skillGraph.title',
   },
@@ -117,30 +117,4 @@ export const ZENSKILL_PAGES: ZenSkillPageRegistration[] = [
 /** Resolve a page registration by route slug; falls back to the first page. */
 export function resolveZenSkillPage(pageSlug?: string): ZenSkillPageRegistration | undefined {
   return ZENSKILL_PAGES.find((p) => p.slug === pageSlug) ?? ZENSKILL_PAGES[0]
-}
-
-/**
- * Product ordering for ZenSkill-created Pages in the sidebar (overview first,
- * matching the IA review's recommended order). Slugs come from the ZenSkill
- * MCP bundled Pages resources. Pages whose slug is not listed keep their
- * original relative order after the listed ones.
- */
-export const ZENSKILL_PAGE_ORDER: readonly string[] = [
-  'zenskill-dashboard',
-  'zenskill-daily-review',
-  'zenskill-zenloop',
-  'zenskill-growth',
-  'zenskill-skill-graph',
-]
-
-/**
- * Sort loaded pages for the app-shell sidebar: listed slugs in product order,
- * then unlisted pages in their original order (Array#sort is stable).
- */
-export function sortPagesForSidebar<T extends { config: { slug: string } }>(pages: T[]): T[] {
-  const idx = new Map(ZENSKILL_PAGE_ORDER.map((s, i) => [s, i]))
-  const fallback = idx.size
-  return [...pages].sort(
-    (a, b) => (idx.get(a.config.slug) ?? fallback) - (idx.get(b.config.slug) ?? fallback),
-  )
 }

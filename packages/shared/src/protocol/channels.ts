@@ -408,6 +408,8 @@ export const RPC_CHANNELS = {
     GET: 'pages:get',
     GET_ONE: 'pages:getOne',
     CREATE: 'pages:create',
+    LIST_TEMPLATES: 'pages:listTemplates',
+    CREATE_FROM_TEMPLATE: 'pages:createFromTemplate',
     UPDATE: 'pages:update',
     DELETE: 'pages:delete',
     GET_CONTENT: 'pages:getContent',

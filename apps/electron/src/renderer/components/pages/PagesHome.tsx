@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { PanelsTopLeft, Plus, Sparkles } from 'lucide-react'
+import { LayoutTemplate, PanelsTopLeft, Plus, Sparkles } from 'lucide-react'
 import { toast } from 'sonner'
 import { useAtom, useAtomValue } from 'jotai'
 import { useTranslation } from 'react-i18next'
@@ -15,6 +15,7 @@ import {
 } from '../app-shell/ProjectMultiSelectFilter'
 import { PageTile, type PageTileProject } from './PageTile'
 import { DeletePageDialog } from './DeletePageDialog'
+import { NewPageFromTemplateDialog } from './NewPageFromTemplateDialog'
 import type { LoadedPage } from '@craft-agent/shared/pages/types'
 
 /**
@@ -30,6 +31,7 @@ export function PagesHome() {
   const projects = useAtomValue(projectsAtom)
   const [projectFilter, setProjectFilter] = useAtom(pagesProjectFilterAtom)
   const [pendingDelete, setPendingDelete] = React.useState<LoadedPage | null>(null)
+  const [fromTemplateOpen, setFromTemplateOpen] = React.useState(false)
 
   // Keep the (module-global) filter scoped to the current workspace + live
   // projects: clear on workspace switch, prune ids whose project no longer
@@ -140,14 +142,25 @@ export function PagesHome() {
             />
           )}
         </div>
-        <button
-          type="button"
-          onClick={handleCreatePage}
-          disabled={!activeWorkspaceId}
-          className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-border bg-card px-2.5 text-[12.5px] font-semibold text-foreground transition-colors hover:bg-foreground/[0.03] disabled:opacity-50"
-        >
-          <Plus className="h-3.5 w-3.5" strokeWidth={2.5} /> {t('pages.newPage')}
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setFromTemplateOpen(true)}
+            disabled={!activeWorkspaceId}
+            className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-border bg-card px-2.5 text-[12.5px] font-semibold text-foreground transition-colors hover:bg-foreground/[0.03] disabled:opacity-50"
+          >
+            <LayoutTemplate className="h-3.5 w-3.5" strokeWidth={2.5} />{' '}
+            {t('pages.createFromTemplate')}
+          </button>
+          <button
+            type="button"
+            onClick={handleCreatePage}
+            disabled={!activeWorkspaceId}
+            className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-border bg-card px-2.5 text-[12.5px] font-semibold text-foreground transition-colors hover:bg-foreground/[0.03] disabled:opacity-50"
+          >
+            <Plus className="h-3.5 w-3.5" strokeWidth={2.5} /> {t('pages.newPage')}
+          </button>
+        </div>
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto">
@@ -194,6 +207,13 @@ export function PagesHome() {
         shared={Boolean(pendingDelete?.config.share)}
         onConfirm={handleConfirmDelete}
         onCancel={() => setPendingDelete(null)}
+      />
+
+      <NewPageFromTemplateDialog
+        open={fromTemplateOpen}
+        workspaceId={activeWorkspaceId}
+        onOpenChange={setFromTemplateOpen}
+        onCreated={slug => navigate(routes.view.pages(slug))}
       />
     </div>
   )

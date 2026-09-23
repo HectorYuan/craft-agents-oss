@@ -27,6 +27,8 @@ export type {
   PageThumbnailInfo,
   PageConfig,
   CreatePageInput,
+  PageTemplateInfo,
+  CreatePageFromTemplateInput,
   LoadedPage,
 } from './types.ts';
 export { isPageGrantUsable } from './types.ts';

@@ -676,6 +676,10 @@ export interface ElectronAPI {
   getPages(workspaceId: string): Promise<import('@craft-agent/shared/pages/types').LoadedPage[]>
   getPage(workspaceId: string, pageIdOrSlug: string): Promise<import('@craft-agent/shared/pages/types').LoadedPage | null>
   createPage(workspaceId: string, input: import('@craft-agent/shared/pages/types').CreatePageInput): Promise<import('@craft-agent/shared/pages/types').PageConfig>
+  /** Scan the on-disk template pool (zenskill/resources/pages). */
+  listPageTemplates(): Promise<import('@craft-agent/shared/pages/types').PageTemplateInfo[]>
+  /** Instantiate a template into workspace.pages/<new slug>/ (CLI pages create parity; workspaceId rides in the input object). */
+  createPageFromTemplate(input: import('@craft-agent/shared/pages/types').CreatePageFromTemplateInput): Promise<import('@craft-agent/shared/pages/types').PageConfig>
   /** Optional fields (projectId, description, refresh) accept explicit null = clear (undefined is dropped by the JSON transport). */
   updatePage(workspaceId: string, pageSlug: string, patch: Partial<Omit<import('@craft-agent/shared/pages/types').PageConfig, 'id' | 'slug' | 'createdAt' | 'contentDigest' | 'lastRefresh' | 'grants' | 'share' | 'projectId' | 'description' | 'refresh'>> & { projectId?: string | null; description?: string | null; refresh?: import('@craft-agent/shared/pages/types').PageRefreshSpec | null }): Promise<import('@craft-agent/shared/pages/types').PageConfig>
   deletePage(workspaceId: string, pageSlug: string): Promise<{ publicCopyMayRemain: boolean }>
