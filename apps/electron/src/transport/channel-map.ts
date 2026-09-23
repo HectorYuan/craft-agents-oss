@@ -400,6 +400,8 @@ export const CHANNEL_MAP = {
   getPages: invoke(RPC_CHANNELS.pages.GET),
   getPage: invoke(RPC_CHANNELS.pages.GET_ONE),
   createPage: invoke(RPC_CHANNELS.pages.CREATE),
+  listPageTemplates: invoke(RPC_CHANNELS.pages.LIST_TEMPLATES),
+  createPageFromTemplate: invoke(RPC_CHANNELS.pages.CREATE_FROM_TEMPLATE),
   updatePage: invoke(RPC_CHANNELS.pages.UPDATE),
   deletePage: invoke(RPC_CHANNELS.pages.DELETE),
   getPageContent: invoke(RPC_CHANNELS.pages.GET_CONTENT),

@@ -4,12 +4,19 @@ import { pushTyped, type RpcServer } from '@craft-agent/server-core/transport'
 import type { HandlerDeps } from '../handler-deps'
 import type { PageActionRequest } from '@craft-agent/shared/pages'
 import type { PageActionBroker, PageActionExecutors } from '@craft-agent/shared/pages'
+import type { CreatePageFromTemplateInput, PageTemplateInfo } from '@craft-agent/shared/pages'
+import { atomicWriteFileSync, getBundledAssetsDir, readJsonFileSync, slugifyName } from '@craft-agent/shared/utils'
+import { cpSync, existsSync, readFileSync, readdirSync } from 'node:fs'
+import { basename, join } from 'node:path'
+import { createHash, randomUUID } from 'node:crypto'
 import { assertPageSourceUsable } from '../../pages/source-gate'
 
 export const HANDLED_CHANNELS = [
   RPC_CHANNELS.pages.GET,
   RPC_CHANNELS.pages.GET_ONE,
   RPC_CHANNELS.pages.CREATE,
+  RPC_CHANNELS.pages.LIST_TEMPLATES,
+  RPC_CHANNELS.pages.CREATE_FROM_TEMPLATE,
   RPC_CHANNELS.pages.UPDATE,
   RPC_CHANNELS.pages.DELETE,
   RPC_CHANNELS.pages.GET_CONTENT,
@@ -33,6 +40,78 @@ export const HANDLED_CHANNELS = [
 
 /** Cap on action response bodies returned to the renderer */
 const ACTION_BODY_MAX_CHARS = 512 * 1024
+
+// ------------------------------------------------------------------
+// Template pool (zenskill/resources/pages) — the python package's
+// resources dir, same target as the CLI's core.update_pages._pages_resource_dir:
+// the CLI resolves it via importlib.resources("zenskill")/… or
+// Path(update_pages.py).parent.parent/… — both are <python package root>/resources/pages.
+// ------------------------------------------------------------------
+
+/**
+ * Locate the template pool on disk. Multi-candidate probe + explicit failure:
+ *
+ * 1. Packaged app: <resourcesPath>/app/resources/zenskill/zenskill/resources/pages —
+ *    electron-builder embed, resolved like zenskill-seed's packagedAppResource.
+ *    Only exists when running an installed build (dev's resourcesPath has no
+ *    app/resources/zenskill), so packaged vs dev disambiguates naturally.
+ * 2-3. Source checkout derived from cwd (server started inside the monorepo,
+ *    cwd = vendor/craft-agents or vendor/craft-agents/apps/electron).
+ * 4. Source checkout absolute path (this dev machine's checkout — carries the
+ *    current `template: true` marks).
+ * 5. Bundled assets copy (getBundledAssetsDir: <app>/resources/zenskill, dist
+ *    copy, …) — build snapshot, LAST because a copied bundle can lag behind the
+ *    source checkout (its page.json may predate the template demotion).
+ *
+ * Throws listing every tried candidate when none exists.
+ */
+function resolveTemplatePoolDir(): string {
+  const poolSubpath = ['zenskill', 'resources', 'pages'] as const
+  const candidates: string[] = []
+
+  const resourcesPath = (process as unknown as { resourcesPath?: string }).resourcesPath
+  if (resourcesPath) {
+    // engineDir (pyproject root) is <resourcesPath>/app/resources/zenskill;
+    // poolSubpath starts with the package-root dir nested inside it.
+    candidates.push(join(resourcesPath, 'app', 'resources', 'zenskill', ...poolSubpath))
+  }
+  candidates.push(
+    join(process.cwd(), '..', '..', ...poolSubpath),
+    join(process.cwd(), '..', '..', '..', ...poolSubpath),
+    join('/home/hector/DevSpace/ZenSkill', ...poolSubpath),
+  )
+  const bundled = getBundledAssetsDir('zenskill')
+  if (bundled) candidates.push(join(bundled, ...poolSubpath))
+
+  const hit = candidates.find(candidate => existsSync(candidate))
+  if (hit) return hit
+  throw new Error(`Page template pool not found. Tried: ${candidates.join(', ')}`)
+}
+
+/** Defensive page.json read (CLI _load_page_json: missing/corrupt → null). */
+function loadTemplateConfig(path: string): Record<string, unknown> | null {
+  if (!existsSync(path)) return null
+  try {
+    const data = readJsonFileSync<unknown>(path)
+    if (data && typeof data === 'object' && !Array.isArray(data)) {
+      return data as Record<string, unknown>
+    }
+    return null
+  } catch {
+    return null
+  }
+}
+
+/** Existing page directory names (slug-dedupe set; CLI _existing_slugs). */
+function existingPageSlugs(workspaceRootPath: string): Set<string> {
+  const pagesDir = join(workspaceRootPath, 'pages')
+  if (!existsSync(pagesDir)) return new Set()
+  return new Set(
+    readdirSync(pagesDir, { withFileTypes: true })
+      .filter(entry => entry.isDirectory())
+      .map(entry => entry.name),
+  )
+}
 
 export function registerPagesHandlers(server: RpcServer, deps: HandlerDeps): void {
   const log = deps.platform.logger
@@ -207,6 +286,133 @@ export function registerPagesHandlers(server: RpcServer, deps: HandlerDeps): voi
       deps.sessionManager.enqueuePageThumbnail(workspaceId, workspace.rootPath, page.slug)
     }
     log.info(`Created page: ${page.slug}`)
+    return page
+  })
+
+  // List the on-disk template pool (page packages demoted to templates).
+  // Reads each pool member's page.json; `template` is true by definition —
+  // a copied bundle's page.json may predate the demotion and lack the flag.
+  server.handle(RPC_CHANNELS.pages.LIST_TEMPLATES, async (): Promise<PageTemplateInfo[]> => {
+    const poolDir = resolveTemplatePoolDir()
+    const entries: PageTemplateInfo[] = []
+    const children = readdirSync(poolDir, { withFileTypes: true })
+      .filter(child => child.isDirectory())
+      .sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0))
+    for (const child of children) {
+      const cfg = loadTemplateConfig(join(poolDir, child.name, 'page.json'))
+      if (!cfg) continue
+      entries.push({
+        slug: child.name,
+        name: typeof cfg.name === 'string' && cfg.name ? cfg.name : child.name,
+        description: typeof cfg.description === 'string' ? cfg.description : '',
+        template: true,
+      })
+    }
+    return entries
+  })
+
+  // Instantiate a template into {workspace}/pages/<new slug>/ — parity with the
+  // python CLI `zenskill pages create --from-template` (zenskill/cli/pages.py):
+  // whole-dir copy (minus bytecode/cache), new id/slug/name, template flag
+  // dropped, refresh.script prefix rewritten to the instance dir (else cron
+  // would run the TEMPLATE's script), page.json written last as the
+  // completion marker. Slug collisions resolve via the existing dedupe
+  // suffixes (-2, -3, …) — never an error; a missing/invalid template is.
+  server.handle(RPC_CHANNELS.pages.CREATE_FROM_TEMPLATE, async (
+    _ctx,
+    input: CreatePageFromTemplateInput,
+  ) => {
+    const workspaceId = input?.workspaceId ?? ''
+    const workspace = getWorkspaceByNameOrId(workspaceId)
+    if (!workspace) throw new Error(`Workspace not found: ${workspaceId}`)
+
+    const templateSlug = String(input?.templateSlug ?? '')
+    if (!templateSlug || /[/\\]/.test(templateSlug) || templateSlug === '.' || templateSlug === '..') {
+      throw new Error(`Invalid template slug: ${templateSlug}`)
+    }
+    const poolDir = resolveTemplatePoolDir()
+    const templateCfg = loadTemplateConfig(join(poolDir, templateSlug, 'page.json'))
+    if (!templateCfg) {
+      throw new Error(`Template not found or page.json invalid: ${templateSlug}`)
+    }
+
+    const { generatePageSlug, loadPageConfig } = await import('@craft-agent/shared/pages')
+    const templateName = String(templateCfg.name || templateSlug)
+    const givenName = String(input?.name ?? '').trim()
+
+    let newName: string
+    let newSlug: string
+    if (givenName) {
+      newName = givenName
+      newSlug = generatePageSlug(workspace.rootPath, givenName)
+    } else {
+      // No name given: template name + sequence, the sequence doubles as the
+      // slug dedupe so name and slug stay aligned (CLI behavior; slug falls
+      // back to the bare sequence when the name slugsify to nothing).
+      const existing = existingPageSlugs(workspace.rootPath)
+      let seq = 1
+      for (;;) {
+        const candidateName = `${templateName} ${seq}`
+        const candidateSlug = slugifyName(candidateName, String(seq))
+        if (!existing.has(candidateSlug)) {
+          newName = candidateName
+          newSlug = candidateSlug
+          break
+        }
+        seq++
+      }
+    }
+
+    const targetDir = join(workspace.rootPath, 'pages', newSlug)
+    if (existsSync(targetDir)) throw new Error(`Target page already exists: ${targetDir}`)
+
+    // Whole-dir copy preserving index.html/scripts structure. Excludes match
+    // the CLI: bytecode/cache dirs, and the template page.json — the instance
+    // config is written last (completion marker), so a mid-copy failure never
+    // leaves a half-written one.
+    cpSync(join(poolDir, templateSlug), targetDir, {
+      recursive: true,
+      filter: src => {
+        const name = basename(src)
+        if (name === 'page.json' || name === '__pycache__') return false
+        return !src.endsWith('.pyc') && !src.endsWith('.pyo')
+      },
+    })
+
+    // Instance config (CLI _build_instance_config): fresh id/slug/name, drop
+    // template, bump updatedAt, rewrite refresh.script's pages/<template slug>/
+    // prefix to pages/<new slug>/, and re-digest the copied index.html.
+    const cfg: Record<string, unknown> = { ...templateCfg }
+    const oldSlug = String(cfg.slug || templateSlug)
+    cfg.id = `page_${randomUUID().slice(0, 8)}`
+    cfg.slug = newSlug
+    cfg.name = newName
+    delete cfg.template
+    cfg.updatedAt = Date.now()
+
+    const refresh = cfg.refresh
+    if (refresh && typeof refresh === 'object') {
+      const refreshRecord = refresh as Record<string, unknown>
+      const oldPrefix = `pages/${oldSlug}/`
+      if (typeof refreshRecord.script === 'string' && refreshRecord.script.startsWith(oldPrefix)) {
+        refreshRecord.script = `pages/${newSlug}/` + refreshRecord.script.slice(oldPrefix.length)
+      }
+    }
+
+    const indexHtmlPath = join(targetDir, 'index.html')
+    if (existsSync(indexHtmlPath)) {
+      // sha256 of the copied bytes (CLI: hashlib.sha256(read_bytes()))
+      cfg.contentDigest = createHash('sha256').update(readFileSync(indexHtmlPath)).digest('hex')
+    }
+
+    // page.json last — the config watcher treats it as the completion marker.
+    atomicWriteFileSync(join(targetDir, 'page.json'), JSON.stringify(cfg, null, 2) + '\n')
+
+    deps.sessionManager.notifyConfigFileChange(workspace.rootPath, `pages/${newSlug}/page.json`)
+    await broadcastChanged(workspaceId, workspace.rootPath)
+    const page = loadPageConfig(workspace.rootPath, newSlug)
+    if (!page) throw new Error(`Created page config could not be re-read: ${newSlug}`)
+    log.info(`Created page ${newSlug} from template ${templateSlug}`)
     return page
   })
 

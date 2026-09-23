@@ -109,7 +109,7 @@ import { resolveEntityColor } from "@craft-agent/shared/colors"
 import * as storage from "@/lib/local-storage"
 import { toast } from "sonner"
 import { ZenSkillToastMount } from "@/components/zenskill/ZenSkillToastMount"
-import { ZENSKILL_PAGES, sortPagesForSidebar } from "@/components/zenskill/zenskill-registry"
+import { ZENSKILL_PAGES } from "@/components/zenskill/zenskill-registry"
 import { pageIcon } from "@/components/pages/page-visuals"
 import { navigate, routes } from "@/lib/navigate"
 import {
@@ -2649,7 +2649,7 @@ function AppShellContent({
                       expandable: pages.length > 0,
                       expanded: isExpanded('nav:pages'),
                       onToggle: () => toggleExpanded('nav:pages'),
-                      items: sortPagesForSidebar(pages).map(p => ({
+                      items: pages.map(p => ({
                         id: `nav:pages:${p.config.id}`,
                         title: p.config.name,
                         icon: pageIcon(p.config),
