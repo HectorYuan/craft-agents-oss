@@ -5,10 +5,27 @@
  * 过滤 composite 字段，只展示 5 个核心维度。
  */
 import React from 'react'
+import { useTranslation } from 'react-i18next'
 import { TrendingUp } from 'lucide-react'
 import { ZS } from './tokens'
 
 const FIVE_DIMS = ['proficiency', 'stability', 'satisfaction', 'responsiveness', 'memory']
+
+/** 维度显示名复用 profile 页的 i18n key；回退值用英文，避免把枚举名直接甩给用户 */
+const DIM_KEYS: Record<string, string> = {
+  proficiency: 'zenskill.profile.dim.proficiency',
+  stability: 'zenskill.profile.dim.stability',
+  satisfaction: 'zenskill.profile.dim.satisfaction',
+  responsiveness: 'zenskill.profile.dim.responsiveness',
+  memory: 'zenskill.profile.dim.memory',
+}
+const DIM_FALLBACK: Record<string, string> = {
+  proficiency: 'Proficiency',
+  stability: 'Stability',
+  satisfaction: 'Satisfaction',
+  responsiveness: 'Responsiveness',
+  memory: 'Memory',
+}
 
 export interface GrowthSkill {
   skill_id: string
@@ -34,6 +51,7 @@ export function filterScores(scores: Record<string, number>): Record<string, num
 }
 
 export function GrowthCard({ skills, maxItems = 3, onNavigateToChat }: GrowthCardProps) {
+  const { t } = useTranslation()
   if (skills.length === 0) {
     return <div className={ZS.emptyState}>暂无数据</div>
   }
@@ -43,7 +61,7 @@ export function GrowthCard({ skills, maxItems = 3, onNavigateToChat }: GrowthCar
       <div className={ZS.sectionHeader}>
         <TrendingUp className="h-3.5 w-3.5 text-muted-foreground" />
         <span className={ZS.body + ' font-medium text-muted-foreground'}>
-          Growth ({skills.length})
+          {t('zenskill.growth.header', 'Growth')} ({skills.length})
         </span>
       </div>
       <div className="space-y-1.5">
@@ -74,7 +92,11 @@ export function GrowthCard({ skills, maxItems = 3, onNavigateToChat }: GrowthCar
             {g.scores && (
               <div className="flex items-center gap-1 mt-1">
                 {Object.entries(filterScores(g.scores)).map(([k, v]) => (
-                  <div key={k} className="flex-1" title={`${k}: ${v}`}>
+                  <div
+                    key={k}
+                    className="flex-1"
+                    title={`${t(DIM_KEYS[k] ?? k, DIM_FALLBACK[k] ?? k)}: ${v}`}
+                  >
                     <div className="h-1 rounded bg-muted/60 overflow-hidden">
                       <div className="h-full bg-accent/70" style={{ width: `${v}%` }} />
                     </div>

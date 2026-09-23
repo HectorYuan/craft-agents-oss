@@ -4,7 +4,7 @@
  * 用户点击侧边栏 "ZenSkill" 时立即看到数据概览。
  * 复用 Phase 1 提取的 CompanionCard / EnergyBar / HabitHeatmap 组件。
  */
-import React, { useCallback, useState, useEffect } from 'react'
+import React, { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Zap, TrendingUp, Share2 } from 'lucide-react'
 import { toast } from 'sonner'
@@ -70,27 +70,28 @@ export function ZenSkillOverview({ workspaceId, onNavigateToChat }: ZenSkillOver
   const dashboard = useMcpTool<DashboardData>(workspaceId, ZENSKILL_SOURCE_SLUG, 'dashboard_summary', {})
   const energy = useMcpTool<{ status?: { level?: string; pct?: number } }>(workspaceId, ZENSKILL_SOURCE_SLUG, 'energy_level', {})
 
-  // 次要数据：延迟 500ms 加载（parked hook 模式）
-  const [secondaryLoaded, setSecondaryLoaded] = useState(false)
-  useEffect(() => {
-    const timer = setTimeout(() => setSecondaryLoaded(true), 500)
-    return () => clearTimeout(timer)
-  }, [])
-
-  const habits = useMcpTool<HabitsData>(secondaryLoaded ? workspaceId : undefined, ZENSKILL_SOURCE_SLUG, 'habit_analyze', { days: 7 })
-  const growth = useMcpTool<GrowthData>(secondaryLoaded ? workspaceId : undefined, ZENSKILL_SOURCE_SLUG, 'growth_dashboard', {})
+  // 全部并行加载：MCP WS 服务端并发处理，分批门控反而拉长首屏完成时间
+  const habits = useMcpTool<HabitsData>(workspaceId, ZENSKILL_SOURCE_SLUG, 'habit_analyze', { days: 7 })
+  const growth = useMcpTool<GrowthData>(workspaceId, ZENSKILL_SOURCE_SLUG, 'growth_dashboard', {})
   const achievements = useMcpTool<{
     badges?: { id: string; icon?: string; title?: string; name?: string; progress?: number; detail?: string }[]
     locked?: { id: string; icon?: string; title?: string; name?: string; progress?: number }[]
     completion_rate?: number
-  }>(secondaryLoaded ? workspaceId : undefined, ZENSKILL_SOURCE_SLUG, 'achievement_list', {})
+  }>(workspaceId, ZENSKILL_SOURCE_SLUG, 'achievement_list', {})
   const insights = useMcpTool<{
     items?: { type?: string; title?: string; content?: string; level?: string }[]
-  }>(secondaryLoaded ? workspaceId : undefined, ZENSKILL_SOURCE_SLUG, 'proactive_insight', {})
+  }>(workspaceId, ZENSKILL_SOURCE_SLUG, 'proactive_insight', {})
   const skillBrowse = useMcpTool<{
     total?: number
     categories?: { name: string; count: number; skills?: { skill_id: string; name: string }[] }[]
-  }>(secondaryLoaded ? workspaceId : undefined, ZENSKILL_SOURCE_SLUG, 'skill_browse', { limit: 5 })
+  }>(workspaceId, ZENSKILL_SOURCE_SLUG, 'skill_browse', { limit: 5 })
+  const sectionStats = useMcpTool<{
+    injected_count?: number
+    tier_counts?: Record<string, number>
+  }>(workspaceId, ZENSKILL_SOURCE_SLUG, 'skills_section_stats', {})
+  const doctorOverview = useMcpTool<{
+    overview?: { total?: number; by_state?: Record<string, number>; avg_quality?: number }
+  }>(workspaceId, ZENSKILL_SOURCE_SLUG, 'skills_doctor', { section: 'overview' })
 
   const isLoading = companion.loading || review.loading || habits.loading || dashboard.loading || energy.loading
   const hasError = companion.error || review.error || habits.error || dashboard.error || energy.error
@@ -264,6 +265,30 @@ export function ZenSkillOverview({ workspaceId, onNavigateToChat }: ZenSkillOver
               </div>
             </div>
           )}
+
+          {/* Tier / 状态 chips（skills_section_stats + skills_doctor，仅展示） */}
+          {(() => {
+            const tierEntries = Object.entries(sectionStats.data?.tier_counts ?? {})
+              .sort(([a], [b]) => a.localeCompare(b))
+            const dormant = doctorOverview.data?.overview?.by_state?.dormant
+            if (tierEntries.length === 0 && dormant == null) return null
+            return (
+              <div className="flex flex-wrap gap-1.5">
+                {tierEntries.length > 0 && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-sm font-medium bg-accent/10 text-accent cursor-default">
+                    {t('zenskill.overview.tiers', 'Tiers')}
+                    <span>{tierEntries.map(([k, v]) => `${k} ${v}`).join(' / ')}</span>
+                  </span>
+                )}
+                {dormant != null && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-sm font-medium bg-muted text-muted-foreground cursor-default">
+                    {t('zenskill.overview.dormant', 'Dormant')}
+                    <span>{dormant}</span>
+                  </span>
+                )}
+              </div>
+            )
+          })()}
 
           {/* Energy bar (if companion not available but energy is) */}
           {!companion.data && energy.data?.status && (

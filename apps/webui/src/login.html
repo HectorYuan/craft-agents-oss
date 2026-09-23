@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>Craft Agents — Login</title>
+  <title>ZenSkill — Login</title>
   <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
   <link rel="icon" type="image/x-icon" href="./favicon.ico" />
   <link rel="apple-touch-icon" href="./apple-touch-icon.png" />
@@ -225,16 +225,16 @@
 </head>
 <body>
   <div class="card">
-    <h1>Craft Agents</h1>
-    <p class="subtitle">Enter your server token to continue</p>
+    <h1>ZenSkill</h1>
+    <p class="subtitle" id="subtitle">Enter your server token to continue</p>
 
     <form id="login-form">
-      <label for="password">Server Token</label>
+      <label for="password" id="token-label">Server Token</label>
       <input
         id="password"
         name="password"
         type="password"
-        placeholder="Enter CRAFT_SERVER_TOKEN"
+        placeholder="Enter ZENSKILL_TOKEN"
         autocomplete="current-password"
         autofocus
         required
@@ -250,11 +250,49 @@
     const errorEl = document.getElementById('error');
     const submitBtn = document.getElementById('submit-btn');
 
+    // Static copy above is the neutral English fallback; localize at runtime so a
+    // zh-* browser doesn't land on an English login page inside an app that is
+    // otherwise rendered in Chinese.
+    const COPY = {
+      zh: {
+        subtitle: '请输入服务器令牌以继续',
+        label: '服务器令牌',
+        placeholder: '输入 ZENSKILL_TOKEN',
+        signIn: '登录',
+        signingIn: '登录中…',
+        authFailed: '令牌不正确',
+        required: '请输入令牌',
+        networkError: '网络错误 — 服务是否已启动？',
+      },
+      en: {
+        subtitle: 'Enter your server token to continue',
+        label: 'Server Token',
+        placeholder: 'Enter ZENSKILL_TOKEN',
+        signIn: 'Sign In',
+        signingIn: 'Signing in…',
+        authFailed: 'Authentication failed',
+        required: 'Password is required',
+        networkError: 'Network error — is the server running?',
+      },
+    };
+    // Server error bodies are English; map the known ones instead of leaking them raw.
+    const SERVER_ZH = {
+      'Invalid credentials': '令牌不正确',
+      'Password is required': '请输入令牌',
+    };
+    const isZh = (navigator.language || '').toLowerCase().startsWith('zh');
+    const L = isZh ? COPY.zh : COPY.en;
+    document.documentElement.lang = isZh ? 'zh-CN' : 'en';
+    document.getElementById('subtitle').textContent = L.subtitle;
+    document.getElementById('token-label').textContent = L.label;
+    document.getElementById('password').placeholder = L.placeholder;
+    submitBtn.textContent = L.signIn;
+
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
       errorEl.classList.remove('visible');
       submitBtn.disabled = true;
-      submitBtn.textContent = 'Signing in...';
+      submitBtn.textContent = L.signingIn;
 
       try {
         const password = document.getElementById('password').value;
@@ -271,14 +309,17 @@
         }
 
         const data = await res.json().catch(() => ({}));
-        errorEl.textContent = data.error || 'Authentication failed';
+        const raw = data.error || '';
+        errorEl.textContent = isZh
+          ? (SERVER_ZH[raw] || L.authFailed)
+          : (raw || L.authFailed);
         errorEl.classList.add('visible');
       } catch (err) {
-        errorEl.textContent = 'Network error — is the server running?';
+        errorEl.textContent = L.networkError;
         errorEl.classList.add('visible');
       } finally {
         submitBtn.disabled = false;
-        submitBtn.textContent = 'Sign In';
+        submitBtn.textContent = L.signIn;
       }
     });
   </script>

@@ -1,19 +1,22 @@
 /**
  * ZenSkillMarketSearch — Marketplace search + one-click install UI backed by
- * the zenskill MCP source (skill_search / skill_install). Rendered at the
+ * the zenskill MCP source (market_search / skill_install). Rendered at the
  * top of SkillsListPanel when a workspace is active.
  */
 import * as React from 'react'
-import { Search, Download, Loader2, Check } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
+import { Search, Download, Loader2, Check, Link } from 'lucide-react'
 import { toast } from 'sonner'
 import { ZENSKILL_SOURCE_SLUG } from './zenskill-registry'
 
 export function ZenSkillMarketSearch({ workspaceId }: { workspaceId?: string }) {
+  const { t } = useTranslation()
   const [marketQuery, setMarketQuery] = React.useState('')
-  const [marketResults, setMarketResults] = React.useState<Array<{name: string; description: string; uri?: string; skill_id?: string; score?: number}>>([])
+  const [marketResults, setMarketResults] = React.useState<Array<{name: string; description: string; uri?: string; skill_id?: string; score?: number; market?: string; source?: string}>>([])
   const [marketLoading, setMarketLoading] = React.useState(false)
   const [installingUri, setInstallingUri] = React.useState<string | null>(null)
   const [installedUris, setInstalledUris] = React.useState<Set<string>>(new Set())
+  const [directUri, setDirectUri] = React.useState('')
   const marketTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const searchMarketplace = React.useCallback((query: string) => {
@@ -22,7 +25,7 @@ export function ZenSkillMarketSearch({ workspaceId }: { workspaceId?: string }) 
     marketTimerRef.current = setTimeout(async () => {
       setMarketLoading(true)
       try {
-        const res = await window.electronAPI.callMcpTool(workspaceId!, ZENSKILL_SOURCE_SLUG, 'skill_search', { query: query.trim(), top_k: 6 })
+        const res = await window.electronAPI.callMcpTool(workspaceId!, ZENSKILL_SOURCE_SLUG, 'market_search', { query: query.trim(), top_k: 6 })
         const text = (res as any)?.result?.content?.[0]?.text
         if (text) {
           const data = JSON.parse(text)
@@ -30,7 +33,7 @@ export function ZenSkillMarketSearch({ workspaceId }: { workspaceId?: string }) 
         }
       } catch { setMarketResults([]) }
       finally { setMarketLoading(false) }
-    }, 400)
+    }, 300)
   }, [workspaceId])
 
   const installSkill = React.useCallback(async (uri: string, name: string) => {
@@ -66,9 +69,31 @@ export function ZenSkillMarketSearch({ workspaceId }: { workspaceId?: string }) 
         <input
           value={marketQuery}
           onChange={(e) => { setMarketQuery(e.target.value); searchMarketplace(e.target.value) }}
-          placeholder="Search ZenSkill marketplace..."
+          placeholder={t('zenskill.market.searchPlaceholder', 'Search marketplace...')}
           className="w-full text-xs bg-muted/40 rounded pl-6 pr-2 py-1.5 outline-none focus:ring-1 focus:ring-accent/40"
         />
+      </div>
+      <div className="relative flex items-center gap-1">
+        <Link className="h-3 w-3 text-muted-foreground absolute left-2 top-1/2 -translate-y-1/2" />
+        <input
+          value={directUri}
+          onChange={(e) => setDirectUri(e.target.value)}
+          placeholder={t('zenskill.market.uriPlaceholder', 'clawhub://skill-id or https://...')}
+          className="w-full text-xs bg-muted/40 rounded pl-6 pr-2 py-1.5 outline-none focus:ring-1 focus:ring-accent/40"
+        />
+        {directUri.trim() && (
+          <button
+            className="shrink-0 flex items-center gap-1 text-[10px] px-1.5 py-1 rounded bg-accent/10 text-accent hover:bg-accent/20"
+            disabled={installingUri === directUri.trim()}
+            onClick={() => {
+              const uri = directUri.trim()
+              void installSkill(uri, uri).then(() => setDirectUri(''))
+            }}
+          >
+            {installingUri === directUri.trim() ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
+            {t('zenskill.market.install', 'Install')}
+          </button>
+        )}
       </div>
       {marketLoading && (
         <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground pl-1">
@@ -82,7 +107,10 @@ export function ZenSkillMarketSearch({ workspaceId }: { workspaceId?: string }) 
             return (
             <div key={r.uri || r.name} className="flex items-center gap-2 text-xs rounded px-2 py-1 hover:bg-muted/50 group">
               <div className="flex-1 min-w-0">
-                <div className="truncate font-medium">{r.name}</div>
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <span className="truncate font-medium">{r.name}</span>
+                  <span className="text-[9px] px-1 py-px rounded bg-accent/10 text-accent shrink-0">{r.market || r.source || 'clawhub'}</span>
+                </div>
                 <div className="truncate text-[10px] text-muted-foreground">{r.description}</div>
               </div>
               {installedUris.has(uri) ? (

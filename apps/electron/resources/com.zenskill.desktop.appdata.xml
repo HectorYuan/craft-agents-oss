@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop">
+  <id>zenskill.desktop</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>Apache-2.0</project_license>
+  <name>ZenSkill</name>
+  <summary>AI Agent Engine with GTD, skill management, and learning paths</summary>
+  <description>
+    <p>
+      ZenSkill is a desktop AI agent engine featuring GTD task management,
+      333+ skill management with intelligent retrieval, learning path generation,
+      proactive insights, and multi-agent orchestration.
+    </p>
+    <p>Features include:</p>
+    <ul>
+      <li>GTD project and action management with energy tracking</li>
+      <li>333+ skills with scenario-aware retrieval and IDF indexing</li>
+      <li>Learning path generation with difficulty progression</li>
+      <li>Proactive insights and habit tracking</li>
+      <li>Craft Agents integration for visual workflow</li>
+    </ul>
+  </description>
+  <launchable type="desktop-id">zenskill.desktop</launchable>
+  <url type="homepage">https://github.com/nicepkg/ZenSkill</url>
+  <provides>
+    <binary>zenskill</binary>
+  </provides>
+  <categories>
+    <category>Utility</category>
+    <category>Development</category>
+  </categories>
+  <keywords>
+    <keyword>ai</keyword>
+    <keyword>agent</keyword>
+    <keyword>gtd</keyword>
+    <keyword>skill</keyword>
+    <keyword>learning</keyword>
+  </keywords>
+  <content_rating type="oars-1.1" />
+  <releases>
+    <release version="2.10.1" date="2026-09-20">
+      <description>
+        <p>UI optimization: learning path step cards, calendar drag, insight mark-read, keyboard shortcuts.</p>
+      </description>
+    </release>
+  </releases>
+</component>

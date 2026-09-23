@@ -13,7 +13,7 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import {
   User, Flame, Target, TrendingUp, Zap, Award, BarChart3, Activity,
-  Plus, Trash2, Pencil, Check, X,
+  Plus, Trash2, Pencil, Check, X, ChevronDown,
 } from 'lucide-react'
 import { useMcpTool, extractMcpJson } from '@/hooks/zenskill/useMcpTool'
 import { RadarChart } from '../panels/RadarChart'
@@ -210,6 +210,33 @@ export function ZenSkillProfile({ workspaceId }: ZenSkillProfileProps) {
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
   const confirmRef = useRef<string | null>(null)
   confirmRef.current = confirmDeleteId
+
+  // 可折叠区块：8 个 section 平铺导致长滚动；低频区块（习惯/目标/趋势/能量）
+  // 支持折叠，localStorage 记忆。trend/energy 默认收起（次级信息）。
+  const COLLAPSE_KEY = 'zs-profile-collapsed'
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>(() => {
+    try {
+      const saved = localStorage.getItem(COLLAPSE_KEY)
+      if (saved) return JSON.parse(saved)
+    } catch { /* ignore */ }
+    return { trend: true, energy: true }
+  })
+  const toggleSection = (key: string) => {
+    setCollapsed((cur) => {
+      const next = { ...cur, [key]: !cur[key] }
+      try { localStorage.setItem(COLLAPSE_KEY, JSON.stringify(next)) } catch { /* ignore */ }
+      return next
+    })
+  }
+  const SectionCollapse = ({ id }: { id: string }) => (
+    <button
+      className="ml-auto p-0.5 rounded text-muted-foreground/50 hover:text-muted-foreground hover:bg-muted/50 transition-colors"
+      onClick={() => toggleSection(id)}
+      aria-label={collapsed[id] ? 'expand' : 'collapse'}
+    >
+      <ChevronDown className={`h-3.5 w-3.5 transition-transform ${collapsed[id] ? '-rotate-90' : ''}`} />
+    </button>
+  )
   const armDelete = (id: string, onConfirm: () => void) => {
     if (confirmRef.current === id) {
       setConfirmDeleteId(null)
@@ -502,7 +529,7 @@ export function ZenSkillProfile({ workspaceId }: ZenSkillProfileProps) {
             </div>
           </div>
 
-          {/* 6. Habit tracking: per-habit rows + habit_set/habit_delete management */}
+          {/* 6. Habit tracking: per-habit rows + habit_set/habit_delete management — collapsible */}
           <div className={`${ZS.card}`}>
             <div className={ZS.sectionHeader}>
               <Flame className="h-3.5 w-3.5 text-orange-400" />
@@ -514,8 +541,9 @@ export function ZenSkillProfile({ workspaceId }: ZenSkillProfileProps) {
                   🔥 {streak} {t('zenskill.profile.streak', 'day streak')}
                 </span>
               )}
+              <SectionCollapse id="habits" />
             </div>
-            {habitEntries.length === 0 ? (
+            {!collapsed.habits && (habitEntries.length === 0 ? (
               <div className={ZS.emptyState}>{t('zenskill.profile.habitsEmpty', 'No habit data yet')}</div>
             ) : (
               <div className="space-y-1.5">
@@ -563,9 +591,9 @@ export function ZenSkillProfile({ workspaceId }: ZenSkillProfileProps) {
                   )
                 })}
               </div>
-            )}
+            ))}
             {/* habit_set inline form + toggle — bottom of the section */}
-            {habitFormOpen ? (
+            {!collapsed.habits && (habitFormOpen ? (
               <div className="mt-2 space-y-1.5">
                 <div className="flex items-center gap-1.5">
                   <input
@@ -630,18 +658,19 @@ export function ZenSkillProfile({ workspaceId }: ZenSkillProfileProps) {
                 <Plus className="h-3 w-3" />
                 {t('zenskill.profile.habits.add')}
               </button>
-            )}
+            ))}
           </div>
 
-          {/* 6b. Goal management: goal_progress cards + goal_set/goal_update/goal_delete */}
+          {/* 6b. Goal management: goal_progress cards + goal_set/goal_update/goal_delete — collapsible */}
           <div className={`${ZS.card}`}>
             <div className={ZS.sectionHeader}>
               <Target className="h-3.5 w-3.5 text-muted-foreground" />
               <span className={ZS.body + ' font-medium text-muted-foreground'}>
                 {t('zenskill.profile.goals')} ({goals.data?.active?.length ?? 0})
               </span>
+              <SectionCollapse id="goals" />
             </div>
-            {(goals.data?.active?.length ?? 0) === 0 ? (
+            {!collapsed.goals && ((goals.data?.active?.length ?? 0) === 0 ? (
               <div className={ZS.emptyState}>{t('zenskill.profile.goals.empty')}</div>
             ) : (
               <div className="space-y-2">
@@ -753,9 +782,9 @@ export function ZenSkillProfile({ workspaceId }: ZenSkillProfileProps) {
                   )
                 })}
               </div>
-            )}
+            ))}
             {/* goal_set inline form + toggle — bottom of the section */}
-            {goalFormOpen ? (
+            {!collapsed.goals && (goalFormOpen ? (
               <div className="mt-2 space-y-1.5">
                 <div className="flex items-center gap-1.5 flex-wrap">
                   <select
@@ -820,10 +849,10 @@ export function ZenSkillProfile({ workspaceId }: ZenSkillProfileProps) {
                 <Plus className="h-3 w-3" />
                 {t('zenskill.profile.goals.add')}
               </button>
-            )}
+            ))}
           </div>
 
-          {/* 7. Growth trend (proficiency over last 100 snapshots) */}
+          {/* 7. Growth trend (proficiency over last 100 snapshots) — collapsible, default collapsed */}
           {trendValues.length > 1 && (
             <div className={`${ZS.card}`}>
               <div className={ZS.sectionHeader}>
@@ -831,30 +860,38 @@ export function ZenSkillProfile({ workspaceId }: ZenSkillProfileProps) {
                 <span className={ZS.body + ' font-medium text-muted-foreground'}>
                   {t('zenskill.profile.growthTrend', 'Growth Trend')}
                 </span>
+                <SectionCollapse id="trend" />
               </div>
-              <div className="flex justify-center">
-                <TrendLine values={trendValues} color="hsl(var(--accent))" height={50} width={280} />
-              </div>
+              {!collapsed.trend && (
+                <div className="flex justify-center">
+                  <TrendLine values={trendValues} color="hsl(var(--accent))" height={50} width={280} />
+                </div>
+              )}
             </div>
           )}
 
-          {/* 8. Energy history: suggestions + trend */}
+          {/* 8. Energy history: suggestions + trend — collapsible, default collapsed */}
           <div className={`${ZS.card}`}>
             <div className={ZS.sectionHeader}>
               <Zap className="h-3.5 w-3.5 text-muted-foreground" />
               <span className={ZS.body + ' font-medium text-muted-foreground'}>
                 {t('zenskill.profile.energyHistory', 'Energy History')}
               </span>
+              <SectionCollapse id="energy" />
             </div>
-            <EnergyBar level={energyLevel} pct={energyPct} />
-            {energySuggestions.length > 0 && (
-              <div className="mt-2 space-y-1">
-                {energySuggestions.slice(0, 3).map((s, i) => (
-                  <div key={i} className="text-xs text-muted-foreground/80 flex items-start gap-1">
-                    <span className="text-accent">•</span> {s}
+            {!collapsed.energy && (
+              <>
+                <EnergyBar level={energyLevel} pct={energyPct} />
+                {energySuggestions.length > 0 && (
+                  <div className="mt-2 space-y-1">
+                    {energySuggestions.slice(0, 3).map((s, i) => (
+                      <div key={i} className="text-xs text-muted-foreground/80 flex items-start gap-1">
+                        <span className="text-accent">•</span> {s}
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
+                )}
+              </>
             )}
           </div>
         </div>

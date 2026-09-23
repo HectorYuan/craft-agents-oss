@@ -13,9 +13,11 @@
  * contexts + repeat_rule), plus per-row schedule-to-calendar (calendar_add
  * with action_id) with a scheduled-state icon fed by scheduledDates.
  */
-import React, { useRef, useState } from 'react'
+import React, { useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useAtomValue } from 'jotai'
 import { ArrowRight, Bot, CalendarCheck, CalendarPlus, Check, Circle, CircleDashed, LayoutGrid, List, Pencil, Plus, Sprout, Trash2, X } from 'lucide-react'
+import { sessionMetaMapAtom } from '@/atoms/sessions'
 import { navigate, routes } from '@/lib/navigate'
 import { PRIORITY_COLOR, energyChipClass, parseIsoDate, weekKey, type GtdAction } from './types'
 
@@ -161,6 +163,26 @@ export function ActionsPanel({
   const isFull = variant === 'full'
   const isDoneView = isFull && status === 'done'
   const { t } = useTranslation()
+
+  // 会话状态回显：session labels 携带 gtd-action::<id>（Bot 派发时写入），
+  // 按 actionId 聚合出运行中/总会话数，行内渲染 chip 并可跳转会话列表。
+  const sessionMetaMap = useAtomValue(sessionMetaMapAtom)
+  const actionSessions = useMemo(() => {
+    const map = new Map<string, { total: number; running: number; lastId: string; lastAt: number }>()
+    for (const meta of sessionMetaMap.values()) {
+      for (const label of meta.labels ?? []) {
+        const m = /^gtd-action::(.+)$/.exec(label)
+        if (!m) continue
+        const cur = map.get(m[1]) ?? { total: 0, running: 0, lastId: meta.id, lastAt: 0 }
+        cur.total += 1
+        if (meta.isProcessing) cur.running += 1
+        const at = meta.lastMessageAt ?? 0
+        if (at > cur.lastAt) { cur.lastAt = at; cur.lastId = meta.id }
+        map.set(m[1], cur)
+      }
+    }
+    return map
+  }, [sessionMetaMap])
 
   // Confirm-to-delete: controlled by the parent when it passes the change
   // handler (ZenSkillDataPanel keeps its existing top-level state);
@@ -375,6 +397,26 @@ export function ActionsPanel({
                   {proj.name}
                 </span>
               ) : null
+            })()}
+            {isFull && !isDoneView && (() => {
+              const sess = actionSessions.get(a.id)
+              if (!sess) return null
+              return (
+                <button
+                  className={`text-[10px] px-1 py-px rounded shrink-0 tabular-nums transition-colors ${
+                    sess.running > 0
+                      ? 'bg-green-500/15 text-green-500 hover:bg-green-500/25'
+                      : 'bg-muted/60 text-muted-foreground/70 hover:bg-muted'
+                  }`}
+                  title={t('zenskill.gtd.actions.sessions', '关联会话')}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    void navigate(routes.view.allSessions(sess.lastId))
+                  }}
+                >
+                  {sess.running > 0 ? `▶ ${sess.running}/${sess.total}` : `${sess.total} 会话`}
+                </button>
+              )
             })()}
             {a.due_date && !isDoneView && schedulingId !== a.id && (
               <span className="text-xs text-muted-foreground shrink-0">{a.due_date.slice(5)}</span>

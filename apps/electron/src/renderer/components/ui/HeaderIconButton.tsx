@@ -32,6 +32,10 @@ export const HeaderIconButton = forwardRef<HTMLButtonElement, HeaderIconButtonPr
           "disabled:pointer-events-none disabled:opacity-50",
           className
         )}
+        // Icon-only button: without this the tooltip is the only visible label
+        // and screen readers announce a bare "button". Callers can still
+        // override by passing aria-label in props.
+        aria-label={tooltip}
         {...props}
       >
         {icon}
