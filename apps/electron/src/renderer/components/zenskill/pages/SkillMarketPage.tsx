@@ -10,7 +10,7 @@ import React, { useCallback, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   Store, Search, Download, Loader2, Check, Server, Plus, ChevronDown,
-  ShieldAlert, ShieldCheck, AlertTriangle, Trash2, Flame, Link,
+  ShieldAlert, ShieldCheck, AlertTriangle, Trash2, Flame, Link, Upload, Package,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useMcpTool, extractMcpJson } from '@/hooks/zenskill/useMcpTool'
@@ -387,6 +387,62 @@ export function SkillMarketPage({ workspaceId }: { workspaceId?: string; initial
   // 区4 卸载（二次确认）
   const [arming, setArming] = useState<string | null>(null)
   const [removing, setRemoving] = useState<string | null>(null)
+
+  // 区4 发布/部署（W5 出站：dry_run 校验→真部署，两段式确认）
+  const [deployPlatform, setDeployPlatform] = useState('codex')
+  const [deployArming, setDeployArming] = useState<string | null>(null)
+  const [deploying, setDeploying] = useState<string | null>(null)
+  const [exporting, setExporting] = useState(false)
+
+  const deploy = useCallback(async (skillId: string) => {
+    if (!workspaceId || deploying) return
+    setDeploying(skillId)
+    try {
+      const dry = await window.electronAPI.callMcpTool(workspaceId, ZENSKILL_SOURCE_SLUG, 'skill_deploy',
+        { skill_id: skillId, platform: deployPlatform, dry_run: true })
+      const dryData = (extractMcpJson(dry) ?? {}) as any
+      if (!dryData.ok) {
+        toast.error(dryData.error || 'skill_deploy dry_run failed')
+        return
+      }
+      const res = await window.electronAPI.callMcpTool(workspaceId, ZENSKILL_SOURCE_SLUG, 'skill_deploy',
+        { skill_id: skillId, platform: deployPlatform })
+      const data = (extractMcpJson(res) ?? {}) as any
+      if (data.ok) {
+        toast.success(`${skillId} → ${deployPlatform}: ${data.deployed_to ?? 'deployed'}`)
+      } else {
+        toast.error(data.error || 'skill_deploy failed')
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'skill_deploy failed')
+    } finally {
+      setDeploying(null)
+      setDeployArming(null)
+    }
+  }, [workspaceId, deploying, deployPlatform])
+
+  const exportManifest = useCallback(async () => {
+    if (!workspaceId || exporting) return
+    setExporting(true)
+    try {
+      const res = await window.electronAPI.callMcpTool(workspaceId, ZENSKILL_SOURCE_SLUG, 'skill_export', {})
+      const data = (extractMcpJson(res) ?? {}) as any
+      if (data.ok) {
+        try {
+          await navigator.clipboard.writeText(JSON.stringify(data.manifest, null, 2))
+          toast.success(`${t('zenskill.market.exportManifest')}: ${data.count}`)
+        } catch {
+          toast.success(`${t('zenskill.market.exportManifest')}: ${data.count} (clipboard unavailable)`)
+        }
+      } else {
+        toast.error(data.error || 'skill_export failed')
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'skill_export failed')
+    } finally {
+      setExporting(false)
+    }
+  }, [workspaceId, exporting, t])
   const uninstall = useCallback(async (skillId: string) => {
     if (!workspaceId || removing) return
     setRemoving(skillId)
@@ -528,11 +584,21 @@ export function SkillMarketPage({ workspaceId }: { workspaceId?: string; initial
               )}
             </div>
 
-            {/* 区4 我的技能（skill_scan 全量 + 卸载） */}
+            {/* 区4 我的技能（skill_scan 全量 + 卸载 + 导出/部署） */}
             <div className={ZS.card}>
               <SectionHeader
                 icon={Check}
                 title={`${t('zenskill.market.mySkills')} (${scan.data?.total ?? scanDetails.length})`}
+                right={
+                  <button
+                    className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded text-muted-foreground hover:bg-muted disabled:opacity-50"
+                    disabled={exporting}
+                    onClick={() => void exportManifest()}
+                  >
+                    {exporting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Package className="h-3 w-3" />}
+                    {t('zenskill.market.exportManifest')}
+                  </button>
+                }
               />
               {scan.loading && !scanDetails.length && <div className={`${ZS.skeleton} w-40`} />}
               {scan.error && !scanDetails.length && <div className={ZS.errorBanner}>{scan.error}</div>}
@@ -548,6 +614,34 @@ export function SkillMarketPage({ workspaceId }: { workspaceId?: string; initial
                       <span className={`shrink-0 text-[10px] px-1.5 py-0.5 rounded ${riskBadgeClass(d.risk_level)}`}>{d.risk_level ?? 'safe'}</span>
                       {d.usability && (
                         <span className={`shrink-0 text-[10px] px-1.5 py-0.5 rounded ${riskBadgeClass(d.usability)}`}>{d.usability}</span>
+                      )}
+                      {deployArming === skillId ? (
+                        <>
+                          <select
+                            className="shrink-0 text-[10px] px-1 py-0.5 rounded border border-border/50 bg-background"
+                            value={deployPlatform}
+                            onChange={(e) => setDeployPlatform(e.target.value)}
+                          >
+                            {['local', 'codex', 'cursor', 'opencode'].map((p) => (
+                              <option key={p} value={p}>{p}</option>
+                            ))}
+                          </select>
+                          <button
+                            className="shrink-0 flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-accent/15 text-accent hover:bg-accent/25"
+                            disabled={deploying === skillId}
+                            onClick={() => void deploy(skillId)}
+                          >
+                            {deploying === skillId ? <Loader2 className="h-3 w-3 animate-spin" /> : <Upload className="h-3 w-3" />}
+                            {t('zenskill.market.deployConfirm')}
+                          </button>
+                        </>
+                      ) : (
+                        <button
+                          className="shrink-0 flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded text-muted-foreground hover:bg-muted"
+                          onClick={() => setDeployArming(skillId)}
+                        >
+                          <Upload className="h-3 w-3" /> {t('zenskill.market.deploy')}
+                        </button>
                       )}
                       {arming === skillId ? (
                         <button
