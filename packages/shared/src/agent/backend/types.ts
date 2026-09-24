@@ -197,6 +197,14 @@ export interface CoreBackendConfig {
   /** System prompt preset ('default' | 'mini' | custom string) */
   systemPromptPreset?: 'default' | 'mini' | string;
 
+  /** Connection-level custom gateway base URL — Desktop 透传引擎
+   *  (ZENSKILL_AGENT_BASE_URL)，修复 baseUrl 断点（对齐 Server Mode） */
+  baseUrl?: string;
+
+  /** Connection custom endpoint protocol — Desktop 透传引擎
+   *  (ZENSKILL_AGENT_API) */
+  customEndpointApi?: string;
+
   /** Workspace-level automation system for user-defined automations (automations.json) */
   automationSystem?: AutomationSystem;
 

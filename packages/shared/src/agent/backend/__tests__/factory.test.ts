@@ -23,6 +23,7 @@ import {
   resolveModelForProvider,
   resolveSetupTestConnectionHint,
   createBackendFromConnection,
+  createConfigFromConnection,
   testBackendConnection,
   validateStoredBackendConnection,
 } from '../factory.ts';
@@ -219,3 +220,43 @@ describe('phase4 backend abstraction APIs', () => {
 describe('resolveModelForProvider', () => {
 });
 
+
+
+describe('createConfigFromConnection gateway passthrough', () => {
+  // Desktop baseUrl 断点修复：连接 baseUrl/customEndpointApi 必须进入
+  // BackendConfig（spawn 时注入 ZENSKILL_AGENT_BASE_URL/_API 给引擎）
+  const workspace = { id: 'w', name: 'w', rootPath: '/tmp/w' } as any;
+
+  it('passes baseUrl and customEndpointApi through', () => {
+    const connection = {
+      slug: 'custom-gw',
+      name: 'Custom GW',
+      providerType: 'zenskill',
+      authType: 'api_key_with_endpoint',
+      baseUrl: 'https://gw.example.com/v1',
+      customEndpoint: { api: 'openai-completions' },
+      createdAt: 1,
+    } as any as LlmConnection;
+    const config = createConfigFromConnection(connection, {
+      workspace,
+      model: undefined,
+    } as any);
+    expect(config.baseUrl).toBe('https://gw.example.com/v1');
+    expect(config.customEndpointApi).toBe('openai-completions');
+  });
+
+  it('leaves baseUrl undefined for plain registry connections', () => {
+    const connection = {
+      slug: 'deepseek-api',
+      name: 'DeepSeek',
+      providerType: 'zenskill',
+      authType: 'api_key',
+      createdAt: 1,
+    } as any as LlmConnection;
+    const config = createConfigFromConnection(connection, {
+      workspace,
+    } as any);
+    expect(config.baseUrl).toBeUndefined();
+    expect(config.customEndpointApi).toBeUndefined();
+  });
+});

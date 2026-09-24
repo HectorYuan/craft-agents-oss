@@ -482,6 +482,10 @@ export function createConfigFromConnection(
     connectionSlug: connection.slug,
     // Use connection's default model if no model specified in baseConfig
     model: baseConfig.model || connection.defaultModel,
+    // 连接级自定义网关透传（Desktop baseUrl 断点修复）：spawn 时经
+    // ZENSKILL_AGENT_BASE_URL/_API 注入引擎
+    baseUrl: connection.baseUrl || undefined,
+    customEndpointApi: connection.customEndpoint?.api || undefined,
   };
 }
 

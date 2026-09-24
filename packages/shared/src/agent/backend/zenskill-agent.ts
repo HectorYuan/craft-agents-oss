@@ -279,9 +279,12 @@ export class ZenskillAgent extends BaseAgent {
       // PREDEFINED_MODELS/registry 正常路由。
       const engineModel = this._model.replace(/^pi\//i, '');
       // 旧会话可能持久化了引擎注册表之外的模型（如修复前的默认 claude-opus-4-8）：
-      // 未知模型走未知提供方兜底必然失败，回退到注册表第一项（当前默认）
+      // 未知模型走未知提供方兜底必然失败，回退到注册表第一项（当前默认）。
+      // 自定义网关连接（config.baseUrl）的模型 id 任意、不在静态目录也必须
+      // 透传——否则用户配的网关模型被 DEFAULT_MODEL 顶掉（baseUrl 修复链闭合）
       const known = ZENSKILL_MODEL_REGISTRY.some((m) => m.id === engineModel);
-      args.push('--model', known ? engineModel : DEFAULT_MODEL);
+      const isGateway = !!this.config.baseUrl;
+      args.push('--model', isGateway || known ? engineModel : DEFAULT_MODEL);
     }
     if (this._faux) args.push('--faux');
     // C5: --debug 取证链 —— 宿主 debug 模式时引擎同步开 DEBUG 日志（stderr →
@@ -300,6 +303,15 @@ export class ZenskillAgent extends BaseAgent {
       // 读取 OPENAI_API_KEY 鉴权；DEEPSEEK_API_KEY 单独注入不会被 pi 的凭据
       // 解析命中。单连接（ZenSkill Backend）下两键同值即完成路由。
       env['OPENAI_API_KEY'] = apiKey;
+    }
+    // 连接级自定义网关透传（Desktop baseUrl 断点修复，对齐 Server Mode）：
+    // 引擎 _apply_connection_env_overrides 消费；单引擎进程=单连接，env 即
+    // 连接作用域。未设置时路径不变。
+    if (this.config.baseUrl) {
+      env['ZENSKILL_AGENT_BASE_URL'] = String(this.config.baseUrl);
+    }
+    if ((this.config as any).customEndpointApi) {
+      env['ZENSKILL_AGENT_API'] = String((this.config as any).customEndpointApi);
     }
 
     // Set CRAFT_ZENSKILL for wrapper scripts
