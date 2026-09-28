@@ -3,6 +3,7 @@
  * source detail page. Renders ZenSkillDataPanel (GTD inbox, memory, and
  * system status) when the inspected source is the zenskill MCP source.
  */
+import { useTranslation } from 'react-i18next'
 import { Info_Section } from '@/components/info'
 import { ZenSkillDataPanel } from './ZenSkillDataPanel'
 
@@ -13,12 +14,13 @@ interface ZenSkillSourceMountProps {
 }
 
 export function ZenSkillSourceMount({ sourceType, sourceSlug, workspaceId }: ZenSkillSourceMountProps) {
+  const { t } = useTranslation()
   if (sourceType !== 'mcp' || sourceSlug !== 'zenskill' || !workspaceId) return null
 
   return (
     <Info_Section
-      title="ZenSkill Data"
-      description="GTD inbox, memory, and system status"
+      title={t('zenskill.panel.header', 'ZenSkill Data')}
+      description={t('zenskill.panel.desc', 'GTD inbox, memory, and system status')}
     >
       <ZenSkillDataPanel
         workspaceId={workspaceId}
