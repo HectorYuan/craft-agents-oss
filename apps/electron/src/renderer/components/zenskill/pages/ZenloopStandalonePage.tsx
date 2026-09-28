@@ -7,7 +7,7 @@
 import React, { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { RefreshCw, Sprout, Play, Pause, Lightbulb } from 'lucide-react'
+import { RefreshCw, Sprout, Play, Pause, Lightbulb, ClipboardList } from 'lucide-react'
 import { useMcpTool, extractMcpJson } from '@/hooks/zenskill/useMcpTool'
 import { ZS } from '../panels/tokens'
 import { ErrorBoundary } from '../panels/ErrorBoundary'
@@ -29,6 +29,18 @@ interface InsightItem {
   title?: string
   content?: string
   level?: string
+}
+
+// Z11: gtd_review 周回顾（只读消费 MCP 工具）
+interface GtdReviewData {
+  period_days?: number
+  message?: string
+  inbox?: {
+    pending_total?: number
+    pending_recent?: number
+    processed_recent?: number
+    recent_items?: { text?: string; status?: string; created?: string }[]
+  }
 }
 
 interface ZenloopStandalonePageProps {
@@ -62,6 +74,14 @@ export function ZenloopStandalonePage({ workspaceId }: ZenloopStandalonePageProp
     ZENSKILL_SOURCE_SLUG,
     'proactive_insight',
     {},
+  )
+
+  // Z11: 周回顾只读卡片（gtd_review 已注册 MCP——review 深度回顾不再止步 CLI）
+  const review = useMcpTool<GtdReviewData>(
+    workspaceId,
+    ZENSKILL_SOURCE_SLUG,
+    'gtd_review',
+    { days: 7 },
   )
 
   // zenloop_run / zenloop_bridge_run are not write tools backend-side, so no
@@ -253,6 +273,55 @@ export function ZenloopStandalonePage({ workspaceId }: ZenloopStandalonePageProp
                   </div>
                 ))}
               </div>
+            </div>
+          )}
+
+          {/* Z11: 周回顾（只读） */}
+          {review.data?.message && (
+            <div className={ZS.card}>
+              <div className={ZS.sectionHeader}>
+                <ClipboardList className="h-3.5 w-3.5 text-muted-foreground" />
+                <span className={ZS.body + ' font-medium text-muted-foreground'}>
+                  {t('zenskill.zenloop.weeklyReview', '周回顾')}
+                </span>
+                <span className="ml-auto text-xs text-muted-foreground">
+                  {t('zenskill.zenloop.recentDays', '近 {{n}} 天', { n: review.data.period_days ?? 7 })}
+                </span>
+              </div>
+              <div className="text-sm mt-2 text-muted-foreground">{review.data.message}</div>
+              {review.data.inbox && (
+                <div className="grid grid-cols-3 gap-3 mt-2">
+                  <div className="text-center">
+                    <div className="text-lg font-semibold">{review.data.inbox.pending_recent ?? 0}</div>
+                    <div className="text-xs text-muted-foreground">新增</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-lg font-semibold">{review.data.inbox.processed_recent ?? 0}</div>
+                    <div className="text-xs text-muted-foreground">处理</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-lg font-semibold">{review.data.inbox.pending_total ?? 0}</div>
+                    <div className="text-xs text-muted-foreground">待办存量</div>
+                  </div>
+                </div>
+              )}
+              {review.data.inbox?.recent_items && review.data.inbox.recent_items.length > 0 && (
+                <div className="mt-3 space-y-1">
+                  <div className="text-xs text-muted-foreground font-medium">最近捕获</div>
+                  {review.data.inbox.recent_items.slice(0, 5).map((it, i) => (
+                    <div key={i} className="text-xs flex items-start gap-1.5">
+                      <span className={`px-1.5 py-0.5 rounded shrink-0 ${
+                        it.status === 'clarified' ? 'bg-blue-500/15 text-blue-400' :
+                        it.status === 'archived' ? 'bg-muted text-muted-foreground' :
+                        'bg-yellow-500/15 text-yellow-400'
+                      }`}>
+                        {it.status || 'unprocessed'}
+                      </span>
+                      <span className="flex-1 truncate text-muted-foreground">{it.text}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 

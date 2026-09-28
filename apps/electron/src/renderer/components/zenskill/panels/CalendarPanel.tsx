@@ -513,6 +513,23 @@ export function CalendarPanel({
                             </span>
                           )}
                           <span className="truncate flex-1">{e.title ?? ''}</span>
+                          {/* Z14 剩余字段：period 附注 + 提醒分钟（后端 to_dict 已透传） */}
+                          {e.period && (
+                            <span
+                              className="text-xs px-1 py-px rounded bg-muted text-muted-foreground shrink-0"
+                              title={t('zenskill.gtd.calendar.periodLabel', '时段')}
+                            >
+                              {t(`zenskill.gtd.calendar.period.${e.period}`, e.period)}
+                            </span>
+                          )}
+                          {(e.reminder_before_min ?? 0) > 0 && (
+                            <span
+                              className="text-xs text-muted-foreground/60 shrink-0 tabular-nums"
+                              title={t('zenskill.gtd.calendar.reminderLabel', '提前提醒')}
+                            >
+                              {t('zenskill.gtd.calendar.reminderAhead', '提前 {{n}} 分', { n: e.reminder_before_min })}
+                            </span>
+                          )}
                           {eventId && onUpdateEvent && (
                             <>
                               <button

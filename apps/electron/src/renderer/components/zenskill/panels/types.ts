@@ -43,6 +43,8 @@ export interface GtdCalendarEventWithId extends Partial<GtdCalendarEvent> {
   id?: string
   time_str?: string
   period?: string
+  /** 提前提醒分钟数（calendar.to_dict 总返回，默认 15；0=不提醒） */
+  reminder_before_min?: number
 }
 
 /** calendar_month shape (contract pending — all reads use optional chaining) */
