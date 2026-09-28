@@ -52,7 +52,9 @@ function ToggleButton({
       onClick={onClick}
       aria-pressed={active}
       className={cn(
-        'inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium transition-colors',
+        // py-1.5 + min-h-6: this button measured 23px tall with py-1, below the
+        // WCAG 2.2 AA 24px target-size minimum (SC 2.5.8).
+        'inline-flex items-center gap-1.5 rounded-md px-2 py-1.5 min-h-6 text-xs font-medium transition-colors',
         active ? 'bg-card text-foreground shadow-xs' : 'text-foreground/50 hover:text-foreground/80'
       )}
     >
