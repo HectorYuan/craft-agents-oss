@@ -6,7 +6,7 @@
  */
 import React, { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Zap, TrendingUp, Share2 } from 'lucide-react'
+import { Zap, TrendingUp, Share2, Sparkles } from 'lucide-react'
 import { toast } from 'sonner'
 import { useMcpTool, extractMcpJson } from '@/hooks/zenskill/useMcpTool'
 import { CompanionCard, type CompanionSummary } from '../panels/CompanionCard'
@@ -19,6 +19,7 @@ import { InsightsPanel } from '../panels/InsightsPanel'
 import { ErrorBoundary } from '../panels/ErrorBoundary'
 import { ZS } from '../panels/tokens'
 import { ZENSKILL_SOURCE_SLUG } from '../zenskill-registry'
+import { LevelUpCeremony } from './LevelUpCeremony'
 
 interface ShareCardPayload {
   image_base64?: string
@@ -127,6 +128,7 @@ export function ZenSkillOverview({ workspaceId, onNavigateToChat }: ZenSkillOver
   // rendered image as base64 (PNG, falling back to SVG) — open it as a Blob
   // URL preview.
   const [sharing, setSharing] = useState(false)
+  const [ceremonyOpen, setCeremonyOpen] = useState(false)
   const handleShare = useCallback(async () => {
     if (!workspaceId || sharing) return
     setSharing(true)
@@ -181,6 +183,15 @@ export function ZenSkillOverview({ workspaceId, onNavigateToChat }: ZenSkillOver
               className="inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-accent disabled:opacity-40"
             >
               <Share2 className={`h-3.5 w-3.5 ${sharing ? 'animate-pulse text-accent' : ''}`} />
+            </button>
+            <button
+              type="button"
+              onClick={() => setCeremonyOpen(true)}
+              title={t('zenskill.ceremony.viewCeremony', '查看境界仪式')}
+              aria-label={t('zenskill.ceremony.viewCeremony', '查看境界仪式')}
+              className="inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-accent"
+            >
+              <Sparkles className="h-3.5 w-3.5 text-amber-500" />
             </button>
             <PageToChatBridge
               pageName="ZenSkill Overview"
@@ -380,6 +391,12 @@ export function ZenSkillOverview({ workspaceId, onNavigateToChat }: ZenSkillOver
           </div>
         </div>
       </div>
+
+      <LevelUpCeremony
+        workspaceId={workspaceId}
+        open={ceremonyOpen}
+        onClose={() => setCeremonyOpen(false)}
+      />
     </div>
   )
 }
