@@ -6,6 +6,7 @@
  * to the first registered page.
  */
 import { resolveZenSkillPage } from './zenskill-registry'
+import './brand/zenskill-brand.css'
 
 interface ZenSkillPageMountProps {
   pageSlug?: string;
@@ -18,5 +19,10 @@ export function ZenSkillPageMount({ pageSlug, tab, workspaceId, onNavigateToChat
   const registration = resolveZenSkillPage(pageSlug)
   if (!registration) return null
   const Page = registration.component
-  return <Page workspaceId={workspaceId} initialTab={tab} onNavigateToChat={onNavigateToChat} />
+  // .zs-scope: 品牌语义覆盖容器 (brand/zenskill-brand.css) — 仅 zenskill 页面品牌化, 上游紫保留
+  return (
+    <div className="zs-scope">
+      <Page workspaceId={workspaceId} initialTab={tab} onNavigateToChat={onNavigateToChat} />
+    </div>
+  )
 }

@@ -1,0 +1,26 @@
+/* ==== ZenSkill Brand Scope — 由 EduAgent webui/scripts/generate-tokens.mjs --dist 生成，勿手改 ====
+  色值源: EduAgent tokens.css 表值（跨产品视觉一致的最大公约数，见 eduagent docs/design/adr/007）
+  消费方式: .zs-scope 容器级变量覆盖（D2 半覆盖 — 仅 zenskill 页面品牌化，上游紫保留）
+  契约: 哈希见同目录 contract.json，由 ZenSkill scripts/sync-design-tokens.sh 校验 ==== */
+
+.zs-scope {
+  --accent: oklch(0.546 0.162 264.4);
+  --accent-rgb: 44, 74, 144;
+  --success: oklch(0.72 0.19 142);
+  --success-rgb: 57, 135, 50;
+  --destructive: oklch(0.63 0.24 25);
+  --destructive-rgb: 174, 25, 36;
+  --info: oklch(0.6 0.12 240);
+  --info-rgb: 30, 95, 134;
+}
+
+.dark .zs-scope {
+  --accent: oklch(0.82 0.12 264.4);
+  --accent-rgb: 110, 137, 179;
+  --success: oklch(0.80 0.16 142);
+  --success-rgb: 88, 151, 81;
+  --destructive: oklch(0.75 0.18 25);
+  --destructive-rgb: 179, 85, 80;
+  --info: oklch(0.75 0.108 240);
+  --info-rgb: 74, 128, 165;
+}
