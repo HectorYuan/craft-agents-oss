@@ -348,11 +348,11 @@ export function ZenSkillDataPanel({ workspaceId, sourceSlug, onGtdItemClick }: Z
                   <div className="truncate">{item.content}</div>
                   <div className="flex items-center gap-1.5 mt-0.5">
                     {item.action && (
-                      <span className="text-[9px] px-1 py-px rounded bg-accent/10 text-accent shrink-0">{item.action}</span>
+                      <span className="text-micro px-1 py-px rounded bg-accent/10 text-accent shrink-0">{item.action}</span>
                     )}
-                    <span className="text-[10px] text-muted-foreground shrink-0">{item.skill_id}</span>
+                    <span className="text-badge text-muted-foreground shrink-0">{item.skill_id}</span>
                     {item.date && (
-                      <span className="text-[10px] text-muted-foreground/60 shrink-0 ml-auto">{item.date}</span>
+                      <span className="text-badge text-muted-foreground/60 shrink-0 ml-auto">{item.date}</span>
                     )}
                   </div>
                 </div>
@@ -395,7 +395,7 @@ export function ZenSkillDataPanel({ workspaceId, sourceSlug, onGtdItemClick }: Z
                 <div key={i} className={ZS.body + ' rounded px-2 py-0.5 flex items-center gap-1.5'}>
                   <Target className="h-3 w-3 text-accent/60 shrink-0" />
                   <span className="truncate flex-1">{g.dimension || 'goal'}</span>
-                  <span className="text-[10px] text-muted-foreground shrink-0">{g.current ?? 0}/{g.target ?? '-'}</span>
+                  <span className="text-badge text-muted-foreground shrink-0">{g.current ?? 0}/{g.target ?? '-'}</span>
                 </div>
               ))}
             </div>
@@ -427,23 +427,23 @@ export function ZenSkillDataPanel({ workspaceId, sourceSlug, onGtdItemClick }: Z
                     >
                       <ChevronRight className={`h-3 w-3 text-muted-foreground transition-transform ${expanded ? 'rotate-90' : ''}`} />
                       <span className="font-medium truncate">{cat.name}</span>
-                      <span className="text-[10px] text-muted-foreground/60 ml-auto shrink-0">{cat.count}</span>
+                      <span className="text-badge text-muted-foreground/60 ml-auto shrink-0">{cat.count}</span>
                     </button>
                     {expanded && (
                       <div className="pl-5 space-y-0.5">
                         {cat.skills.map((s) => (
                           <div
                             key={s.skill_id}
-                            className="text-[11px] rounded px-2 py-0.5 hover:bg-muted/50 cursor-pointer group"
+                            className="text-caption rounded px-2 py-0.5 hover:bg-muted/50 cursor-pointer group"
                             onClick={() => onGtdItemClick?.(`帮我了解一下 ${s.name} 这个技能`)}
                             title={s.description}
                           >
                             <span className="truncate block">{s.name}</span>
                             <div className="flex items-center gap-1.5">
                               {s.usage_count > 0 && (
-                                <span className="text-[9px] text-muted-foreground/60">{s.usage_count}次</span>
+                                <span className="text-micro text-muted-foreground/60">{s.usage_count}次</span>
                               )}
-                              <span className="text-[9px] text-muted-foreground/40 truncate flex-1">{s.description}</span>
+                              <span className="text-micro text-muted-foreground/40 truncate flex-1">{s.description}</span>
                             </div>
                           </div>
                         ))}

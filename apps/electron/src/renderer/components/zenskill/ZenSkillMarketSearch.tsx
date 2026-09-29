@@ -83,7 +83,7 @@ export function ZenSkillMarketSearch({ workspaceId }: { workspaceId?: string }) 
         />
         {directUri.trim() && (
           <button
-            className="shrink-0 flex items-center gap-1 text-[10px] px-1.5 py-1 rounded bg-accent/10 text-accent hover:bg-accent/20"
+            className="shrink-0 flex items-center gap-1 text-badge px-1.5 py-1 rounded bg-accent/10 text-accent hover:bg-accent/20"
             disabled={installingUri === directUri.trim()}
             onClick={() => {
               const uri = directUri.trim()
@@ -96,7 +96,7 @@ export function ZenSkillMarketSearch({ workspaceId }: { workspaceId?: string }) 
         )}
       </div>
       {marketLoading && (
-        <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground pl-1">
+        <div className="flex items-center gap-1.5 text-badge text-muted-foreground pl-1">
           <Loader2 className="h-3 w-3 animate-spin" /> Searching...
         </div>
       )}
@@ -109,15 +109,15 @@ export function ZenSkillMarketSearch({ workspaceId }: { workspaceId?: string }) 
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-1.5 min-w-0">
                   <span className="truncate font-medium">{r.name}</span>
-                  <span className="text-[9px] px-1 py-px rounded bg-accent/10 text-accent shrink-0">{r.market || r.source || 'clawhub'}</span>
+                  <span className="text-micro px-1 py-px rounded bg-accent/10 text-accent shrink-0">{r.market || r.source || 'clawhub'}</span>
                 </div>
-                <div className="truncate text-[10px] text-muted-foreground">{r.description}</div>
+                <div className="truncate text-badge text-muted-foreground">{r.description}</div>
               </div>
               {installedUris.has(uri) ? (
-                <span className="text-[10px] text-green-500 shrink-0 flex items-center gap-0.5"><Check className="h-3 w-3" /> Installed</span>
+                <span className="text-badge text-green-500 shrink-0 flex items-center gap-0.5"><Check className="h-3 w-3" /> Installed</span>
               ) : (
                 <button
-                  className="opacity-0 group-hover:opacity-100 shrink-0 flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-accent/10 text-accent hover:bg-accent/20"
+                  className="opacity-0 group-hover:opacity-100 shrink-0 flex items-center gap-1 text-badge px-1.5 py-0.5 rounded bg-accent/10 text-accent hover:bg-accent/20"
                   disabled={installingUri === uri}
                   onClick={() => installSkill(uri, r.name)}
                 >
