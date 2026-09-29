@@ -137,12 +137,12 @@ export function LevelUpCeremony({ workspaceId, open, onClose }: LevelUpCeremonyP
         {/* 解锁能力 */}
         {data?.unlocked_abilities && data.unlocked_abilities.length > 0 && (
           <div className="mt-4">
-            <div className="text-[10px] font-medium text-muted-foreground uppercase tracking-widest">
+            <div className="text-badge font-medium text-muted-foreground uppercase tracking-widest">
               {t('zenskill.ceremony.unlocked', '解锁能力')}
             </div>
             <div className="mt-2 flex flex-wrap justify-center gap-1.5">
               {data.unlocked_abilities.slice(0, 5).map((ab, i) => (
-                <span key={i} className="rounded-full bg-foreground/5 px-2 py-0.5 text-[10px] text-foreground/80">
+                <span key={i} className="rounded-full bg-foreground/5 px-2 py-0.5 text-badge text-foreground/80">
                   {ab}
                 </span>
               ))}
@@ -151,7 +151,7 @@ export function LevelUpCeremony({ workspaceId, open, onClose }: LevelUpCeremonyP
         )}
 
         {/* 底部提示 */}
-        <div className="mt-6 text-[10px] text-muted-foreground/50">
+        <div className="mt-6 text-badge text-muted-foreground/50">
           {t('zenskill.ceremony.pressEsc', '按 Esc 或点击空白处关闭')}
         </div>
       </div>

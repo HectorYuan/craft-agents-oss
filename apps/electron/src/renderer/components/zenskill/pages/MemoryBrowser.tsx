@@ -260,7 +260,7 @@ export function MemoryBrowser({ workspaceId }: ZenSkillPageProps) {
           </button>
         ))}
         {tab === 'episodes' && stats.data?.episodic?.near_limit && (
-          <span className="ml-auto text-[10px] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-500">
+          <span className="ml-auto text-badge px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-500">
             接近容量上限
           </span>
         )}
@@ -268,7 +268,7 @@ export function MemoryBrowser({ workspaceId }: ZenSkillPageProps) {
           <button
             onClick={consolidateMemory}
             disabled={consolidating}
-            className="ml-auto px-2 py-1 text-[10px] rounded bg-accent/10 text-accent hover:bg-accent/20 disabled:opacity-50 transition-colors"
+            className="ml-auto px-2 py-1 text-badge rounded bg-accent/10 text-accent hover:bg-accent/20 disabled:opacity-50 transition-colors"
           >
             {consolidating ? '升华中…' : '整合记忆'}
           </button>
@@ -278,7 +278,7 @@ export function MemoryBrowser({ workspaceId }: ZenSkillPageProps) {
       {/* Layer capacity strip — L1 working / L2 episodic / L3 semantic */}
       {stats.data && (
         <div className="px-5 pt-2 shrink-0">
-          <div className="flex items-center gap-3 text-[10px] text-muted-foreground">
+          <div className="flex items-center gap-3 text-badge text-muted-foreground">
             {([
               ['L1 工作', stats.data.working?.count ?? 0, stats.data.working?.capacity ?? 0, 'bg-blue-500/60'],
               ['L2 情景', stats.data.episodic?.count ?? 0, stats.data.episodic?.capacity ?? 0, 'bg-accent/60'],

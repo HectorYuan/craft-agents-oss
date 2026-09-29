@@ -157,7 +157,7 @@ function entityTypeForKind(kind: ToolKind): GtdEntityType | undefined {
 function DetailRow({ label, value }: { label?: string; value: string }) {
   return (
     <div className="flex items-center gap-1.5 min-w-0">
-      {label && <span className="shrink-0 text-[10px] text-muted-foreground/70">{label}</span>}
+      {label && <span className="shrink-0 text-badge text-muted-foreground/70">{label}</span>}
       <span className="truncate text-foreground/80">{value}</span>
     </div>
   )
@@ -422,7 +422,7 @@ export function GtdToolResultCard({ toolName, resultText, workspaceId, sourceSlu
     setEditing(null)
   }
 
-  const btnBase = 'inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-[11px] font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50'
+  const btnBase = 'inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-caption font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50'
 
   return (
     <div
@@ -439,17 +439,17 @@ export function GtdToolResultCard({ toolName, resultText, workspaceId, sourceSlu
         <span className="shrink-0 text-accent">{icon}</span>
         <span className="truncate font-medium text-foreground">{headline}</span>
         {liveStatus === 'next' && (
-          <span className="ml-auto shrink-0 rounded-full border border-purple-500/30 bg-purple-500/10 px-1.5 py-px text-[10px] font-medium text-purple-600 dark:text-purple-400">
+          <span className="ml-auto shrink-0 rounded-full border border-purple-500/30 bg-purple-500/10 px-1.5 py-px text-badge font-medium text-purple-600 dark:text-purple-400">
             {t('zenskill.card.statusNext')}
           </span>
         )}
         {liveStatus === 'done' && (
-          <span className="ml-auto shrink-0 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-1.5 py-px text-[10px] font-medium text-emerald-600 dark:text-emerald-400">
+          <span className="ml-auto shrink-0 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-1.5 py-px text-badge font-medium text-emerald-600 dark:text-emerald-400">
             {t('zenskill.card.statusDone')}
           </span>
         )}
         {liveStatus === 'deleted' && (
-          <span className="ml-auto shrink-0 rounded-full border border-border/60 bg-muted px-1.5 py-px text-[10px] font-medium text-muted-foreground">
+          <span className="ml-auto shrink-0 rounded-full border border-border/60 bg-muted px-1.5 py-px text-badge font-medium text-muted-foreground">
             {t('zenskill.card.statusDeleted')}
           </span>
         )}

@@ -299,7 +299,7 @@ function NetworkGraph({ skills }: { skills: GrowthSkill[] }) {
               <text
                 x={pos.x} y={pos.y + 16}
                 textAnchor="middle"
-                className="text-[7px] fill-current text-muted-foreground"
+                className="text-nano fill-current text-muted-foreground"
               >
                 {skill.skill_id.length > 10 ? skill.skill_id.slice(0, 10) + '..' : skill.skill_id}
               </text>
@@ -389,13 +389,13 @@ function InsightsList({ insights }: { insights: InsightItem[] }) {
                 {item.affected_skills && item.affected_skills.length > 0 && (
                   <div className="flex gap-1 mt-0.5 flex-wrap">
                     {item.affected_skills.map((sk) => (
-                      <span key={sk} className="text-[8px] px-1 py-0.5 rounded bg-muted/60">{sk}</span>
+                      <span key={sk} className="text-nano px-1 py-0.5 rounded bg-muted/60">{sk}</span>
                     ))}
                   </div>
                 )}
               </div>
               {item.severity && (
-                <span className={`text-[8px] px-1 py-0.5 rounded shrink-0 ${
+                <span className={`text-nano px-1 py-0.5 rounded shrink-0 ${
                   item.severity === 'high' ? 'bg-destructive/10 text-destructive' :
                   item.severity === 'medium' ? 'bg-yellow-500/10 text-yellow-500' :
                   'bg-muted/60 text-muted-foreground'
@@ -492,7 +492,7 @@ function SynergyHeatmap({ skills }: { skills: GrowthSkill[] }) {
               x={labelW - 2}
               y={labelW + i * cellSize + cellSize / 2 + 3}
               textAnchor="end"
-              className="text-[7px] fill-current text-muted-foreground"
+              className="text-nano fill-current text-muted-foreground"
             >
               {name.length > 7 ? name.slice(0, 7) + '..' : name}
             </text>
@@ -504,7 +504,7 @@ function SynergyHeatmap({ skills }: { skills: GrowthSkill[] }) {
               y={labelW - 4}
               textAnchor="middle"
               transform={`rotate(-45 ${labelW + j * cellSize + cellSize / 2} ${labelW - 4})`}
-              className="text-[7px] fill-current text-muted-foreground"
+              className="text-nano fill-current text-muted-foreground"
             >
               {name.length > 7 ? name.slice(0, 7) + '..' : name}
             </text>
@@ -563,7 +563,7 @@ function SkillStats({ skills }: { skills: GrowthSkill[] }) {
           <div key={sk.skill_id} className="flex items-center gap-2 text-xs p-1 rounded hover:bg-muted/30">
             <div className="w-20 truncate font-medium">{sk.skill_id}</div>
             {sk.level && (
-              <span className="text-[8px] px-1 py-0.5 rounded bg-accent/10 text-accent shrink-0">{sk.level}</span>
+              <span className="text-nano px-1 py-0.5 rounded bg-accent/10 text-accent shrink-0">{sk.level}</span>
             )}
             <div className="flex items-center gap-1 ml-auto shrink-0">
               <span className="text-muted-foreground">{t('zenskill.collaboration.uses', 'Uses:')}</span>
