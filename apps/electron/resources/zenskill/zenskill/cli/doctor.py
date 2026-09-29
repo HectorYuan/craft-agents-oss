@@ -361,7 +361,7 @@ def cmd_doctor(args: argparse.Namespace) -> None:
         ('charts', 'zenskill.systems.visualization.charts'),
         ('metrics_store', 'zenskill.systems.visualization.metrics_store'),
         ('insight_engine', 'zenskill.systems.active.proactive_insight'),
-        ('level_up_ceremony', 'zenskill.systems.cultivating.level_up_ceremony'),
+        ('level_up_ceremony', 'zenskill.systems.visualization.level_up_ceremony'),
     ]
     for name, full_mod in modules_to_check:
         try:
