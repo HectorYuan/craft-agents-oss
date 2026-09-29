@@ -128,23 +128,23 @@ function MarketSkillCard({ skill, state }: { skill: MarketSkill; state: CardStat
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5 min-w-0">
             <span className="truncate font-medium">{name}</span>
-            <span className="text-[9px] px-1 py-px rounded bg-accent/10 text-accent shrink-0">{marketBadge(skill)}</span>
+            <span className="text-micro px-1 py-px rounded bg-accent/10 text-accent shrink-0">{marketBadge(skill)}</span>
           </div>
           {skill.description && (
-            <div className="truncate text-[10px] text-muted-foreground">{skill.description}</div>
+            <div className="truncate text-badge text-muted-foreground">{skill.description}</div>
           )}
         </div>
         {isInstalled ? (
-          <span className="shrink-0 flex items-center gap-0.5 text-[10px] text-green-500">
+          <span className="shrink-0 flex items-center gap-0.5 text-badge text-green-500">
             <Check className="h-3 w-3" /> {t('zenskill.market.installed')}
           </span>
         ) : rules ? (
-          <span className="shrink-0 inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-red-500/10 text-red-500">
+          <span className="shrink-0 inline-flex items-center gap-1 text-badge px-1.5 py-0.5 rounded bg-red-500/10 text-red-500">
             <ShieldAlert className="h-3 w-3" /> {t('zenskill.market.blocked')}
           </span>
         ) : confirm ? (
           <button
-            className="shrink-0 flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-600 hover:bg-amber-500/20"
+            className="shrink-0 flex items-center gap-1 text-badge px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-600 hover:bg-amber-500/20"
             disabled={state.installing === uri}
             onClick={() => state.onInstall(uri, name, true)}
             title={t('zenskill.market.riskFindings', { risk: confirm.risk ?? '—', n: confirm.findings })}
@@ -155,7 +155,7 @@ function MarketSkillCard({ skill, state }: { skill: MarketSkill; state: CardStat
           </button>
         ) : (
           <button
-            className="shrink-0 flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-accent/10 text-accent hover:bg-accent/20"
+            className="shrink-0 flex items-center gap-1 text-badge px-1.5 py-0.5 rounded bg-accent/10 text-accent hover:bg-accent/20"
             disabled={state.installing === uri}
             onClick={() => state.onInstall(uri, name)}
           >
@@ -165,7 +165,7 @@ function MarketSkillCard({ skill, state }: { skill: MarketSkill; state: CardStat
         )}
       </div>
       {rules && rules.length > 0 && (
-        <div className="text-[10px] text-red-500/80">{t('zenskill.market.rules', { rules: rules.join(', ') })}</div>
+        <div className="text-badge text-red-500/80">{t('zenskill.market.rules', { rules: rules.join(', ') })}</div>
       )}
     </div>
   )
@@ -226,7 +226,7 @@ function SourcesSection({ workspaceId }: { workspaceId?: string }) {
         title={t('zenskill.market.sources')}
         right={
           <button
-            className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-accent/10 text-accent hover:bg-accent/20"
+            className="inline-flex items-center gap-1 text-badge px-1.5 py-0.5 rounded bg-accent/10 text-accent hover:bg-accent/20"
             onClick={() => setFormOpen((v) => !v)}
           >
             {formOpen ? <ChevronDown className="h-3 w-3" /> : <Plus className="h-3 w-3" />}
@@ -244,12 +244,12 @@ function SourcesSection({ workspaceId }: { workspaceId?: string }) {
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-1.5 min-w-0">
                   <span className="truncate font-medium">{s.name || s.id}</span>
-                  {s.type && <span className="text-[9px] px-1 py-px rounded bg-muted text-muted-foreground shrink-0">{s.type}</span>}
+                  {s.type && <span className="text-micro px-1 py-px rounded bg-muted text-muted-foreground shrink-0">{s.type}</span>}
                 </div>
-                {s.url && <div className="truncate text-[10px] text-muted-foreground">{s.url}</div>}
+                {s.url && <div className="truncate text-badge text-muted-foreground">{s.url}</div>}
               </div>
-              {s.enabled === false && <span className="text-[9px] px-1 py-px rounded bg-muted text-muted-foreground shrink-0">off</span>}
-              <span className={`shrink-0 inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded ${healthy ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'}`}>
+              {s.enabled === false && <span className="text-micro px-1 py-px rounded bg-muted text-muted-foreground shrink-0">off</span>}
+              <span className={`shrink-0 inline-flex items-center gap-1 text-badge px-1.5 py-0.5 rounded ${healthy ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'}`}>
                 {healthy ? <ShieldCheck className="h-3 w-3" /> : <ShieldAlert className="h-3 w-3" />}
                 {healthy ? t('zenskill.market.sources.healthy') : t('zenskill.market.sources.unhealthy')}
               </span>
@@ -573,12 +573,12 @@ export function SkillMarketPage({ workspaceId }: { workspaceId?: string; initial
                       <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />
                     )}
                     <span className="truncate font-medium">{lastReport.name}</span>
-                    <span className={`text-[10px] px-1.5 py-0.5 rounded shrink-0 ${riskBadgeClass(lastReport.risk)}`}>
+                    <span className={`text-badge px-1.5 py-0.5 rounded shrink-0 ${riskBadgeClass(lastReport.risk)}`}>
                       {lastReport.risk ?? '—'} · {lastReport.findings ?? 0}
                     </span>
                   </div>
                   {lastReport.rules && lastReport.rules.length > 0 && (
-                    <div className="text-[10px] text-red-500/80">{t('zenskill.market.rules', { rules: lastReport.rules.join(', ') })}</div>
+                    <div className="text-badge text-red-500/80">{t('zenskill.market.rules', { rules: lastReport.rules.join(', ') })}</div>
                   )}
                 </div>
               )}
@@ -591,7 +591,7 @@ export function SkillMarketPage({ workspaceId }: { workspaceId?: string; initial
                 title={`${t('zenskill.market.mySkills')} (${scan.data?.total ?? scanDetails.length})`}
                 right={
                   <button
-                    className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded text-muted-foreground hover:bg-muted disabled:opacity-50"
+                    className="flex items-center gap-1 text-badge px-1.5 py-0.5 rounded text-muted-foreground hover:bg-muted disabled:opacity-50"
                     disabled={exporting}
                     onClick={() => void exportManifest()}
                   >
@@ -611,14 +611,14 @@ export function SkillMarketPage({ workspaceId }: { workspaceId?: string; initial
                       <div className="flex-1 min-w-0">
                         <span className="truncate font-medium">{skillId}</span>
                       </div>
-                      <span className={`shrink-0 text-[10px] px-1.5 py-0.5 rounded ${riskBadgeClass(d.risk_level)}`}>{d.risk_level ?? 'safe'}</span>
+                      <span className={`shrink-0 text-badge px-1.5 py-0.5 rounded ${riskBadgeClass(d.risk_level)}`}>{d.risk_level ?? 'safe'}</span>
                       {d.usability && (
-                        <span className={`shrink-0 text-[10px] px-1.5 py-0.5 rounded ${riskBadgeClass(d.usability)}`}>{d.usability}</span>
+                        <span className={`shrink-0 text-badge px-1.5 py-0.5 rounded ${riskBadgeClass(d.usability)}`}>{d.usability}</span>
                       )}
                       {deployArming === skillId ? (
                         <>
                           <select
-                            className="shrink-0 text-[10px] px-1 py-0.5 rounded border border-border/50 bg-background"
+                            className="shrink-0 text-badge px-1 py-0.5 rounded border border-border/50 bg-background"
                             value={deployPlatform}
                             onChange={(e) => setDeployPlatform(e.target.value)}
                           >
@@ -627,7 +627,7 @@ export function SkillMarketPage({ workspaceId }: { workspaceId?: string; initial
                             ))}
                           </select>
                           <button
-                            className="shrink-0 flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-accent/15 text-accent hover:bg-accent/25"
+                            className="shrink-0 flex items-center gap-1 text-badge px-1.5 py-0.5 rounded bg-accent/15 text-accent hover:bg-accent/25"
                             disabled={deploying === skillId}
                             onClick={() => void deploy(skillId)}
                           >
@@ -637,7 +637,7 @@ export function SkillMarketPage({ workspaceId }: { workspaceId?: string; initial
                         </>
                       ) : (
                         <button
-                          className="shrink-0 flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded text-muted-foreground hover:bg-muted"
+                          className="shrink-0 flex items-center gap-1 text-badge px-1.5 py-0.5 rounded text-muted-foreground hover:bg-muted"
                           onClick={() => setDeployArming(skillId)}
                         >
                           <Upload className="h-3 w-3" /> {t('zenskill.market.deploy')}
@@ -645,7 +645,7 @@ export function SkillMarketPage({ workspaceId }: { workspaceId?: string; initial
                       )}
                       {arming === skillId ? (
                         <button
-                          className="shrink-0 flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-red-500/10 text-red-500 hover:bg-red-500/20"
+                          className="shrink-0 flex items-center gap-1 text-badge px-1.5 py-0.5 rounded bg-red-500/10 text-red-500 hover:bg-red-500/20"
                           disabled={removing === skillId}
                           onClick={() => void uninstall(skillId)}
                         >
@@ -654,7 +654,7 @@ export function SkillMarketPage({ workspaceId }: { workspaceId?: string; initial
                         </button>
                       ) : (
                         <button
-                          className="shrink-0 flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded text-muted-foreground hover:bg-muted"
+                          className="shrink-0 flex items-center gap-1 text-badge px-1.5 py-0.5 rounded text-muted-foreground hover:bg-muted"
                           onClick={() => setArming(skillId)}
                         >
                           <Trash2 className="h-3 w-3" /> {t('zenskill.market.uninstall')}

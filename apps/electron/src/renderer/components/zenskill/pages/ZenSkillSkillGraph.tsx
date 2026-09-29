@@ -699,7 +699,7 @@ export function ZenSkillSkillGraph({ workspaceId }: ZenSkillPageProps) {
                         className="w-full flex items-center justify-between gap-2 px-3 py-1.5 text-xs hover:bg-accent/10 text-left"
                       >
                         <span className="truncate">{n.name}</span>
-                        <span className="shrink-0 text-[10px] px-1 py-0.5 rounded bg-accent/10 text-accent">
+                        <span className="shrink-0 text-badge px-1 py-0.5 rounded bg-accent/10 text-accent">
                           {domainLabel(n.category)}
                         </span>
                       </button>
@@ -713,7 +713,7 @@ export function ZenSkillSkillGraph({ workspaceId }: ZenSkillPageProps) {
               <button
                 type="button"
                 onClick={() => setShowArchived((v) => !v)}
-                className={`${showArchived ? 'bg-accent text-accent-foreground border-accent' : ''} px-2 py-1 rounded border border-border/30 text-[11px] text-muted-foreground hover:border-accent shrink-0`}
+                className={`${showArchived ? 'bg-accent text-accent-foreground border-accent' : ''} px-2 py-1 rounded border border-border/30 text-caption text-muted-foreground hover:border-accent shrink-0`}
               >
                 {showArchived
                   ? t('zenskill.skillGraph.hideArchived', 'Hide archived ({{n}})', { n: archivedCount })
@@ -781,23 +781,23 @@ export function ZenSkillSkillGraph({ workspaceId }: ZenSkillPageProps) {
           <div className={`${ZS.card} flex flex-wrap items-center gap-x-4 gap-y-1.5`}>
             {hasTier && (
               <>
-                <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
+                <span className="flex items-center gap-1 text-caption text-muted-foreground">
                   <span className="h-3 w-3 rounded-full border-[2.5px]" style={{ borderColor: GOLD }} />
                   {tierLabel('T0')}
                 </span>
-                <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
+                <span className="flex items-center gap-1 text-caption text-muted-foreground">
                   <span className="h-3 w-3 rounded-full border-2" style={{ borderColor: EXPERT_STROKE }} />
                   {tierLabel('T1')}
                 </span>
-                <span className="flex items-center gap-1 text-[11px] text-muted-foreground opacity-70">
+                <span className="flex items-center gap-1 text-caption text-muted-foreground opacity-70">
                   <span className="h-3 w-3 rounded-full border-2 border-border" />
                   {tierLabel('T2')}
                 </span>
-                <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
+                <span className="flex items-center gap-1 text-caption text-muted-foreground">
                   <span className="h-3 w-3 rounded-full border-[1.5px] border-dashed" style={{ borderColor: DIM_STROKE }} />
                   {stateLabel('dormant')}
                 </span>
-                <span className="flex items-center gap-1 text-[11px] text-muted-foreground opacity-70">
+                <span className="flex items-center gap-1 text-caption text-muted-foreground opacity-70">
                   <span className="h-3 w-3 rounded-full border-2 border-dotted border-muted-foreground" />
                   {stateLabel('archived')}
                 </span>
@@ -805,7 +805,7 @@ export function ZenSkillSkillGraph({ workspaceId }: ZenSkillPageProps) {
               </>
             )}
             {Object.entries(RELATION_COLORS).map(([relation, color]) => (
-              <span key={relation} className="flex items-center gap-1 text-[11px] text-muted-foreground">
+              <span key={relation} className="flex items-center gap-1 text-caption text-muted-foreground">
                 <span className="h-2 w-2 rounded-full" style={{ backgroundColor: color }} />
                 <span className="capitalize">{relation}</span>
               </span>
@@ -831,37 +831,37 @@ export function ZenSkillSkillGraph({ workspaceId }: ZenSkillPageProps) {
             <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 mt-2 pt-2 border-t border-border/30 text-xs">
               <span>
                 <b className="text-base font-bold text-accent">{footerStats.masterCount}</b>
-                <span className="text-[11px] text-muted-foreground ml-1">MASTER</span>
+                <span className="text-caption text-muted-foreground ml-1">MASTER</span>
               </span>
               {footerStats.top && footerStats.top.usage > 0 && (
                 <span>
                   <b className="text-base font-bold text-accent">{truncate(footerStats.top.name, 12)}</b>
-                  <span className="text-[11px] text-muted-foreground ml-1">
+                  <span className="text-caption text-muted-foreground ml-1">
                     {t('zenskill.skillGraph.topUsage', 'Top usage')} ({footerStats.top.usage})
                   </span>
                 </span>
               )}
               <span>
                 <b className="text-base font-bold text-accent">{footerStats.domainCount}</b>
-                <span className="text-[11px] text-muted-foreground ml-1">
+                <span className="text-caption text-muted-foreground ml-1">
                   {t('zenskill.skillGraph.domains', 'Domains')}
                 </span>
               </span>
               {footerStats.strongCount > 0 && (
                 <span>
                   <b className="text-base font-bold text-accent">{footerStats.strongCount}</b>
-                  <span className="text-[11px] text-muted-foreground ml-1">
+                  <span className="text-caption text-muted-foreground ml-1">
                     {t('zenskill.skillGraph.strongEdges', 'Strong links')}
                   </span>
                 </span>
               )}
               {growth.data?.source && (
-                <span className="ml-auto text-[11px] text-muted-foreground bg-accent/10 rounded-full px-2.5 py-0.5">
+                <span className="ml-auto text-caption text-muted-foreground bg-accent/10 rounded-full px-2.5 py-0.5">
                   {t('zenskill.skillGraph.dataSource', 'Source {{source}}', { source: growth.data.source })}
                 </span>
               )}
               {footerStats.uncategorizedPct !== null && (
-                <span className="text-[11px] text-muted-foreground bg-accent/10 rounded-full px-2.5 py-0.5">
+                <span className="text-caption text-muted-foreground bg-accent/10 rounded-full px-2.5 py-0.5">
                   {t('zenskill.skillGraph.uncategorized', '{{pct}}% skills pending classification', {
                     pct: footerStats.uncategorizedPct,
                   })}
@@ -1111,19 +1111,19 @@ export function ZenSkillSkillGraph({ workspaceId }: ZenSkillPageProps) {
                 }}
               >
                 <div className="text-xs font-semibold">{tooltip.title}</div>
-                {tooltip.meta && <div className="text-[11px] text-muted-foreground">{tooltip.meta}</div>}
+                {tooltip.meta && <div className="text-caption text-muted-foreground">{tooltip.meta}</div>}
                 {tooltip.five && (
                   <div className="mt-1 space-y-0.5">
                     {FIVE_DIMS.filter((d) => typeof tooltip.five?.[d] === 'number').map((dim) => (
                       <div key={dim} className="flex items-center gap-1">
-                        <span className="text-[9px] text-muted-foreground w-12">{dimLabels[dim] ?? dim}</span>
+                        <span className="text-micro text-muted-foreground w-12">{dimLabels[dim] ?? dim}</span>
                         <div className="flex-1 h-1 rounded bg-muted/60 overflow-hidden">
                           <div
                             className="h-full bg-accent/70"
                             style={{ width: `${Math.min(100, tooltip.five![dim] ?? 0)}%` }}
                           />
                         </div>
-                        <span className="text-[9px] text-muted-foreground w-5 text-right">
+                        <span className="text-micro text-muted-foreground w-5 text-right">
                           {Math.round(tooltip.five![dim] ?? 0)}
                         </span>
                       </div>
@@ -1148,7 +1148,7 @@ export function ZenSkillSkillGraph({ workspaceId }: ZenSkillPageProps) {
                 <div className="text-base font-semibold pr-7 break-all">{selectedNode.name}</div>
                 <div className="flex flex-wrap items-center gap-1 mt-1 text-xs">
                   <span
-                    className="px-1.5 py-0.5 rounded text-[11px] font-medium"
+                    className="px-1.5 py-0.5 rounded text-caption font-medium"
                     style={{
                       color:
                         selectedNode.level === 'MASTER'
@@ -1168,7 +1168,7 @@ export function ZenSkillSkillGraph({ workspaceId }: ZenSkillPageProps) {
                     {levelLabel(selectedNode.level)}
                   </span>
                   <span
-                    className="px-1.5 py-0.5 rounded text-[11px]"
+                    className="px-1.5 py-0.5 rounded text-caption"
                     style={{
                       color: DOMAIN_COLORS[selectedNode.category] ?? '#BDC3C7',
                       backgroundColor: `${DOMAIN_COLORS[selectedNode.category] ?? '#BDC3C7'}22`,
@@ -1186,7 +1186,7 @@ export function ZenSkillSkillGraph({ workspaceId }: ZenSkillPageProps) {
                   <div className="flex flex-wrap items-center gap-1 mt-1.5 text-xs">
                     {selectedNode.tier && (
                       <span
-                        className="px-1.5 py-0.5 rounded text-[11px]"
+                        className="px-1.5 py-0.5 rounded text-caption"
                         style={{
                           color: selectedNode.tier === 'T0' ? GOLD : DIM_STROKE,
                           backgroundColor: `${selectedNode.tier === 'T0' ? GOLD : DIM_STROKE}22`,
@@ -1197,7 +1197,7 @@ export function ZenSkillSkillGraph({ workspaceId }: ZenSkillPageProps) {
                     )}
                     {selectedNode.state && (
                       <span
-                        className="px-1.5 py-0.5 rounded text-[11px]"
+                        className="px-1.5 py-0.5 rounded text-caption"
                         style={{
                           color:
                             selectedNode.state === 'dormant' ? '#d97706' : selectedNode.state === 'active' ? '#16a34a' : '#9ca3af',
@@ -1210,7 +1210,7 @@ export function ZenSkillSkillGraph({ workspaceId }: ZenSkillPageProps) {
                       </span>
                     )}
                     {typeof selectedNode.quality === 'number' && selectedNode.quality >= 0 && (
-                      <span className="px-1.5 py-0.5 rounded text-[11px] bg-accent/10 text-accent">
+                      <span className="px-1.5 py-0.5 rounded text-caption bg-accent/10 text-accent">
                         quality {selectedNode.quality}
                       </span>
                     )}
@@ -1231,7 +1231,7 @@ export function ZenSkillSkillGraph({ workspaceId }: ZenSkillPageProps) {
                 {/* 五维能力雷达（有使用数据时展示，对齐磁盘版） */}
                 {Object.keys(radarScores).length > 0 && (
                   <div className="mt-3">
-                    <div className="text-[11px] text-muted-foreground tracking-wide mb-1.5">
+                    <div className="text-caption text-muted-foreground tracking-wide mb-1.5">
                       {t('zenskill.skillGraph.fiveDims', 'Five Dimensions')}
                     </div>
                     <div className="flex justify-center">
@@ -1250,7 +1250,7 @@ export function ZenSkillSkillGraph({ workspaceId }: ZenSkillPageProps) {
                       .filter((n): n is GNode => !!n)
                     return (
                       <div className="mt-3">
-                        <div className="text-[11px] text-muted-foreground tracking-wide mb-1.5">
+                        <div className="text-caption text-muted-foreground tracking-wide mb-1.5">
                           {t('zenskill.skillGraph.strongLinks', 'Related skills ({{n}})', { n: links.length })}
                         </div>
                         <div className="flex flex-wrap gap-1">

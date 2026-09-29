@@ -11,12 +11,13 @@ export const ZS = {
   card: 'rounded border border-border/30 p-2',
   input: 'text-xs bg-muted/40 rounded px-2 py-1.5 outline-none focus:ring-1 focus:ring-accent/40 disabled:opacity-50',
 
-  // 字号
+  // 字号 (text-nano/micro/badge/caption 由 apps/webui/src/index.css @theme 扩展, M3)
   title: 'text-sm font-medium',
-  subtitle: 'text-[11px] text-muted-foreground',
+  subtitle: 'text-caption text-muted-foreground',
   body: 'text-xs',
-  badge: 'text-[10px]',
-  micro: 'text-[9px]',
+  badge: 'text-badge',
+  micro: 'text-micro',
+  tiny: 'text-nano',
 
   // 布局
   hoverRow: 'text-xs rounded px-2 py-1 hover:bg-muted/50 group',

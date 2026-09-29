@@ -1,4 +1,13 @@
 @import "tailwindcss" source(none);
+
+/* ZS 字号语义扩展 (zenskill/brand): text-nano/micro/badge/caption — 供 zenskill 页面替代 arbitrary value (M3)
+   对齐 vendor/.../components/zenskill/panels/tokens.ts 的 ZS 字号段 */
+@theme {
+  --text-nano: 8px;
+  --text-micro: 9px;
+  --text-badge: 10px;
+  --text-caption: 11px;
+}
 @plugin "@tailwindcss/typography";
 
 /* Scan the Electron renderer components (shared via @ alias) */
