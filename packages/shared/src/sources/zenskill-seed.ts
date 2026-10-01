@@ -17,7 +17,14 @@
  * installs under read-only locations don't try to create .venv inside the app.
  */
 
-import { existsSync, readdirSync } from 'fs';
+import {
+  copyFileSync,
+  existsSync,
+  readFileSync,
+  readdirSync,
+  renameSync,
+  writeFileSync,
+} from 'fs';
 import { join } from 'path';
 import { randomUUID } from 'crypto';
 import { CONFIG_DIR } from '../config/paths.ts';
@@ -139,6 +146,36 @@ function buildZenskillConfig(): FolderSourceConfig | null {
  * pre-migration install location), the command/args/env are rewritten with
  * the current install's paths instead of being skipped forever.
  */
+/**
+ * One-time legacy slug migration (issue: seed guard misjudged `zenskill-4`
+ * as an existing source and skipped seeding).
+ *
+ * Renames the legacy source directory to the canonical slug and syncs the
+ * `slug` field inside its config.json, keeping a `.bak` copy of the original
+ * config. The directory rename is atomic within the same volume; on any
+ * failure the original directory is left untouched (returns false) so the
+ * caller's skip-path keeps the workspace working as before.
+ */
+function migrateLegacySourceSlug(sourcesDir: string, legacySlug: string): boolean {
+  try {
+    const from = join(sourcesDir, legacySlug);
+    const to = join(sourcesDir, ZENSKILL_SOURCE_SLUG);
+    if (existsSync(to)) return false; // 权威源已存在——不覆盖，交由外层跳过逻辑
+
+    const cfgPath = join(from, 'config.json');
+    // 原文备份 → 同步 slug 字段 → 目录改名（同盘原子操作）
+    copyFileSync(cfgPath, `${cfgPath}.${legacySlug}.bak`);
+    const cfg = JSON.parse(readFileSync(cfgPath, 'utf-8'));
+    cfg.slug = ZENSKILL_SOURCE_SLUG;
+    writeFileSync(cfgPath, JSON.stringify(cfg, null, 2));
+    renameSync(from, to);
+    return true;
+  } catch (e) {
+    debug(`[zenskill-seed] legacy slug migration failed: ${String(e)}`);
+    return false;
+  }
+}
+
 export function seedZenskillSource(workspaceRootPath: string): void {
   try {
     if (existsSync(getZenskillSeedDismissMarker())) return;
@@ -151,10 +188,49 @@ export function seedZenskillSource(workspaceRootPath: string): void {
         ? readdirSync(sourcesDir).filter((s) => s.startsWith('zenskill'))
         : [];
       if (existing.length > 0) {
-        debug(
-          `[zenskill-seed] Workspace already has ZenSkill source(s): ${existing.join(', ')}`
-        );
-        return;
+        // Legacy slug migration (pre-unification installs carry `zenskill-4`):
+        // the startsWith guard used to treat it as "already has a source" and
+        // skip seeding, leaving ZenSkill pages with `Source not found`.
+        // Migrate the legacy directory to the canonical slug instead.
+        if (!existing.includes(ZENSKILL_SOURCE_SLUG)) {
+          const legacy = existing.find((s) => /^zenskill(-\d+)?$/.test(s));
+          if (legacy && migrateLegacySourceSlug(sourcesDir, legacy)) {
+            debug(
+              `[zenskill-seed] Migrated legacy source ${legacy} → ${ZENSKILL_SOURCE_SLUG}`
+            );
+            // 迁移即完成：修复迁移过来的旧安装路径（等价于下方 config-exists
+            // 分支的 self-heal），然后返回——不得落到全新播种覆盖用户 config
+            const migrated = loadSourceConfig(workspaceRootPath, ZENSKILL_SOURCE_SLUG);
+            const engineDir = resolveEngineDir();
+            const uvPath = resolveUvPath();
+            if (migrated && engineDir && uvPath) {
+              if (
+                applyZenskillSelfHeal(migrated, {
+                  uvPath,
+                  engineDir,
+                  venvDir: join(CONFIG_DIR, 'zenskill', 'venv'),
+                  configDir: CONFIG_DIR,
+                })
+              ) {
+                saveSourceConfig(workspaceRootPath, migrated);
+                debug(
+                  `[zenskill-seed] Self-healed stale engine paths after legacy migration`
+                );
+              }
+            }
+            return;
+          } else {
+            debug(
+              `[zenskill-seed] Workspace already has ZenSkill source(s): ${existing.join(', ')}（迁移未执行/失败，保持原状）`
+            );
+            return; // 迁移失败（含目录被占用）不阻塞启动
+          }
+        } else {
+          debug(
+            `[zenskill-seed] Workspace already has ZenSkill source(s): ${existing.join(', ')}`
+          );
+          return;
+        }
       }
 
       const fresh = buildZenskillConfig();
