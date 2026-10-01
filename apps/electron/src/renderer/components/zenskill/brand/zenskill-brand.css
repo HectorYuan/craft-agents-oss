@@ -4,8 +4,8 @@
   契约: 哈希见同目录 contract.json，由 ZenSkill scripts/sync-design-tokens.sh 校验 ==== */
 
 .zs-scope {
-  --accent: oklch(0.546 0.162 264.4);
-  --accent-rgb: 44, 74, 144;
+  --accent: oklch(0.5629 0.1933 256.2);
+  --accent-rgb: 1, 79, 159;
   --success: oklch(0.72 0.19 142);
   --success-rgb: 57, 135, 50;
   --destructive: oklch(0.63 0.24 25);
@@ -15,8 +15,8 @@
 }
 
 .dark .zs-scope {
-  --accent: oklch(0.82 0.12 264.4);
-  --accent-rgb: 110, 137, 179;
+  --accent: oklch(0.82 0.12 256.2);
+  --accent-rgb: 101, 139, 179;
   --success: oklch(0.80 0.16 142);
   --success-rgb: 88, 151, 81;
   --destructive: oklch(0.75 0.18 25);
