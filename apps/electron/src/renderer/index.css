@@ -1523,3 +1523,11 @@ html.dark[data-scenic] .fullscreen-overlay-background {
 .progression-celebrate {
   animation: progression-celebrate 3.2s ease-in-out infinite;
 }
+
+/* ZS 字号语义扩展 (zenskill/brand): text-nano/micro/badge/caption — 供 zenskill 面板替代 arbitrary value（对齐 apps/webui M3 块） */
+@theme {
+  --text-nano: 8px;
+  --text-micro: 9px;
+  --text-badge: 10px;
+  --text-caption: 11px;
+}

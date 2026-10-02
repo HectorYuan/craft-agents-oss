@@ -391,7 +391,7 @@ export function ActionsPanel({
               const proj = (projects ?? []).find((p) => p.id === a.project_id)
               return proj ? (
                 <span
-                  className="text-[10px] px-1 py-px rounded shrink-0 bg-accent/10 text-accent"
+                  className="text-badge px-1 py-px rounded shrink-0 bg-accent/10 text-accent"
                   title={proj.name}
                 >
                   {proj.name}
@@ -403,7 +403,7 @@ export function ActionsPanel({
               if (!sess) return null
               return (
                 <button
-                  className={`text-[10px] px-1 py-px rounded shrink-0 tabular-nums transition-colors ${
+                  className={`text-badge px-1 py-px rounded shrink-0 tabular-nums transition-colors ${
                     sess.running > 0
                       ? 'bg-green-500/15 text-green-500 hover:bg-green-500/25'
                       : 'bg-muted/60 text-muted-foreground/70 hover:bg-muted'

@@ -353,7 +353,7 @@ export function CalendarPanel({
                           )
                         })}
                         {cellEvents.length > 2 && (
-                          <div className="text-[8px] leading-[11px] text-muted-foreground px-0.5">+{cellEvents.length - 2}</div>
+                          <div className="text-nano leading-[11px] text-muted-foreground px-0.5">+{cellEvents.length - 2}</div>
                         )}
                       </div>
                     </button>
