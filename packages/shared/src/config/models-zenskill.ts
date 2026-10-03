@@ -16,6 +16,18 @@ export const ZENSKILL_MODEL_REGISTRY: ModelDefinition[] = [
   // ----------------------------------------
   // DeepSeek Models (via ZenSkill agent-engine)
   // ----------------------------------------
+  // ----------------------------------------
+  // Xiaomi MiMo Models (via ZenSkill agent-engine, OpenAI-compatible endpoint)
+  // ----------------------------------------
+  {
+    id: 'mimo/mimo-v2.6-flash',
+    name: 'MiMo V2.6 Flash',
+    shortName: 'V2.6 Flash',
+    description: 'Xiaomi MiMo flash reasoning model via ZenSkill agent-engine',
+    provider: 'zenskill',
+    contextWindow: 1_000_000,
+    supportsThinking: true,
+  },
   {
     id: 'deepseek/deepseek-v4-flash',
     name: 'DeepSeek V4 Flash',
