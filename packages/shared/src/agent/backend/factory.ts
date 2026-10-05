@@ -175,6 +175,11 @@ export function createBackendFromResolvedContext(args: {
     authType: context.authType || getDefaultAuthType(context.provider),
     model: context.resolvedModel,
     connectionSlug: context.connection?.slug,
+    // 连接级自定义网关透传（对齐 buildBackendConfig 路径）：缺失时 spawn 判
+    // isGateway=false，非 registry 模型（自定义端点）被 DEFAULT_MODEL 顶掉，
+    // 且 ZENSKILL_AGENT_BASE_URL/_API 不注入引擎 —— Linux E2E 实测断点
+    baseUrl: context.connection?.baseUrl || undefined,
+    customEndpointApi: context.connection?.customEndpoint?.api || undefined,
     runtime,
   };
 

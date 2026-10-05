@@ -959,7 +959,10 @@ export class ZenskillAgent extends BaseAgent {
       case 'message_end': {
         const nested = event.message as Record<string, unknown> | undefined;
         const stopReason = (nested?.stopReason ?? nested?.stop_reason ?? event.stopReason) as string | undefined;
-        const errorMessage = (nested?.errorMessage ?? event.error_message) as string | undefined;
+        // 引擎 rpc.py 把 errorMessage 放事件顶层（camelCase）；snake 形式兜底
+        // 兼容旧引擎 —— 只取 event.error_message 会永远落空成 'Agent error'
+        const errorMessage = (nested?.errorMessage ?? nested?.error_message
+          ?? event.errorMessage ?? event.error_message) as string | undefined;
 
         if (stopReason === 'error' || stopReason === 'aborted') {
           const parsed = parseAgentError(errorMessage || 'Agent error');
