@@ -81,17 +81,36 @@ function postResolutionFixups(dir: string): void {
   try {
     const config = JSON.parse(readFileSync(configPath, 'utf8')) as Record<string, unknown>;
 
+    let changed = false;
+
+    // setupDeferred 语义 = 用户在 onboarding 点了「稍后设置」且尚未配置任何
+    // 连接 —— 此时必须**持久保留**（isFullyConfigured 的 || !!setupDeferred
+    // 分支依赖它跨启动生效），否则用户每次冷启动都被 onboarding 拦一次
+    // （Bug-2 的机制之一）。仅在连接已配置后才收敛清除。
     if (config?.setupDeferred === true) {
       const connections = config?.llmConnections;
-      if (!(Array.isArray(connections) && connections.length > 0)) {
+      if (Array.isArray(connections) && connections.length > 0) {
         delete config.setupDeferred;
-        debug(`[paths] cleared stale setupDeferred in ${configPath}`);
+        changed = true;
+        debug(`[paths] cleared satisfied setupDeferred in ${configPath}`);
+      }
+    }
+
+    // 清洗 llmConnections 脏项：无 slug 的对象不是合法连接（误用 API 的
+    // 产物），会让 getLlmConnection/getDefaultLlmConnection 静默失配
+    if (Array.isArray(config?.llmConnections)) {
+      const conns = config.llmConnections as Array<Record<string, unknown>>;
+      const before = conns.length;
+      const cleaned = conns.filter(c => c && typeof c === 'object' && typeof c.slug === 'string' && c.slug);
+      if (cleaned.length !== before) {
+        config.llmConnections = cleaned;
+        changed = true;
+        debug(`[paths] dropped ${before - cleaned.length} malformed llmConnection entries`);
       }
     }
 
     const prefixes = [`~/${PRE_MERGE_DESKTOP_DIR_NAME}`, `~/${LEGACY_DIR_NAME}`];
     const workspaces = config?.workspaces as Array<{ rootPath?: string }> | undefined;
-    let changed = false;
     for (const ws of workspaces ?? []) {
       if (typeof ws.rootPath !== 'string') continue;
       // 分隔符无关匹配（Windows 混合分隔符的历史 rootPath 也要命中）

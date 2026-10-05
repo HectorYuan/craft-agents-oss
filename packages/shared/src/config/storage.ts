@@ -2715,6 +2715,12 @@ export function getLlmConnection(slug: string): LlmConnection | null {
  * @returns true if added, false if slug already exists
  */
 export function addLlmConnection(connection: LlmConnection): boolean {
+  // slug 是全部读取/解析路径（getLlmConnection / getDefaultLlmConnection /
+  // resolveSessionConnection）的主键 —— 无 slug 的脏对象一旦入盘会让默认连接
+  // 解析静默落空（Linux E2E 实测误用教训），入口处直接拒绝
+  if (!connection?.slug) {
+    return false;
+  }
   const config = loadStoredConfig();
   if (!config) return false;
 
@@ -3028,7 +3034,16 @@ export function setNetworkProxySettings(settings: NetworkProxySettings): void {
 // ============================================
 
 export function isSetupDeferred(): boolean {
-  return loadStoredConfig()?.setupDeferred === true;
+  // loadStoredConfig() 对 workspaces 做强校验、异常即 null —— 独立的
+  // setupDeferred 布尔会被一并吞掉，「稍后设置」失效后每次冷启动重弹
+  // onboarding（Linux E2E 实测）。布尔字段容错直读，不依赖完整 config 结构。
+  try {
+    if (!existsSync(CONFIG_FILE)) return false;
+    const raw = readJsonFileSync<{ setupDeferred?: boolean }>(CONFIG_FILE);
+    return raw?.setupDeferred === true;
+  } catch {
+    return false;
+  }
 }
 
 export function setSetupDeferred(deferred: boolean): void {

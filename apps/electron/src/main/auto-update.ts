@@ -20,7 +20,6 @@ import { platform } from 'os'
 import * as path from 'path'
 import * as fs from 'fs'
 import { mainLog, autoUpdateLog } from './logger'
-import { getAppVersion } from '@craft-agent/shared/version'
 import {
   getDismissedUpdateVersion,
   clearDismissedUpdateVersion,
@@ -56,7 +55,10 @@ function getUpdateCacheDir(): string {
 // Module state — keeps track of update info for IPC queries
 let updateInfo: UpdateInfo = {
   available: false,
-  currentVersion: getAppVersion(),
+  // 应用真实版本必须取 app.getVersion()（apps/electron/package.json）；
+  // getAppVersion() 是 @craft-agent/shared 库自身版本（2.9.1），与发行版本
+  // 无关 —— 设置页「关于」曾因此显示 2.9.1（Linux E2E 实测）
+  currentVersion: app.getVersion(),
   latestVersion: null,
   downloadState: 'idle',
   downloadProgress: 0,
