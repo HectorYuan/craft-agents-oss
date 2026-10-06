@@ -190,7 +190,10 @@ function OverviewStats({ dashboard, growth }: { dashboard: DashboardData | null;
   const { t } = useTranslation()
   const health = dashboard?.health
   const network = dashboard?.network
-  const nodeCount = network?.node_count ?? growth.length
+  // 协同图与技能网络是两个口径（关系图 vs 种子节点图）：节点数取两源 max，
+  // 否则 growth 有技能而 collaboration_dashboard.network.node_count=0 时
+  // 概览显示 0 节点、下方技能网络却画出节点 —— 自相矛盾（Linux E2E 实测）
+  const nodeCount = Math.max(network?.node_count ?? 0, growth.length)
   const edgeCount = network?.edge_count ?? 0
   const avgScore = network?.avg_composite ?? (growth.length > 0
     ? Math.round(growth.reduce((s, sk) => s + compositeScore(sk.scores), 0) / growth.length)
