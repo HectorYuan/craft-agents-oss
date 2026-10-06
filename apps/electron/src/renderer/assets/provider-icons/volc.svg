@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="32px" height="32px" viewBox="0 0 32 32" version="1.1" xmlns="http://www.w3.org/2000/svg">
+    <title>Volcengine</title>
+    <g id="Volcengine" stroke="none" fill="none" fill-rule="evenodd">
+        <g id="Group" transform="translate(2, 4)" fill="#000000">
+            <path d="M14,0 L27,24 L1,24 L14,0 Z M14,6.47213595 L6.23606798,21 L21.763932,21 L14,6.47213595 Z" id="Volcano" fill-rule="nonzero"></path>
+            <rect id="Base" x="4" y="26" width="20" height="2" rx="1"></rect>
+        </g>
+    </g>
+</svg>
