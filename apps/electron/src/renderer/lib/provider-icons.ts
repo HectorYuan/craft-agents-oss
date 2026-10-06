@@ -9,16 +9,21 @@ import awsIcon from '@/assets/provider-icons/aws.svg'
 import azureIcon from '@/assets/provider-icons/azure.svg'
 import claudeIcon from '@/assets/provider-icons/claude.svg'
 import copilotIcon from '@/assets/provider-icons/copilot.svg'
+import glmIcon from '@/assets/provider-icons/glm.svg'
 import googleIcon from '@/assets/provider-icons/google.svg'
 import huggingfaceIcon from '@/assets/provider-icons/huggingface.svg'
 import kimiIcon from '@/assets/provider-icons/kimi.svg'
 import minimaxIcon from '@/assets/provider-icons/minimax.svg'
+import mimoIcon from '@/assets/provider-icons/mimo.svg'
 import mistralIcon from '@/assets/provider-icons/mistral.svg'
+import moonshotIcon from '@/assets/provider-icons/moonshot.svg'
 import ollamaIcon from '@/assets/provider-icons/ollama.svg'
 import openaiIcon from '@/assets/provider-icons/openai.svg'
 import openrouterIcon from '@/assets/provider-icons/openrouter.svg'
 import piIcon from '@/assets/provider-icons/pi.svg'
+import qwenIcon from '@/assets/provider-icons/qwen.svg'
 import vercelIcon from '@/assets/provider-icons/vercel.svg'
+import volcIcon from '@/assets/provider-icons/volc.svg'
 
 import type { LlmProviderType } from '@craft-agent/shared/config/llm-connections'
 
@@ -30,16 +35,21 @@ export const providerIcons = {
   aws: awsIcon,
   azure: azureIcon,
   copilot: copilotIcon,
+  glm: glmIcon,
   google: googleIcon,
   huggingface: huggingfaceIcon,
   kimi: kimiIcon,
   minimax: minimaxIcon,
+  mimo: mimoIcon,
   mistral: mistralIcon,
+  moonshot: moonshotIcon,
   ollama: ollamaIcon,
   openai: openaiIcon,
   openrouter: openrouterIcon,
   pi: piIcon,
+  qwen: qwenIcon,
   vercel: vercelIcon,
+  volc: volcIcon,
 } as const
 
 export type ProviderIconKey = keyof typeof providerIcons
@@ -51,13 +61,19 @@ const providerDisplayNames: Record<string, string> = {
   openai_compat: 'OpenAI',
   copilot: 'GitHub Copilot',
   deepseek: 'DeepSeek',
+  glm: '智谱 GLM',
   kimi: 'Kimi',
   minimax: 'Minimax',
+  mimo: 'Mimo',
+  moonshot: 'Kimi (Moonshot)',
+  'moonshot-cn': 'Kimi (Moonshot CN)',
   ollama: 'Ollama',
   openrouter: 'OpenRouter',
   pi: 'ZenSkill Backend',
   pi_compat: 'ZenSkill Backend',
+  qwen: '通义千问',
   vercel: 'Vercel',
+  volc: '火山方舟（豆包）',
 }
 
 /** Get a human-readable provider name from provider type and optional base URL */

@@ -157,6 +157,42 @@ export const BUILT_IN_CONNECTION_TEMPLATES: Record<string, {
     authType: 'api_key',
     // piAuthProvider set dynamically from setup.piAuthProvider
   },
+  // ─── 2026-10-06 国产补全（pi_compat + api_key_with_endpoint）───
+  mimo: {
+    name: 'Mimo',
+    providerType: 'pi_compat',
+    authType: 'api_key_with_endpoint',
+  },
+  qwen: {
+    name: '通义千问',
+    providerType: 'pi_compat',
+    authType: 'api_key_with_endpoint',
+  },
+  volc: {
+    name: '火山方舟（豆包）',
+    providerType: 'pi_compat',
+    authType: 'api_key_with_endpoint',
+  },
+  gemini: {
+    name: 'Gemini',
+    providerType: 'pi_compat',
+    authType: 'api_key_with_endpoint',
+  },
+  'moonshot-cn': {
+    name: 'Kimi (Moonshot)',
+    providerType: 'pi_compat',
+    authType: 'api_key_with_endpoint',
+  },
+  minimax: {
+    name: 'MiniMax',
+    providerType: 'pi_compat',
+    authType: 'api_key_with_endpoint',
+  },
+  glm: {
+    name: '智谱 GLM',
+    providerType: 'pi_compat',
+    authType: 'api_key_with_endpoint',
+  },
 }
 
 // ============================================================

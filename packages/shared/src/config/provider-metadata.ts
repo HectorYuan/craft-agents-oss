@@ -64,6 +64,41 @@ const PROVIDER_METADATA: Record<string, ProviderMetadata> = {
     name: 'DeepSeek',
     dashboardUrl: 'https://platform.deepseek.com',
   },
+  // ─── 2026-10-06 国产补全 ───
+  mimo: {
+    name: 'Mimo',
+    dashboardUrl: 'https://api.xiaomimimo.com/dashboard',
+  },
+  qwen: {
+    name: '通义千问',
+    dashboardUrl: 'https://dashscope.console.aliyun.com',
+  },
+  volc: {
+    name: '火山方舟（豆包）',
+    statusPageUrl: 'https://status.volcengine.com',
+    dashboardUrl: 'https://console.volcengine.com/ark',
+  },
+  'moonshot-cn': {
+    name: 'Kimi (Moonshot)',
+    dashboardUrl: 'https://platform.moonshot.cn',
+  },
+  'moonshotai-cn': {
+    name: 'Kimi (Moonshot CN)',
+    dashboardUrl: 'https://platform.moonshot.cn',
+  },
+  minimax: {
+    name: 'MiniMax',
+    statusPageUrl: 'https://status.minimaxi.com',
+    dashboardUrl: 'https://api.minimaxi.com/user-center/basic-information',
+  },
+  'minimax-cn': {
+    name: 'MiniMax CN',
+    dashboardUrl: 'https://api.minimax.cn/user-center/basic-information',
+  },
+  glm: {
+    name: '智谱 GLM',
+    dashboardUrl: 'https://open.bigmodel.cn/console',
+  },
   xai: {
     name: 'xAI',
     dashboardUrl: 'https://console.x.ai',
