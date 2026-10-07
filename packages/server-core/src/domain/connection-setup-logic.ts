@@ -24,7 +24,8 @@ import {
 export function parseTestConnectionError(msg: string): string {
   const lower = msg.toLowerCase()
 
-  if (lower.includes('econnrefused') || lower.includes('enotfound') || lower.includes('fetch failed')) {
+  if (lower.includes('econnrefused') || lower.includes('enotfound') || lower.includes('fetch failed')
+      || lower.includes('cannot connect to host') || lower.includes('connect call failed')) {
     return 'Cannot connect to API server. Check the URL and ensure the server is running.'
   }
   if (lower.includes('no api key found for')) {

@@ -178,6 +178,14 @@ describe('parseTestConnectionError', () => {
     expect(result).toBe('Invalid API key')
   })
 
+  it('maps aiohttp cannot-connect to connection message', () => {
+    // E2E T5-1 实证：坏端点返回 aiohttp 文案，原 pattern 不命中→泄露原始错误
+    const result = parseTestConnectionError(
+      "No response from provider: mini_completion failed: Cannot connect to host 127.0.0.1:9 ssl:default [Connect call failed ('127.0.0.1', 9)]"
+    )
+    expect(result).toContain('Cannot connect to API server')
+  })
+
   it('maps 404+model to model message', () => {
     const result = parseTestConnectionError('404: model not found')
     expect(result).toContain('Model not found')
