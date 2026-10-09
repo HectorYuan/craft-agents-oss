@@ -90,6 +90,7 @@ import { setSearchPlatform, setImageProcessor } from '@craft-agent/server-core/s
 import { createApplicationMenu } from './menu'
 import { WindowManager } from './window-manager'
 import { loadWindowState, saveWindowState } from './window-state'
+import { createTray, destroyTray, isTrayActive } from './tray'
 import { CONFIG_DIR, getWorkspaces, getWorkspaceByNameOrId, loadStoredConfig, addWorkspace, saveConfig } from '@craft-agent/shared/config'
 import { getDefaultWorkspacesDir } from '@craft-agent/shared/workspaces'
 import { initializeDocs } from '@craft-agent/shared/docs'
@@ -465,6 +466,22 @@ app.whenReady().then(async () => {
 
     // Create the application menu (needs windowManager for New Window action)
     createApplicationMenu(windowManager)
+
+    // Windows 状态栏驻留（2026-10-07 用户反馈）：托盘常驻 + 单击唤起 +
+    // 关窗驻留（window-all-closed 配套）。复用 activate 的复建语义。
+    if (process.platform === 'win32' && !process.env.CRAFT_HEADLESS) {
+      createTray(windowManager, () => {
+        const workspaces = getWorkspaces()
+        if (workspaces.length === 0 || !windowManager) return
+        const savedState = loadWindowState()
+        const wsId = savedState?.lastFocusedWorkspaceId || workspaces[0].id
+        if (workspaces.some(ws => ws.id === wsId)) {
+          windowManager.createWindow({ workspaceId: wsId })
+        } else {
+          windowManager.createWindow({ workspaceId: workspaces[0].id })
+        }
+      })
+    }
 
     // When CRAFT_SERVER_URL is set, this Electron instance is a thin client —
     // it only creates windows whose preload connects to the remote server.
@@ -1197,6 +1214,11 @@ app.on('window-all-closed', () => {
   if (process.env.CRAFT_HEADLESS) return  // headless server stays alive
   // On macOS, apps typically stay active until explicitly quit
   if (process.platform !== 'darwin') {
+    // Windows（2026-10-07）：托盘驻留——关窗不退出，后台常驻（托盘菜单退出）。
+    // macOS 本就驻留；其余平台维持关窗即退。
+    if (process.platform === 'win32' && isTrayActive()) {
+      return
+    }
     app.quit()
   }
 })

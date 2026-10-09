@@ -100,58 +100,14 @@ try {
     Pop-Location
 }
 
-# 3. Download Bun binary for Windows
-# Use baseline build - works on all x64 CPUs (no AVX2 requirement)
-Write-Host "Downloading Bun $BunVersion for Windows x64 (baseline)..."
-New-Item -ItemType Directory -Force -Path "$ElectronDir\vendor\bun" | Out-Null
-
-$BunDownload = "bun-windows-x64-baseline"
-$TempDir = Join-Path $env:TEMP "bun-download-$(Get-Random)"
-New-Item -ItemType Directory -Force -Path $TempDir | Out-Null
-
-try {
-    # Download binary and checksums
-    $ZipUrl = "https://github.com/oven-sh/bun/releases/download/$BunVersion/$BunDownload.zip"
-    $ChecksumUrl = "https://github.com/oven-sh/bun/releases/download/$BunVersion/SHASUMS256.txt"
-
-    Write-Host "Downloading from $ZipUrl..."
-    Invoke-WebRequest -Uri $ZipUrl -OutFile "$TempDir\$BunDownload.zip"
-    Invoke-WebRequest -Uri $ChecksumUrl -OutFile "$TempDir\SHASUMS256.txt"
-
-    # Verify checksum
-    Write-Host "Verifying checksum..."
-    $ExpectedHash = (Get-Content "$TempDir\SHASUMS256.txt" | Select-String "$BunDownload.zip").ToString().Split(" ")[0]
-    $ActualHash = (Get-FileHash "$TempDir\$BunDownload.zip" -Algorithm SHA256).Hash.ToLower()
-
-    if ($ActualHash -ne $ExpectedHash) {
-        throw "Checksum verification failed! Expected: $ExpectedHash, Got: $ActualHash"
-    }
-    Write-Host "Checksum verified successfully" -ForegroundColor Green
-
-    # Extract and install using robocopy for better file handle management
-    Write-Host "Extracting Bun..."
-    Expand-Archive -Path "$TempDir\$BunDownload.zip" -DestinationPath $TempDir -Force
-
-    # Unblock in temp first (before copy)
-    Unblock-File -Path "$TempDir\$BunDownload\bun.exe" -ErrorAction SilentlyContinue
-
-    # Use robocopy with retries - handles transient file locks better than Copy-Item
-    # /R:5 = 5 retries, /W:3 = 3 second wait between retries, /NP = no progress, /NFL /NDL = quiet
-    Write-Host "Copying bun.exe with robocopy..."
-    $robocopyResult = robocopy "$TempDir\$BunDownload" "$ElectronDir\vendor\bun" "bun.exe" /R:5 /W:3 /NP /NFL /NDL
-    # Robocopy exit codes: 0-7 are success, 8+ are errors
-    if ($LASTEXITCODE -ge 8) {
-        throw "robocopy failed with exit code $LASTEXITCODE"
-    }
-
-    $BunExePath = "$ElectronDir\vendor\bun\bun.exe"
-    Write-Host "Bun extracted to: $BunExePath" -ForegroundColor Green
-
-    # Give Windows time to release any file handles from the copy
-    Write-Host "Waiting for file handles to release..."
-    Start-Sleep -Seconds 3
-} finally {
-    Remove-Item -Recurse -Force $TempDir -ErrorAction SilentlyContinue
+# 3. Stage native binaries (uv / bun / ripgrep) - shared with release.yml.
+# Single source of truth: stage-win-binaries.ps1. Old inline download here had
+# no retry / no mirror fallback and died on flaky connections; the shared
+# script adds github -> npmmirror fallback, x3 retries and exact-line SHASUMS
+# parse (robust against multi-row SHASUMS files).
+& "$PSScriptRoot\stage-win-binaries.ps1"
+if ($LASTEXITCODE -ne 0) {
+    throw "stage-win-binaries.ps1 failed with exit code $LASTEXITCODE"
 }
 
 # 4. Copy SDK from root node_modules (monorepo hoisting).
@@ -212,17 +168,14 @@ if ($BinSize -lt 50000000) {
 }
 Write-Host "  Native binary: $([math]::Round($BinSize / 1MB)) MB"
 
-# 5. Copy ripgrep (sourced from @vscode/ripgrep since 0.2.113).
-$RgSource = "$RootDir\node_modules\@vscode\ripgrep"
-if (-not (Test-Path $RgSource) -or -not (Test-Path "$RgSource\bin\rg.exe")) {
-    Write-Host "ERROR: @vscode/ripgrep not installed or postinstall did not run" -ForegroundColor Red
+# 5. ripgrep already staged by stage-win-binaries.ps1 (section 3) - verify.
+$RgDest = "$ElectronDir\node_modules\@vscode\ripgrep\bin\rg.exe"
+if (-not (Test-Path $RgDest)) {
+    Write-Host "ERROR: staged rg.exe missing at $RgDest" -ForegroundColor Red
     Write-Host "Run 'bun install' and 'bun pm trust @vscode/ripgrep'."
     exit 1
 }
-Write-Host "Copying @vscode/ripgrep..."
-New-Item -ItemType Directory -Force -Path "$ElectronDir\node_modules\@vscode" | Out-Null
-Remove-Item -Recurse -Force "$ElectronDir\node_modules\@vscode\ripgrep" -ErrorAction SilentlyContinue
-Copy-Item -Recurse -Force $RgSource "$ElectronDir\node_modules\@vscode\"
+Write-Host "ripgrep staged: $RgDest"
 
 # 6. Copy network interceptor sources (for Pi subprocess; Claude no longer
 #    uses --preload — Phase 2 will move that to SDK hooks or a local proxy).
@@ -270,20 +223,15 @@ if (Test-Path $ZenSkillDir) {
     }
     Write-Host "  ZenSkill copied to resources/zenskill"
 
-    # 5.6. Copy uv binary to packaging resources (G1 必需件)
+    # 5.6. uv already staged by stage-win-binaries.ps1 (section 3) - verify.
+    # Was a soft WARNING-if-missing before (let installers ship WITHOUT uv):
+    # hard fail now - desktop chat spawn ENOENT depends on this file.
     $UvSource = "$ElectronDir\resources\bin\win32-x64\uv.exe"
     if (-not (Test-Path $UvSource)) {
-        # 尝试从系统 PATH 获取
-        $UvBin = Get-Command uv -ErrorAction SilentlyContinue
-        if ($UvBin) {
-            Copy-Item $UvBin.Source "$UvSource" -Force
-            Write-Host "  uv binary copied to resources/bin/win32-x64/"
-        } else {
-            Write-Host "  WARNING: uv not found, skipping" -ForegroundColor Yellow
-        }
-    } else {
-        Write-Host "  uv binary already in resources/bin/win32-x64/"
+        Write-Host "ERROR: staged uv.exe missing at $UvSource" -ForegroundColor Red
+        exit 1
     }
+    Write-Host "  uv binary staged: resources/bin/win32-x64/"
 
     # 5.7. Bundle CPython 3.12 (S5: offline first-run)
     $PyTarget = "$ZenSkillTarget\python"
