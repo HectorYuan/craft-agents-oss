@@ -16,17 +16,8 @@ import type { ModelDefinition } from './models.ts';
 
 export const ZENSKILL_MODEL_REGISTRY: ModelDefinition[] = [
   // ----------------------------------------
-  // Xiaomi MiMo Models (via ZenSkill agent-engine, OpenAI-compatible endpoint)
+  // DeepSeek Models (via ZenSkill agent-engine)
   // ----------------------------------------
-  {
-    id: 'mimo/mimo-v2.6-flash',
-    name: 'MiMo V2.6 Flash',
-    shortName: 'V2.6 Flash',
-    description: 'Xiaomi MiMo flash reasoning model via ZenSkill agent-engine',
-    provider: 'zenskill',
-    contextWindow: 1_000_000,
-    supportsThinking: true,
-  },
   {
     id: 'deepseek/deepseek-v4-flash',
     name: 'DeepSeek V4 Flash',
@@ -63,7 +54,19 @@ export const ZENSKILL_MODEL_REGISTRY: ModelDefinition[] = [
     supportsThinking: true,
   },
   // ----------------------------------------
-  // Qwen Models (via ZenSkill agent-engine, OpenAI-compatible)
+  // Xiaomi MiMo Models (OpenAI-compatible endpoint)
+  // ----------------------------------------
+  {
+    id: 'mimo/mimo-v2.6-flash',
+    name: 'MiMo V2.6 Flash',
+    shortName: 'V2.6 Flash',
+    description: 'Xiaomi MiMo flash reasoning model via ZenSkill agent-engine',
+    provider: 'zenskill',
+    contextWindow: 1_000_000,
+    supportsThinking: true,
+  },
+  // ----------------------------------------
+  // Qwen Models (OpenAI-compatible)
   // ----------------------------------------
   {
     id: 'qwen/qwen3-max',
@@ -126,32 +129,40 @@ export const ZENSKILL_MODEL_REGISTRY: ModelDefinition[] = [
     contextWindow: 32000,
   },
   // ----------------------------------------
-  // Gemini Models (via OpenAI-compatible proxy)
+  // Zhipu GLM Models
   // ----------------------------------------
   {
-    id: 'gemini/gemini-2.5-pro',
-    name: 'Gemini 2.5 Pro',
-    shortName: 'Gemini 2.5 Pro',
-    description: 'Flagship Gemini via ZenSkill agent-engine',
+    id: 'glm/glm-4-plus',
+    name: 'GLM-4 Plus',
+    shortName: 'GLM-4 Plus',
+    description: 'Flagship Zhipu GLM via ZenSkill agent-engine',
     provider: 'zenskill',
-    contextWindow: 1_000_000,
+    contextWindow: 128000,
     supportsThinking: true,
   },
   {
-    id: 'gemini/gemini-2.5-flash',
-    name: 'Gemini 2.5 Flash',
-    shortName: 'Gemini 2.5 Flash',
-    description: 'Fast Gemini via ZenSkill agent-engine',
+    id: 'glm/glm-4-air',
+    name: 'GLM-4 Air',
+    shortName: 'GLM-4 Air',
+    description: 'Balanced GLM via ZenSkill agent-engine',
     provider: 'zenskill',
-    contextWindow: 1_000_000,
+    contextWindow: 128000,
   },
   {
-    id: 'gemini/gemini-2.0-flash',
-    name: 'Gemini 2.0 Flash',
-    shortName: 'Gemini 2.0',
-    description: 'Stable Gemini via ZenSkill agent-engine',
+    id: 'glm/glm-4-flash',
+    name: 'GLM-4 Flash',
+    shortName: 'GLM-4 Flash',
+    description: 'Free GLM via ZenSkill agent-engine',
     provider: 'zenskill',
-    contextWindow: 1_000_000,
+    contextWindow: 128000,
+  },
+  {
+    id: 'glm/glm-4v-plus',
+    name: 'GLM-4V Plus (Vision)',
+    shortName: 'GLM-4V',
+    description: 'Vision-capable GLM via ZenSkill agent-engine',
+    provider: 'zenskill',
+    contextWindow: 128000,
   },
   // ----------------------------------------
   // Moonshot / Kimi Models
@@ -200,40 +211,32 @@ export const ZENSKILL_MODEL_REGISTRY: ModelDefinition[] = [
     contextWindow: 1_000_000,
   },
   // ----------------------------------------
-  // Zhipu GLM Models
+  // Gemini Models (via OpenAI-compatible proxy)
   // ----------------------------------------
   {
-    id: 'glm/glm-4-plus',
-    name: 'GLM-4 Plus',
-    shortName: 'GLM-4 Plus',
-    description: 'Flagship Zhipu GLM via ZenSkill agent-engine',
+    id: 'gemini/gemini-2.5-pro',
+    name: 'Gemini 2.5 Pro',
+    shortName: 'Gemini 2.5 Pro',
+    description: 'Flagship Gemini via ZenSkill agent-engine',
     provider: 'zenskill',
-    contextWindow: 128000,
+    contextWindow: 1_000_000,
     supportsThinking: true,
   },
   {
-    id: 'glm/glm-4-air',
-    name: 'GLM-4 Air',
-    shortName: 'GLM-4 Air',
-    description: 'Balanced GLM via ZenSkill agent-engine',
+    id: 'gemini/gemini-2.5-flash',
+    name: 'Gemini 2.5 Flash',
+    shortName: 'Gemini 2.5 Flash',
+    description: 'Fast Gemini via ZenSkill agent-engine',
     provider: 'zenskill',
-    contextWindow: 128000,
+    contextWindow: 1_000_000,
   },
   {
-    id: 'glm/glm-4-flash',
-    name: 'GLM-4 Flash',
-    shortName: 'GLM-4 Flash',
-    description: 'Free GLM via ZenSkill agent-engine',
+    id: 'gemini/gemini-2.0-flash',
+    name: 'Gemini 2.0 Flash',
+    shortName: 'Gemini 2.0',
+    description: 'Stable Gemini via ZenSkill agent-engine',
     provider: 'zenskill',
-    contextWindow: 128000,
-  },
-  {
-    id: 'glm/glm-4v-plus',
-    name: 'GLM-4V Plus (Vision)',
-    shortName: 'GLM-4V',
-    description: 'Vision-capable GLM via ZenSkill agent-engine',
-    provider: 'zenskill',
-    contextWindow: 128000,
+    contextWindow: 1_000_000,
   },
   // ----------------------------------------
   // Ollama Models (local)

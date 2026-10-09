@@ -90,6 +90,7 @@ export function normalizeDeprecatedModelId(modelId: string): string {
 // ============================================
 
 import { ZENSKILL_MODEL_REGISTRY } from './models-zenskill.ts';
+export { ZENSKILL_MODEL_REGISTRY };
 
 /**
  * Provider identifier for AI backends.

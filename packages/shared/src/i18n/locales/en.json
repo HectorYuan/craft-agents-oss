@@ -2122,5 +2122,7 @@
   "zenskill.zenloop.runDone": "Cycle executed",
   "zenskill.zenloop.status": "Status Overview",
   "zenskill.zenloop.subtitle": "Automated reflection cycles",
-  "zenskill.zenloop.title": "ZenLoop"
+  "zenskill.zenloop.title": "ZenLoop",
+  "onboarding.providerSelect.domesticModels": "Domestic Models (Recommended)",
+  "onboarding.providerSelect.domesticModelsDesc": "DeepSeek, MiMo, Qwen, Doubao, Kimi, GLM, MiniMax — configure with an API key."
 }

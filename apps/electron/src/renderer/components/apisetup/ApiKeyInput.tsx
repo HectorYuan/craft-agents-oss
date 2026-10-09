@@ -97,6 +97,18 @@ interface Preset {
 // Anthropic provider presets - for Claude Code backend
 // Also used by Pi API key flow (same providers, routed via Pi SDK)
 const ANTHROPIC_PRESETS: Preset[] = [
+  // ── 国内厂商（推荐，前置）──
+  { key: 'deepseek', label: 'DeepSeek', url: 'https://api.deepseek.com', placeholder: 'sk-...' },
+  { key: 'mimo', label: 'MiMo', url: 'https://api.xiaomimimo.com/v1', placeholder: 'sk-...' },
+  { key: 'qwen', label: '通义千问 (DashScope)', url: 'https://dashscope.aliyuncs.com/compatible-mode/v1', placeholder: 'sk-...' },
+  { key: 'volc', label: '火山方舟 (豆包)', url: 'https://ark.cn-beijing.volces.com/api/v3', placeholder: 'sk-...' },
+  { key: 'zai', label: 'z.ai (GLM)', url: 'https://api.z.ai/api/coding/paas/v4', placeholder: 'Paste your key here...' },
+  { key: 'kimi-coding', label: 'Kimi (Coding)', url: 'https://api.kimi.com/coding', placeholder: 'sk-kimi-...' },
+  { key: 'moonshotai', label: 'Moonshot AI', url: 'https://api.moonshot.ai/v1', placeholder: 'sk-...', piOnly: true },
+  { key: 'moonshotai-cn', label: 'Moonshot AI (CN)', url: 'https://api.moonshot.cn/v1', placeholder: 'sk-...', piOnly: true },
+  { key: 'minimax-global', label: 'Minimax Global', url: 'https://api.minimax.io/anthropic', placeholder: 'Paste your key here...', piOnly: true },
+  { key: 'minimax-cn', label: 'Minimax CN', url: 'https://api.minimaxi.com/anthropic', placeholder: 'Paste your key here...', piOnly: true },
+  // ── 海外/其他 ──
   { key: 'anthropic', label: 'Anthropic', url: 'https://api.anthropic.com', placeholder: 'sk-ant-...' },
   { key: 'openai', label: 'OpenAI', url: 'https://api.openai.com/v1', placeholder: 'sk-...' },
   { key: 'openai-eu', label: 'OpenAI EU', url: 'https://eu.api.openai.com/v1', placeholder: 'sk-...' },
@@ -107,16 +119,9 @@ const ANTHROPIC_PRESETS: Preset[] = [
   { key: 'amazon-bedrock', label: 'Amazon Bedrock', url: 'https://bedrock-runtime.us-east-1.amazonaws.com', placeholder: 'AKIA...' },
   { key: 'groq', label: 'Groq', url: 'https://api.groq.com/openai/v1', placeholder: 'gsk_...' },
   { key: 'mistral', label: 'Mistral', url: 'https://api.mistral.ai/v1', placeholder: 'Paste your key here...' },
-  { key: 'deepseek', label: 'DeepSeek', url: 'https://api.deepseek.com', placeholder: 'sk-...' },
   { key: 'xai', label: 'xAI (Grok)', url: 'https://api.x.ai/v1', placeholder: 'xai-...' },
   { key: 'cerebras', label: 'Cerebras', url: 'https://api.cerebras.ai/v1', placeholder: 'csk-...' },
-  { key: 'zai', label: 'z.ai (GLM)', url: 'https://api.z.ai/api/coding/paas/v4', placeholder: 'Paste your key here...' },
   { key: 'huggingface', label: 'Hugging Face', url: 'https://router.huggingface.co/v1', placeholder: 'hf_...' },
-  { key: 'minimax-global', label: 'Minimax Global', url: 'https://api.minimax.io/anthropic', placeholder: 'Paste your key here...', piOnly: true },
-  { key: 'minimax-cn', label: 'Minimax CN', url: 'https://api.minimaxi.com/anthropic', placeholder: 'Paste your key here...', piOnly: true },
-  { key: 'kimi-coding', label: 'Kimi (Coding)', url: 'https://api.kimi.com/coding', placeholder: 'sk-kimi-...' },
-  { key: 'moonshotai', label: 'Moonshot AI', url: 'https://api.moonshot.ai/v1', placeholder: 'sk-...', piOnly: true },
-  { key: 'moonshotai-cn', label: 'Moonshot AI (CN)', url: 'https://api.moonshot.cn/v1', placeholder: 'sk-...', piOnly: true },
   { key: 'vercel-ai-gateway', label: 'Vercel AI Gateway', url: 'https://ai-gateway.vercel.sh', placeholder: 'Paste your key here...' },
   { key: 'manifest', label: 'Manifest', url: 'https://app.manifest.build/v1', placeholder: 'mnfst_...' },
   { key: 'custom', label: 'Custom', url: '', placeholder: 'Paste your key here...' },
@@ -155,6 +160,10 @@ const COMPAT_KIMI_DEFAULTS = 'k3, kimi-for-coding, kimi-for-coding-highspeed'
 // DeepSeek preset suggestion — bare ID the ZenSkill engine resolves via its
 // PREDEFINED_MODELS catalog (users can still edit it).
 const DEEPSEEK_DEFAULT_MODEL = 'deepseek-v4-flash'
+// 国内厂商默认模型（与引擎 _REGISTRY default_model 对齐）
+const MIMO_DEFAULT_MODEL = 'mimo-v2.6-flash'
+const QWEN_DEFAULT_MODEL = 'qwen-plus'
+const VOLC_DEFAULT_MODEL = 'doubao-pro-32k'
 
 function getPresetsForProvider(providerType: 'anthropic' | 'openai' | 'pi' | 'google' | 'pi_api_key'): Preset[] {
   if (providerType === 'pi_api_key') return ANTHROPIC_PRESETS
@@ -303,6 +312,12 @@ export function ApiKeyInput({
       setConnectionDefaultModel('auto')
     } else if (preset.key === 'deepseek') {
       setConnectionDefaultModel(DEEPSEEK_DEFAULT_MODEL)
+    } else if (preset.key === 'mimo') {
+      setConnectionDefaultModel(MIMO_DEFAULT_MODEL)
+    } else if (preset.key === 'qwen') {
+      setConnectionDefaultModel(QWEN_DEFAULT_MODEL)
+    } else if (preset.key === 'volc') {
+      setConnectionDefaultModel(VOLC_DEFAULT_MODEL)
     } else if (preset.key === 'custom' || OPENAI_COMPAT_CUSTOM_URL_PRESETS.has(preset.key)) {
       setConnectionDefaultModel(providerType === 'openai' ? COMPAT_OPENAI_DEFAULTS : COMPAT_ANTHROPIC_DEFAULTS)
     } else {
@@ -334,6 +349,12 @@ export function ApiKeyInput({
         setConnectionDefaultModel(COMPAT_KIMI_DEFAULTS)
       } else if (presetKey === 'deepseek') {
         setConnectionDefaultModel(DEEPSEEK_DEFAULT_MODEL)
+      } else if (presetKey === 'mimo') {
+        setConnectionDefaultModel(MIMO_DEFAULT_MODEL)
+      } else if (presetKey === 'qwen') {
+        setConnectionDefaultModel(QWEN_DEFAULT_MODEL)
+      } else if (presetKey === 'volc') {
+        setConnectionDefaultModel(VOLC_DEFAULT_MODEL)
       } else if (presetKey === 'openrouter' || presetKey === 'vercel-ai-gateway' || presetKey === 'custom') {
         setConnectionDefaultModel(providerType === 'openai' ? COMPAT_OPENAI_DEFAULTS : COMPAT_ANTHROPIC_DEFAULTS)
       }

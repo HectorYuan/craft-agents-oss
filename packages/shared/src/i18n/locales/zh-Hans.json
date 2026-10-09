@@ -2122,5 +2122,7 @@
   "zenskill.zenloop.runDone": "循环执行完成",
   "zenskill.zenloop.status": "状态概览",
   "zenskill.zenloop.subtitle": "自动化反思循环",
-  "zenskill.zenloop.title": "ZenLoop"
+  "zenskill.zenloop.title": "ZenLoop",
+  "onboarding.providerSelect.domesticModels": "国内模型（推荐）",
+  "onboarding.providerSelect.domesticModelsDesc": "DeepSeek、MiMo、通义千问、豆包、Kimi、GLM、MiniMax — API Key 一步配置。"
 }

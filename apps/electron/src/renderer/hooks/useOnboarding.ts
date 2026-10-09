@@ -635,9 +635,7 @@ export function useOnboarding({
   // Map ProviderChoice → ApiSetupMethod and navigate to the right step
   const handleSelectProvider = useCallback((choice: ProviderChoice) => {
     const CHOICE_TO_METHOD: Record<Exclude<ProviderChoice, 'local'>, ApiSetupMethod> = {
-      claude: 'claude_oauth',
-      chatgpt: 'pi_chatgpt_oauth',
-      copilot: 'pi_copilot_oauth',
+      domestic: 'pi_api_key',
       api_key: 'pi_api_key',
     }
 
@@ -651,17 +649,14 @@ export function useOnboarding({
     setState(s => ({
       ...s,
       apiSetupMethod: method,
+      // 国内卡默认 DeepSeek 预设；其他提供商默认 Anthropic（订阅 OAuth 选项
+      // 已随 Pi backend 移除——分发版引擎只支持 zenskill 直连/API Key）
+      presetHint: choice === 'domestic' ? 'deepseek' : 'anthropic',
       step: 'credentials',
       credentialStatus: 'idle',
       errorMessage: undefined,
     }))
-
-    // OAuth methods start immediately
-    if (choice === 'claude' || choice === 'chatgpt' || choice === 'copilot') {
-      // Defer to next tick so state is updated before handleStartOAuth reads it
-      setTimeout(() => handleStartOAuth(method), 0)
-    }
-  }, [handleStartOAuth])
+  }, [])
 
   // Submit authorization code (second step of OAuth flow)
   const handleSubmitAuthCode = useCallback(async (code: string) => {

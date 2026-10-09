@@ -52,7 +52,7 @@ import { useWorkspaceIcon } from '@/hooks/useWorkspaceIcon'
 import { OnboardingWizard, type ApiSetupMethod } from '@/components/onboarding'
 import { RenameDialog } from '@/components/ui/rename-dialog'
 import { useAppShellContext } from '@/context/AppShellContext'
-import { getModelShortName, type ModelDefinition } from '@config/models'
+import { getModelShortName, ZENSKILL_MODEL_REGISTRY, type ModelDefinition } from '@config/models'
 import { getModelsForProviderType, resolveMidStreamBehavior, type CustomEndpointApi, type MidStreamBehavior } from '@config/llm-connections'
 import { toast } from 'sonner'
 
@@ -76,9 +76,16 @@ function getModelOptionsForConnection(
 ): Array<{ value: string; label: string; description: string; descriptionKey?: string }> {
   if (!connection) return []
 
-  // If connection has explicit models, use those
+  // If connection has explicit models, use those — and for gateway-style
+  // connections (pi_compat/zenskill + baseUrl：单端点 + carrier key，引擎按
+  // model 前缀路由注册表 provider)，追加目录中缺失的模型（含国产厂商），
+  // 让用户无需重建连接即可切换（E2E 实证：网关 key + registry 模型全可解析）。
+  const isGatewayStyle =
+    (connection.providerType === 'pi_compat' || connection.providerType === 'zenskill') &&
+    !!connection.baseUrl
+
   if (connection.models && connection.models.length > 0) {
-    return connection.models.map((m) => {
+    const explicit = connection.models.map((m) => {
       if (typeof m === 'string') {
         return { value: m, label: getModelShortName(m), description: '' }
       }
@@ -86,6 +93,12 @@ function getModelOptionsForConnection(
       const def = m as ModelDefinition
       return { value: def.id, label: def.name, description: def.description, descriptionKey: def.descriptionKey }
     })
+    if (!isGatewayStyle) return explicit
+    const seen = new Set(explicit.map((o) => o.value.replace(/^[a-z0-9-]+\//, '')))
+    const missing = ZENSKILL_MODEL_REGISTRY.filter(
+      (m) => !seen.has(m.id.replace(/^[a-z0-9-]+\//, '')),
+    ).map((m) => ({ value: m.id, label: m.name, description: m.description }))
+    return [...explicit, ...missing]
   }
 
   // Fall back to registry models for this provider type

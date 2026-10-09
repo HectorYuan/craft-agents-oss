@@ -27,6 +27,8 @@ export interface OnboardingState {
   apiSetupMethod: ApiSetupMethod | null
   isExistingUser: boolean
   errorMessage?: string
+  /** Preset hint for the credentials step ('deepseek' for domestic card, 'anthropic' for other providers) */
+  presetHint?: string
   gitBashStatus?: GitBashStatus
   isRecheckingGitBash?: boolean
   isCheckingGitBash?: boolean
@@ -170,7 +172,10 @@ export function OnboardingWizard({
             onBack={onBack}
             isWaitingForCode={isWaitingForCode}
             onSubmitAuthCode={onSubmitAuthCode}
-            editInitialValues={editInitialValues}
+            editInitialValues={
+              editInitialValues ??
+              (state.presetHint ? { activePreset: state.presetHint } : undefined)
+            }
             onCancelOAuth={onCancelOAuth}
             copilotDeviceCode={copilotDeviceCode}
           />
