@@ -52,8 +52,10 @@ There is no TypeScript fallback - if the bundled JSON file is missing, the app w
 
 ## Release Notes Authoring
 
-**Never create `{version}.md` files in feature commits.** Versioned files in `release-notes/` are owned by the release skill — it consolidates pending entries into `{version}.md` at release-prep time and resets the scratch file.
+**`release-notes/*.md` 是生成物，禁止手写。** 唯一真相源是主仓根 `CHANGELOG.md`，由主仓 `scripts/sync_release_notes.py` 生成落盘（只含 ≤ 当前版本的精确 semver 段；`.gitattributes` 钉 `eol=lf`）。
 
-For PRs that add user-visible behavior, append a bullet to the relevant section in [`release-notes/next.md`](release-notes/next.md). Match the tone and depth of recent versioned files (e.g. `0.9.0.md`): bold short title — detailed paragraph — issue reference — commit hash.
+- feature PR 的可见变更写主仓根 `CHANGELOG.md` 的 `## [Unreleased]` 段（发版时升级为版本段）；发版流程跑生成脚本落盘并随 vendor 提交。
+- **`next.md` 约定已退役**（上游 craft-agents 的草稿机制，随上游 sync 可能重新带入，跑脚本即清理）。
+- 门禁：CI `--check`（文件集合一致）+ 发版 G0 `--check --strict`（内容逐字节一致）。
 
-**Why this exists:** during v0.9.0 prep, two feature commits had pre-emptively written `0.8.14.md` and `0.8.15.md` (guessing patch releases), but the changes ended up rolled into a minor. Both files had to be deleted and folded back in — without that cleanup, they would have surfaced as ghost versions in the in-app release-notes panel.
+**Why:** 原机制（版本文件由 release skill 手工归档、PR 往 next.md 追加 bullet，源自 craft-agents 上游约定）导致 GUI What's New 展示的是上游英文更新日志、与 ZenSkill 版本线错位（未读红点比对上游 0.13.3）。2026-10-10 换源为根 CHANGELOG 生成；上游 sync 的更新日志整合规则见主仓 `docs/gui_upgrade_mechanism.md` §3.4 与 `DELETED_UPSTREAM_FILES.md`。

@@ -8,7 +8,7 @@
  */
 
 import { join } from 'path';
-import { existsSync, mkdirSync, writeFileSync, readdirSync, readFileSync } from 'fs';
+import { existsSync, mkdirSync, writeFileSync, readdirSync, readFileSync, unlinkSync } from 'fs';
 import { getBundledAssetsDir } from '../utils/paths.ts';
 import { debug } from '../utils/debug.ts';
 import { CONFIG_DIR } from '../config/paths.ts';
@@ -95,6 +95,19 @@ export function initializeReleaseNotes(): void {
   for (const [filename, content] of Object.entries(bundledNotes)) {
     const notePath = join(RELEASE_NOTES_DIR, filename);
     writeFileSync(notePath, content, 'utf-8');
+  }
+
+  // Prune: config dir mirrors the bundled set — stale version notes from
+  // earlier builds must not resurface via the assets-missing fallback path.
+  // (When assets are missing, bundledNotes IS the config dir → no-op.)
+  try {
+    for (const name of readdirSync(RELEASE_NOTES_DIR)) {
+      if (!(name in bundledNotes) && (isReleaseNoteFilename(name) || name === 'next.md')) {
+        unlinkSync(join(RELEASE_NOTES_DIR, name));
+      }
+    }
+  } catch (error) {
+    console.error('[release-notes] prune failed:', error);
   }
 
   debug(`[release-notes] Synced ${Object.keys(bundledNotes).length} release notes`);

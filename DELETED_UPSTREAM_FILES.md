@@ -91,3 +91,19 @@
 - postinstall 钩子（root package.json）：bun install 后自动删除 8 平台
   claude 二进制包——optionalDeps 声明仍在（packages/core 上游结构），
   磁盘残留即时清理
+
+## release-notes 数据文件（2026-10-10 What's New 换源）
+
+### 删除/接管的文件
+- `apps/electron/resources/release-notes/*.md`：上游 craft-agents 版本 release
+  notes（75 个 0.2.30–0.13.3）与 `next.md` 全部退役；目录内容改为主仓
+  `scripts/sync_release_notes.py` 从根 `CHANGELOG.md` 生成的 ZenSkill 版本文件
+  （只含 ≤ 当前版本的精确 semver 段；`.gitattributes` 钉 `eol=lf`）。
+
+### 上游 sync 冲突规则
+- 上游带入的**新** `X.Y.Z.md` / `next.md`：勿手工合并 —— 在主仓根跑
+  `python3 scripts/sync_release_notes.py` 清理并重新生成，同时把实际整合的上游
+  变更写入根 CHANGELOG 当期条目 `### 上游整合` 小节。
+- 上游**修改历史**版本文件（delete/modify 冲突）：照本清单语义复删，重跑生成。
+- **撞号 add/add**（ZenSkill 版本号与上游版本号相同）：保留 ours（生成物），重跑
+  `python3 scripts/sync_release_notes.py --check --strict` 校验。
