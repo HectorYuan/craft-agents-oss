@@ -18,15 +18,70 @@ $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..\..')).Path
 $ElectronDir = Join-Path $RepoRoot 'apps\electron'
 
 # --- 1. uv: engine runtime (agent-engine spawn) -----------------------------
-$uv = Get-Command uv -ErrorAction SilentlyContinue
-$uvBin = if ($uv) { $uv.Source } else { Join-Path $env:USERPROFILE '.local\bin\uv.exe' }
-if (-not (Test-Path $uvBin)) {
-    python -m pip install --quiet uv
-    $uv = Get-Command uv -ErrorAction SilentlyContinue
-    $uvBin = if ($uv) { $uv.Source } else { '' }
+# Acquisition chain (Release 37738210452 proof 2026-10-08: NETWORK SERVICE
+# has no PATH uv, cannot READ the interactive user's profile copy (ACL), and
+# cannot pip-install into the machine python (no write to C:\Python314);
+# release-assets.githubusercontent.com is unreachable from this host):
+#   PATH uv -> $USERPROFILE/.local/bin -> pip --user (pypi)
+#   -> pip --user (aliyun mirror) -> github zip download (last resort)
+function Find-Uv {
+    $c = Get-Command uv -ErrorAction SilentlyContinue
+    if ($c) { return $c.Source }
+    $p = Join-Path $env:USERPROFILE '.local\bin\uv.exe'
+    if (Test-Path $p) { return $p }
+    return $null
+}
+function Install-UvViaPip {
+    param([string]$Index)
+    $pipArgs = @('-m', 'pip', 'install', '--user', '--quiet', 'uv')
+    if ($Index) { $pipArgs += @('--index-url', $Index) }
+    foreach ($a in 1..2) {
+        try {
+            & python @pipArgs
+            if ($LASTEXITCODE -eq 0) {
+                # locate via site.USER_BASE (user Scripts is NOT on PATH snapshot)
+                $base = (& python -c "import site; print(site.USER_BASE)") 2>$null
+                if ($base) {
+                    $p = Join-Path $base.ToString().Trim() 'Scripts\uv.exe'
+                    if (Test-Path $p) { return $p }
+                }
+            }
+        } catch { }
+        Write-Host "pip attempt $a failed (index=$Index)"
+        Start-Sleep -Seconds 3
+    }
+    return $null
+}
+$uvBin = Find-Uv
+if (-not $uvBin) { $uvBin = Install-UvViaPip -Index 'https://pypi.org/simple' }
+if (-not $uvBin) { $uvBin = Install-UvViaPip -Index 'https://mirrors.aliyun.com/pypi/simple' }
+if (-not $uvBin) { $uvBin = Install-UvViaPip -Index 'https://pypi.tuna.tsinghua.edu.cn/simple' }
+if (-not $uvBin) {
+    # github direct zip (works only if release assets are reachable)
+    $UvVer = '0.12.5'
+    $TmpUv = Join-Path $env:TEMP "uv-stage-$(Get-Random)"
+    New-Item -ItemType Directory -Force -Path $TmpUv | Out-Null
+    try {
+        foreach ($a in 1..3) {
+            try {
+                Invoke-WebRequest -UseBasicParsing -Uri "https://github.com/astral-sh/uv/releases/download/$UvVer/uv-x86_64-pc-windows-msvc.zip" -OutFile "$TmpUv\uv.zip"
+                break
+            } catch {
+                if ($a -eq 3) { Write-Host "uv zip download failed: $($_.Exception.Message)" }
+                Start-Sleep -Seconds 5
+            }
+        }
+        if (Test-Path "$TmpUv\uv.zip") {
+            Expand-Archive -Path "$TmpUv\uv.zip" -DestinationPath $TmpUv -Force
+            $cand = Get-ChildItem -Path $TmpUv -Filter uv.exe -Recurse | Select-Object -First 1
+            if ($cand) { $uvBin = $cand.FullName }
+        }
+    } finally {
+        Remove-Item -Recurse -Force $TmpUv -ErrorAction SilentlyContinue
+    }
 }
 if (-not ($uvBin -and (Test-Path $uvBin))) {
-    Write-Host '::error::uv.exe not found (PATH / ~/.local/bin / pip fallback all failed)'
+    Write-Host '::error::uv.exe not found (PATH / user .local / pip --user pypi+mirror / github zip all failed)'
     exit 1
 }
 $uvDest = Join-Path $ElectronDir 'resources\bin\win32-x64\uv.exe'
