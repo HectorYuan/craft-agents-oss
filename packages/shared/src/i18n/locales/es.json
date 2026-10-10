@@ -667,6 +667,8 @@
   "onboarding.providerSelect.codexChatGPT": "Codex · ChatGPT Plus",
   "onboarding.providerSelect.codexChatGPTDesc": "Usa tu suscripción de ChatGPT para potenciar ZenSkill.",
   "onboarding.providerSelect.description": "¿Cómo te gustaría conectarte?",
+  "onboarding.providerSelect.domesticModels": "Modelos nacionales (recomendado)",
+  "onboarding.providerSelect.domesticModelsDesc": "DeepSeek, MiMo, Qwen, Doubao, Kimi, GLM, MiniMax — configúralos con una API key.",
   "onboarding.providerSelect.githubCopilot": "GitHub Copilot",
   "onboarding.providerSelect.githubCopilotDesc": "Usa tu suscripción de GitHub Copilot para potenciar ZenSkill.",
   "onboarding.providerSelect.localModel": "Modelo local",

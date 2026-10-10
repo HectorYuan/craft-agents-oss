@@ -667,6 +667,8 @@
   "onboarding.providerSelect.codexChatGPT": "Codex · ChatGPT Plus",
   "onboarding.providerSelect.codexChatGPTDesc": "Használd a ChatGPT előfizetésedet a ZenSkill működtetéséhez.",
   "onboarding.providerSelect.description": "Hogyan szeretnél csatlakozni?",
+  "onboarding.providerSelect.domesticModels": "Belföldi modellek (ajánlott)",
+  "onboarding.providerSelect.domesticModelsDesc": "DeepSeek, MiMo, Qwen, Doubao, Kimi, GLM, MiniMax — API-kulccsal konfigurálható.",
   "onboarding.providerSelect.githubCopilot": "GitHub Copilot",
   "onboarding.providerSelect.githubCopilotDesc": "Használd a GitHub Copilot előfizetésedet a ZenSkill működtetéséhez.",
   "onboarding.providerSelect.localModel": "Helyi modell",

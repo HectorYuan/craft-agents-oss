@@ -81,11 +81,22 @@ describe('pages/action-bridge', () => {
     };
   }
 
-  async function readAudit(): Promise<Array<Record<string, unknown>>> {
-    // Audit writes are fire-and-forget; give the microtask queue a tick.
-    await new Promise((resolve) => setTimeout(resolve, 20));
-    if (!existsSync(auditPath)) return [];
-    return readFileSync(auditPath, 'utf-8').trim().split('\n').filter(Boolean).map((l) => JSON.parse(l));
+  async function readAudit(deadlineMs = 1500): Promise<Array<Record<string, unknown>>> {
+    // Audit writes are fire-and-forget (void appendAudit → JSONL append on
+    // disk). A fixed 20ms tick flaked when the machine was loaded (fs write
+    // landed later); each test gets a fresh tempdir, so poll until the line
+    // shows up or the deadline passes, then return whatever is on disk.
+    const start = Date.now();
+    for (;;) {
+      if (existsSync(auditPath)) {
+        const raw = readFileSync(auditPath, 'utf-8').trim();
+        if (raw) {
+          return raw.split('\n').filter(Boolean).map((l) => JSON.parse(l));
+        }
+      }
+      if (Date.now() - start >= deadlineMs) return [];
+      await new Promise((resolve) => setTimeout(resolve, 25));
+    }
   }
 
   describe('happy path', () => {

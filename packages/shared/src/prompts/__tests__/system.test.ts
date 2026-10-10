@@ -1,10 +1,20 @@
 import { describe, it, expect, mock, beforeEach } from 'bun:test'
 
+// `mock.module` replaces the module for the WHOLE test process (bun runs every
+// test file in one module registry). A partial mock makes later importers link
+// against missing named exports — e.g. claude-context's `import {
+// updatePreferences } from preferences.ts` blew up with "Export named
+// 'updatePreferences' not found" mid-suite. Capture the real namespaces first
+// and spread them through, overriding only what these tests stub.
+const realStorage = await import('../../config/storage.ts')
+const realPreferences = await import('../../config/preferences.ts')
+
 // The system prompt pipeline reads config-defaults.json from CONFIG_DIR, which
 // is captured at module load and depends on how the developer's environment is
 // initialized. Stub the only config piece `system.ts` uses so these tests stay
 // hermetic regardless of which config dir this process resolved.
 mock.module('../../config/storage.ts', () => ({
+  ...realStorage,
   getBrowserToolEnabled: () => true,
 }))
 
@@ -13,6 +23,7 @@ mock.module('../../config/storage.ts', () => ({
 // it's unrelated to the behavior under test here.
 let mockIncludeCoAuthoredBy = true
 mock.module('../../config/preferences.ts', () => ({
+  ...realPreferences,
   getCoAuthorPreference: () => mockIncludeCoAuthoredBy,
   formatPreferencesForPrompt: () => '',
 }))

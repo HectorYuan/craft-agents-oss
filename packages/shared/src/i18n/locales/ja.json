@@ -667,6 +667,8 @@
   "onboarding.providerSelect.codexChatGPT": "Codex · ChatGPT Plus",
   "onboarding.providerSelect.codexChatGPTDesc": "ChatGPTのサブスクリプションを使用してZenSkillを利用します。",
   "onboarding.providerSelect.description": "接続方法を選択してください。",
+  "onboarding.providerSelect.domesticModels": "国内モデル（推奨）",
+  "onboarding.providerSelect.domesticModelsDesc": "DeepSeek、MiMo、Qwen、Doubao、Kimi、GLM、MiniMax — API キーで設定できます。",
   "onboarding.providerSelect.githubCopilot": "GitHub Copilot",
   "onboarding.providerSelect.githubCopilotDesc": "GitHub Copilotのサブスクリプションを使用してZenSkillを利用します。",
   "onboarding.providerSelect.localModel": "ローカルモデル",

@@ -667,6 +667,8 @@
   "onboarding.providerSelect.codexChatGPT": "Codex · ChatGPT Plus",
   "onboarding.providerSelect.codexChatGPTDesc": "Use your ChatGPT subscription to power ZenSkill.",
   "onboarding.providerSelect.description": "How would you like to connect?",
+  "onboarding.providerSelect.domesticModels": "Domestic Models (Recommended)",
+  "onboarding.providerSelect.domesticModelsDesc": "DeepSeek, MiMo, Qwen, Doubao, Kimi, GLM, MiniMax — configure with an API key.",
   "onboarding.providerSelect.githubCopilot": "GitHub Copilot",
   "onboarding.providerSelect.githubCopilotDesc": "Use your GitHub Copilot subscription to power ZenSkill.",
   "onboarding.providerSelect.localModel": "Local model",
@@ -2122,7 +2124,5 @@
   "zenskill.zenloop.runDone": "Cycle executed",
   "zenskill.zenloop.status": "Status Overview",
   "zenskill.zenloop.subtitle": "Automated reflection cycles",
-  "zenskill.zenloop.title": "ZenLoop",
-  "onboarding.providerSelect.domesticModels": "Domestic Models (Recommended)",
-  "onboarding.providerSelect.domesticModelsDesc": "DeepSeek, MiMo, Qwen, Doubao, Kimi, GLM, MiniMax — configure with an API key."
+  "zenskill.zenloop.title": "ZenLoop"
 }
