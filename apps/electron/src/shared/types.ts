@@ -443,6 +443,7 @@ export interface ElectronAPI {
   getPiApiKeyProviders(): Promise<Array<{ key: string; label: string; placeholder: string }>>
   getPiProviderBaseUrl(provider: string): Promise<string | undefined>
   getPiProviderModels(provider: string): Promise<{ models: Array<{ id: string; name: string; costInput: number; costOutput: number; contextWindow: number; reasoning: boolean }>; totalCount: number }>
+  fetchOpenAICompatModels(baseUrl: string, apiKey?: string): Promise<{ models: string[] }>
 
   // Session-specific model (overrides global)
   getSessionModel(sessionId: string, workspaceId: string): Promise<string | null>
