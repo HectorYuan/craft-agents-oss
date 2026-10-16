@@ -230,6 +230,7 @@ class SkillSearchEngine:
         self._index = {}
         sources = {"db": 0, "builtin": 0, "installed": 0, "package": 0}
         errors = []
+        disk_ids: Set[str] = set()  # 磁盘三源条目（G1 治理过滤对象）
 
         # 1. 内置技能 — 始终加载作为兜底
         for s in self._BUILTIN_SKILLS:
@@ -252,6 +253,7 @@ class SkillSearchEngine:
                     if entry and entry.skill_id not in self._index:
                         self._index[entry.skill_id] = entry
                         sources["installed"] += 1
+                        disk_ids.add(entry.skill_id)
                 except Exception as e:
                     errors.append(f"解析技能文件失败 {py_file.name}: {e}")
 
@@ -268,6 +270,7 @@ class SkillSearchEngine:
                             if entry and entry.skill_id not in self._index:
                                 self._index[entry.skill_id] = entry
                                 sources["package"] += 1
+                                disk_ids.add(entry.skill_id)
                         except Exception as e:
                             errors.append(f"解析包元数据失败 {pkg_dir.name}: {e}")
 
@@ -285,10 +288,25 @@ class SkillSearchEngine:
                     if entry and entry.skill_id not in self._index:
                         self._index[entry.skill_id] = entry
                         sources["installed"] += 1
+                        disk_ids.add(entry.skill_id)
                 except Exception as e:
                     errors.append(f"解析 SKILL.md 失败 {skill_dir.name}: {e}")
 
-        # 6. 补充使用统计数据
+        # 6. G1 治理过滤：磁盘三源批量剔除 dormant/archived/deleted
+        #    （一次 DB 查询；builtin 与 DB 路径不受影响——后者已按 is_active=True 过滤）
+        if disk_ids:
+            from zenskill.skills.governance_filter import filter_slugs
+            kept_ids, _excluded = filter_slugs(disk_ids)
+            for sid in disk_ids - kept_ids:
+                entry = self._index.pop(sid, None)
+                if entry is None:
+                    continue
+                if entry.source == "package":
+                    sources["package"] -= 1
+                else:
+                    sources["installed"] -= 1
+
+        # 7. 补充使用统计数据
         self._enrich_with_usage_stats()
 
         self._built = True

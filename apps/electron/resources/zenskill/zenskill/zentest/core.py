@@ -131,7 +131,7 @@ class ZenTestRunner:
         return report
 
     def quick(self, report_format: str = "text") -> TestReport:
-        """快速验证 (<30s) — 仅 unit + integration"""
+        """快速验证 — unit（全量 pytest tests/，10-17 分钟）+ integration（no-op 合并）"""
         report = TestReport(start_time=time.time())
         for cat in (TestCategory.UNIT, TestCategory.INTEGRATION):
             self._run_category(cat, report)
@@ -140,7 +140,7 @@ class ZenTestRunner:
         return report
 
     def smoke(self, report_format: str = "text") -> TestReport:
-        """烟雾测试 — 极快 (<10s)"""
+        """烟雾测试 — quick 的别名（同样跑全量 unit，10-17 分钟）"""
         return self.quick(report_format)
 
     # ── 内部实现 ──────────────────────────────────────────────
@@ -173,9 +173,12 @@ class ZenTestRunner:
                 "tests/",
                 "--tb=short", "-q",
             ]
+            # 全量套件实测 10-17 分钟（self-hosted runner 共享负载更慢），
+            # 对齐 ci.yml 的 30 分钟 job 预算并留余量
+            unit_timeout = 1800
             try:
                 result = subprocess.run(
-                    cmd, capture_output=True, text=True, timeout=300
+                    cmd, capture_output=True, text=True, timeout=unit_timeout
                 )
                 passed = result.returncode == 0
                 report.results.append(TestResult(
@@ -191,8 +194,8 @@ class ZenTestRunner:
                     name="pytest:unit",
                     category=cat,
                     passed=False,
-                    duration_ms=300_000,
-                    error="超时 (300s)",
+                    duration_ms=unit_timeout * 1000,
+                    error=f"超时 ({unit_timeout}s)",
                 ))
         else:
             # integration: 不额外执行，与 unit 合并

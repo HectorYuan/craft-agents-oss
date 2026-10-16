@@ -395,7 +395,7 @@ class ActiveGoalEngine:
                 f.write(json.dumps(goal.to_dict(), ensure_ascii=False) + "\n")
                 updated_goals.append(goal)
 
-        temp_file.rename(self.goals_file)
+        temp_file.replace(self.goals_file)
         return updated_goals
 
     def complete_goal(self, goal_id: str) -> bool:
@@ -412,7 +412,7 @@ class ActiveGoalEngine:
                 f.write(json.dumps(goal.to_dict(), ensure_ascii=False) + "\n")
 
         if found:
-            temp_file.rename(self.goals_file)
+            temp_file.replace(self.goals_file)
         else:
             temp_file.unlink(missing_ok=True)
 
@@ -432,7 +432,7 @@ class ActiveGoalEngine:
                 f.write(json.dumps(goal.to_dict(), ensure_ascii=False) + "\n")
 
         if found:
-            temp_file.rename(self.goals_file)
+            temp_file.replace(self.goals_file)
         else:
             temp_file.unlink(missing_ok=True)
 
@@ -473,7 +473,7 @@ class ActiveGoalEngine:
         with open(temp_file, "w", encoding="utf-8") as f:
             for goal in goals:
                 f.write(json.dumps(goal.to_dict(), ensure_ascii=False) + "\n")
-        temp_file.rename(self.goals_file)
+        temp_file.replace(self.goals_file)
         return updated
 
     def delete_goal(self, goal_id: str) -> bool:
@@ -486,7 +486,7 @@ class ActiveGoalEngine:
         with open(temp_file, "w", encoding="utf-8") as f:
             for goal in remaining:
                 f.write(json.dumps(goal.to_dict(), ensure_ascii=False) + "\n")
-        temp_file.rename(self.goals_file)
+        temp_file.replace(self.goals_file)
         return True
 
     def generate_status_report(self) -> str:

@@ -393,7 +393,7 @@ class TaskRecommendationEngine:
                 f.write(json.dumps(task.to_dict(), ensure_ascii=False) + "\n")
 
         if found:
-            temp_file.rename(self.tasks_file)
+            temp_file.replace(self.tasks_file)
         else:
             temp_file.unlink(missing_ok=True)
 

@@ -51,8 +51,8 @@ class SkillTransferEngine:
 
     def _analyze_growth_pattern(self, source: SkillNode, target: SkillNode) -> Dict:
         """分析成长模式差异"""
-        s_abilities = source.ability_scores or {}
-        t_abilities = target.ability_scores or {}
+        s_abilities = source.dimension_scores or {}
+        t_abilities = target.dimension_scores or {}
 
         dims = ["proficiency", "stability", "satisfaction", "responsiveness", "memory"]
 

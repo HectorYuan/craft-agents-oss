@@ -9,6 +9,7 @@ WaitingFor → Incubating — 用 ZenLoop 酝酿未成熟的想法。
 from __future__ import annotations
 
 import json
+import threading
 import logging
 import time
 from dataclasses import dataclass, field
@@ -80,6 +81,9 @@ class IncubatingEngine:
             self._data_dir = get_user_data_dir() / "gtd"
         self._data_dir.mkdir(parents=True, exist_ok=True)
         self._file = self._data_dir / "incubating.jsonl"
+        self._text_cache = None
+        self._text_cache_stat = None
+        self._append_lock = threading.Lock()  # 多线程并发 append 防丢行
 
     def add(self, concept: str, channel: str = "reflect",
             action_id: str = "", check_after_days: int = 7) -> IncubatingItem:
@@ -111,36 +115,33 @@ class IncubatingEngine:
 
     def mature(self, item_id: str, delta: float = 0.1) -> Optional[IncubatingItem]:
         """提升成熟度 (ZenLoop 每轮调用)"""
-        items = self._read_all()
-        for item in items:
-            if item.id == item_id:
-                item.maturity = min(1.0, item.maturity + delta)
-                if item.maturity >= 0.8:
-                    item.status = "mature"
-                self._rewrite(items)
-                return item
-        return None
+        item = self._get_by_id(item_id)
+        if item is None:
+            return None
+        item.maturity = min(1.0, item.maturity + delta)
+        if item.maturity >= 0.8:
+            item.status = "mature"
+        self._append(item)
+        return item
 
     def promote(self, item_id: str) -> bool:
         """成熟孵化项 → 提升为 Action"""
-        items = self._read_all()
-        for item in items:
-            if item.id == item_id:
-                item.status = "promoted"
-                self._rewrite(items)
-                # 自动创建 Action
-                self._promote_to_action(item)
-                return True
-        return False
+        item = self._get_by_id(item_id)
+        if item is None:
+            return False
+        item.status = "promoted"
+        self._append(item)
+        # 自动创建 Action
+        self._promote_to_action(item)
+        return True
 
     def archive(self, item_id: str) -> bool:
-        items = self._read_all()
-        for item in items:
-            if item.id == item_id:
-                item.status = "archived"
-                self._rewrite(items)
-                return True
-        return False
+        item = self._get_by_id(item_id)
+        if item is None:
+            return False
+        item.status = "archived"
+        self._append(item)
+        return True
 
     def run_zenloop_cycle(self) -> dict:
         """ZenLoop 联动 — 对所有活跃孵化项提升成熟度"""
@@ -190,25 +191,88 @@ class IncubatingEngine:
     # ── 内部 ──
 
     def _read_all(self) -> list[IncubatingItem]:
+        """全量读取。追加式更新会产生同 id 多行，按 id last-wins 去重。"""
         if not self._file.exists():
             return []
-        items = []
+        items: list[IncubatingItem] = []
+        idx: dict[str, int] = {}
         for line in self._file.read_text(encoding="utf-8").strip().split("\n"):
             if not line.strip():
                 continue
             try:
-                items.append(IncubatingItem.from_dict(json.loads(line)))
+                i = IncubatingItem.from_dict(json.loads(line))
             except Exception:
                 continue
+            if i.id in idx:
+                items[idx[i.id]] = i
+            else:
+                idx[i.id] = len(items)
+                items.append(i)
         return items
 
+    def _get_by_id(self, item_id: str) -> Optional[IncubatingItem]:
+        """定向读取（last-wins）。快路径子串定位本引擎写入行，未命中回退全量解析。"""
+        if not self._file.exists():
+            return None
+        text = self._cache_text()
+        needle = f'"id": "{item_id}"'
+        hit: Optional[str] = None
+        for line in text.split("\n"):
+            if needle in line:
+                hit = line
+        if hit is not None:
+            try:
+                return IncubatingItem.from_dict(json.loads(hit))
+            except Exception:
+                hit = None
+        for line in reversed(text.split("\n")):
+            if not line.strip():
+                continue
+            try:
+                i = IncubatingItem.from_dict(json.loads(line))
+            except Exception:
+                continue
+            if i.id == item_id:
+                return i
+        return None
+
+    def _cache_text(self) -> str:
+        """带 stat 校验的文件文本缓存（外部写入自动失效重读）。"""
+        try:
+            st = (self._file.stat().st_mtime_ns, self._file.stat().st_size)
+        except OSError:
+            st = None
+        if self._text_cache is not None and self._text_cache_stat == st:
+            return self._text_cache
+        text = self._file.read_text(encoding="utf-8") if st else ""
+        self._text_cache = text
+        self._text_cache_stat = st
+        return text
+
+    def _cache_append(self, line: str) -> None:
+        if self._text_cache is None:
+            return
+        self._text_cache += line
+        try:
+            self._text_cache_stat = (self._file.stat().st_mtime_ns,
+                                     self._file.stat().st_size)
+        except OSError:
+            self._text_cache = None
+
     def _append(self, item: IncubatingItem) -> None:
-        with open(self._file, "a", encoding="utf-8") as f:
-            f.write(json.dumps(item.to_dict(), ensure_ascii=False) + "\n")
+        line = json.dumps(item.to_dict(), ensure_ascii=False) + "\n"
+        with self._append_lock:
+            with open(self._file, "a", encoding="utf-8") as f:
+                f.write(line)
+            self._cache_append(line)
 
     def _rewrite(self, items: list[IncubatingItem]) -> None:
+        """tmp + replace 原子落盘，防中途崩溃截断。"""
         lines = [json.dumps(i.to_dict(), ensure_ascii=False) for i in items]
-        self._file.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        tmp = self._file.with_suffix(".tmp")
+        tmp.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        tmp.replace(self._file)
+        self._text_cache = None
 
     def _promote_to_action(self, item: IncubatingItem) -> None:
         try:

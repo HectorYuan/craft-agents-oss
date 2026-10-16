@@ -197,7 +197,8 @@ class RepoAnalyzer:
                     data = json.loads(content)
                     deps = data.get("dependencies", {})
                     dev_deps = data.get("devDependencies", {})
-                    a.dependencies = list(deps.keys())[:20]
+                    a.dependencies = list(dict.fromkeys(
+                        a.dependencies + list(deps.keys())))[:20]
                     a.dev_dependencies = list(dev_deps.keys())[:10]
                     engines = data.get("engines", {})
                     if engines:
@@ -205,7 +206,10 @@ class RepoAnalyzer:
                 elif dep_file == "pyproject.toml":
                     self._parse_python_deps(content, a)
                 elif dep_file == "requirements.txt":
-                    a.dependencies = [l.strip() for l in content.splitlines() if l.strip() and not l.startswith("#")][:20]
+                    reqs = [l.strip() for l in content.splitlines()
+                            if l.strip() and not l.startswith("#")]
+                    a.dependencies = list(dict.fromkeys(
+                        a.dependencies + reqs))[:20]
                 elif dep_file == "go.mod":
                     for line in content.splitlines():
                         m = re.match(r'\s*require\s+(\S+)\s+(\S+)', line)

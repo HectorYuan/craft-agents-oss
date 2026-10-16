@@ -85,8 +85,12 @@ class EpisodicMemory(BaseMemory):
         except Exception as e:
             logger.warning(f"Failed to load episodic memory: {e}")
 
-    def _save_to_disk(self, items: list[MemoryItem] = None) -> None:
-        """持久化记忆到磁盘"""
+    def _save_to_disk(self, items: list[MemoryItem] = None, append: bool = False) -> None:
+        """持久化记忆到磁盘。
+
+        append=True 时仅追加给定条目（JSONL last-wins，_load_from_disk 的
+        dict 覆盖天然去重）；否则全量重写（tmp+replace 原子落盘，防截断）。
+        """
         if not self._file_path:
             return
         try:
@@ -100,7 +104,13 @@ class EpisodicMemory(BaseMemory):
                     "access_count": item.access_count, "metadata": item.metadata,
                 }, ensure_ascii=False))
             self._file_path.parent.mkdir(parents=True, exist_ok=True)
-            self._file_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+            if append and items is not None:
+                with open(self._file_path, "a", encoding="utf-8") as f:
+                    f.write("\n".join(lines) + "\n")
+            else:
+                tmp = self._file_path.with_suffix(".tmp")
+                tmp.write_text("\n".join(lines) + "\n", encoding="utf-8")
+                tmp.replace(self._file_path)
         except Exception as e:
             logger.warning(f"Failed to save episodic memory: {e}")
     
@@ -144,8 +154,10 @@ class EpisodicMemory(BaseMemory):
         # 超过容量：淘汰最弱的
         if len(self._episodes) > self._max_items:
             await self._forget_weakest()
+            self._save_to_disk()  # 有淘汰：全量重写
+            return item_id
 
-        self._save_to_disk()
+        self._save_to_disk([item], append=True)  # 常规路径：单条追加
         return item_id
     
     async def retrieve(self, query: str, top_k: int = 5) -> List[MemoryItem]:

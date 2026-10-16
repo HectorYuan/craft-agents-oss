@@ -11,13 +11,18 @@
 """
 from __future__ import annotations
 
+import logging
+import os
+import shutil
 import sys
 import threading
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple, Union
 
 from .types import AgentTool, AgentToolResult, FunctionTool, TextContent
+
+logger = logging.getLogger(__name__)
 
 DEFAULT_SKILLS_DIRS = [str(Path.home() / ".agents" / "skills")]
 MAX_BODY_CHARS = 12000
@@ -65,7 +70,8 @@ def load_skill_tools(
     if not skills:
         tools: List[AgentTool] = []
     elif len(skills) <= max_tools:
-        tools = [_make_skill_tool(s) for s in skills]
+        installed = _installed_names(skills)
+        tools = [_make_skill_tool(s, installed) for s in skills]
     else:
         tools = _make_folded_tools(skills)
 
@@ -74,11 +80,11 @@ def load_skill_tools(
     return list(tools)
 
 
-def _discover_skills(skills_dirs: List[str]) -> List[Dict[str, str]]:
-    """扫描目录，返回 [{name, description, path}] 列表。"""
+def _discover_skills(skills_dirs: List[str]) -> List[Dict[str, Any]]:
+    """扫描目录，返回 [{name, description, path, deps}] 列表。"""
     from ...skills.frontmatter import parse_skill_md
 
-    skills: List[Dict[str, str]] = []
+    skills: List[Dict[str, Any]] = []
     for base in skills_dirs:
         root = Path(base)
         if not root.is_dir():
@@ -94,14 +100,58 @@ def _discover_skills(skills_dirs: List[str]) -> List[Dict[str, str]]:
                     "name": name,
                     "description": desc.strip(),
                     "path": str(skill_md),
+                    # O11 prerequisites 消费侧：frontmatter dependencies 随发现链带出
+                    "deps": [str(d) for d in (meta.dependencies or [])],
+                    # O8 数据先行切片：requires={tool: 约束} 随发现链带出
+                    "requires": dict(meta.requires or {}),
                 })
             except Exception:
                 continue
     return skills
 
 
-def _make_skill_tool(skill: Dict[str, str]) -> AgentTool:
-    """单个 skill → AgentTool。"""
+def _installed_names(skills: List[Dict[str, Any]]) -> Set[str]:
+    """已安装技能标识集合：frontmatter name ∪ 目录 slug（依赖声明两者皆可能用）。"""
+    names: Set[str] = set()
+    for s in skills:
+        names.add(s["name"])
+        names.add(Path(s["path"]).parent.name)
+    return names
+
+
+def _missing_prereqs(deps: Optional[List[str]], installed: Optional[Set[str]]) -> List[str]:
+    """返回未安装的前置依赖项（支持 "dep-id@>=1.2" 约束语法，存在性只看 id）。"""
+    if not deps or not installed:
+        return []
+    missing = []
+    for dep in deps:
+        dep_id = str(dep).partition("@")[0].strip()
+        if dep_id and dep_id not in installed:
+            missing.append(str(dep))
+    return missing
+
+
+def _missing_requires(requires: Optional[Dict[str, str]]) -> List[str]:
+    """O8 切片：requires 环境预检——which() 存在性判定，约束串原样上报。"""
+    if not requires:
+        return []
+    missing = []
+    for tool, constraint in requires.items():
+        if not shutil.which(str(tool)):
+            missing.append(f"{tool} {constraint}".strip())
+    return missing
+
+
+def _prereq_warning(missing: List[str]) -> str:
+    return (
+        "[prerequisites] 缺少前置依赖：" + "、".join(missing)
+        + "（技能功能可能不完整，先安装依赖后重试）"
+    )
+
+
+def _make_skill_tool(skill: Dict[str, Any],
+                     installed: Optional[Set[str]] = None) -> AgentTool:
+    """单个 skill → AgentTool。installed 缺省时不校验前置依赖。"""
     tool_name = f"skill_{skill['name']}"
     description = skill["description"]
     skill_path = skill["path"]
@@ -121,6 +171,17 @@ def _make_skill_tool(skill: Dict[str, str]) -> AgentTool:
                     body = "\n".join(lines[end + 1:]).strip()
             if len(body) > MAX_BODY_CHARS:
                 body = body[:MAX_BODY_CHARS] + f"\n\n... (truncated, {len(skill['path'])} total chars)"
+            warnings = []
+            missing = _missing_prereqs(skill.get("deps"), installed)
+            if missing:
+                warnings.append(_prereq_warning(missing))
+            missing_env = _missing_requires(skill.get("requires"))
+            if missing_env:
+                warnings.append(
+                    "[requires] 缺少环境依赖：" + "、".join(missing_env)
+                    + "（技能可能无法运行，先安装对应工具）")
+            if warnings:
+                body = "\n".join(warnings) + "\n\n" + body
             return AgentToolResult(content=[TextContent(body)])
         except Exception as e:
             return AgentToolResult(
@@ -148,9 +209,10 @@ async def _retrieve_fn(params: Dict[str, Any]) -> AgentToolResult:
     return AgentToolResult(content=[TextContent(f"Top {len(results)} matching skills:\n" + "\n".join(lines))])
 
 
-def _make_folded_tools(skills: List[Dict[str, str]]) -> List[AgentTool]:
+def _make_folded_tools(skills: List[Dict[str, Any]]) -> List[AgentTool]:
     """折叠模式：skill_list + skill_load + skill_retrieve 三个 meta-tool。"""
     skill_map = {s["name"]: s for s in skills}
+    installed = _installed_names(skills)
 
     async def _list_fn(params: Dict[str, Any]) -> AgentToolResult:
         lines = [f"- {s['name']}: {s['description'][:120]}" for s in skills]
@@ -165,9 +227,18 @@ def _make_folded_tools(skills: List[Dict[str, str]]) -> List[AgentTool]:
                 content=[TextContent(f"Unknown skill: {name}. Use skill_list to see available skills.")],
                 is_error=True,
             )
-        result = await _make_skill_tool(skill).run("skill_load", params)
+        result = await _make_skill_tool(skill, installed).run("skill_load", params)
         # skill_used 反馈闭环：记录使用快照到 MetricsStore
         if not result.is_error:
+            # G2 唤醒评估：使用信号回流治理层（slug=SKILL.md 所在目录名，
+            # 与 governance_filter 口径一致）；轻量 touch（60s 节流，仅刷
+            # last_used_at，不写事件表），失败不阻断加载
+            try:
+                from zenskill.skills.skill_governance import touch_use
+
+                touch_use(Path(skill.get("path", "")).parent.name or name)
+            except Exception:
+                pass
             try:
                 from zenskill.systems.visualization.metrics_store import MetricsStore
                 slug = skill.get("name", name)
@@ -252,38 +323,50 @@ class _SkillIndex:
 
     def build(self, skills_dirs: List[str]) -> None:
         from ...skills.frontmatter import parse_skill_md
+        from ...skills.governance_filter import filter_slugs
+
+        all_skill_mds: List[Path] = []
         for base in skills_dirs:
             root = Path(base)
             if not root.is_dir():
                 continue
-            for skill_md in sorted(root.glob("*/SKILL.md")):
-                slug = skill_md.parent.name
-                try:
-                    meta_obj, body = parse_skill_md(skill_md)
-                    raw = meta_obj.to_dict() if hasattr(meta_obj, "to_dict") else {}
-                except Exception:
-                    continue
-                if not raw:
-                    continue
-                name = str(raw.get("name") or slug)
-                desc = str(raw.get("description") or "")
-                when = str(raw.get("when") or "")
-                cat = str(raw.get("category") or "")
-                tags = raw.get("tags") or []
-                self.meta[slug] = {
-                    "name": name, "desc": desc, "when": when,
-                    "category": cat, "tags": tags,
-                    "body": body[:800] if body else "",
-                }
-                # 索引字段：name×3 + when×2 + tags×2 + desc×1 + category×1
-                text = f"{name} {name} {name} {when} {when} {' '.join(tags)} {' '.join(tags)} {desc} {cat}"
-                tokens = _tokenize(text)
-                tf: Dict[str, int] = {}
-                for t in tokens:
-                    tf[t] = tf.get(t, 0) + 1
-                for t, count in tf.items():
-                    self.inverted.setdefault(t, {})[slug] = count
-                self.n += 1
+            all_skill_mds.extend(sorted(root.glob("*/SKILL.md")))
+
+        # G1 治理过滤：一次批量剔除 dormant/archived/deleted（防 N+1）
+        kept_slugs, _excluded = filter_slugs({p.parent.name for p in all_skill_mds})
+
+        for skill_md in all_skill_mds:
+            slug = skill_md.parent.name
+            if slug not in kept_slugs:
+                continue
+            try:
+                meta_obj, body = parse_skill_md(skill_md)
+                raw = meta_obj.to_dict() if hasattr(meta_obj, "to_dict") else {}
+            except Exception:
+                continue
+            if not raw:
+                continue
+            name = str(raw.get("name") or slug)
+            desc = str(raw.get("description") or "")
+            when = str(raw.get("when") or "")
+            cat = str(raw.get("category") or "")
+            tags = raw.get("tags") or []
+            if isinstance(tags, str):
+                tags = [tags]
+            self.meta[slug] = {
+                "name": name, "desc": desc, "when": when,
+                "category": cat, "tags": tags,
+                "body": body[:800] if body else "",
+            }
+            # 索引字段：name×3 + when×2 + tags×2 + desc×1 + category×1
+            text = f"{name} {name} {name} {when} {when} {' '.join(tags)} {' '.join(tags)} {desc} {cat}"
+            tokens = _tokenize(text)
+            tf: Dict[str, int] = {}
+            for t in tokens:
+                tf[t] = tf.get(t, 0) + 1
+            for t, count in tf.items():
+                self.inverted.setdefault(t, {})[slug] = count
+            self.n += 1
 
         # IDF = log(N / df)
         for term, postings in self.inverted.items():
@@ -412,41 +495,268 @@ def _escape_xml(s: str) -> str:
     return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;")
 
 
-def build_skills_section(scenario: Optional[str] = None, top_k: int = 10,
-                         skills_dirs: Optional[List[str]] = None) -> Optional[str]:
-    """唯一入口：构建 <available-skills> XML 块。
+# ═══════════════════════════════════════════════════════════════
+# G3 §4.3/4.4: 注入预算 + 场景集 profile（build_skills_section 升级）
+# ═══════════════════════════════════════════════════════════════
 
-    有 scenario 时走 top-K 检索（任务级）；无 scenario 时走全量注入（会话级）。
-    skills_dirs 仅在全量注入路径生效（测试隔离 + 自定义技能目录）。
-    """
-    if scenario and scenario.strip():
-        results = skill_retrieve(scenario, top_k=top_k)
-        if not results:
-            return _build_full_section(skills_dirs)  # 降级回全量
-        entries = []
-        for r in results:
-            safe_name = _escape_xml(r["name"])
-            cat = r.get("category", "")
-            when = _escape_xml(r.get("when", "")[:200])
-            meta_line = f'category="{cat}"' if cat else ""
-            entries.append(f'<skill name="{safe_name}" {meta_line}>\n{when}\n</skill>')
-    else:
-        return _build_full_section(skills_dirs)
+DEFAULT_BUDGET_TOKENS = 4000
+_CHARS_PER_TOKEN = 4  # 统计口径：字符数 / 4 估算 token
+_SKILLS_HEADER = (
+    "<available-skills>\n"
+    "Skills below are detailed guides. To use one, call the skill_load tool "
+    "(or read its SKILL.md with the read tool as fallback).\n"
+)
+_TIER_BOOST = {"T0": 15.0, "T1": 8.0}  # 检索重排加分（§4.2）
+_TIER_RANK = {"T0": 0, "T1": 1, "T2": 2}
 
-    if not entries:
+
+def _slug_of(skill: Dict[str, str]) -> str:
+    """SKILL.md 路径 → slug（所在目录名，与 governance_filter 口径一致）。"""
+    return Path(skill["path"]).parent.name
+
+
+def _parse_budget(raw: str) -> Optional[int]:
+    if raw.lower() == "off":
         return None
-    return (
-        "<available-skills>\n"
-        "Skills below are detailed guides. To use one, call the skill_load tool "
-        "(or read its SKILL.md with the read tool as fallback).\n"
-        + "\n".join(entries)
-        + "\n</available-skills>"
-    )
+    try:
+        value = int(raw)
+    except ValueError:
+        return DEFAULT_BUDGET_TOKENS
+    return value if value > 0 else None
+
+
+def _resolve_budget(budget_tokens: Optional[Union[int, str]] = None) -> Optional[int]:
+    """预算解析：显式参数 > env ZENSKILL_SKILL_BUDGET > 4000；"off" = 关闭预算。"""
+    if budget_tokens is None:
+        raw = os.environ.get("ZENSKILL_SKILL_BUDGET", "").strip()
+        return _parse_budget(raw) if raw else DEFAULT_BUDGET_TOKENS
+    if isinstance(budget_tokens, str):
+        return _parse_budget(budget_tokens.strip())
+    try:
+        value = int(budget_tokens)
+    except (TypeError, ValueError):
+        return DEFAULT_BUDGET_TOKENS
+    return value if value > 0 else None
+
+
+def _apply_budget(entries: List[str], base_chars: int,
+                  budget_tokens: Optional[int]) -> Tuple[List[str], int]:
+    """4 字符/token 预算截断，返回 (kept, dropped_count)；至少保留 1 条。"""
+    if budget_tokens is None:
+        return entries, 0
+    budget_chars = budget_tokens * _CHARS_PER_TOKEN
+    kept: List[str] = []
+    used = base_chars
+    for entry in entries:
+        cost = len(entry) + 1
+        if kept and used + cost > budget_chars:
+            break
+        kept.append(entry)
+        used += cost
+    return kept, len(entries) - len(kept)
+
+
+def _passthrough_pool(slugs) -> Dict[str, Any]:
+    """pool_for 不可用时的降级：全通过（治理过滤仍由 filter_slugs/检索索引兜底）。"""
+    slug_set = set(slugs)
+    return {
+        "included": set(slug_set),
+        "excluded": set(),
+        "excluded_with_reason": {},
+        "meta": {s: {"tier": "T2", "state": "active", "pinned": False,
+                     "last_used_at": "", "category": ""} for s in slug_set},
+        "profile": None,
+        "source": "error",
+    }
+
+
+def _pool_for_profile(profile: Optional[str], slugs) -> Dict[str, Any]:
+    try:
+        from ...skills.skill_profiles import pool_for
+        return pool_for(profile, slugs=set(slugs))
+    except Exception as e:
+        logger.warning("skill profile pool unavailable (%s), passthrough", e)
+        return _passthrough_pool(slugs)
+
+
+def _entry_tier(meta: Dict[str, dict], slug: str) -> str:
+    return str(meta.get(slug, {}).get("tier") or "T2")
+
+
+def _session_ordered(skills: List[Dict[str, str]], meta: Dict[str, dict],
+                     tiers_only: bool) -> List[Dict[str, str]]:
+    """注入排序：tier（T0→T1）→ last_used_at 降序（空则字典序）。
+
+    两段稳定排序：先 (tier_rank, slug) 升序定基础序，再按 last_used_at
+    降序稳定排——last_used_at 为空/相同者保持基础序（即字典序）。
+    """
+    if tiers_only:
+        base = sorted(skills, key=lambda s: (
+            _TIER_RANK.get(_entry_tier(meta, _slug_of(s)), 2), _slug_of(s)))
+    else:
+        base = sorted(skills, key=_slug_of)
+    return sorted(base, key=lambda s: str(
+        meta.get(_slug_of(s), {}).get("last_used_at") or ""), reverse=True)
+
+
+def _full_entry(s: Dict[str, str]) -> str:
+    safe_name = _escape_xml(s["name"])
+    desc = _escape_xml(s["description"][:400])
+    return f'<skill name="{safe_name}">\n{desc}\n</skill>'
+
+
+def _scenario_entry(r: dict) -> str:
+    safe_name = _escape_xml(r["name"])
+    cat = r.get("category", "")
+    when = _escape_xml(r.get("when", "")[:200])
+    meta_line = f'category="{cat}"' if cat else ""
+    return f'<skill name="{safe_name}" {meta_line}>\n{when}\n</skill>'
+
+
+def _assemble_section(entries: List[str], dropped: int) -> str:
+    body = _SKILLS_HEADER + "\n".join(entries)
+    if dropped:
+        body += f"\n+{dropped} more (use skill_search)"
+    body += "\n</available-skills>"
+    return body
+
+
+def _empty_stats(profile: Optional[str], budget: Optional[int]) -> Dict[str, Any]:
+    return {"profile": profile, "injected_count": 0, "est_tokens": 0,
+            "budget_tokens": budget,
+            "tier_counts": {"T0": 0, "T1": 0, "T2": 0}, "truncated": False}
+
+
+def _stats_for(profile: Optional[str], budget: Optional[int],
+               slugs_kept: List[str], meta: Dict[str, dict], dropped: int,
+               section_len: int) -> Dict[str, Any]:
+    tier_counts = {"T0": 0, "T1": 0, "T2": 0}
+    for slug in slugs_kept:
+        tier = _entry_tier(meta, slug)
+        tier_counts[tier if tier in tier_counts else "T2"] += 1
+    return {"profile": profile, "injected_count": len(slugs_kept),
+            "est_tokens": section_len // _CHARS_PER_TOKEN,
+            "budget_tokens": budget, "tier_counts": tier_counts,
+            "truncated": dropped > 0}
+
+
+def _compose_session_section(skills_dirs: Optional[List[str]],
+                             budget: Optional[int],
+                             profile: Optional[str]) -> Tuple[Optional[str], Dict[str, Any]]:
+    """会话级注入：池 = profile ∩ 治理 active；T0+T1 常驻，
+    池内无 T0/T1 时冷启动降级全池（最近使用优先），预算截断。"""
+    from ...skills.governance_filter import filter_slugs
+
+    skills = _discover_skills(skills_dirs or DEFAULT_SKILLS_DIRS)
+    if not skills:
+        return None, _empty_stats(profile, budget)
+    slugs = {_slug_of(s) for s in skills}
+    pool = _pool_for_profile(profile, slugs)
+    # G1 治理过滤（含 skill_registry.is_active 降级链）∩ profile 池
+    kept_g1, _excluded = filter_slugs(slugs)
+    allowed = kept_g1 & pool["included"]
+    pool_skills = [s for s in skills if _slug_of(s) in allowed]
+    prof_name = pool.get("profile") or profile
+    if not pool_skills:
+        return None, _empty_stats(prof_name, budget)
+    meta = pool.get("meta", {})
+    t01 = [s for s in pool_skills
+           if _entry_tier(meta, _slug_of(s)) in ("T0", "T1")]
+    # 冷启动：池内 T0+T1 为空（如全 T2）→ 不注入空段，降级取全池
+    ordered = _session_ordered(t01 if t01 else pool_skills, meta,
+                               tiers_only=bool(t01))
+    entries = [_full_entry(s) for s in ordered]
+    kept, dropped = _apply_budget(entries, len(_SKILLS_HEADER), budget)
+    kept_slugs = [_slug_of(s) for s in ordered[:len(kept)]]
+    section = _assemble_section(kept, dropped)
+    stats = _stats_for(prof_name, budget, kept_slugs, meta, dropped,
+                       len(section))
+    return section, stats
+
+
+def _compose_scenario_section(scenario: str, top_k: int,
+                              skills_dirs: Optional[List[str]],
+                              budget: Optional[int],
+                              profile: Optional[str]) -> Tuple[Optional[str], Dict[str, Any]]:
+    """任务级注入：检索 top_k*3 → tier 加分重排 → 截 top_k → 预算截断。
+
+    tier 加分在无 tier 数据（全 T2/未登记）时恒 0，稳定排序不改基线顺序。
+    检索空结果回退全量时同样过 profile ∩ 治理过滤（池内全量，非无过滤全量）。
+    """
+    results = skill_retrieve(scenario, top_k=max(1, top_k) * 3)
+    if not results:
+        return _compose_session_section(skills_dirs, budget, profile)
+    pool = _pool_for_profile(
+        profile, {str(r.get("slug") or "") for r in results})
+    meta = pool.get("meta", {})
+    kept_results = [r for r in results
+                    if str(r.get("slug") or "") in pool["included"]]
+    prof_name = pool.get("profile") or profile
+    if not kept_results:
+        return _compose_session_section(skills_dirs, budget, prof_name)
+
+    def _rank_key(r: dict) -> float:
+        tier = _entry_tier(meta, str(r.get("slug") or ""))
+        return -(float(r.get("score") or 0.0) + _TIER_BOOST.get(tier, 0.0))
+
+    ranked = sorted(kept_results, key=_rank_key)
+    picked = ranked[:max(1, top_k)]
+    entries = [_scenario_entry(r) for r in picked]
+    kept, dropped = _apply_budget(entries, len(_SKILLS_HEADER), budget)
+    slugs_kept = [str(r.get("slug") or "") for r in picked[:len(kept)]]
+    section = _assemble_section(kept, dropped)
+    stats = _stats_for(prof_name, budget, slugs_kept, meta, dropped,
+                       len(section))
+    return section, stats
+
+
+def compose_skills_section(scenario: Optional[str] = None, top_k: int = 10,
+                           skills_dirs: Optional[List[str]] = None,
+                           budget_tokens: Optional[Union[int, str]] = None,
+                           profile: Optional[str] = None) -> Tuple[Optional[str], Dict[str, Any]]:
+    """build_skills_section 的统计模式：返回 (section, stats dict)。
+
+    stats：{profile, injected_count, est_tokens, budget_tokens,
+    tier_counts: {T0, T1, T2}, truncated}。
+    """
+    budget = _resolve_budget(budget_tokens)
+    if scenario and scenario.strip():
+        return _compose_scenario_section(scenario, top_k, skills_dirs,
+                                         budget, profile)
+    return _compose_session_section(skills_dirs, budget, profile)
+
+
+def build_skills_section(scenario: Optional[str] = None, top_k: int = 10,
+                         skills_dirs: Optional[List[str]] = None,
+                         budget_tokens: Optional[Union[int, str]] = None,
+                         profile: Optional[str] = None) -> Optional[str]:
+    """唯一入口：构建 <available-skills> XML 块（G3 预算 + 场景集）。
+
+    - 有 scenario：检索 top_k*3 → tier 加分（T0+15/T1+8）重排 → 截 top_k →
+      预算截断；检索空结果降级为池内全量（仍过 profile ∩ 治理过滤）；
+    - 无 scenario：池 = profile 过滤 ∩ 治理 active；池内 T0+T1 常驻注入，
+      若为空（如全 T2）则冷启动降级注入全池（last_used_at 降序，空则字典序）；
+    - 预算：4 字符/token，超出截断并以 "\\n+N more (use skill_search)" 收尾；
+      budget_tokens 缺省读 env ZENSKILL_SKILL_BUDGET（默认 4000，"off" 关闭
+      预算回全量）；profile 缺省读 env ZENSKILL_SKILL_PROFILE → yaml default。
+    新增参数全默认值，向后兼容。
+    """
+    section, _stats = compose_skills_section(
+        scenario=scenario, top_k=top_k, skills_dirs=skills_dirs,
+        budget_tokens=budget_tokens, profile=profile)
+    return section
 
 
 def _build_full_section(skills_dirs: Optional[List[str]] = None) -> Optional[str]:
     """全量注入（保留原 format_skills_prompt 行为，无 scenario 时降级使用）。"""
+    from ...skills.governance_filter import filter_slugs
+
     skills = _discover_skills(skills_dirs or DEFAULT_SKILLS_DIRS)
+    if not skills:
+        return None
+    # G1 治理过滤：批量剔除 dormant/archived/deleted（slug=SKILL.md 所在目录名）
+    kept, _excluded = filter_slugs({Path(s["path"]).parent.name for s in skills})
+    skills = [s for s in skills if Path(s["path"]).parent.name in kept]
     if not skills:
         return None
     entries = []

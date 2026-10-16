@@ -21,7 +21,10 @@ from typing import Any, AsyncIterator, Callable, Dict, List, Optional
 from .agent_loop import AgentLoop, AgentLoopConfig
 from .compaction import compact_session
 from .permission_gate import PermissionGate
-from .providers import ModelConfig, _REGISTRY, build_model_config, create_stream, resolve_model
+from .providers import (
+    ModelConfig, _REGISTRY, apply_connection_env_overrides,
+    build_model_config, create_stream, resolve_model,
+)
 from .session import Session, SessionManager
 from .tools import DEFAULT_SYSTEM_PROMPT, create_default_tools
 from .types import (
@@ -169,9 +172,13 @@ class AgentServer:
         max_total_tokens: Optional[int] = None,
         with_memory: bool = False,
         with_skills: bool = True,
+        tool_confirm: Optional[Callable] = None,
     ) -> None:
         self.model = model
         self.stream_fn = stream_fn
+        # restricted 模式写/执行类工具的行内确认回调（PermissionGate.confirm，
+        # M4-6 预留落点：CLI input / TUI 卡片 / GUI 事件弹窗各自注入）
+        self.tool_confirm = tool_confirm
         self.session_manager = SessionManager(root=session_root, stateless=stateless)
         self.permission = permission
         self.cwd = cwd or "."
@@ -202,7 +209,7 @@ class AgentServer:
         self._phase2_ready = False
         self._init_error: Optional[str] = None
         # 记忆桥接（统一模式方案：brain 层公共能力，desktop/python 两种运行
-        # 模式共享；上移自 ws_server 的 Mode C 专用实现）
+        # 模式共享；上移自 ws_server 的 Server Mode 专用实现）
         self._event_collector = None
         try:
             from ...mirroring.event_collector import EventCollector
@@ -317,6 +324,8 @@ class AgentServer:
 
         # PermissionGate 与 capability before_tool_call 合并
         perm_gate = PermissionGate(self.permission, cwd=self.cwd) if self.permission != "full" else None
+        if perm_gate is not None and self.tool_confirm is not None:
+            perm_gate.confirm = self.tool_confirm
         cap_before = cap_hooks.get("before_tool_call")
         def merged_before_tool(tc, params):
             if perm_gate is not None:
@@ -661,6 +670,17 @@ class AgentServer:
             })
             return
         session = self._ensure_session()
+        # C5: prompt 组装留痕 —— replayed 即模型本轮可见的回放消息数，
+        # 续接是否成功/历史是否完整以该值为准（--debug 可见）
+        if logger.isEnabledFor(logging.DEBUG):
+            try:
+                _built = session.build_context()
+                logger.debug(
+                    "prompt assemble: sid=%s entries=%d replayed=%d",
+                    session.id, len(session.entries), len(_built["messages"]),
+                )
+            except Exception:
+                pass
         # 记忆桥接：宿主/GUI 用户输入进 mirroring 生态（模式无关）
         if self._event_collector is not None:
             try:
@@ -707,6 +727,16 @@ class AgentServer:
             from .delegate_tool import DelegateTool
             if self.stream_fn and self.model:
                 tools.append(DelegateTool(
+                    self.stream_fn, self.model, cwd=self.cwd,
+                    system_prompt=self._host_system_prompt or DEFAULT_SYSTEM_PROMPT,
+                ))
+        except Exception:
+            pass
+        # multi_agent_execute（MU2 编排激活）：复杂任务分解→角色视角子 agent
+        try:
+            from .multi_agent_tool import MultiAgentExecuteTool
+            if self.stream_fn and self.model:
+                tools.append(MultiAgentExecuteTool(
                     self.stream_fn, self.model, cwd=self.cwd,
                     system_prompt=self._host_system_prompt or DEFAULT_SYSTEM_PROMPT,
                 ))
@@ -826,12 +856,20 @@ class AgentServer:
                 respond(state)
 
             elif ctype == "set_model":
-                provider = cmd.get("provider") or ""
-                model_id = cmd.get("model") or ""
+                model_id = (cmd.get("model") or "").strip()
+                # provider 回退：桌面端 TS 只发 model（GUI 模型 id 为
+                # provider/model 形式），从未发 provider 字段——原实现恒报
+                # unknown provider，热切模型自始不可用
+                provider = (cmd.get("provider")
+                            or (model_id.split("/", 1)[0].lower()
+                                if "/" in model_id else ""))
+                if "/" in model_id:
+                    model_id = model_id.split("/", 1)[1]
                 if provider not in _REGISTRY:
-                    respond(None, success=False, error=f"unknown provider: {provider}")
+                    respond(None, success=False, error=f"未知提供商：{provider}")
                     return
-                self.model = build_model_config(provider, model_id)
+                self.model = apply_connection_env_overrides(
+                    build_model_config(provider, model_id))
                 self.stream_fn = create_stream(self.model)
                 if self.session is not None:
                     self.session.append("model_change", {"model": f"{provider}/{self.model.id}"})
@@ -871,9 +909,14 @@ class AgentServer:
             elif ctype == "get_messages":
                 session = self.session
                 messages = session.build_context()["messages"] if session else []
-                respond({
-                    "messages": [message_to_dict(m, truncate_images=True) for m in messages]
-                })
+                out = []
+                for m in messages:
+                    d = message_to_dict(m, truncate_images=True)
+                    # S3 兼容：客户端旧版本读 `role` 字段——同时给 type 和 role
+                    if "type" in d and "role" not in d:
+                        d["role"] = d["type"]
+                    out.append(d)
+                respond({"messages": out})
 
             elif ctype == "new_session":
                 parent = cmd.get("parent")
@@ -1103,12 +1146,24 @@ def serve_main(args: Any) -> int:
     """`zenskill agent-engine serve` 入口"""
     import asyncio as _asyncio
 
+    # C5: --debug 取证链 —— DEBUG 日志走 stderr（stdout 是 RPC 协议通道，
+    # 不可污染；宿主 zenskill-agent.ts 会把 stderr 转发到 --debug 控制台）
+    if getattr(args, "debug", False):
+        import logging as _logging
+        import sys as _sys
+        _logging.basicConfig(
+            level=_logging.DEBUG, stream=_sys.stderr,
+            format="%(asctime)s %(name)s %(levelname)s %(message)s",
+        )
+
     faux = bool(getattr(args, "faux", False))
     if faux:
         model = ModelConfig(id="faux", api="faux", provider="faux", base_url="")
         stream_fn = EchoFauxStream()
     else:
-        model = resolve_model(getattr(args, "model", None))
+        # Desktop 连接级网关覆写：TS spawn 注入 ZENSKILL_AGENT_BASE_URL/_API
+        model = apply_connection_env_overrides(
+            resolve_model(getattr(args, "model", None)))
         stream_fn = create_stream(model)
 
     server = AgentServer(

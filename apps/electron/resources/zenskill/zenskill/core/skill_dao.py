@@ -675,6 +675,12 @@ class SkillDAO:
                     SkillDAO.add_dependency(
                         spec.id, dep_id, "requires", dep_version=constraint
                     )
+                else:
+                    # FK 双侧指向 skill_registry，未注册依赖无法落边——
+                    # 此前静默丢弃导致 missing 检测永远发现不了，至少留痕
+                    logger.warning(
+                        "SkillSpec %s 依赖 %s 未注册，跳过落库", spec.id, dep_id
+                    )
 
             # 5. Practice tasks（练习任务属于 skill_tasks，而非 skill_goals 的能力维度）
             for task in spec.practice_tasks:

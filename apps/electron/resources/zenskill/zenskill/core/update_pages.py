@@ -1,207 +1,102 @@
-"""Pages 页面包播种机制（craft Pages 系统）。
+"""Pages zenskill-* 页面包 — 已退役（2026-10-01 拍板）。
 
-见 docs/repo_management_and_gui_plan_v3.md 1.4 节：把主仓库
-zenskill/resources/pages/{slug}/ 播种到 {workspace_root}/pages/{slug}/，
-供 craft 宿主按 PageConfig（page.json）加载渲染与 cron 刷新。
+历史沿革：
+- 播种机制：zenskill/resources/pages/{slug}/ 播种到 {workspace_root}/pages/，
+  66c1ca7 退役 create_session 自动播种（934011c rebase 回潮、41dbab7 二次移除，
+  TestPagesSeedRetired 反向断言防线）
+- 模版池：磁盘五页（dashboard/daily-review/growth/skill-graph/zenloop）降级
+  为按需模版（仅 CLI 可达，WS handler 从未建成，GUI 无入口）
+- 本拍板：五模版页彻底退役——模版池资源、实例化/列举基础设施、CLI 命令组
+  全部移除；ZenSkill 侧栏 React 页（概览/洞察/画像/技能图谱/ZenLoop）为唯一
+  等价面；Craft 通用 Pages 通道（pages:get/create/lease/grants 等通用 handler）
+  保留，服务用户自建页面
 
-规则（与 update_guide.py 同一批 workspace 播种先例保持一致）：
-- 命名空间隔离：只管理 ``zenskill-`` 前缀 slug，幂等覆盖；
-  用户自建页面（非该前缀）绝不触碰
-- 升级：覆盖 zenskill- 页面时保留用户在 page.json 里关闭的
-  refresh.enabled=false 开关
-- 写入顺序：index.html / scripts/ 先落盘，page.json 最后写
-  （craft 约定：page.json 是刷新完成标记，watcher 以它触发 pages:changed）
+本模块现仅保留：
+- resolve_active_workspace_root：TUI automations 页依赖的活跃 workspace 解析
+- cleanup_retired_zenkill_pages：存量播种实体一次性清扫（server 启动时调用）
 """
 
 from __future__ import annotations
 
-import hashlib
 import json
-import logging
-import os
-import tempfile
+import shutil
 from pathlib import Path
 
-logger = logging.getLogger(__name__)
-
-# 系统管理命名空间：仅播种/覆盖该前缀的 slug
+# 系统管理命名空间：退役清扫只删该前缀的 slug（用户自建页面绝不触碰）
 MANAGED_SLUG_PREFIX = "zenskill-"
 
-# 播种文件类型：全部按 UTF-8 文本处理（Pages 包只含 json/html/py）
+# 退役的五个 zenskill 播种页 slug（等价功能见侧栏 React 页）
+RETIRED_PAGE_SLUGS = frozenset({
+    "zenskill-daily-review",
+    "zenskill-dashboard",
+    "zenskill-growth",
+    "zenskill-skill-graph",
+    "zenskill-zenloop",
+})
+
 _ENCODING = "utf-8"
 
 
-def _pages_resource_dir() -> Path:
-    """定位主仓库 Pages 资源目录（打包/开发双模式兼容）。
+def resolve_active_workspace_root() -> Path | None:
+    """从桌面端 config.json 解析活跃 workspace 根目录。
 
-    打包模式：zenskill 作为 wheel 安装时 resources 随包携带，
-    优先走 importlib.resources；开发模式回退到仓库相对路径。
+    优先读桌面数据目录 ~/.zenskill/desktop/config.json（P3 后约定），
+    回退顶层 ~/.zenskill/config.json（同 schema，跟随桌面端写入方）。
+    仅当 workspace 根目录真实存在时返回（旧配置可能残留指向
+    ~/.craft-agent 的悬空 rootPath，不得为其重建目录树）。
     """
-    try:
-        from importlib import resources
-
-        packaged = resources.files("zenskill") / "resources" / "pages"
-        packaged_path = Path(str(packaged))
-        if packaged_path.is_dir():
-            return packaged_path
-    except Exception:  # noqa: BLE001 — 未打包/无 resources 时走开发路径
-        pass
-    return Path(__file__).resolve().parent.parent / "resources" / "pages"
-
-
-def _atomic_write_text(path: Path, content: str) -> None:
-    """tmp + os.replace 原子写（与 core.paths.atomic_write_text 同语义，
-    独立实现避免播种路径依赖 zenskill 数据目录初始化）"""
-    path = Path(path)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    fd, tmp_name = tempfile.mkstemp(
-        dir=str(path.parent), prefix=f".{path.name}.", suffix=".tmp")
-    tmp_path = Path(tmp_name)
-    try:
-        with os.fdopen(fd, "w", encoding=_ENCODING) as f:
-            f.write(content)
-            f.flush()
-            os.fsync(f.fileno())
-        os.replace(tmp_path, path)
-    finally:
-        if tmp_path.exists():
-            try:
-                tmp_path.unlink()
-            except OSError:
-                pass
+    for config_path in (
+        Path.home() / ".zenskill" / "desktop" / "config.json",
+        Path.home() / ".zenskill" / "config.json",
+    ):
+        try:
+            cfg = json.loads(config_path.read_text(encoding=_ENCODING))
+            active_id = cfg.get("activeWorkspaceId", "")
+            for ws in cfg.get("workspaces", []):
+                if ws.get("id") == active_id:
+                    root = Path(ws["rootPath"]).expanduser()
+                    if root.is_dir():
+                        return root
+        except Exception:  # noqa: BLE001 — 当前路径无配置时尝试下一个
+            pass
+    return None
 
 
 def _load_page_json(path: Path) -> dict | None:
-    """防御性读取 page.json；缺失/损坏返回 None"""
+    """读 page.json；缺失/坏 JSON 返回 None（清扫路径容错用）"""
     try:
-        data = json.loads(path.read_text(encoding=_ENCODING))
-        return data if isinstance(data, dict) else None
-    except Exception:  # noqa: BLE001
+        cfg = json.loads(path.read_text(encoding=_ENCODING))
+        return cfg if isinstance(cfg, dict) else None
+    except Exception:  # noqa: BLE001 — 坏文件按未识别处理，不阻塞清扫
         return None
 
 
-def _is_refresh_disabled(config: dict | None) -> bool:
-    """用户是否显式关闭了定时刷新（refresh.enabled === false）"""
-    if not config:
-        return False
-    refresh = config.get("refresh")
-    return isinstance(refresh, dict) and refresh.get("enabled") is False
+def cleanup_retired_zenkill_pages(workspace_root: Path) -> list[str]:
+    """清扫 workspace 内退役的 zenskill-* 播种页实体，返回被删 slug 列表。
 
+    识别口径（满足其一即删）：
+    - 目录名在 RETIRED_PAGE_SLUGS
+    - page.json 的 slug 在 RETIRED_PAGE_SLUGS
+    - page.json 带 template=true（退役后模版标记即退役标记）
 
-def _seed_page(source_dir: Path, target_dir: Path) -> str:
-    """播种单个页面，返回 'seeded'（有变化）或 'unchanged'（幂等命中）。
-
-    content/scripts 先写、page.json 最后写；page.json 覆盖时
-    保留目标已有且 contentDigest/lastRefresh 等宿主管理字段不动
-    （直接以源为准，宿主会在下一次内容保存时重建）。
+    边界：CLI createFromTemplate 实例化产生的自命名实例（slug 为用户命名、
+    template 标记已剥除）不可识别，不在此清扫范围——该入口从未接入 GUI，
+    实际存在概率趋零；若确有，用户可经 pages:delete 手动清理。
     """
-    changed = False
-
-    def _sync_file(rel: Path, content: str) -> None:
-        nonlocal changed
-        target = target_dir / rel
-        if target.is_file() and target.read_text(encoding=_ENCODING) == content:
-            return
-        _atomic_write_text(target, content)
-        changed = True
-
-    # 1) 内容与脚本（page.json 之外的所有文本文件，含子目录）
-    for src_file in sorted(source_dir.rglob("*")):
-        if not src_file.is_file():
+    removed: list[str] = []
+    pages_root = Path(workspace_root) / "pages"
+    if not pages_root.is_dir():
+        return removed
+    for page_dir in sorted(pages_root.iterdir()):
+        if not page_dir.is_dir():
             continue
-        rel = src_file.relative_to(source_dir)
-        if rel.parts[0] == "data":  # 运行时数据目录归刷新脚本所有，不播种
-            continue
-        if rel.name == "page.json":
-            continue
-        _sync_file(rel, src_file.read_text(encoding=_ENCODING))
-
-    # 2) page.json 最后写（完成标记语义）
-    source_config = _load_page_json(source_dir / "page.json")
-    if source_config is None:
-        raise ValueError(f"invalid page.json in {source_dir}")
-    target_config_path = target_dir / "page.json"
-    if _is_refresh_disabled(_load_page_json(target_config_path)):
-        source_config.setdefault("refresh", {})["enabled"] = False
-        logger.info("preserved user disabled refresh for %s", source_config.get("slug"))
-    # contentDigest：宿主 PageView 以此判定"有内容"（hasContent），
-    # 渲染租约/授权也绑定此值——与 TS computePageContentDigest 同源（sha256 hex）
-    index_html = target_dir / "index.html"
-    if index_html.is_file():
-        source_config["contentDigest"] = hashlib.sha256(
-            index_html.read_bytes()
-        ).hexdigest()
-    _sync_file(Path("page.json"), json.dumps(source_config, ensure_ascii=False, indent=2) + "\n")
-
-    return "seeded" if changed else "unchanged"
-
-
-def sync_pages(workspace_root: Path, source_dir: Path | None = None) -> dict:
-    """把 zenskill- 前缀页面包播种到 workspace 的 pages/ 目录。
-
-    Args:
-        workspace_root: craft workspace 根目录（pages/ 的父目录）
-        source_dir: 资源目录覆写（测试用）；默认 _pages_resource_dir()
-
-    Returns:
-        摘要 dict：{"workspace_root", "discovered", "seeded",
-                    "unchanged", "failed"}，均为 slug 列表（failed 为
-                    [{"slug", "error"}]），资源目录缺失时 discovered 为空、不报错。
-    """
-    workspace_root = Path(workspace_root).expanduser()
-
-    # Phase 3b: JSONL → SQLite 幂等迁移（启动时先迁移，再播种）
-    try:
-        from .migrate_sqlite import migrate_jsonl_to_sqlite
-        migrate_jsonl_to_sqlite()
-    except Exception as exc:
-        logger.warning("JSONL→SQLite migration skipped: %s", exc)
-    source_dir = Path(source_dir) if source_dir else _pages_resource_dir()
-
-    summary: dict = {
-        "workspace_root": str(workspace_root),
-        "discovered": [],
-        "seeded": [],
-        "unchanged": [],
-        "failed": [],
-    }
-
-    # 资源目录缺失 / 为空：安静返回（宁缺勿滥，不抛错）
-    if not source_dir.is_dir():
-        logger.info("pages resource dir not found: %s", source_dir)
-        return summary
-
-    pages_root = workspace_root / "pages"
-    for child in sorted(source_dir.iterdir()):
-        slug = child.name
-        # 命名空间隔离：非 zenskill- 前缀的目录不是我们的页面包
-        if not child.is_dir() or not slug.startswith(MANAGED_SLUG_PREFIX):
-            continue
-        if not (child / "page.json").is_file():
-            continue
-        summary["discovered"].append(slug)
-
-        target_dir = pages_root / slug
-        try:
-            result = _seed_page(child, target_dir)
-            summary[result].append(slug)
-            logger.info("pages sync %s -> %s (%s)", slug, target_dir, result)
-        except Exception as exc:  # noqa: BLE001 — 单页失败不影响其他页
-            summary["failed"].append({"slug": slug, "error": str(exc)})
-            logger.warning("pages sync failed for %s: %s", slug, exc)
-
-    return summary
-
-
-def resolve_active_workspace_root() -> Path | None:
-    """从 craft config.json 解析活跃 workspace 根目录（跟随 update_guide.py）"""
-    config_path = Path.home() / ".zenskill" / "craft" / "config.json"
-    try:
-        cfg = json.loads(config_path.read_text(encoding=_ENCODING))
-        active_id = cfg.get("activeWorkspaceId", "")
-        for ws in cfg.get("workspaces", []):
-            if ws.get("id") == active_id:
-                return Path(ws["rootPath"]).expanduser()
-    except Exception:  # noqa: BLE001 — 无配置时返回 None 由调用方兜底
-        pass
-    return None
+        cfg = _load_page_json(page_dir / "page.json") or {}
+        slug = str(cfg.get("slug") or page_dir.name)
+        if (
+            page_dir.name in RETIRED_PAGE_SLUGS
+            or slug in RETIRED_PAGE_SLUGS
+            or cfg.get("template") is True
+        ):
+            shutil.rmtree(page_dir, ignore_errors=True)
+            removed.append(slug)
+    return removed

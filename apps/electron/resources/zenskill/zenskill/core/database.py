@@ -22,7 +22,7 @@ import sqlite3
 import time
 from contextlib import contextmanager
 from pathlib import Path
-from threading import Lock
+from threading import Lock, local
 from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
@@ -44,6 +44,9 @@ class DatabaseManager:
         self._lock = Lock()
         self._initialized = False
         self._initializing = False
+        # 线程级长连接复用：高频写路径（GTD 引擎逐条同步等）原先每次
+        # connect/close 循环实测 ~15ms，复用后只剩 execute+commit 开销
+        self._local = local()
         # 迁移等批量导入场景可临时关闭 FK（connect 每连接都执行 PRAGMA，
         # 单独发 PRAGMA OFF 到别的连接是无效操作）
         self._foreign_keys = True
@@ -64,22 +67,80 @@ class DatabaseManager:
 
     @contextmanager
     def connect(self):
-        """获取数据库连接 (自动 commit/rollback，首次调用懒初始化 schema)"""
+        """获取数据库连接 (自动 commit/rollback，首次调用懒初始化 schema)
+
+        连接为线程级复用（WAL 模式下并发安全）：不再每次 connect/close。
+        """
         if not self._initialized and not self._initializing:
             self.init_schema()
-        conn = sqlite3.connect(str(self._db_path))
-        conn.execute("PRAGMA journal_mode=WAL")
-        conn.execute(f"PRAGMA foreign_keys={'ON' if self._foreign_keys else 'OFF'}")
-        conn.execute("PRAGMA busy_timeout=5000")
-        conn.row_factory = sqlite3.Row
+        conn = self._thread_conn()
         try:
             yield conn
             conn.commit()
         except Exception:
             conn.rollback()
             raise
-        finally:
-            conn.close()
+
+    def close_pool(self) -> None:
+        """关闭当前线程的复用连接（reset/库文件替换前必须调用）。
+
+        WAL 模式下连接持有 -wal/-shm 句柄：不先关闭，Windows 上
+        unlink 会被拒（reset 失败）；Linux 上unlink 成功但残留幽灵
+        inode。其他线程的连接无法跨线程关闭，由其下次 connect 的
+        inode 身份校验兜底重建。
+        """
+        conn = getattr(self._local, "conn", None)
+        if conn is not None:
+            try:
+                conn.close()
+            except Exception:
+                pass
+        self._local.conn = None
+        self._local.ident = None
+
+    def _thread_conn(self) -> sqlite3.Connection:
+        """当前线程的复用连接（懒建）。
+
+        两种情况旧连接作废重建：db 路径被改写；库文件被外部删除重建
+        （state_reset 等场景，同路径新 inode——Linux 上旧连接仍指向已
+        unlink 的幽灵库，不校验会把 init_schema 写进幽灵文件）。校验
+        开销为每次 connect 一次 os.stat（µs 级）。
+        """
+        conn = getattr(self._local, "conn", None)
+        ident = self._file_identity()
+        if conn is not None and (
+            getattr(self._local, "path", None) != self._db_path
+            or ident != getattr(self._local, "ident", None)
+        ):
+            try:
+                conn.close()
+            except Exception:
+                pass
+            conn = None
+        if conn is None:
+            conn = sqlite3.connect(str(self._db_path))
+            conn.execute("PRAGMA journal_mode=WAL")
+            conn.execute(f"PRAGMA foreign_keys={'ON' if self._foreign_keys else 'OFF'}")
+            conn.execute("PRAGMA busy_timeout=5000")
+            conn.row_factory = sqlite3.Row
+            self._local.conn = conn
+            self._local.path = self._db_path
+            self._local.ident = self._file_identity()
+            self._local.fk_state = self._foreign_keys
+        elif self._local.fk_state != self._foreign_keys:
+            # foreign_keys_disabled 切换：PRAGMA 按连接生效，需补发。
+            # 上下文间无未决事务（connect 出口必 commit/rollback），可安全切换
+            conn.execute(f"PRAGMA foreign_keys={'ON' if self._foreign_keys else 'OFF'}")
+            self._local.fk_state = self._foreign_keys
+        return conn
+
+    def _file_identity(self):
+        """库文件身份（st_dev, st_ino）；文件不存在返回 None。"""
+        try:
+            st = os.stat(self._db_path)
+            return (st.st_dev, st.st_ino)
+        except OSError:
+            return None
 
     def execute(self, sql: str, params=()) -> List[Dict[str, Any]]:
         """执行查询并返回结果行列表（自动 commit；懒初始化由 connect() 统一负责）"""
@@ -167,6 +228,7 @@ class DatabaseManager:
         index_sqls = [
             "CREATE INDEX IF NOT EXISTS idx_actions_created ON gtd_actions(created_at)",
             "CREATE INDEX IF NOT EXISTS idx_actions_priority_status ON gtd_actions(priority, status)",
+            "CREATE INDEX IF NOT EXISTS idx_actions_source_session ON gtd_actions(source_session_id)",  # S2 反查
             "CREATE INDEX IF NOT EXISTS idx_inbox_status_created ON gtd_inbox(status, created_at)",
         ]
         for idx_sql in index_sqls:

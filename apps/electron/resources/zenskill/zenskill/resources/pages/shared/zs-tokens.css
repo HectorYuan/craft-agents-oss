@@ -1,0 +1,16 @@
+/* ==== zs-tokens.css — 由 EduAgent generate-tokens.mjs --dist 生成，勿手改 ====
+  Craft Pages (zenskill/resources/pages) 共享语义变量; --zs-* 前缀避免与页面既有 :root 冲突
+  M3-B3: 5 页收敛到本文件 ==== */
+
+:root {
+  --zs-accent: #0171E3;
+  --zs-good: #51C147;
+  --zs-warn: #2B88C0;
+  --zs-bad: #F92434;
+  --zs-info: #2B88C0;
+  --zs-bg: #F4F5F7;
+  --zs-border: #CCCED0;
+  --zs-text: #0F0F11;
+  --zs-text2: #616366;
+  --zs-muted: #87898C;
+}

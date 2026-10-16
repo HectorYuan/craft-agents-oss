@@ -49,13 +49,11 @@ def check_deps() -> Dict[str, bool]:
 def get_best_mode(deps: Dict[str, bool]) -> str:
     """根据可用依赖返回最佳模式
 
-    优先级: rich_app > textual > rich > plain
+    优先级: rich(Rich App) > plain(零依赖兜底)。
+    rich 单独可用（缺 prompt_toolkit）仍选 rich——_get_input 有 input()
+    降级路径。textual 模式已随迁移退役，保留探测仅为报告。
     """
-    if deps.get("rich_app"):
-        return "rich"
-    if deps.get("textual"):
-        return "textual"
-    if deps.get("rich"):
+    if deps.get("rich_app") or deps.get("rich"):
         return "rich"
     return "plain"
 

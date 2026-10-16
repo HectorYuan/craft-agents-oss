@@ -40,10 +40,12 @@ def _str_box_footer() -> str:
     """box_footer 的字符串版本"""
     return f"  └{'─' * 60}"
 
-# 版本信息（与 __init__.py 同步
+# 版本信息 — 三份字面量（pyproject/__init__/__main__）由 scripts/sync_version.py 统一改齐，
+# G-DOCS R1 校验三处字面量一致（正则要求引号字面量，故不能写成表达式引用）。
+# 历史教训：无同步机制时曾漂移成 __version__=2.10.0 / __version_info__=(2,8,0) 各写各的。
 __title__ = "ZenSkill"
-__version__ = "2.9.0"
-__version_info__ = (2, 8, 0)
+__version__ = "0.9.14"
+__version_info__ = tuple(int(x) for x in __version__.split(".")[:3])
 __author__ = "ZenSkill Team"
 
 
@@ -65,15 +67,17 @@ def _runtime_storage_dir():
 
 
 
-from .cli.reflect import generate_reflection_report  # noqa: E402 (向后兼容 re-export)
-from .cli.growth import cmd_growth_status  # noqa: E402
-from .cli.collector import _run_light_pipeline  # noqa: E402
+# （向后兼容 re-export 已移至模块尾部 __getattr__：顶层 import 会与
+#  zenskill.cli 的反向兼容 re-export 形成循环导入——cli 半程拿不到
+#  cmd_action_*/main/__version_info__，组合测试序列下 zenskill.cli 永久残缺）
 
 
 def cmd_default_overview(args: argparse.Namespace) -> None:
     """默认概览命令 - 显示成长状态 + 洞察摘要"""
-    # 先显示五维能力雷达
-    cmd_growth_status(args)
+    # 经模块属性间接调用：既可 lazy 加载（顶层 re-export 已延迟化），
+    # 又让 @patch("zenskill.__main__.cmd_growth_status") 打桩生效
+    # （局部 import 会绕过模块级 patch 导致断言失败）
+    getattr(sys.modules[__name__], "cmd_growth_status")(args)
 
     # 如果有数据，追加洞察摘要
     from zenskill.systems.visualization.insight_engine import GrowthInsightEngine
@@ -1125,7 +1129,7 @@ def cmd_eco_health(args: argparse.Namespace) -> None:
 
 
 def _inject_model_switcher_keys():
-    """从 model-switcher DB 读取 API key 注入环境变量（与 Craft 共享同一份 key）。"""
+    """从 model-switcher DB 读取 API key 注入环境变量（与桌面端共享同一份 key）。"""
     import os
     import sqlite3
     from pathlib import Path
@@ -1148,7 +1152,8 @@ def _inject_model_switcher_keys():
         rows = conn.execute(
             "SELECT ka.pool_name, es.var_value FROM key_accounts ka "
             "JOIN env_vars es ON ka.key_env = es.var_name "
-            "WHERE ka.pool_name IN ('deepseek', 'mimo') AND ka.status = 'active'"
+            "WHERE ka.pool_name IN ('deepseek', 'mimo') AND ka.status = 'active' "
+            "ORDER BY ka.id ASC"
         ).fetchall()
         conn.close()
 
@@ -1530,8 +1535,9 @@ def safe_execute(func: Callable[..., Any], args: argparse.Namespace) -> int:
     import json as _json
 
     try:
-        func(args)
-        return 0
+        rc = func(args)
+        # 透传命令自身的退出码（此前丢弃返回值恒 0，非异常失败码全被吞）
+        return rc if isinstance(rc, int) and not isinstance(rc, bool) else 0
     except KeyboardInterrupt:
         print("\n\n👋 用户中断，退出")
         return 130
@@ -2287,8 +2293,15 @@ def cmd_deploy_skill(args: argparse.Namespace) -> None:
 
 def main() -> int:
     """主入口函数"""
-    # 从 model-switcher 注入 API key（与 Craft GUI 共享同一份 key）
+    # 从 model-switcher 注入 API key（与桌面端 GUI 共享同一份 key）
     _inject_model_switcher_keys()
+
+    # 从本地保险库注入 API key（DPAPI；env/上游注入优先不覆盖）
+    try:
+        from .core.llm_keyring import apply_to_env
+        apply_to_env()
+    except Exception:
+        pass
 
     # 确保所有数据目录存在（首次运行时创建）
     ensure_data_dirs()
@@ -2553,9 +2566,15 @@ def main() -> int:
     market_search_p.add_argument("query", help="搜索关键词")
     market_search_p.add_argument("--top-k", type=int, default=10, help="返回数量")
     market_search_p.set_defaults(func=cmd_market_search)
-    market_list_p = market_sub.add_parser("list", help="列出已注册市场")
-    market_list_p.set_defaults(func=cmd_market_search)  # reuses handler
-    market_parser.set_defaults(func=cmd_market_search)
+
+    # W1 市场源管理：list [--health] / add / remove / enable / disable
+    from .cli.market import cmd_market_list, register_market_admin
+    register_market_admin(market_sub)
+    market_parser.set_defaults(func=cmd_market_list)
+
+    # scan 命令（W2：安全+可用性双扫描，实现位于 zenskill/cli/scan.py）
+    from .cli.scan import register_scan_parser
+    register_scan_parser(subparsers)
 
     # tui 命令
     tui_parser = subparsers.add_parser("tui", help="启动交互式终端界面")
@@ -2587,9 +2606,6 @@ def main() -> int:
     from .cli.share import register_share_parser
     register_share_parser(subparsers)
 
-    # pages 命令组（craft Pages 页面包播种，实现位于 zenskill/cli/pages.py）
-    from .cli.pages import register_pages_parser
-    register_pages_parser(subparsers)
 
     # serve 命令（WebUI server）
     from .cli.serve import register_serve_parser
@@ -2908,9 +2924,9 @@ def main() -> int:
         choices=["text", "json", "html", "junit"],
         default="text", help="报告格式")
     test_parser.add_argument("--quick", "-q", action="store_true",
-        help="快速验证 (<30s) — 仅 unit + integration")
+        help="快速验证 — unit 全量 pytest tests/（10-17 分钟）+ integration 合并")
     test_parser.add_argument("--smoke", action="store_true",
-        help="烟雾测试 (<10s)")
+        help="烟雾测试 — quick 的别名")
     test_parser.add_argument("--output", "-o",
         help="保存报告到文件")
     test_parser.add_argument("--coverage", "-C", action="store_true",
@@ -2948,6 +2964,20 @@ def main() -> int:
     else:
         parser.print_help()
         return 1
+
+
+# PEP 562 延迟 re-export：消费方 from zenskill.__main__ import X 照常可用
+def __getattr__(name: str):
+    if name == "generate_reflection_report":
+        from .cli.reflect import generate_reflection_report
+        return generate_reflection_report
+    if name == "cmd_growth_status":
+        from .cli.growth import cmd_growth_status
+        return cmd_growth_status
+    if name == "_run_light_pipeline":
+        from .cli.collector import _run_light_pipeline
+        return _run_light_pipeline
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 if __name__ == "__main__":

@@ -14,6 +14,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
 
+from ._observer import emit_gtd_event, GtdObserverPayload
+
 logger = logging.getLogger(__name__)
 
 
@@ -28,6 +30,7 @@ class GTDProject:
     review_date: str = ""
     notes: str = ""
     skill_id: str = ""
+    craft_project_slug: str = ""  # D2-4: 关联 Craft 项目 slug
     profile: str = ""  # 所属 profile（空=当前激活）
     created_at: str = field(default_factory=lambda: time.strftime("%Y-%m-%dT%H:%M:%S"))
     completed_at: str = ""
@@ -38,6 +41,7 @@ class GTDProject:
             "status": self.status, "next_action_id": self.next_action_id,
             "parent_project_id": self.parent_project_id, "review_date": self.review_date,
             "notes": self.notes, "skill_id": self.skill_id,
+            "craft_project_slug": self.craft_project_slug,
             "profile": self.profile,
             "created_at": self.created_at, "completed_at": self.completed_at,
         }
@@ -51,6 +55,7 @@ class GTDProject:
             parent_project_id=data.get("parent_project_id", ""),
             review_date=data.get("review_date", ""),
             notes=data.get("notes", ""), skill_id=data.get("skill_id", ""),
+            craft_project_slug=data.get("craft_project_slug", ""),
             profile=data.get("profile", ""),
             created_at=data.get("created_at", ""),
             completed_at=data.get("completed_at", ""),
@@ -174,14 +179,28 @@ class ProjectEngine:
         # 记录技能成长
         if proj.skill_id:
             self._record_skill_growth(proj)
+        # S2 桥接：GTDProject 无 source_session_id 字段，联动 S1 需 session_id
+        # 暂未支持（GTDProject 模型无此字段）；emit 仍发供 automation matcher 订阅
+        emit_gtd_event(GtdObserverPayload(
+            eventType="GtdEntityChanged",
+            entityType="project", entityId=project_id,
+            previousStatus="active", newStatus="done",
+            sourceSessionId="",
+            completedAt=proj.completed_at,
+            title=proj.name,
+        ))
         return True
 
     def archive(self, project_id: str) -> bool:
         return self.update(project_id, status="archived")
 
+    # Z12 死方法标记：无产品调用方（MCP/CLI/TUI 均未接线），保留为行为
+    # 规格与未来接线候选——下轮评估删除（调用方清单见看板 Z12）
     def set_next_action(self, project_id: str, action_id: str) -> bool:
         return self.update(project_id, next_action_id=action_id) is not None
 
+    # Z12 死方法标记：无产品调用方（MCP/CLI/TUI 均未接线），保留为行为
+    # 规格与未来接线候选——下轮评估删除（调用方清单见看板 Z12）
     def review(self, project_id: str) -> bool:
         return self.update(project_id,
                            review_date=time.strftime("%Y-%m-%dT%H:%M:%S"))

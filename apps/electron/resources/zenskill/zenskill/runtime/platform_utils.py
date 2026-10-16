@@ -5,11 +5,41 @@
 """
 from __future__ import annotations
 
+import os
 import platform
+import shutil
 import subprocess
 from typing import Optional
 
 IS_WINDOWS = platform.system() == "Windows"
+
+
+# ═══════════════════════════════════════════════════════════════
+# POSIX shell 发现
+# ═══════════════════════════════════════════════════════════════
+
+
+def find_posix_shell() -> Optional[str]:
+    """返回可承载 POSIX 语义的 bash 绝对路径；不可用返回 None。
+
+    Windows 上 subprocess 直接以 "bash" 启动时，CreateProcess 的搜索顺序
+    会先命中 System32\\bash.exe（WSL stub，不认 Windows 路径）；
+    必须用解析出的 Git Bash 绝对路径才能获得一致的 POSIX 行为。
+    非 Windows 返回 "bash"（PATH 直接可用）。
+    """
+    if not IS_WINDOWS:
+        return "bash"
+    bash = shutil.which("bash")
+    if bash and "system32" not in bash.lower():
+        return bash
+    for cand in (
+        r"C:\Program Files\Git\bin\bash.exe",
+        r"C:\Program Files (x86)\Git\bin\bash.exe",
+        os.path.expandvars(r"%LOCALAPPDATA%\Programs\Git\bin\bash.exe"),
+    ):
+        if os.path.isfile(cand):
+            return cand
+    return None
 
 
 # ═══════════════════════════════════════════════════════════════

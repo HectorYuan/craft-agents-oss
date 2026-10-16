@@ -1,0 +1,17 @@
+/* ==== GENERATED:SITE-TOKENS BEGIN — 由 EduAgent generate-tokens.mjs --dist 生成，经 sync-design-tokens.sh 注入，勿手改 ==== */
+:root {
+  --seed-primary: #0071E3;
+  --seed-primary-700: #0059b8;
+  --seed-accent: #FF375F;
+  --seed-radius-base: 10px;
+  /* 中性（锁官网现值） */
+  --bg: #f7f8fa;
+  --bg-2: #eef0f4;
+  --card: #ffffff;
+  --border: #e3e6ec;
+  --border-strong: #d3d7e0;
+  --fg: #1c1f26;
+  --fg-2: #5b6472;
+  --fg-3: #8b93a3;
+}
+/* ==== GENERATED:SITE-TOKENS END ==== */

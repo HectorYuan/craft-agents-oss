@@ -324,8 +324,10 @@ class SkillRatingEngine:
                 from zenskill.core.skill_dao import SkillDAO
                 SkillDAO.rate(skill_id, score, comment, user)
                 return self.rate(skill_id)
-            except Exception:
-                pass
+            except Exception as e:
+                # 静默降级曾致读写分裂（DB 空、数据在文件，list 读不到），
+                # 降级必须留痕
+                logger.warning(f"DB 评分写入失败，降级文件存储 {skill_id}: {e}")
         return self._add_user_rating_fs(skill_id, score, comment, user)
 
     def _add_user_rating_fs(self, skill_id: str, score: float,
@@ -499,7 +501,14 @@ class SkillRatingEngine:
         return data if data else None
 
     def list_ratings(self) -> List[Dict[str, Any]]:
-        """列出所有已评级的技能 — 优先 DB"""
+        """列出所有已评级的技能 — DB 优先、文件按技能 ID 并集合并。
+
+        DB 可达但为空时不能直接返回空：用户评分可能经 FS 兜底落盘
+        （DAO 写失败静默降级，如未注册技能触发 FK 约束），读写两存储
+        会分裂——按 skill_id 并集合并，DB 已有的行优先。
+        """
+        results: List[Dict[str, Any]] = []
+        seen: set = set()
         if self._use_db:
             try:
                 from zenskill.core.database import db
@@ -510,19 +519,23 @@ class SkillRatingEngine:
                         "FROM skill_ratings r "
                         "LEFT JOIN skill_registry s ON r.skill_id = s.skill_id"
                     ).fetchall()
-                    return [dict(r) for r in rows]
+                    for r in rows:
+                        d = dict(r)
+                        results.append(d)
+                        seen.add(d.get("skill_id"))
             except Exception:
                 pass
-        # Fallback: file system
-        results = []
         if not self._ratings_dir.exists():
             return results
         for f in sorted(self._ratings_dir.glob("*_rating.json")):
             try:
                 data = json.loads(f.read_text(encoding="utf-8"))
+                skill_id = data.get("skill_id", f.stem.replace("_rating", ""))
+                if skill_id in seen:
+                    continue
                 results.append({
-                    "skill_id": data.get("skill_id", f.stem.replace("_rating", "")),
-                    "name": data.get("skill_name", ""),
+                    "skill_id": skill_id,
+                    "name": data.get("skill_name") or skill_id,
                     "overall": data.get("overall", 0),
                     "star_level": data.get("star_level", ""),
                     "star_icon": data.get("star_icon", ""),

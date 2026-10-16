@@ -844,9 +844,6 @@ def cmd_skill_lint(args: argparse.Namespace) -> None:
         meta, body = parse_skill_md(skill_md)
         errors.extend(validate_frontmatter(meta))
 
-        from ..skills.skill_optimizer import estimate_tokens
-        result["body_tokens"] = estimate_tokens(body)
-
         if not body.strip():
             errors.append("正文为空")
         elif len(body.splitlines()) > 200:
@@ -866,6 +863,9 @@ def cmd_skill_lint(args: argparse.Namespace) -> None:
         "errors": errors,
         "warnings": warnings,
     }
+    if body:
+        from ..skills.skill_optimizer import estimate_tokens
+        result["body_tokens"] = estimate_tokens(body)
     if meta:
         result["name"] = meta.name
         result["version"] = meta.version
@@ -1129,6 +1129,64 @@ def register_skill_parser(subparsers) -> None:
     skill_optimize_parser = skill_subparsers.add_parser("optimize", help="优化技能定义（Phase 9K）")
     skill_optimize_parser.add_argument("--feedback", help="反馈日志 JSON 文件路径")
     skill_optimize_parser.set_defaults(func=cmd_skill_optimize)
+
+    # skills 治理命令组（G2，方案 §5.3；与 "skill" 修炼命令组并存）
+    skills_parser = subparsers.add_parser(
+        "skills", help="技能治理 — 状态机 + Tier 分级 (G2)")
+    skills_sub = skills_parser.add_subparsers(
+        dest="governance_cmd", help="治理操作")
+
+    gov_state_parser = skills_sub.add_parser("state", help="治理状态迁移")
+    gov_state_parser.add_argument("skill_id", help="技能 slug")
+    gov_state_parser.add_argument(
+        "action", choices=["wake", "dormant", "archive", "restore", "delete"],
+        help="迁移动作")
+    gov_state_parser.add_argument(
+        "--force", action="store_true", help="强制执行（越过 30 天恢复窗口）")
+    gov_state_parser.add_argument(
+        "--json", dest="json_output", action="store_true", help="JSON 输出")
+    gov_state_parser.set_defaults(func=cmd_skills_state)
+
+    gov_tier_parser = skills_sub.add_parser("tier", help="设置技能 Tier")
+    gov_tier_parser.add_argument("skill_id", help="技能 slug")
+    gov_tier_parser.add_argument("tier", choices=["T0", "T1", "T2"], help="目标 Tier")
+    gov_tier_parser.add_argument(
+        "--json", dest="json_output", action="store_true", help="JSON 输出")
+    gov_tier_parser.set_defaults(func=cmd_skills_tier)
+
+    gov_recompute_parser = skills_sub.add_parser(
+        "tier-recompute", help="按熟练度/使用数据重算全员 Tier")
+    gov_recompute_parser.add_argument(
+        "--json", dest="json_output", action="store_true", help="JSON 输出")
+    gov_recompute_parser.set_defaults(func=cmd_skills_tier_recompute)
+
+    # skills profile 命令组（G3 §4.3：场景集）
+    profile_parser = skills_sub.add_parser(
+        "profile", help="场景集 profile — 技能注入集合管理 (G3)")
+    profile_sub = profile_parser.add_subparsers(
+        dest="profile_action", help="profile 操作")
+
+    prof_list_parser = profile_sub.add_parser("list", help="列出 profiles 与 default")
+    prof_list_parser.add_argument(
+        "--config", help="skill_profiles.yaml 路径（默认 ~/.zenskill/skill_profiles.yaml）")
+    prof_list_parser.add_argument(
+        "--json", dest="json_output", action="store_true", help="JSON 输出")
+    prof_list_parser.set_defaults(func=cmd_skills_profile_list)
+
+    prof_show_parser = profile_sub.add_parser("show", help="查看 profile 注入池统计")
+    prof_show_parser.add_argument("name", help="profile 名称")
+    prof_show_parser.add_argument("--config", help="skill_profiles.yaml 路径")
+    prof_show_parser.add_argument(
+        "--json", dest="json_output", action="store_true", help="JSON 输出")
+    prof_show_parser.set_defaults(func=cmd_skills_profile_show)
+
+    prof_default_parser = profile_sub.add_parser(
+        "default", help="设置 default profile（写回 yaml）")
+    prof_default_parser.add_argument("name", help="profile 名称")
+    prof_default_parser.add_argument("--config", help="skill_profiles.yaml 路径")
+    prof_default_parser.add_argument(
+        "--json", dest="json_output", action="store_true", help="JSON 输出")
+    prof_default_parser.set_defaults(func=cmd_skills_profile_default)
 
     # reflect 命令组
     from .reflect import register_reflect_parser
@@ -1422,5 +1480,210 @@ def cmd_template_info(args: argparse.Namespace) -> None:
         return "\n".join(lines)
 
     cli_output({"template": tmpl}, args, text=_text)
+
+
+# ═══════════════════════════════════════════════════════════════════
+# G2 技能治理命令组（方案 §5.3：状态机 + Tier 分级）
+# ═══════════════════════════════════════════════════════════════════
+
+
+def cmd_skills_state(args: argparse.Namespace) -> None:
+    """治理状态迁移: wake/dormant/archive/restore/delete"""
+    from ..skills.skill_governance import mcp_skill_state
+
+    result = mcp_skill_state({
+        "skill_id": args.skill_id,
+        "action": args.action,
+        "force": getattr(args, "force", False),
+    })
+
+    def _text():
+        if not result.get("ok"):
+            return (f"❌ 状态迁移失败: {args.skill_id}\n"
+                    f"   {result.get('error', '')} "
+                    f"(from={result.get('from_state', '?')} "
+                    f"to={result.get('to_state', '?')} "
+                    f"reason={result.get('reason', '')})")
+        lines = [f"✅ {args.skill_id}: {result.get('from', '?')} → {result['state']}",
+                 f"   动作: {args.action}"]
+        if result.get("woken"):
+            lines.append("   已唤醒（dormant → active）")
+        if result.get("forced"):
+            lines.append("   已强制执行（越过 30 天恢复窗口）")
+        return "\n".join(lines)
+
+    cli_output(result, args, text=_text)
+    if not result.get("ok"):
+        raise SystemExit(1)
+
+
+def cmd_skills_tier(args: argparse.Namespace) -> None:
+    """设置技能 Tier: T0/T1/T2（T0 即 pinned）"""
+    from ..skills.skill_governance import mcp_set_tier
+
+    result = mcp_set_tier({"skill_id": args.skill_id, "tier": args.tier})
+
+    def _text():
+        if not result.get("ok"):
+            return f"❌ Tier 设置失败: {args.skill_id}\n   {result.get('error', '')}"
+        pin = "📌 pinned" if result.get("pinned") else "未 pinned"
+        return f"✅ {args.skill_id}: tier={result['tier']} ({pin})"
+
+    cli_output(result, args, text=_text)
+    if not result.get("ok"):
+        raise SystemExit(1)
+
+
+def cmd_skills_tier_recompute(args: argparse.Namespace) -> None:
+    """按熟练度/使用数据重算全员 Tier（T0=pinned|熟练度≥0.7, T1=30天活跃, T2=其余）"""
+    from ..skills.skill_governance import recompute_tiers
+
+    stats = recompute_tiers()
+
+    def _text():
+        total = stats["T0"] + stats["T1"] + stats["T2"]
+        return (
+            f"📊 Tier 重算完成 ({total} active 技能)\n"
+            f"   T0 核心: {stats['T0']}   T1 活跃: {stats['T1']}   T2 长尾: {stats['T2']}\n"
+            f"   本次变更: {stats['changed']} 项"
+        )
+
+    cli_output(stats, args, text=_text)
+
+
+# ═══════════════════════════════════════════════════════════════════
+# G3 场景集 profile 命令组（方案 §4.3：list / show / default）
+# ═══════════════════════════════════════════════════════════════════
+
+
+def cmd_skills_profile_list(args: argparse.Namespace) -> None:
+    """列出 profiles 与 default"""
+    from pathlib import Path
+
+    from ..skills.skill_profiles import load_profiles
+
+    cfg = load_profiles(getattr(args, "config", None))
+    result = {
+        "default": cfg["default"],
+        "config": str(getattr(args, "config", None)
+                      or Path.home() / ".zenskill" / "skill_profiles.yaml"),
+        "profiles": sorted(cfg["profiles"]),
+        "details": cfg["profiles"],
+    }
+
+    def _text():
+        lines = [f"📋 场景集 profiles — default: {cfg['default'] or '(未设置)'}",
+                 "=" * 50]
+        if not cfg["profiles"]:
+            lines.append("  (无 profile；配置文件: ~/.zenskill/skill_profiles.yaml)")
+        for name in sorted(cfg["profiles"]):
+            p = cfg["profiles"][name]
+            marks = []
+            if p["tiers"]:
+                marks.append("tiers=" + ",".join(p["tiers"]))
+            if p["categories"]:
+                marks.append("categories=" + ",".join(p["categories"]))
+            if p["include"]:
+                marks.append(f"include={len(p['include'])}")
+            if p["exclude"]:
+                marks.append(f"exclude={len(p['exclude'])}")
+            star = "  ★ default" if name == cfg["default"] else ""
+            lines.append(f"  {name}{star}: " + ("; ".join(marks) or "(无规则=全池)"))
+        lines.append("")
+        return "\n".join(lines)
+
+    cli_output(result, args, text=_text)
+
+
+def cmd_skills_profile_show(args: argparse.Namespace) -> None:
+    """查看 profile 注入池统计（included 数 / 各 tier 数 / exclude 生效数）"""
+    from ..skills.skill_profiles import load_profiles, pool_for
+
+    name = args.name
+    cfg = load_profiles(getattr(args, "config", None))
+    pool = pool_for(name, config_path=getattr(args, "config", None))
+    tier_counts = {"T0": 0, "T1": 0, "T2": 0}
+    for slug in pool["included"]:
+        tier = str(pool["meta"].get(slug, {}).get("tier") or "T2")
+        tier_counts[tier if tier in tier_counts else "T2"] += 1
+    gov_excluded = sorted(
+        s for s, r in pool["excluded_with_reason"].items()
+        if r.startswith("governance:"))
+    prof_excluded = sorted(
+        s for s, r in pool["excluded_with_reason"].items()
+        if r.startswith("profile:"))
+    result = {
+        "profile": pool["profile"],
+        "source": pool["source"],
+        "defined": name in cfg["profiles"],
+        "included_count": len(pool["included"]),
+        "tier_counts": tier_counts,
+        "governance_excluded_count": len(gov_excluded),
+        "profile_excluded_count": len(prof_excluded),
+        "governance_excluded": gov_excluded,
+        "profile_excluded": prof_excluded,
+    }
+
+    def _text():
+        lines = [f"📋 profile 池统计: {name}", "=" * 50]
+        if not result["defined"]:
+            lines.append("  ⚠️  该 profile 未在 yaml 中定义（规则为空 = 全池）")
+        lines.append(f"  解析来源:   {result['source']}")
+        lines.append(f"  入池技能:   {result['included_count']}")
+        lines.append(f"    T0 核心:  {tier_counts['T0']}")
+        lines.append(f"    T1 活跃:  {tier_counts['T1']}")
+        lines.append(f"    T2 长尾:  {tier_counts['T2']}")
+        lines.append(f"  治理剔除:   {len(gov_excluded)} (dormant/archived/deleted 硬约束)")
+        lines.append(f"  规则剔除:   {len(prof_excluded)} (exclude/tiers/categories)")
+        if prof_excluded:
+            preview = ", ".join(prof_excluded[:8])
+            more = f" …(+{len(prof_excluded) - 8})" if len(prof_excluded) > 8 else ""
+            lines.append(f"    {preview}{more}")
+        lines.append("")
+        return "\n".join(lines)
+
+    cli_output(result, args, text=_text)
+
+
+def cmd_skills_profile_default(args: argparse.Namespace) -> None:
+    """设置 default profile（写回 yaml default 字段）"""
+    from pathlib import Path
+
+    import yaml
+
+    from ..skills.skill_profiles import PROFILES_FILENAME, load_profiles
+
+    path = (Path(args.config) if getattr(args, "config", None)
+            else Path.home() / ".zenskill" / PROFILES_FILENAME)
+    cfg = load_profiles(str(path))
+    raw: dict = {}
+    if path.is_file():
+        try:
+            loaded = yaml.safe_load(path.read_text(encoding="utf-8"))
+            if isinstance(loaded, dict):
+                raw = loaded
+        except Exception:
+            raw = {}
+    raw["default"] = args.name
+    raw.setdefault("profiles", cfg["profiles"] or {})
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        yaml.safe_dump(raw, allow_unicode=True, sort_keys=False),
+        encoding="utf-8")
+    result = {
+        "ok": True,
+        "default": args.name,
+        "config": str(path),
+        "defined": args.name in cfg["profiles"],
+    }
+
+    def _text():
+        lines = [f"✅ default profile 已设为: {args.name}",
+                 f"   配置文件: {path}"]
+        if not result["defined"]:
+            lines.append("   ⚠️  该 profile 尚未定义规则（将以全池语义生效）")
+        return "\n".join(lines) + "\n"
+
+    cli_output(result, args, text=_text)
 
 

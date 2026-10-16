@@ -19,6 +19,7 @@ from dataclasses import dataclass, asdict
 from typing import List, Dict, Any, Optional
 
 from zenskill.core.paths import get_user_data_dir
+from zenskill.core.schemas import skill_level_display_name
 from zenskill.systems.visualization.metrics_store import MetricsStore, MetricSnapshot
 from zenskill.systems.visualization.ability_calculator import AbilityCalculator
 
@@ -181,8 +182,12 @@ class ProactiveInsightEngine:
                 insight_id=self._generate_insight_id(),
                 type="milestone",
                 level="high",
-                title=f"🏆 恭喜达到【{curr_level}】境界！",
-                content=f"你的技能已经从 {prev_level} 提升到 {curr_level}！这是一个重要的里程碑，继续加油！",
+                title=f"🏆 恭喜达到【{skill_level_display_name(curr_level)}】境界！",
+                content=(
+                    f"你的技能已经从 {skill_level_display_name(prev_level)}"
+                    f" 提升到 {skill_level_display_name(curr_level)}！"
+                    "这是一个重要的里程碑，继续加油！"
+                ),
                 data_evidence={
                     "previous_level": prev_level,
                     "current_level": curr_level,
@@ -395,7 +400,7 @@ class ProactiveInsightEngine:
                 f.write(json.dumps(insight.to_dict(), ensure_ascii=False) + "\n")
 
         if found:
-            temp_file.rename(self.insights_file)
+            temp_file.replace(self.insights_file)
         else:
             temp_file.unlink(missing_ok=True)
 
@@ -419,7 +424,7 @@ class ProactiveInsightEngine:
                     count += 1
                 f.write(json.dumps(insight.to_dict(), ensure_ascii=False) + "\n")
 
-        temp_file.rename(self.insights_file)
+        temp_file.replace(self.insights_file)
         return count
 
     def get_insights_by_type(self, insight_type: str) -> List[ProactiveInsight]:

@@ -8,12 +8,15 @@ Context 感知 / Priority 排序 / Energy 需求 / 重复规则。
 from __future__ import annotations
 
 import json
+import threading
 import logging
 import sqlite3
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
+
+from ._observer import emit_gtd_event, GtdObserverPayload
 
 logger = logging.getLogger(__name__)
 
@@ -94,6 +97,12 @@ class ActionEngine:
             self._data_dir = get_user_data_dir() / "gtd"
         self._data_dir.mkdir(parents=True, exist_ok=True)
         self._file = self._data_dir / "actions.jsonl"
+        self._compact_size_floor = 0  # 上次压实后的文件体积（摊销压实用）
+        self._energy_engine = None            # 惰性单例（见 _burn_energy）
+        self._growth_mgrs: dict = {}          # skill_id → SkillStateManager
+        self._text_cache: Optional[str] = None        # 文件文本缓存（stat 校验）
+        self._text_cache_stat: Optional[tuple] = None
+        self._append_lock = threading.Lock()  # 多线程并发 append 防丢行
 
     @staticmethod
     def _current_profile() -> str:
@@ -117,17 +126,21 @@ class ActionEngine:
             action.energy_required = self.ENERGY_MAP.get(
                 action.energy_required.lower(), 5)
         self._append(action)
+        self._compact_if_needed()
         self._sync_to_sqlite(action)
         return action
 
     def list(self, status: str = "pending", project_id: str = "",
              context: str = "", priority: str = "", due_today: bool = False,
+             source_session_id: str = "",  # S2 反查：按 source_session_id 过滤
              limit: int = 50) -> list[GTDAction]:
         items = self._read_all()
         if status != "all":
             items = [i for i in items if i.status == status]
         if project_id:
             items = [i for i in items if i.project_id == project_id]
+        if source_session_id:  # S2 反查
+            items = [i for i in items if i.source_session_id == source_session_id]
         if context:
             items = [i for i in items if context in i.contexts]
         if priority:
@@ -147,10 +160,7 @@ class ActionEngine:
         return items[:limit]
 
     def get(self, action_id: str) -> Optional[GTDAction]:
-        for a in self._read_all():
-            if a.id == action_id:
-                return a
-        return None
+        return self._get_by_id(action_id)
 
     def done(self, action_id: str, energy_invested: int = 0) -> bool:
         return self._update_status(action_id, "done", energy_invested=energy_invested)
@@ -158,32 +168,58 @@ class ActionEngine:
     def mark_next(self, action_id: str) -> bool:
         return self._update_status(action_id, "next")
 
+    # Z12 死方法标记：无产品调用方（MCP/CLI/TUI 均未接线），保留为行为
+    # 规格与未来接线候选——下轮评估删除（调用方清单见看板 Z12）
     def delegate(self, action_id: str) -> bool:
         return self._update_status(action_id, "delegated")
 
+    # Z12 死方法标记：无产品调用方（MCP/CLI/TUI 均未接线），保留为行为
+    # 规格与未来接线候选——下轮评估删除（调用方清单见看板 Z12）
     def incubate(self, action_id: str) -> bool:
         return self._update_status(action_id, "incubating")
 
     def delete(self, action_id: str) -> bool:
+        # S2 桥接：提前拿快照供 emit（删后 SQLite/JSONL 都没了）
+        a = self._get_by_id(action_id)
         items = self._read_all()
-        filtered = [a for a in items if a.id != action_id]
+        filtered = [i for i in items if i.id != action_id]
         if len(filtered) != len(items):
             self._rewrite(filtered)
             self._delete_from_sqlite(action_id)
+            if a is not None:
+                emit_gtd_event(GtdObserverPayload(
+                    eventType="GtdEntityChanged",
+                    entityType="action", entityId=action_id,
+                    previousStatus=a.status, newStatus="deleted",
+                    sourceSessionId=a.source_session_id,
+                    completedAt=a.completed_at,
+                    title=a.title,
+                ))
             return True
         return False
 
     def edit(self, action_id: str, **kwargs) -> Optional[GTDAction]:
-        items = self._read_all()
-        for a in items:
-            if a.id == action_id:
-                for k, v in kwargs.items():
-                    if hasattr(a, k) and v is not None:
-                        setattr(a, k, v)
-                self._rewrite(items)
-                self._sync_to_sqlite(a)
-                return a
-        return None
+        a = self._get_by_id(action_id)
+        if a is None:
+            return None
+        prev_status = a.status  # S2：edit 改 status 才发事件
+        for k, v in kwargs.items():
+            if hasattr(a, k) and v is not None:
+                setattr(a, k, v)
+        self._append(a)
+        self._compact_if_needed()
+        self._sync_to_sqlite(a)
+        # S2 桥接：仅 status 字段变化时 fire（其他字段编辑不算"状态变更"）
+        if "status" in kwargs and a.status != prev_status:
+            emit_gtd_event(GtdObserverPayload(
+                eventType="GtdEntityChanged",
+                entityType="action", entityId=action_id,
+                previousStatus=prev_status, newStatus=a.status,
+                sourceSessionId=a.source_session_id,
+                completedAt=a.completed_at if a.status == "done" else None,
+                title=a.title,
+            ))
+        return a
 
     def next_actions(self, limit: int = 5) -> list[GTDAction]:
         """智能推荐下一步 — 按 context+energy+priority 排序"""
@@ -221,67 +257,169 @@ class ActionEngine:
     # ── 内部 ──
 
     def _read_all(self) -> list[GTDAction]:
+        """全量读取。追加式更新（M1）会产生同 id 多行，按 id last-wins 去重：
+        数据取最后一条，位置保持在首次出现处（list/stats 等均按字段排序/计数，
+        位置无语义）。旧格式（一 id 一行）为 no-op。"""
         if not self._file.exists():
             return []
-        items = []
+        items: list[GTDAction] = []
+        idx: dict[str, int] = {}
         for line in self._file.read_text(encoding="utf-8").strip().split("\n"):
             if not line.strip():
                 continue
             try:
-                items.append(GTDAction.from_dict(json.loads(line)))
+                a = GTDAction.from_dict(json.loads(line))
             except Exception:
                 continue
+            if a.id in idx:
+                items[idx[a.id]] = a
+            else:
+                idx[a.id] = len(items)
+                items.append(a)
         return items
 
+    def _get_by_id(self, action_id: str) -> Optional[GTDAction]:
+        """定向读取单个 action 当前状态（last-wins），避免逐操作全量解析。
+
+        快路径：本引擎 json.dumps 产生固定的 `"id": "<id>"` 间隔，子串定位
+        后只解析最后一处命中；未命中时回退逐行解析（兼容外部工具以其他
+        JSON 间隔写入的行）。
+        """
+        if not self._file.exists():
+            return None
+        text = self._cache_text()
+        needle = f'"id": "{action_id}"'
+        hit: Optional[str] = None
+        for line in text.split("\n"):
+            if needle in line:
+                hit = line
+        if hit is not None:
+            try:
+                return GTDAction.from_dict(json.loads(hit))
+            except Exception:
+                hit = None
+        for line in reversed(text.split("\n")):
+            if not line.strip():
+                continue
+            try:
+                a = GTDAction.from_dict(json.loads(line))
+            except Exception:
+                continue
+            if a.id == action_id:
+                return a
+        return None
+
+    def _cache_text(self) -> str:
+        """带 stat 校验的文件文本缓存：外部写入自动失效重读。"""
+        try:
+            st = (self._file.stat().st_mtime_ns, self._file.stat().st_size)
+        except OSError:
+            st = None
+        if self._text_cache is not None and self._text_cache_stat == st:
+            return self._text_cache
+        text = self._file.read_text(encoding="utf-8") if st else ""
+        self._text_cache = text
+        self._text_cache_stat = st
+        return text
+
+    def _cache_append(self, line: str) -> None:
+        """自己追加的行增量并入缓存；缓存未建立则留待下次定向读取重建。"""
+        if self._text_cache is None:
+            return
+        self._text_cache += line
+        try:
+            self._text_cache_stat = (self._file.stat().st_mtime_ns,
+                                     self._file.stat().st_size)
+        except OSError:
+            self._text_cache = None
+
     def _append(self, action: GTDAction) -> None:
-        with open(self._file, "a", encoding="utf-8") as f:
-            f.write(json.dumps(action.to_dict(), ensure_ascii=False) + "\n")
+        line = json.dumps(action.to_dict(), ensure_ascii=False) + "\n"
+        with self._append_lock:
+            with open(self._file, "a", encoding="utf-8") as f:
+                f.write(line)
+            self._cache_append(line)
 
     def _rewrite(self, items: list[GTDAction]) -> None:
+        """全量重写（delete/压实用）。tmp + replace 原子落盘，防中途崩溃截断。"""
         lines = [json.dumps(a.to_dict(), ensure_ascii=False) for a in items]
-        self._file.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        tmp = self._file.with_suffix(".tmp")
+        tmp.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        tmp.replace(self._file)
+        self._text_cache = None  # 全量替换后缓存作废
+
+    _COMPACT_MIN_BYTES = 256 * 1024  # 低于此体积不压实（约 1500 行）
+
+    def _compact_if_needed(self) -> None:
+        """文件体积超过压实地板 2 倍时压实一次（摊销 O(1)/操作）。"""
+        try:
+            size = self._file.stat().st_size
+        except OSError:
+            return
+        if size < self._COMPACT_MIN_BYTES or size <= 2 * self._compact_size_floor:
+            return
+        self._rewrite(self._read_all())
+        try:
+            self._compact_size_floor = self._file.stat().st_size
+        except OSError:
+            pass
 
     def _update_status(self, action_id: str, status: str, **extra) -> bool:
-        items = self._read_all()
-        for a in items:
-            if a.id == action_id:
-                already_done = a.status == "done"
-                a.status = status
-                if status == "done":
-                    a.completed_at = time.strftime("%Y-%m-%dT%H:%M:%S")
-                for k, v in extra.items():
-                    if hasattr(a, k):
-                        setattr(a, k, v)
-                self._rewrite(items)
-                self._sync_to_sqlite(a)
-                # 完成时消耗能量（修炼闭环：消耗 → XP → 成长）
-                # 仅首次 done 扣减，重复标记不重复扣
-                if status == "done" and not already_done:
-                    self._burn_energy(a)
-                # 完成时记录成长（rewrite 后再记录，避免覆盖）
-                if status == "done" and a.skill_id:
-                    self._record_skill_growth(a)
-                # 重复任务: 创建下一个实例（rewrite 后再创建）
-                if status == "done" and a.repeat_rule:
-                    self._create_next_repeat(a)
-                return True
-        return False
+        a = self._get_by_id(action_id)
+        if a is None:
+            return False
+        already_done = a.status == "done"
+        a.status = status
+        if status == "done":
+            a.completed_at = time.strftime("%Y-%m-%dT%H:%M:%S")
+        for k, v in extra.items():
+            if hasattr(a, k):
+                setattr(a, k, v)
+        self._append(a)
+        self._compact_if_needed()
+        self._sync_to_sqlite(a)
+        # S2 桥接：完成时消耗能量（修炼闭环：消耗 → XP → 成长）
+        # 仅首次 done 扣减，重复标记不重复扣
+        if status == "done" and not already_done:
+            self._burn_energy(a)
+        # 完成时记录成长（追加落盘后再记录，避免覆盖）
+        if status == "done" and a.skill_id:
+            self._record_skill_growth(a)
+        # 重复任务: 创建下一个实例（追加落盘后再创建）
+        if status == "done" and a.repeat_rule:
+            self._create_next_repeat(a)
+        # S2 桥接：emit 放在所有副作用之后（observer 可能读 JSONL 终态）
+        emit_gtd_event(GtdObserverPayload(
+            eventType="GtdEntityChanged",
+            entityType="action", entityId=action_id,
+            previousStatus="done" if already_done else "pending",
+            newStatus=status,
+            sourceSessionId=a.source_session_id,
+            completedAt=a.completed_at if status == "done" else None,
+            title=a.title,
+        ))
+        return True
 
     def _burn_energy(self, action: GTDAction) -> None:
-        """完成行动时从能量池扣减实际投入"""
+        """完成行动时从能量池扣减实际投入（引擎实例缓存：构造含 cultivating
+        同步与目录 ensure，每 done 重建实测 ~34ms）"""
         try:
-            from .energy import EnergyEngine
-            engine = EnergyEngine(data_dir=str(self._data_dir))
+            if self._energy_engine is None:
+                from .energy import EnergyEngine
+                self._energy_engine = EnergyEngine(data_dir=str(self._data_dir))
             amount = action.energy_invested or action.energy_required or 0
             if amount > 0:
-                engine.burn(amount, action_title=action.title)
+                self._energy_engine.burn(amount, action_title=action.title)
         except Exception:
             pass
 
     def _record_skill_growth(self, action: GTDAction) -> None:
         try:
-            from ...core.paths import SkillStateManager
-            mgr = SkillStateManager(action.skill_id)
+            mgr = self._growth_mgrs.get(action.skill_id)
+            if mgr is None:
+                from ...core.paths import SkillStateManager
+                mgr = SkillStateManager(action.skill_id)
+                self._growth_mgrs[action.skill_id] = mgr
             mgr.record_episode(
                 action=f"gtd_action: {action.title}",
                 content=f"完成 GTD Action: energy={action.energy_invested}",

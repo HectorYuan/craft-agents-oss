@@ -304,33 +304,71 @@ def _block_to_dict(block: ContentBlock, truncate_image: bool = False) -> Dict[st
     return {"type": "text", "text": block.text}
 
 
+def _usage_to_token_usage(usage: "Usage") -> Dict[str, Any]:
+    """Python Usage → vendor SessionTokenUsage 字段名（top-level on StoredMessage）。"""
+    return {
+        "inputTokens": usage.input,
+        "outputTokens": usage.output,
+        "totalTokens": usage.input + usage.output,
+        "cacheReadTokens": usage.cache_read,
+        "cacheCreationTokens": usage.cache_write,
+        "contextTokens": 0,
+        "costUsd": 0.0,
+    }
+
+
+def _token_usage_to_usage(d: Dict[str, Any]) -> "Usage":
+    """vendor SessionTokenUsage → Python Usage。"""
+    return Usage(
+        input=int(d.get("inputTokens", 0) or 0),
+        output=int(d.get("outputTokens", 0) or 0),
+        cache_read=int(d.get("cacheReadTokens", 0) or 0),
+        cache_write=int(d.get("cacheCreationTokens", 0) or 0),
+    )
+
+
 def message_to_dict(m: Message, truncate_images: bool = False) -> Dict[str, Any]:
+    """序列化 Message → vendor StoredMessage 形状的 dict（S3）。
+
+    字段名差异：role→type / toolCallId→toolUseId / usage→tokenUsage（top-level）。
+    vendor 不识别的 Python 字段（stopReason / terminate）放 `extra` 子字典保留。
+    """
     if isinstance(m, UserMessage):
         content = (
             m.content
             if isinstance(m.content, str)
             else [_block_to_dict(b, truncate_images) for b in m.content]
         )
-        return {"role": "user", "content": content, "timestamp": m.timestamp}
+        return {"type": "user", "content": content, "timestamp": m.timestamp}
     if isinstance(m, AssistantMessage):
-        return {
-            "role": "assistant",
+        d: Dict[str, Any] = {
+            "type": "assistant",
             "content": [_block_to_dict(b, truncate_images) for b in m.content],
-            "model": m.model,
-            "stopReason": m.stop_reason,
-            "usage": m.usage.to_dict(),
-            "errorMessage": m.error_message,
             "timestamp": m.timestamp,
         }
-    return {
-        "role": "toolResult",
-        "toolCallId": m.tool_call_id,
+        if m.model:
+            d["model"] = m.model
+        if m.usage.input or m.usage.output or m.usage.cache_read or m.usage.cache_write:
+            d["tokenUsage"] = _usage_to_token_usage(m.usage)
+        if m.error_message:
+            d["errorOriginal"] = m.error_message
+        # Python 内部 stopReason 不在 vendor schema 里——保留在 extra
+        if m.stop_reason and m.stop_reason != StopReason.STOP:
+            d.setdefault("extra", {})["stopReason"] = m.stop_reason
+        return d
+    d = {
+        "type": "toolResult",
+        "toolUseId": m.tool_call_id,
         "toolName": m.tool_name,
         "content": [_block_to_dict(b, truncate_images) for b in m.content],
-        "isError": m.is_error,
-        "terminate": m.terminate,
         "timestamp": m.timestamp,
     }
+    if m.is_error:
+        d["isError"] = True
+    # terminate 仍是 Python 内部语义，保留在 extra
+    if m.terminate:
+        d.setdefault("extra", {})["terminate"] = True
+    return d
 
 
 def _block_from_dict(d: Dict[str, Any]) -> ContentBlock:
@@ -349,33 +387,47 @@ def _block_from_dict(d: Dict[str, Any]) -> ContentBlock:
 
 
 def message_from_dict(d: Dict[str, Any]) -> Message:
-    role = d.get("role")
-    if role == "user":
+    """反序列化 dict → Message（S3：兼容新 vendor 形状 + 旧 Python 形状）。"""
+    # S3：新格式用 `type`；旧格式用 `role`——兼容读
+    msg_type = d.get("type") or d.get("role")
+    extra = d.get("extra") or {}
+    if msg_type == "user":
         content = d.get("content")
         if isinstance(content, list):
             content = [_block_from_dict(b) for b in content]
         return UserMessage(content=content if content is not None else "", timestamp=d.get("timestamp", now_ms()))
-    if role == "assistant":
-        usage_raw = d.get("usage") or {}
-        return AssistantMessage(
-            content=[_block_from_dict(b) for b in (d.get("content") or [])],
-            model=d.get("model", ""),
-            stop_reason=d.get("stopReason", StopReason.STOP),
-            usage=Usage(
+    if msg_type == "assistant":
+        # 优先 tokenUsage（vendor 新格式），回退 usage（旧 Python 格式）
+        if "tokenUsage" in d:
+            usage = _token_usage_to_usage(d["tokenUsage"])
+        else:
+            usage_raw = d.get("usage") or {}
+            usage = Usage(
                 input=usage_raw.get("input", 0),
                 output=usage_raw.get("output", 0),
                 cache_read=usage_raw.get("cache_read", 0),
                 cache_write=usage_raw.get("cache_write", 0),
-            ),
-            error_message=d.get("errorMessage"),
+            )
+        # errorOriginal 优先（旧 Python `errorMessage` 兼容）
+        error_message = d.get("errorOriginal") or d.get("errorMessage")
+        stop_reason = extra.get("stopReason") or d.get("stopReason") or StopReason.STOP
+        return AssistantMessage(
+            content=[_block_from_dict(b) for b in (d.get("content") or [])],
+            model=d.get("model", ""),
+            stop_reason=stop_reason,
+            usage=usage,
+            error_message=error_message,
             timestamp=d.get("timestamp", now_ms()),
         )
+    # toolResult：优先 toolUseId（新），回退 toolCallId（旧）
+    tool_call_id = d.get("toolUseId") or d.get("toolCallId", "")
+    terminate = bool(extra.get("terminate", False)) or bool(d.get("terminate", False))
     return ToolResultMessage(
-        tool_call_id=d.get("toolCallId", ""),
+        tool_call_id=tool_call_id,
         tool_name=d.get("toolName", ""),
         content=[_block_from_dict(b) for b in (d.get("content") or [])],
         is_error=bool(d.get("isError", False)),
-        terminate=bool(d.get("terminate", False)),
+        terminate=terminate,
         timestamp=d.get("timestamp", now_ms()),
     )
 

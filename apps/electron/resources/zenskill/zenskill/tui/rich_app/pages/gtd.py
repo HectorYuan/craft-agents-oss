@@ -5,11 +5,18 @@
 
 from __future__ import annotations
 
+from rich.columns import Columns
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
 from ...data import TuiDataAdapter
+
+_KANBAN_COLUMNS = (
+    ("pending", "⏳ Pending"),
+    ("next", "🔄 Next"),
+    ("done", "✅ Done"),
+)
 
 
 class GTDPage:
@@ -21,6 +28,10 @@ class GTDPage:
 
     def render(self, **kwargs) -> None:
         """渲染 GTD 概览。"""
+        view = kwargs.get("view") or kwargs.get("action")
+        if view == "kanban":
+            self._kanban()
+            return
         try:
             from zenskill.systems.gtd.action import ActionEngine
             from zenskill.systems.gtd.inbox import InboxEngine
@@ -113,3 +124,27 @@ class GTDPage:
         # 快捷命令提示
         self.console.print()
         self.console.print("[dim]命令: /gtd inbox add | /gtd action add | /gtd project create | /gtd weekly-review[/dim]")
+
+    # ── kanban 视图（C 阶段：pending/next/done 三列横排）─────────
+
+    def _kanban(self) -> None:
+        try:
+            from zenskill.systems.gtd.action import ActionEngine
+            engine = ActionEngine()
+        except Exception:
+            self.console.print("[yellow]GTD 引擎不可用[/yellow]")
+            return
+
+        panels = []
+        for status, title in _KANBAN_COLUMNS:
+            titles = []
+            try:
+                for a in engine.list(status=status, limit=8):
+                    titles.append(a.title or "?")
+            except Exception:
+                pass
+            body = "\n".join(f"· {t[:26]}" for t in titles) if titles else "[dim](空)[/dim]"
+            panels.append(Panel(body, title=title, width=30))
+        self.console.print(Columns(panels, equal=True, expand=True))
+        self.console.print()
+        self.console.print("[dim]看板视图: /gtd kanban · 列表视图: /gtd[/dim]")

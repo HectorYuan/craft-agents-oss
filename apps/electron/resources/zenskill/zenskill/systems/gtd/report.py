@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from zenskill.core.paths import get_user_data_dir
+from zenskill.systems.gtd.health import iter_project_records
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +35,7 @@ class GTDReportEngine:
         start = now - timedelta(weeks=weeks)
 
         actions = self._load_jsonl("actions.jsonl")
-        projects = self._load_jsonl("projects.jsonl")
+        projects = iter_project_records(self._base)
         inbox = self._load_jsonl("inbox.jsonl")
         calendar = self._load_jsonl("calendar.jsonl")
 
@@ -112,7 +113,7 @@ class GTDReportEngine:
         start = now - timedelta(days=30 * months)
 
         actions = self._load_jsonl("actions.jsonl")
-        projects = self._load_jsonl("projects.jsonl")
+        projects = iter_project_records(self._base)
 
         # 本月完成
         done_this_month = [
@@ -280,13 +281,22 @@ class GTDReportEngine:
         path = self._base / filename
         if not path.exists():
             return []
-        records = []
+        records: List[Dict[str, Any]] = []
+        idx: Dict[str, int] = {}
         for line in path.read_text(encoding="utf-8").strip().split("\n"):
             if line.strip():
                 try:
-                    records.append(json.loads(line))
+                    r = json.loads(line)
                 except json.JSONDecodeError:
                     continue
+                # 追加式更新（M1）会产生同 id 多行：last-wins 去重
+                rid = r.get("id") if isinstance(r, dict) else None
+                if rid is not None and rid in idx:
+                    records[idx[rid]] = r
+                else:
+                    if rid is not None:
+                        idx[rid] = len(records)
+                    records.append(r)
         return records
 
     def _count_stale(self, projects: List[Dict[str, Any]], days: int = 7) -> int:

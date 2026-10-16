@@ -8,11 +8,14 @@
 from __future__ import annotations
 
 import json
+import threading
 import logging
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
+
+from ._observer import emit_gtd_event, GtdObserverPayload
 
 logger = logging.getLogger(__name__)
 
@@ -82,6 +85,11 @@ class InboxEngine:
             self._data_dir = get_user_data_dir() / "gtd"
         self._data_dir.mkdir(parents=True, exist_ok=True)
         self._file = self._data_dir / "inbox.jsonl"
+        self._compact_size_floor = 0
+        self._mem_bridge = None  # MetaMemory 惰性单例（构造含 IO，每 add 重建实测 ~25ms）
+        self._text_cache: Optional[str] = None
+        self._text_cache_stat: Optional[tuple] = None
+        self._append_lock = threading.Lock()  # 多线程并发 append 防丢行
 
     @staticmethod
     def _current_profile() -> str:
@@ -119,30 +127,50 @@ class InboxEngine:
         return None
 
     def clarify(self, item_id: str, result_type: str, target_id: str = "") -> bool:
-        items = self._read_all()
-        for item in items:
-            if item.id == item_id:
-                item.status = "clarified"
-                item.clarify_result = {"type": result_type, "target_id": target_id,
-                                       "clarified_at": time.strftime("%Y-%m-%dT%H:%M:%S")}
-                self._rewrite(items)
-                self._sync_to_sqlite(item)
-                return True
-        return False
+        item = self._get_by_id(item_id)
+        if item is None:
+            return False
+        prev_status = item.status  # S2：改前快照
+        item.status = "clarified"
+        item.clarify_result = {"type": result_type, "target_id": target_id,
+                               "clarified_at": time.strftime("%Y-%m-%dT%H:%M:%S")}
+        self._append(item)
+        self._compact_if_needed()
+        self._sync_to_sqlite(item)
+        # S2 桥接：clarify 不联动 session（仅 action/project done 联动）
+        emit_gtd_event(GtdObserverPayload(
+            eventType="GtdEntityChanged",
+            entityType="inbox", entityId=item_id,
+            previousStatus=prev_status, newStatus="clarified",
+            sourceSessionId=item.source_session_id,
+            completedAt=None,
+            title=item.raw_text[:80],
+        ))
+        return True
 
     def archive(self, item_id: str) -> bool:
-        items = self._read_all()
-        for item in items:
-            if item.id == item_id:
-                item.status = "archived"
-                if not isinstance(item.clarify_result, dict):
-                    item.clarify_result = {}
-                item.clarify_result.setdefault(
-                    "archived_at", time.strftime("%Y-%m-%dT%H:%M:%S"))
-                self._rewrite(items)
-                self._sync_to_sqlite(item)
-                return True
-        return False
+        item = self._get_by_id(item_id)
+        if item is None:
+            return False
+        prev_status = item.status  # S2：改前快照
+        item.status = "archived"
+        if not isinstance(item.clarify_result, dict):
+            item.clarify_result = {}
+        item.clarify_result.setdefault(
+            "archived_at", time.strftime("%Y-%m-%dT%H:%M:%S"))
+        self._append(item)
+        self._compact_if_needed()
+        self._sync_to_sqlite(item)
+        # S2 桥接：archive 不联动 session
+        emit_gtd_event(GtdObserverPayload(
+            eventType="GtdEntityChanged",
+            entityType="inbox", entityId=item_id,
+            previousStatus=prev_status, newStatus="archived",
+            sourceSessionId=item.source_session_id,
+            completedAt=None,
+            title=item.raw_text[:80],
+        ))
+        return True
 
     def count(self) -> int:
         return len([i for i in self._read_all() if i.status == "unprocessed"])
@@ -172,25 +200,104 @@ class InboxEngine:
     # ── 内部 ──
 
     def _read_all(self) -> list[InboxItem]:
+        """全量读取。追加式更新会产生同 id 多行，按 id last-wins 去重。"""
         if not self._file.exists():
             return []
-        items = []
+        items: list[InboxItem] = []
+        idx: dict[str, int] = {}
         for line in self._file.read_text(encoding="utf-8").strip().split("\n"):
             if not line.strip():
                 continue
             try:
-                items.append(InboxItem.from_dict(json.loads(line)))
+                i = InboxItem.from_dict(json.loads(line))
             except Exception:
                 continue
+            if i.id in idx:
+                items[idx[i.id]] = i
+            else:
+                idx[i.id] = len(items)
+                items.append(i)
         return items
 
+    def _get_by_id(self, item_id: str) -> Optional[InboxItem]:
+        """定向读取（last-wins）。快路径子串定位本引擎写入行，未命中回退全量解析。"""
+        if not self._file.exists():
+            return None
+        text = self._cache_text()
+        needle = f'"id": "{item_id}"'
+        hit: Optional[str] = None
+        for line in text.split("\n"):
+            if needle in line:
+                hit = line
+        if hit is not None:
+            try:
+                return InboxItem.from_dict(json.loads(hit))
+            except Exception:
+                hit = None
+        for line in reversed(text.split("\n")):
+            if not line.strip():
+                continue
+            try:
+                i = InboxItem.from_dict(json.loads(line))
+            except Exception:
+                continue
+            if i.id == item_id:
+                return i
+        return None
+
+    def _cache_text(self) -> str:
+        """带 stat 校验的文件文本缓存（外部写入自动失效重读）。"""
+        try:
+            st = (self._file.stat().st_mtime_ns, self._file.stat().st_size)
+        except OSError:
+            st = None
+        if self._text_cache is not None and self._text_cache_stat == st:
+            return self._text_cache
+        text = self._file.read_text(encoding="utf-8") if st else ""
+        self._text_cache = text
+        self._text_cache_stat = st
+        return text
+
+    def _cache_append(self, line: str) -> None:
+        if self._text_cache is None:
+            return
+        self._text_cache += line
+        try:
+            self._text_cache_stat = (self._file.stat().st_mtime_ns,
+                                     self._file.stat().st_size)
+        except OSError:
+            self._text_cache = None
+
     def _append(self, item: InboxItem) -> None:
-        with open(self._file, "a", encoding="utf-8") as f:
-            f.write(json.dumps(item.to_dict(), ensure_ascii=False) + "\n")
+        line = json.dumps(item.to_dict(), ensure_ascii=False) + "\n"
+        with self._append_lock:
+            with open(self._file, "a", encoding="utf-8") as f:
+                f.write(line)
+            self._cache_append(line)
+
+    _COMPACT_MIN_BYTES = 256 * 1024
+
+    def _compact_if_needed(self) -> None:
+        """文件体积超过压实地板 2 倍时压实一次（摊销 O(1)/操作）。"""
+        try:
+            size = self._file.stat().st_size
+        except OSError:
+            return
+        if size < self._COMPACT_MIN_BYTES or size <= 2 * self._compact_size_floor:
+            return
+        self._rewrite(self._read_all())
+        try:
+            self._compact_size_floor = self._file.stat().st_size
+        except OSError:
+            pass
 
     def _rewrite(self, items: list[InboxItem]) -> None:
+        """tmp + replace 原子落盘，防中途崩溃截断。"""
         lines = [json.dumps(i.to_dict(), ensure_ascii=False) for i in items]
-        self._file.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        tmp = self._file.with_suffix(".tmp")
+        tmp.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        tmp.replace(self._file)
+        self._text_cache = None
 
     def _bridge_to_memory(self, item: InboxItem) -> None:
         """自动将 Inbox 导入 EpisodicMemory"""
@@ -201,10 +308,25 @@ class InboxEngine:
             item_id = hashlib.md5(item.raw_text.encode()).hexdigest()[:12]
             mem_item = MemoryItem(id=item_id, content=item.raw_text,
                                   importance=0.3, tags={"inbox", item.source})
-            mem = MetaMemory(skill_id="zenskill-core")
-            asyncio.get_event_loop().run_until_complete(mem.episodic.store(mem_item))
-        except Exception:
-            pass
+            if self._mem_bridge is None:
+                self._mem_bridge = MetaMemory(skill_id="zenskill-core")
+            mem = self._mem_bridge
+            coro = mem.episodic.store(mem_item)
+            try:
+                loop = asyncio.get_event_loop()
+            except RuntimeError:
+                loop = None
+            if loop is not None and loop.is_running():
+                # 本线程事件循环已运行（如回调内调用）：run_until_complete
+                # 必抛 RuntimeError，改线程安全提交
+                asyncio.run_coroutine_threadsafe(coro, loop)
+            else:
+                if loop is None:
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
+                loop.run_until_complete(coro)
+        except Exception as e:
+            logger.warning("Inbox memory bridge failed for %s: %s", item.id, e)
 
     def _sync_to_sqlite(self, item: InboxItem) -> None:
         """JSONL 写入后同步到 SQLite（逐条，WAL 模式）。失败仅 warning 不阻塞。"""

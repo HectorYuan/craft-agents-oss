@@ -58,6 +58,7 @@ from .types import (
 )
 from .validation import ToolValidationError, validate_tool_arguments
 from .providers.retry import is_permanent_http_error
+from .observability import bump_metrics, log_event
 
 
 async def _maybe_call(fn, *args):
@@ -100,7 +101,7 @@ def _model_name(model: Any) -> str:
 def _is_source_tracked_tool(name: str) -> bool:
     """写前缀工具判定（来源标记注入范围）。
 
-    与 ServerToolRegistry.is_write_tool 同源判定，兼容 Mode C 的
+    与 ServerToolRegistry.is_write_tool 同源判定，兼容 Server Mode 的
     mcp__ 前缀包装名；registry 导入失败回退到本地前缀表。
     """
     bare = name[5:] if name.startswith("mcp__") else name
@@ -345,6 +346,13 @@ class AgentLoop:
                         new_messages.append(r)
                         self._emit_entry(r)
                 turn_dur = int((time.monotonic() - turn_start) * 1000)
+                log_event("turn_end", model=_model_name(self.config.model),
+                          stop_reason=final_msg.stop_reason,
+                          duration_ms=turn_dur,
+                          error=(final_msg.error_message or "")[:200])
+                bump_metrics(turns=1)
+                if final_msg.stop_reason == StopReason.ERROR:
+                    bump_metrics(llm_errors=1)
                 yield TurnEnd(final_msg, [], turn_duration_ms=turn_dur)
                 break
 
@@ -365,6 +373,12 @@ class AgentLoop:
                 async for ev in self._invoke_tool_calls(
                     context, tool_calls, produced, new_messages=new_messages
                 ):
+                    if isinstance(ev, ToolExecutionEnd):
+                        log_event("tool_end", tool=ev.tool_name,
+                                  is_error=ev.is_error,
+                                  duration_ms=int((time.monotonic() - turn_start) * 1000))
+                        bump_metrics(tool_calls=1,
+                                     tool_errors=1 if ev.is_error else 0)
                     yield ev
                 results = produced
 
@@ -372,6 +386,14 @@ class AgentLoop:
             turn_usage = final_msg.usage
             turn_tok = turn_usage.total_tokens if turn_usage else 0
             t_names = [tc.name for tc in tool_calls] if tool_calls else []
+            log_event("turn_end", model=_model_name(self.config.model),
+                      stop_reason=final_msg.stop_reason,
+                      tokens=turn_tok, duration_ms=turn_dur, tools=t_names)
+            if turn_usage:
+                bump_metrics(turns=1, input_tokens=turn_usage.input,
+                             output_tokens=turn_usage.output)
+            else:
+                bump_metrics(turns=1)
             yield TurnEnd(final_msg, results, turn_tokens=turn_tok, turn_duration_ms=turn_dur, tool_names=t_names)
             turns += 1
 

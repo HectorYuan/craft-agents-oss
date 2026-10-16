@@ -487,7 +487,7 @@ class MetaReflectionEngine:
                     found = True
                 f.write(json.dumps(asdict(opt), ensure_ascii=False) + "\n")
 
-        temp_file.rename(self.optimizations_file)
+        temp_file.replace(self.optimizations_file)
         return found
 
     def generate_meta_report(self) -> str:

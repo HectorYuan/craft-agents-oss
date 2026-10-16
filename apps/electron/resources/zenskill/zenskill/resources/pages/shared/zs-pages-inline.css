@@ -1,0 +1,22 @@
+/* ==== GENERATED:ZS-TOKENS BEGIN — 由 EduAgent generate-tokens.mjs --dist 生成，经 sync-design-tokens.sh 注入，勿手改 ====
+   覆盖 5 页同名 :root 语义变量 (CSS 后序生效); gold(成就)→warning 邻域; rel/cat 领域色保留 ==== */
+:root {
+  --bg: #F4F5F7;
+  --card: #FFFFFF;
+  --border: #CCCED0;
+  --text: #0F0F11;
+  --text-2: #616366;
+  --muted: #87898C;
+  --accent: #0171E3;
+  --accent-soft: rgba(1, 113, 227, 0.10);
+  --accent-fill: rgba(1, 113, 227, 0.18);
+  --good: #51C147;
+  --warn: #FFAA1B;
+  --bad: #F92434;
+  --gold: #FFAA1B;
+  --gold-soft: rgba(255, 170, 27, 0.10);
+  --gold-border: rgba(255, 170, 27, 0.32);
+  --ring-track: #E6E8E9;
+  --cell-off: #E6E8E9;
+}
+/* ==== GENERATED:ZS-TOKENS END ==== */

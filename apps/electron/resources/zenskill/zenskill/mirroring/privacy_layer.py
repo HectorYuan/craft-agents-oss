@@ -67,7 +67,7 @@ class PrivacyLayer:
         temp_path = self._prefs_file.with_suffix(".tmp")
         with open(temp_path, "w", encoding="utf-8") as f:
             json.dump(prefs.to_dict(), f, indent=2, ensure_ascii=False)
-        temp_path.rename(self._prefs_file)
+        temp_path.replace(self._prefs_file)
         self._prefs = prefs
 
     def should_collect(self, event_type: EventType) -> bool:
@@ -245,6 +245,6 @@ class PrivacyLayer:
             temp_path = events_file.with_suffix(".tmp")
             with open(temp_path, "w", encoding="utf-8") as f:
                 f.write("\n".join(lines) + "\n")
-            temp_path.rename(events_file)
+            temp_path.replace(events_file)
 
         return anonymized

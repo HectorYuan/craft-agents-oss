@@ -24,6 +24,7 @@ _DELIMITER_RE = re.compile(r"^---\s*$")
 _KNOWN_KEYS = {
     "name", "description", "version", "author", "tags",
     "dependencies", "license", "allowed-tools", "allowed_tools",
+    "requires", "conflicts", "capabilities",
 }
 
 
@@ -42,6 +43,11 @@ class SkillFrontmatter:
     tags: List[str] = field(default_factory=list)
     dependencies: List[str] = field(default_factory=list)
     allowed_tools: List[str] = field(default_factory=list)
+    # O8 数据先行切片：requires={tool: 约束}（激活期 which() 预检）、
+    # conflicts=互斥 capability/skill id、capabilities=结构化声明原样保留
+    requires: Dict[str, str] = field(default_factory=dict)
+    conflicts: List[str] = field(default_factory=list)
+    capabilities: List[Dict[str, Any]] = field(default_factory=list)
     extra: Dict[str, Any] = field(default_factory=dict)
     errors: List[str] = field(default_factory=list)
 
@@ -60,8 +66,11 @@ class SkillFrontmatter:
             "tags": self.tags,
             "dependencies": self.dependencies,
             "allowed-tools": self.allowed_tools,
+            "requires": self.requires,
+            "conflicts": self.conflicts,
+            "capabilities": self.capabilities,
         })
-        return {k: v for k, v in d.items() if v not in (None, [], "")}
+        return {k: v for k, v in d.items() if v not in (None, [], "", {})}
 
 
 def _split_frontmatter(content: str) -> Tuple[Optional[str], str]:
@@ -108,11 +117,39 @@ def _normalize_str_list(value: Any) -> List[str]:
     return [str(value)]
 
 
+def _normalize_requires(value: Any) -> Dict[str, str]:
+    """requires 规范化：dict 原样；list 形态（"node>=18" / "python"）拆 name+约束。"""
+    if isinstance(value, dict):
+        return {str(k): str(v) for k, v in value.items()}
+    if value is None:
+        return {}
+    requires: Dict[str, str] = {}
+    for item in _normalize_str_list(value):
+        m = re.match(r"^([\w.-]+)\s*(.*)$", item)
+        if m:
+            requires[m.group(1)] = m.group(2)
+    return requires
+
+
+def _normalize_capabilities(value: Any) -> List[Dict[str, Any]]:
+    """capabilities 结构化声明原样保留（dict 项）；字符串项按 name 包装。"""
+    if not isinstance(value, list):
+        return []
+    caps: List[Dict[str, Any]] = []
+    for item in value:
+        if isinstance(item, dict):
+            caps.append(item)
+        elif str(item).strip():
+            caps.append({"name": str(item).strip()})
+    return caps
+
+
 def _from_raw_dict(raw: Dict[str, Any]) -> SkillFrontmatter:
     allowed = raw.get("allowed-tools") or raw.get("allowed_tools")
     known = {
         "name", "description", "version", "author", "tags",
         "dependencies", "license", "allowed-tools", "allowed_tools",
+        "requires", "conflicts", "capabilities",
     }
     return SkillFrontmatter(
         name=_normalize_str(raw.get("name")) or "",
@@ -123,6 +160,9 @@ def _from_raw_dict(raw: Dict[str, Any]) -> SkillFrontmatter:
         tags=_normalize_str_list(raw.get("tags")),
         dependencies=_normalize_str_list(raw.get("dependencies")),
         allowed_tools=_normalize_str_list(allowed),
+        requires=_normalize_requires(raw.get("requires")),
+        conflicts=_normalize_str_list(raw.get("conflicts")),
+        capabilities=_normalize_capabilities(raw.get("capabilities")),
         extra={k: v for k, v in raw.items() if k not in known},
     )
 
@@ -170,8 +210,11 @@ def dump_skill_md(path: Path | str, meta: SkillFrontmatter, body: str) -> None:
         "tags": meta.tags,
         "dependencies": meta.dependencies,
         "allowed-tools": meta.allowed_tools,
+        "requires": meta.requires,
+        "conflicts": meta.conflicts,
+        "capabilities": meta.capabilities,
     })
-    raw = {k: v for k, v in raw.items() if v not in (None, [], "")}
+    raw = {k: v for k, v in raw.items() if v not in (None, [], "", {})}
 
     fm_yaml = yaml.dump(
         raw, default_flow_style=False, allow_unicode=True, sort_keys=False

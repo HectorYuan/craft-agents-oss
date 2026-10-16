@@ -55,6 +55,9 @@ class ReviewPage:
 
     def _run_review(self, scope: str, base: str):
         """执行审查（同步包装异步引擎调用）。"""
+        import os
+        cwd = os.getcwd()
+
         try:
             from zenskill.runtime.agent.code_review import (
                 CodeReviewError,

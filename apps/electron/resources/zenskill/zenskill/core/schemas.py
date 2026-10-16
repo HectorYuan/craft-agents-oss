@@ -18,6 +18,23 @@ class SkillLevel(str, Enum):
     MASTER = "MASTER"
 
 
+#: 境界中文展示名——只用于 UI 文案；枚举值与 data_evidence 仍保持英文，
+#: 序列化、统计与既有的英文枚举比较口径不变。
+SKILL_LEVEL_DISPLAY_NAMES: Dict[str, str] = {
+    "NOVICE": "新手",
+    "APPRENTICE": "学徒",
+    "ADEPT": "高手",
+    "EXPERT": "专家",
+    "MASTER": "大师",
+}
+
+
+def skill_level_display_name(level: Any) -> str:
+    """境界的中文展示名；未知值原样返回（前向兼容新增境界）。"""
+    value = getattr(level, "value", level)
+    return SKILL_LEVEL_DISPLAY_NAMES.get(str(value), str(value))
+
+
 class MemoryRecord:
     """
     记忆记录 Schema

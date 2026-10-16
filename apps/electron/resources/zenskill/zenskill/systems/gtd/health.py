@@ -19,6 +19,43 @@ from zenskill.core.paths import get_user_data_dir
 
 logger = logging.getLogger(__name__)
 
+
+def iter_project_records(gtd_dir) -> List[Dict[str, Any]]:
+    """读取 GTD 项目记录。
+
+    现行存储为 gtd/projects/proj_*.json 单文件（ProjectEngine._save），
+    旧版 gtd/projects.jsonl 仍兼容合并（单文件优先，jsonl setdefault 补充，
+    按 id 去重）；坏行容错跳过。"""
+    gtd = Path(gtd_dir)
+    records: Dict[str, Dict[str, Any]] = {}
+
+    def _record_id(data: dict) -> str:
+        return str(data.get("id") or data.get("project_id") or "")
+
+    proj_dir = gtd / "projects"
+    if proj_dir.is_dir():
+        for path in sorted(proj_dir.glob("proj_*.json")):
+            try:
+                data = json.loads(path.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError):
+                continue
+            if isinstance(data, dict) and _record_id(data):
+                records[_record_id(data)] = data
+
+    jsonl = gtd / "projects.jsonl"
+    if jsonl.exists():
+        for line in jsonl.read_text(encoding="utf-8").strip().split("\n"):
+            if not line.strip():
+                continue
+            try:
+                data = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if isinstance(data, dict) and _record_id(data):
+                records.setdefault(_record_id(data), data)
+
+    return list(records.values())
+
 # 权重配置
 HEALTH_WEIGHTS = {
     "capture_rate": 0.20,      # 捕获率: Inbox 处理效率
@@ -42,16 +79,18 @@ class GTDHealthEngine:
         start = now - timedelta(days=days)
 
         actions = self._load_jsonl("actions.jsonl")
-        projects = self._load_jsonl("projects.jsonl")
+        projects = self._iter_projects()
         inbox = self._load_jsonl("inbox.jsonl")
         calendar = self._load_jsonl("calendar.jsonl")
 
         # 1. 捕获率: Inbox 处理效率
-        inbox_total = len([i for i in inbox if i.get("created_at", "") >= start.isoformat()])
+        # 引擎状态值仅 unprocessed/clarified/archived（无 "pending"）——
+        # 旧判定 status != "pending" 恒真导致 capture_rate 恒 100%。
+        inbox_recent = [i for i in inbox if i.get("created_at", "") >= start.isoformat()]
+        inbox_total = len(inbox_recent)
         inbox_done = len([
-            i for i in inbox
-            if i.get("created_at", "") >= start.isoformat()
-            and i.get("status") != "pending"
+            i for i in inbox_recent
+            if i.get("status") in ("clarified", "archived")
         ])
         capture_rate = inbox_done / max(1, inbox_total)
 
@@ -157,7 +196,7 @@ class GTDHealthEngine:
             year = datetime.now().year
 
         actions = self._load_jsonl("actions.jsonl")
-        projects = self._load_jsonl("projects.jsonl")
+        projects = self._iter_projects()
 
         # 年度 Action 统计
         year_actions = [
@@ -225,7 +264,7 @@ class GTDHealthEngine:
         """与 ZenSkill 技能成长联动的综合评分卡"""
         health = self.compute_health()
         actions = self._load_jsonl("actions.jsonl")
-        projects = self._load_jsonl("projects.jsonl")
+        projects = self._iter_projects()
 
         # 技能关联的 Action
         skill_actions = [a for a in actions if a.get("skill_id") == skill_id]
@@ -321,15 +360,27 @@ class GTDHealthEngine:
 
         return "建议: " + "; ".join(suggestions[:3])
 
+    def _iter_projects(self) -> List[Dict[str, Any]]:
+        return iter_project_records(self._base)
+
     def _load_jsonl(self, filename: str) -> List[Dict[str, Any]]:
         path = self._base / filename
         if not path.exists():
             return []
-        records = []
+        records: List[Dict[str, Any]] = []
+        idx: Dict[str, int] = {}
         for line in path.read_text(encoding="utf-8").strip().split("\n"):
             if line.strip():
                 try:
-                    records.append(json.loads(line))
+                    r = json.loads(line)
                 except json.JSONDecodeError:
                     continue
+                # 追加式更新（M1）会产生同 id 多行：last-wins 去重
+                rid = r.get("id") if isinstance(r, dict) else None
+                if rid is not None and rid in idx:
+                    records[idx[rid]] = r
+                else:
+                    if rid is not None:
+                        idx[rid] = len(records)
+                    records.append(r)
         return records

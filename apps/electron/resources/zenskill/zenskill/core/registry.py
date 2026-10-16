@@ -34,6 +34,10 @@ class SystemRegistry:
     2. 按拓扑顺序初始化系统（处理依赖）
     3. 获取系统实例
     4. 关闭所有系统
+    
+    reset() — 测试隔离：销毁单例，下次 SystemRegistry() 创建全新实例。
+    module-level `registry` 引用在 reset 后仍指向旧实例（已清空），
+    但新文件通过 `SystemRegistry()` 拿到的是全新实例。
     """
     
     _instance: Optional['SystemRegistry'] = None
@@ -50,6 +54,17 @@ class SystemRegistry:
         
         self._registrations: dict[SystemType, SystemRegistration] = {}
         self._initialized = True
+    
+    @classmethod
+    def reset(cls) -> None:
+        """销毁单例——测试隔离核心方法。
+
+        同时把旧实例的 _initialized 重置为 False，防止下次
+        __init__ 因守卫跳过初始化。
+        """
+        if cls._instance is not None:
+            cls._instance._initialized = False
+        cls._instance = None
     
     def register(
         self,

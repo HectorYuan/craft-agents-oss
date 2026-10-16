@@ -248,6 +248,12 @@ async def _run_task(task: str, model, max_steps, timeout, json_output: bool,
                 create_stream(model), model, cwd=".",
                 system_prompt=_DSP,
             ))
+            # MU2 编排激活：复杂任务分解→角色视角子 agent 依赖序执行
+            from .multi_agent_tool import MultiAgentExecuteTool
+            tools.append(MultiAgentExecuteTool(
+                create_stream(model), model, cwd=".",
+                system_prompt=_DSP,
+            ))
         except Exception as e:
             if not json_output:
                 print(f"delegate 工具加载失败: {e}", file=sys.stderr)

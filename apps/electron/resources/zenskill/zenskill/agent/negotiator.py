@@ -601,19 +601,12 @@ class NegotiationCoordinator:
             协商结果
         """
         try:
-            loop = asyncio.get_running_loop()
-            if loop.is_running():
-                coro = session.run_negotiation()
-                # 如果已经有提案，直接运行（同步内部已经是 async）
-                if len(session.proposals) >= 2:
-                    # 尝试直接在新线程中运行
-                    import concurrent.futures
-                    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-                        future = pool.submit(
-                            asyncio.run,
-                            session.run_negotiation()
-                        )
-                        return future.result(timeout=session.timeout_seconds + 10)
-            return asyncio.run(session.run_negotiation())
+            asyncio.get_running_loop()
         except RuntimeError:
             return asyncio.run(session.run_negotiation())
+        # 已在事件循环内：独立线程跑自己的循环（timeout 保护；
+        # 旧代码在"有循环但 proposals<2"分支落回 asyncio.run 必炸）
+        import concurrent.futures
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+            future = pool.submit(asyncio.run, session.run_negotiation())
+            return future.result(timeout=session.timeout_seconds + 10)

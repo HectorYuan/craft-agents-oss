@@ -177,7 +177,7 @@ class FeatureStore:
         temp_path = self._features_file.with_suffix(".tmp")
         with open(temp_path, "w", encoding="utf-8") as f:
             json.dump(vector.to_dict(), f, indent=2, ensure_ascii=False)
-        temp_path.rename(self._features_file)
+        temp_path.replace(self._features_file)
 
         # 追加到 features_history.jsonl
         with open(self._history_file, "a", encoding="utf-8") as f:
@@ -200,7 +200,7 @@ class FeatureStore:
             temp_path = self._history_file.with_suffix(".tmp")
             with open(temp_path, "w", encoding="utf-8") as f:
                 f.writelines(lines)
-            temp_path.rename(self._history_file)
+            temp_path.replace(self._history_file)
 
     def get_latest_features(self) -> Optional[FeatureVector]:
         """获取最新特征向量"""

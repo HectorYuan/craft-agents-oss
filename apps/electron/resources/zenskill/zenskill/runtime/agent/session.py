@@ -23,6 +23,14 @@ from .types import (
     new_id,
     now_ms,
 )
+from .session_craft import (
+    default_session_header,
+    get_session_dir,
+    get_session_path,
+    atomic_write as _craft_atomic_write,
+    append_message_and_update_precompute,
+    read_header as _craft_read_header,
+)
 
 SESSION_VERSION = 1
 
@@ -146,7 +154,29 @@ class Session:
         self._leaf_override = None
         return entry
 
+    @property
+    def is_craft(self) -> bool:
+        """S3：判断是否 craft 风格 JSONL（path 形如 sessions/{sid}/session.jsonl）。"""
+        return self.path.name == "session.jsonl"
+
     def append_message(self, message: Message, parent_id: Optional[str] = None) -> SessionEntry:
+        if self.is_craft:
+            # S3：直接写 vendor StoredMessage + 维护 header precompute
+            msg_dict = message_to_dict(message)
+            if "id" not in msg_dict:
+                msg_dict["id"] = _uuid7_like()
+            append_message_and_update_precompute(self.path, self.header, msg_dict)
+            # 同步内存 entries（get_messages / build_context 需要）
+            entry = SessionEntry(
+                type="message",
+                id=msg_dict["id"],
+                parent_id=parent_id if parent_id is not None else self._leaf_id(),
+                timestamp=msg_dict.get("timestamp") or now_ms(),
+                data={"message": msg_dict},
+            )
+            self.entries.append(entry)
+            self._leaf_override = None
+            return entry
         return self.append(
             "message",
             {"message": message_to_dict(message)},
@@ -360,18 +390,49 @@ def export_markdown(session: "Session", leaf_id: Optional[str] = None,
 
 
 class SessionManager:
-    def __init__(self, root: Optional[str] = None, stateless: bool = False) -> None:
+    def __init__(
+        self,
+        root: Optional[str] = None,
+        stateless: bool = False,
+        workspace_root: Optional[Path] = None,
+    ) -> None:
+        """S3：workspace_root 决定持久化路径。
+
+        - `workspace_root=None`（默认）：旧路径 `{root}/{sid}.jsonl`，4 字段 header
+        - `workspace_root=Path(...)`：新路径 `{workspace_root}/sessions/{sid}/session.jsonl`，
+          vendor SessionHeader 35+ 字段 + 5 预计算字段（与 Desktop Mode 共享）
+        """
         self.root = Path(root) if root else (
             Path.home() / ".zenskill" / "agent" / "sessions"
         )
         self._stateless = stateless
+        self._workspace_root = Path(workspace_root) if workspace_root else None
+
+    def _session_path(self, sid: str) -> Path:
+        """S3：按 workspace_root 是否设置选路径。"""
+        if self._workspace_root is not None:
+            return get_session_path(self._workspace_root, sid)
+        # 旧路径（兼容）
+        from ...core.paths import safe_child_path
+        return safe_child_path(self.root, f"{sid}.jsonl")
 
     def create(self, cwd: Optional[str] = None, session_id: Optional[str] = None) -> Session:
+        if self._workspace_root is not None:
+            # S3 craft 风格：{workspace_root}/sessions/{sid}/session.jsonl（vendor 兼容）
+            sid = session_id or uuid.uuid4().hex[:12]
+            path = get_session_path(self._workspace_root, sid)
+            header = default_session_header(
+                session_id=sid,
+                workspace_root=self._workspace_root,
+                cwd=cwd or os.getcwd(),
+            )
+            if not self._stateless:
+                _craft_atomic_write(path, json.dumps(header, ensure_ascii=False) + "\n")
+            return Session(path, header)
+        # 旧路径（兼容）
         self.root.mkdir(parents=True, exist_ok=True)
         sid = session_id or uuid.uuid4().hex[:12]
-        # 外部 session_id 可能携带路径分量，构造上阻断穿越
         from ...core.paths import safe_child_path
-
         path = safe_child_path(self.root, f"{sid}.jsonl")
         header = {
             "type": "session",
@@ -391,8 +452,13 @@ class SessionManager:
         append-only JSONL 在进程被杀时尾部可能留下不完整行：直接 json.loads
         会让整个会话打不开，且下次 append 会与残行拼接造成二次损坏。此处
         逐行解析跳过损坏行，并把文件截断到最后一个完整行。
+
+        S3：workspace_root 不为 None 时走 craft 路径（get_session_path）。
         """
-        path = self.root / f"{session_id}.jsonl"
+        if self._workspace_root is not None:
+            path = get_session_path(self._workspace_root, session_id)
+        else:
+            path = self.root / f"{session_id}.jsonl"
         if not path.is_file():
             raise FileNotFoundError(f"session not found: {session_id}")
         parsed: List[Dict[str, Any]] = []
@@ -445,10 +511,19 @@ class SessionManager:
         return session
 
     def list_sessions(self) -> List[Dict[str, Any]]:
-        if not self.root.is_dir():
-            return []
+        # S3：craft 模式列 {workspace_root}/sessions/*/session.jsonl；旧模式列 {root}/*.jsonl
+        if self._workspace_root is not None:
+            sessions_root = self._workspace_root / "sessions"
+            if not sessions_root.is_dir():
+                return []
+            paths = [p / "session.jsonl" for p in sorted(sessions_root.iterdir())
+                     if p.is_dir() and (p / "session.jsonl").is_file()]
+        else:
+            if not self.root.is_dir():
+                return []
+            paths = list(sorted(self.root.glob("*.jsonl")))
         out = []
-        for p in sorted(self.root.glob("*.jsonl")):
+        for p in paths:
             try:
                 s = self.load(p.stem)
                 out.append({
@@ -461,3 +536,37 @@ class SessionManager:
             except (ValueError, KeyError, json.JSONDecodeError):
                 continue
         return out
+
+    def delete_session(self, session_id: str) -> bool:
+        """S3：按 workspace_root 选路径删除。
+
+        craft 模式：删 `{workspace_root}/sessions/{sid}/session.jsonl` + rmtree session dir
+        旧模式：删 `{root}/{sid}.jsonl`
+        """
+        if self._workspace_root is not None:
+            from .session_craft import get_session_dir, get_session_path
+            import shutil
+            path = get_session_path(self._workspace_root, session_id)
+            session_dir = get_session_dir(self._workspace_root, session_id)
+            deleted = False
+            try:
+                if path.exists():
+                    path.unlink()
+                    deleted = True
+            except OSError:
+                pass
+            try:
+                if session_dir.is_dir():
+                    shutil.rmtree(session_dir)
+                    deleted = True
+            except OSError:
+                pass
+            return deleted
+        path = self.root / f"{session_id}.jsonl"
+        if path.exists():
+            try:
+                path.unlink()
+                return True
+            except OSError:
+                return False
+        return False

@@ -236,6 +236,39 @@ def cmd_llm_test(args: argparse.Namespace) -> None:
 
 
 
+def cmd_llm_set_key(args: argparse.Namespace) -> None:
+    """保存 API key 到本地保险库（set-key / set-key --forget）"""
+    import getpass
+
+    from ..core import llm_keyring
+
+    if args.forget:
+        removed = llm_keyring.forget(args.provider)
+        print(f"{'✅ 已删除' if removed else 'ℹ️ 无已保存 key'}: {args.provider}")
+        return
+
+    key = args.key or getpass.getpass(f"请输入 {args.provider} API key: ")
+    if not key:
+        print("❌ 未输入 key")
+        raise SystemExit(1)
+
+    llm_keyring.set_secret(args.provider, key, base_url=args.base_url, model=args.model)
+    env_name = llm_keyring.env_name_for(args.provider)
+
+    # 同步 llm_config.json：provider/model/base_url（api_key 走 env 引用，由启动注入）
+    from ..core.llm_config import llm_config
+    llm_config.set_model(args.model or 'deepseek-v4-flash', args.provider)
+    if args.base_url:
+        llm_config.set_base_url(args.base_url)
+    llm_config.save()
+
+    print(f"\n✅ 已保存 {args.provider} API key 到本地保险库（DPAPI 加密）")
+    print(f"   解析链：环境变量 {env_name} → 本保险库")
+    print("\n💡 现在可以直接使用（无需设置环境变量）:")
+    print(f"   zenskill llm test")
+    print(f"   zenskill chat '你好'")
+
+
 def register_llm_parser(subparsers) -> None:
     """注册 llm 子命令组。"""
     llm_parser = subparsers.add_parser("llm", help="大模型服务管理（Phase 9C）")
@@ -256,6 +289,15 @@ def register_llm_parser(subparsers) -> None:
     llm_set_parser.add_argument("--base-url", help="自定义 API 地址")
     llm_set_parser.add_argument("--provider", help="强制指定服务商")
     llm_set_parser.set_defaults(func=cmd_llm_set)
+
+    # llm set-key（D8 打通：key 存本地保险库，Windows DPAPI 加密）
+    setkey_parser = llm_subparsers.add_parser("set-key", help="保存 API key 到本地保险库（Windows DPAPI 加密）")
+    setkey_parser.add_argument("key", nargs="?", help="API key（省略则交互输入）")
+    setkey_parser.add_argument("--provider", default="deepseek", help="服务商（默认 deepseek）")
+    setkey_parser.add_argument("--base-url", help="API 地址（默认用服务商官方端点）")
+    setkey_parser.add_argument("--model", help="默认模型")
+    setkey_parser.add_argument("--forget", action="store_true", help="删除已保存的 key")
+    setkey_parser.set_defaults(func=cmd_llm_set_key)
 
     # llm status
     llm_status_parser = llm_subparsers.add_parser("status", help="检查 LLM 服务状态")

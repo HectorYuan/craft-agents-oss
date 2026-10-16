@@ -100,6 +100,8 @@ class EnergyEngine:
             "low_energy": self._pool.current_energy < 10,
         }
 
+    # Z12 死方法标记：无产品调用方（MCP/CLI/TUI 均未接线），保留为行为
+    # 规格与未来接线候选——下轮评估删除（调用方清单见看板 Z12）
     def recover(self, amount: int = 10, source: str = "rest") -> dict:
         self._pool.current_energy = min(
             self._pool.current_energy + amount, self._pool.max_energy)
@@ -143,6 +145,8 @@ class EnergyEngine:
         return {**s, "total_burned_7d": total_burned,
                 "peak_hour": peak_hour, "suggestions": suggestions}
 
+    # Z12 死方法标记：无产品调用方（MCP/CLI/TUI 均未接线），保留为行为
+    # 规格与未来接线候选——下轮评估删除（调用方清单见看板 Z12）
     def history_7d(self) -> list[dict]:
         cutoff = time.strftime("%Y-%m-%d",
                                time.localtime(time.time() - 7 * 86400))
@@ -201,6 +205,9 @@ class EnergyEngine:
         return EnergyPool(skill_id=self.skill_id)
 
     def _save(self) -> None:
-        self._file.write_text(
+        """tmp + replace 原子落盘，防中途崩溃截断。"""
+        tmp = self._file.with_suffix(".tmp")
+        tmp.write_text(
             json.dumps(self._pool.to_dict(), indent=2, ensure_ascii=False),
             encoding="utf-8")
+        tmp.replace(self._file)

@@ -92,6 +92,16 @@ class SkillProfile:
         except ValueError:
             st = SkillType.GENERAL
 
+        # O11：回填依赖边（此前 to_spec 恒不带 prerequisites → from_db 读回恒 []）
+        try:
+            _prereqs = [
+                f'{d["dep_skill_id"]}@{d["dep_version"]}'
+                if d.get("dep_version") else str(d["dep_skill_id"])
+                for d in SkillDAO.get_dependencies_raw(self.skill_id)
+            ]
+        except Exception:
+            _prereqs = []
+
         return SkillSpec(
             id=self.skill_id,
             name=self.name,
@@ -113,6 +123,7 @@ class SkillProfile:
             adapter=self.adapter,
             entry_point=self.entry_point,
             level=self.level,
+            prerequisites=_prereqs,
             proficiency_weight=self.proficiency,
             stability_weight=self.stability,
             satisfaction_weight=self.satisfaction,

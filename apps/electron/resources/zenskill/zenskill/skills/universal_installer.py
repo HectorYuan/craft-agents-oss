@@ -217,23 +217,40 @@ class UniversalSkillInstaller:
         self._init_market_adapters()
 
     def _init_market_adapters(self):
-        """延迟加载外部市场适配器"""
+        """延迟加载外部市场适配器（W1: 经 MarketSourceRegistry 接入可配置源）
+
+        内置源映射到 market_adapters 现有适配器类；markets.yaml 的 generic-http
+        源构建 GenericHTTPAdapter；disable 的源不注册。registry 不可用时回退
+        旧的硬编码注册，保持行为兜底。
+        """
         try:
-            from .market_adapters import (
-                ClawHubAdapter,
-                NpmAdapter,
-                PyPIAdapter,
-                SkillsShAdapter,
-                GitHubSearchAdapter,
-                SkillHubAdapter,
-                CozeMarketAdapter,
-            )
-            self._adapters["clawhub"] = ClawHubAdapter()
-            self._adapters["npm"] = NpmAdapter()
-            self._adapters["pypi"] = PyPIAdapter()
-            self._adapters["skillssh"] = SkillsShAdapter()
-            self._adapters["github"] = GitHubSearchAdapter()
-            self._adapters["skillhub"] = SkillHubAdapter()
+            from .market_registry import get_default_registry
+            self._source_registry = get_default_registry()
+            for name, adapter in self._source_registry.adapters().items():
+                self._adapters[name] = adapter
+        except Exception:
+            logger.debug("MarketSourceRegistry 接入失败，回退硬编码适配器",
+                         exc_info=True)
+            try:
+                from .market_adapters import (
+                    ClawHubAdapter,
+                    NpmAdapter,
+                    PyPIAdapter,
+                    SkillsShAdapter,
+                    GitHubSearchAdapter,
+                    SkillHubAdapter,
+                )
+                self._adapters["clawhub"] = ClawHubAdapter()
+                self._adapters["npm"] = NpmAdapter()
+                self._adapters["pypi"] = PyPIAdapter()
+                self._adapters["skillssh"] = SkillsShAdapter()
+                self._adapters["github"] = GitHubSearchAdapter()
+                self._adapters["skillhub"] = SkillHubAdapter()
+            except ImportError:
+                pass
+        # coze 为账号作用域 CLI 桥接源（network_lazy），不进 markets.yaml
+        try:
+            from .market_adapters import CozeMarketAdapter
             self._adapters["coze"] = CozeMarketAdapter()
         except ImportError:
             pass
@@ -242,13 +259,40 @@ class UniversalSkillInstaller:
         self._adapters[adapter.market_name] = adapter
 
     def install(self, source: str, **options) -> Dict[str, Any]:
-        """智能安装入口
+        """智能安装入口（W3：本地目录/zip/tar 归档分流到五阶段安全安装管线）
 
         Returns:
             {"success": bool, "skill_id": str, "source": str, "method": str, ...}
+
+        管线路径的返回体并入管线完整字段（ok/promoted/security/usability/
+        supply_ok/learning_hint/...），旧字段 success 映射自 ok；
+        no_scan 仅当调用方显式传入时透传（评审 S1：CLI 人工路径）。
         """
         start = time.time()
         parsed = self._classify_source(source)
+
+        # W3 分流：本地目录/归档走 install_pipeline 五阶段；URL 与
+        # .zenskill-package 保持既有路径（can_handle 内判定，回归等价）
+        try:
+            from .install_pipeline import can_handle as _pipeline_can_handle
+            from .install_pipeline import install as _pipeline_install
+            use_pipeline = _pipeline_can_handle(source)
+        except Exception:
+            use_pipeline = False
+        if use_pipeline:
+            pipeline_opts: Dict[str, Any] = {}
+            for flag in ("no_scan", "force", "confirm"):
+                if flag in options:
+                    pipeline_opts[flag] = bool(options.pop(flag))
+            result = _pipeline_install(source, **pipeline_opts)
+            return {
+                "success": bool(result.get("ok")),
+                "skill_id": result.get("skill_id", ""),
+                "source": source,
+                "method": result.get("method") or parsed["type"],
+                "elapsed_ms": int((time.time() - start) * 1000),
+                **result,
+            }
 
         try:
             result = self._dispatch(parsed, source, **options)

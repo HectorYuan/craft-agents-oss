@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import calendar as cal_mod
 import json
+import threading
 import logging
 import time
 from dataclasses import dataclass, field
@@ -76,6 +77,10 @@ class CalendarEngine:
             self._data_dir = get_user_data_dir() / "gtd"
         self._data_dir.mkdir(parents=True, exist_ok=True)
         self._file = self._data_dir / "calendar.jsonl"
+        self._compact_size_floor = 0
+        self._text_cache = None
+        self._text_cache_stat = None
+        self._append_lock = threading.Lock()  # 多线程并发 append 防丢行
 
     @staticmethod
     def _current_profile() -> str:
@@ -99,18 +104,9 @@ class CalendarEngine:
             hour = int(event.time_str.split(":")[0])
             event.period = "morning" if hour < 12 else ("afternoon" if hour < 18 else "evening")
         self._append(event)
+        self._compact_if_needed()
         self._sync_to_sqlite(event)
         return event
-
-    def schedule_action(self, action_id: str, date: str, time_str: str = "09:00",
-                        repeat: str = "") -> CalendarEvent:
-        """将 Action 排入日程"""
-        from .action import ActionEngine
-        ae = ActionEngine()
-        action = ae.get(action_id)
-        title = action.title if action else action_id
-        return self.add(date=date, title=title, action_id=action_id,
-                        time_str=time_str, repeat_rule=repeat)
 
     def today(self) -> list[CalendarEvent]:
         today = time.strftime("%Y-%m-%d")
@@ -179,33 +175,29 @@ class CalendarEngine:
         return suggestions[:3]
 
     def update(self, event_id: str, **kwargs) -> Optional[CalendarEvent]:
-        """更新日程事件字段（读取全部 → 原地修改 → rewrite）。
+        """更新日程事件字段（定向读取 → 原地修改 → 追加新状态行）。
 
         time_str 变更时自动重算 period（显式传 period 除外）；
         成功后同步 SQLite（JSONL 为准，失败仅 warning）。
         """
-        events = self._read_all()
-        found: Optional[CalendarEvent] = None
-        allowed = set(CalendarEvent.__dataclass_fields__) - {"id"}
-        for e in events:
-            if e.id != event_id:
-                continue
-            for k, v in kwargs.items():
-                if k in allowed and v is not None:
-                    setattr(e, k, v)
-            if "time_str" in kwargs and "period" not in kwargs and e.time_str:
-                try:
-                    hour = int(e.time_str.split(":")[0])
-                    e.period = "morning" if hour < 12 else (
-                        "afternoon" if hour < 18 else "evening")
-                except (ValueError, IndexError):
-                    pass
-            found = e
-        if found is None:
+        e = self._get_by_id(event_id)
+        if e is None:
             return None
-        self._rewrite(events)
-        self._sync_to_sqlite(found)
-        return found
+        allowed = set(CalendarEvent.__dataclass_fields__) - {"id"}
+        for k, v in kwargs.items():
+            if k in allowed and v is not None:
+                setattr(e, k, v)
+        if "time_str" in kwargs and "period" not in kwargs and e.time_str:
+            try:
+                hour = int(e.time_str.split(":")[0])
+                e.period = "morning" if hour < 12 else (
+                    "afternoon" if hour < 18 else "evening")
+            except (ValueError, IndexError):
+                pass
+        self._append(e)
+        self._compact_if_needed()
+        self._sync_to_sqlite(e)
+        return e
 
     def delete(self, event_id: str) -> bool:
         events = self._read_all()
@@ -255,35 +247,120 @@ class CalendarEngine:
                 return []
             days_diff = (target - start).days
             if days_diff % offset == 0:
+                # Z15：实例 id 加 -r{n}（n=距起始天数，同日期幂等）——
+                # 原实现与原事件同 id，前端 key 碰撞且编辑/删除错位命中原始事件
                 return [CalendarEvent(
-                    id=event.id, action_id=event.action_id,
+                    id=f"{event.id}-r{days_diff}", action_id=event.action_id,
                     title=event.title, date=target_date,
-                    time_str=event.time_str, period=event.period,
+                    time_str=event.time_str, end_time=event.end_time,
+                    repeat_rule=event.repeat_rule,
+                    reminder_before_min=event.reminder_before_min,
+                    period=event.period, profile=event.profile,
+                    created_at=event.created_at,
                 )]
         except Exception:
             pass
         return []
 
     def _read_all(self) -> list[CalendarEvent]:
+        """全量读取。追加式更新会产生同 id 多行，按 id last-wins 去重。"""
         if not self._file.exists():
             return []
-        events = []
+        events: list[CalendarEvent] = []
+        idx: dict[str, int] = {}
         for line in self._file.read_text(encoding="utf-8").strip().split("\n"):
             if not line.strip():
                 continue
             try:
-                events.append(CalendarEvent.from_dict(json.loads(line)))
+                e = CalendarEvent.from_dict(json.loads(line))
             except Exception:
                 continue
+            if e.id in idx:
+                events[idx[e.id]] = e
+            else:
+                idx[e.id] = len(events)
+                events.append(e)
         return events
 
+    def _get_by_id(self, event_id: str) -> Optional[CalendarEvent]:
+        """定向读取（last-wins）。快路径子串定位本引擎写入行，未命中回退全量解析。"""
+        if not self._file.exists():
+            return None
+        text = self._cache_text()
+        needle = f'"id": "{event_id}"'
+        hit: Optional[str] = None
+        for line in text.split("\n"):
+            if needle in line:
+                hit = line
+        if hit is not None:
+            try:
+                return CalendarEvent.from_dict(json.loads(hit))
+            except Exception:
+                hit = None
+        for line in reversed(text.split("\n")):
+            if not line.strip():
+                continue
+            try:
+                e = CalendarEvent.from_dict(json.loads(line))
+            except Exception:
+                continue
+            if e.id == event_id:
+                return e
+        return None
+
+    def _cache_text(self) -> str:
+        """带 stat 校验的文件文本缓存（外部写入自动失效重读）。"""
+        try:
+            st = (self._file.stat().st_mtime_ns, self._file.stat().st_size)
+        except OSError:
+            st = None
+        if self._text_cache is not None and self._text_cache_stat == st:
+            return self._text_cache
+        text = self._file.read_text(encoding="utf-8") if st else ""
+        self._text_cache = text
+        self._text_cache_stat = st
+        return text
+
+    def _cache_append(self, line: str) -> None:
+        if self._text_cache is None:
+            return
+        self._text_cache += line
+        try:
+            self._text_cache_stat = (self._file.stat().st_mtime_ns,
+                                     self._file.stat().st_size)
+        except OSError:
+            self._text_cache = None
+
     def _append(self, event: CalendarEvent) -> None:
-        with open(self._file, "a", encoding="utf-8") as f:
-            f.write(json.dumps(event.to_dict(), ensure_ascii=False) + "\n")
+        line = json.dumps(event.to_dict(), ensure_ascii=False) + "\n"
+        with self._append_lock:
+            with open(self._file, "a", encoding="utf-8") as f:
+                f.write(line)
+            self._cache_append(line)
+
+    _COMPACT_MIN_BYTES = 256 * 1024
+
+    def _compact_if_needed(self) -> None:
+        """文件体积超过压实地板 2 倍时压实一次（摊销 O(1)/操作）。"""
+        try:
+            size = self._file.stat().st_size
+        except OSError:
+            return
+        if size < self._COMPACT_MIN_BYTES or size <= 2 * self._compact_size_floor:
+            return
+        self._rewrite(self._read_all())
+        try:
+            self._compact_size_floor = self._file.stat().st_size
+        except OSError:
+            pass
 
     def _rewrite(self, events: list[CalendarEvent]) -> None:
+        """tmp + replace 原子落盘，防中途崩溃截断。"""
         lines = [json.dumps(e.to_dict(), ensure_ascii=False) for e in events]
-        self._file.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        tmp = self._file.with_suffix(".tmp")
+        tmp.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        tmp.replace(self._file)
+        self._text_cache = None
 
     def _sync_to_sqlite(self, event: CalendarEvent) -> None:
         """JSONL 写入后同步到 SQLite（逐条，WAL 模式）。失败仅 warning 不阻塞。"""

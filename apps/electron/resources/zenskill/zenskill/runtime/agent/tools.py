@@ -396,14 +396,27 @@ class BashTool(AgentTool):
         started = time.monotonic()
 
         try:
-            from ..platform_utils import get_new_process_kwargs
-            proc = await asyncio.create_subprocess_shell(
-                command,
-                cwd=self.cwd,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.STDOUT,
-                **get_new_process_kwargs(),
-            )
+            from ..platform_utils import get_new_process_kwargs, find_posix_shell
+            kwargs = get_new_process_kwargs()
+            # Windows 优先用 bash 承载 POSIX 语义（; 链接、引号、coreutils），
+            # 无可用 bash 时才退回默认 shell（cmd.exe）
+            bash = find_posix_shell() if os.name == "nt" else None
+            if bash:
+                proc = await asyncio.create_subprocess_exec(
+                    bash, "-c", command,
+                    cwd=self.cwd,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.STDOUT,
+                    **kwargs,
+                )
+            else:
+                proc = await asyncio.create_subprocess_shell(
+                    command,
+                    cwd=self.cwd,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.STDOUT,
+                    **kwargs,
+                )
         except OSError as e:
             return AgentToolResult(
                 content=[TextContent(f"Failed to start command: {e}")], is_error=True
@@ -619,7 +632,7 @@ class FindTool(AgentTool):
                     if regex.match(name):
                         p = Path(dirpath) / name
                         rel = p.relative_to(Path(self.cwd)) if p.is_relative_to(Path(self.cwd)) else p
-                        matches.append(str(rel))
+                        matches.append(rel.as_posix())
                         if len(matches) >= self.max_hits:
                             truncated = True
                             break
@@ -886,16 +899,26 @@ class GitTool(AgentTool):
                     content=[TextContent("Commit message is required. Pass 'message' parameter.")],
                     is_error=True,
                 )
-            # Stage all + commit
-            proc = await asyncio.create_subprocess_shell(
-                "git add -A && git commit -m " + repr(message),
+            # Stage all + commit（argv 直传，避免 shell 引号差异：
+            # cmd.exe 不认 repr() 的单引号，会把消息拆成多个参数）
+            p1 = await asyncio.create_subprocess_exec(
+                "git", "add", "-A",
+                cwd=self.cwd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.STDOUT,
+            )
+            out1, _ = await p1.communicate()
+            proc = await asyncio.create_subprocess_exec(
+                "git", "commit", "-m", message,
                 cwd=self.cwd,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.STDOUT,
             )
             stdout, _ = await proc.communicate()
-            output = stdout.decode("utf-8", errors="replace")
-            return AgentToolResult(content=[TextContent(output)])
+            output = out1.decode("utf-8", errors="replace") + stdout.decode("utf-8", errors="replace")
+            return AgentToolResult(
+                content=[TextContent(output)], is_error=(proc.returncode != 0)
+            )
 
         elif action == "diff":
             path = params.get("path", "")

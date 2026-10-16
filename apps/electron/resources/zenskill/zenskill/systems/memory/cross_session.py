@@ -46,7 +46,16 @@ class SessionRecord:
 
     @property
     def date_str(self) -> str:
-        return datetime.fromtimestamp(self.started_at).strftime("%Y-%m-%d")
+        ts = self.started_at
+        # 历史数据单位不一（毫秒/秒混杂）：>1e11 视为毫秒归一为秒；异常值跳过
+        if ts > 1e11:
+            ts = ts / 1000
+        if ts <= 0 or ts > 4102444800:  # 2100-01-01 上界
+            return ""
+        try:
+            return datetime.fromtimestamp(ts).strftime("%Y-%m-%d")
+        except (ValueError, OSError, OverflowError):
+            return ""
 
 
 @dataclass

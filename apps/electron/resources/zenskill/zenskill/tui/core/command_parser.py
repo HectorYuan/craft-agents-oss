@@ -99,8 +99,7 @@ def parse_command(input: str) -> ParsedCommand:
         return ParsedCommand(resource="", action="", raw=input)
 
     parts = raw.split()
-    if not parts:
-        return ParsedCommand(resource="", action="", raw=input)
+    # strip 后 raw 非空则 split 必非空，无 parts 空防御分支
 
     # 单词别名: /d -> dashboard show
     if len(parts) == 1 and parts[0] in ALIASES:

@@ -10,18 +10,24 @@ from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
-# 默认会话存储根目录
-_DEFAULT_SESSION_ROOT = Path.home() / ".zenskill" / "agent" / "sessions"
-
 # 防抖时间窗口（秒）
 _DEBOUNCE_SECONDS = 0.3
+
+
+def _default_session_root() -> Path:
+    """默认会话存储根目录。
+
+    运行时解析而非 import 时捕获——import 期固化 Path.home() 会让
+    HOME 隔离测试与多 profile 场景读到错误根（同 llm_config 单例教训）。
+    """
+    return Path.home() / ".zenskill" / "agent" / "sessions"
 
 
 class SessionSearcher:
     """在 JSONL 会话文件中搜索匹配的消息。"""
 
     def __init__(self, session_root: Optional[Path] = None):
-        self._session_root = session_root or _DEFAULT_SESSION_ROOT
+        self._session_root = session_root or _default_session_root()
         self._last_search_time: float = 0.0
 
     def search(self, query: str, limit: int = 20) -> List[Dict[str, Any]]:
