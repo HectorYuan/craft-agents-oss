@@ -316,6 +316,7 @@ export const mockElectronAPI = {
     { key: 'deepseek', label: 'DeepSeek', placeholder: 'sk-...' },
   ],
   getPiProviderBaseUrl: async () => '',
+  fetchOpenAICompatModels: async () => ({ models: [] }),
   getPiProviderModels: async (provider: string) => {
     const MOCK_MODELS: Record<string, Array<{ id: string; name: string; costInput: number; costOutput: number; contextWindow: number; reasoning: boolean }>> = {
       'openrouter': [

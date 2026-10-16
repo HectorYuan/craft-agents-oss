@@ -231,6 +231,9 @@ export const RPC_CHANNELS = {
     GET_PROVIDER_BASE_URL: 'pi:getProviderBaseUrl',
     GET_PROVIDER_MODELS: 'pi:getProviderModels',
   },
+  llmModels: {
+    FETCH_OPENAI_COMPAT: 'llmModels:fetchOpenAICompat',
+  },
   dialog: {
     OPEN_FOLDER: 'dialog:openFolder',
   },

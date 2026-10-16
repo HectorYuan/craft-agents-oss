@@ -374,6 +374,35 @@ export function registerLlmConnectionsHandlers(server: RpcServer, deps: HandlerD
   // Pi Provider Discovery handlers removed (P1b): Pi backend deleted —
   // getAvailableProviders() only returns zenskill, so no client calls these.
 
+  // OpenAI-compatible /models live fetch (domestic presets: mimo/qwen/volc/…)
+  // 输入 preset 的 base URL + 用户已输入的 key → 厂商 /models 真实清单。
+  // 8s 超时；失败返回空列表（前端回退静态默认模型）。
+  server.handle(RPC_CHANNELS.llmModels.FETCH_OPENAI_COMPAT, async (
+    _ctx,
+    params: { baseUrl: string; apiKey?: string },
+  ): Promise<{ models: string[] }> => {
+    const base = (params.baseUrl || '').trim().replace(/\/+$/, '')
+    if (!base) return { models: [] }
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), 8000)
+    try {
+      const url = `${base}/models`
+      const headers: Record<string, string> = { Accept: 'application/json' }
+      if (params.apiKey) headers.Authorization = `Bearer ${params.apiKey}`
+      const resp = await fetch(url, { headers, signal: controller.signal })
+      if (!resp.ok) return { models: [] }
+      const data = (await resp.json()) as { data?: Array<{ id?: string }> }
+      const models = (data.data || [])
+        .map((m) => String(m.id || ''))
+        .filter(Boolean)
+      return { models }
+    } catch {
+      return { models: [] }
+    } finally {
+      clearTimeout(timer)
+    }
+  })
+
   // ============================================================
   // LLM Connections (provider configurations)
   // ============================================================
