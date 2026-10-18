@@ -44,17 +44,10 @@ from ..core import (
 logger = logging.getLogger(__name__)
 
 
-# 命令列表用于自动补全
-COMMAND_LIST = [
-    "/dashboard", "/chat", "/growth", "/skills", "/mirror",
-    "/knowledge", "/system", "/doctor", "/llm",
+# 内置命令（始终可用；与 CommandRegistry 解耦）
+_BUILTIN_COMMANDS = [
     "/help", "/clear", "/quit", "/version", "/history", "/agent",
-    "/diff", "/export", "/review", "/thinking", "/compact", "/inspect", "/memory", "/theme", "/status",
     "/d", "/c", "/g", "/s", "/m", "/k", "/h", "/q",
-    "/skills list", "/growth report", "/growth compare",
-    "/growth replay", "/growth errors", "/growth feedback",
-    "/doctor run", "/doctor state", "/doctor repair",
-    "/llm list", "/llm show", "/llm set", "/llm test",
 ]
 
 
@@ -124,12 +117,112 @@ class ZenRichTUI:
         if self._agent_session is None:
             model = self.session.model if self.session.model != "未配置" else None
             from ..core.agent_server_session import AgentServerSession
+            permission = self._load_agent_permission()
             self._agent_session = AgentServerSession(
                 model=model, with_memory=True, with_skills=True,
+                permission=permission,
+                tool_confirm=self._confirm_tool_action if permission != "full" else None,
             )
             # 会话健康检查提示（仅首次加载时触发一次）
             self._show_session_health_hints()
         return self._agent_session
+
+    def _load_agent_permission(self) -> str:
+        """读取会话权限模式（config.json agent_permission，默认 full）。"""
+        try:
+            import json
+            cfg = Path.home() / ".zenskill" / "config.json"
+            if cfg.exists():
+                return json.loads(cfg.read_text(encoding="utf-8")).get(
+                    "agent_permission", "full")
+        except Exception:
+            pass
+        return "full"
+
+    def _confirm_tool_action(self, tool_call, params) -> bool:
+        """restricted 模式行内确认卡（PermissionGate.confirm 落点）。
+
+        y 允许一次；a 本会话内对该工具总是允许；其他/EOF 拒绝。
+        write/edit 类工具带 path+内容参数时附 unified diff 预览（B4）。
+        """
+        if tool_call.name in getattr(self, "_always_allow_tools", set()):
+            return True
+        detail = "\n".join(
+            f"  {k} = {str(v)[:72]!r}" for k, v in list(params.items())[:4]
+        ) or "  (无参数)"
+        body = f"[bold]{tool_call.name}[/bold]\n{detail}"
+        diff_text = self._write_diff_preview(getattr(tool_call, "name", ""), params)
+        if diff_text:
+            body += "\n\n[bold]变更预览:[/bold]\n" + diff_text
+        from rich.panel import Panel
+        self.console.print(Panel(
+            body,
+            title="🔒 权限确认", border_style="yellow",
+        ))
+        try:
+            answer = input("允许执行? [y/N/a(本会话总是允许)] ").strip().lower()
+        except (EOFError, KeyboardInterrupt):
+            return False
+        if answer == "a":
+            if not hasattr(self, "_always_allow_tools"):
+                self._always_allow_tools = set()
+            self._always_allow_tools.add(tool_call.name)
+            return True
+        return answer in ("y", "yes")
+
+    def _write_diff_preview(self, tool_name: str, params) -> str:
+        """B4: write/edit 落盘前的 unified diff 预览；任何失败/不适用返回空串。"""
+        try:
+            import difflib
+            from pathlib import Path as _Path
+
+            from rich.markup import escape
+
+            name = (tool_name or "").lower()
+            if name not in ("write", "write_file", "edit"):
+                return ""
+            path_val = params.get("path")
+            if not path_val:
+                return ""
+            path = _Path(str(path_val)).expanduser()
+            old_text = ""
+            if path.exists():
+                try:
+                    old_text = path.read_text(encoding="utf-8")
+                except Exception:
+                    return ""
+
+            if name == "edit":
+                edits = params.get("edits") or []
+                if not edits:
+                    return ""
+                new_text = old_text
+                for e in edits:
+                    if not isinstance(e, dict):
+                        continue
+                    old_s = str(e.get("oldText") or e.get("old_string") or "")
+                    new_s = str(e.get("newText") or e.get("new_string") or "")
+                    if old_s:
+                        new_text = new_text.replace(old_s, new_s, 1)
+            else:
+                content = params.get("content")
+                if content is None:
+                    return ""
+                new_text = str(content)
+
+            if old_text == new_text:
+                return ""
+            diff_lines = list(difflib.unified_diff(
+                old_text.splitlines(), new_text.splitlines(),
+                fromfile=f"a/{path.name}", tofile=f"b/{path.name}", lineterm=""))
+            if not diff_lines:
+                return ""
+            shown = diff_lines[:20]
+            if len(diff_lines) > 20:
+                shown.append(f"… (+{len(diff_lines) - 20} 行省略)")
+            return escape("\n".join(shown))
+        except Exception:
+            return ""
 
     def _show_session_health_hints(self):
         """检查 sessions 目录健康状态并打印清理提示（首次启动时一次）。"""
@@ -163,6 +256,7 @@ class ZenRichTUI:
 
     def _init_pages(self):
         """懒加载页面组件。"""
+        from .pages.automations import AutomationsPage
         from .pages.dashboard import DashboardPage
         from .pages.diff import DiffPage
         from .pages.doctor import DoctorPage
@@ -177,9 +271,12 @@ class ZenRichTUI:
         from .pages.status import StatusPage
         from .pages.help import HelpPage
         from .pages.agent import AgentPage
+        from .pages.sessions import SessionsPage
+        from .pages.sources import SourcesPage
 
         data = self._get_data()
         self._pages = {
+            "automations": AutomationsPage(self.console, data),
             "dashboard": DashboardPage(self.console, data),
             "diff": DiffPage(self.console, data),
             "doctor": DoctorPage(self.console, data),
@@ -194,6 +291,8 @@ class ZenRichTUI:
             "status": StatusPage(self.console, data),
             "help": HelpPage(self.console, data),
             "agent": AgentPage(self.console, data),
+            "sessions": SessionsPage(self.console, data),
+            "sources": SourcesPage(self.console, data),
         }
 
     # ═══════════════════════════════════════════════════════════════
@@ -207,6 +306,9 @@ class ZenRichTUI:
 
         # 显示 Landing Page
         self._show_landing()
+
+        # C/onboarding: 首次安装（无 config.json 且模型未配置）展示三步引导
+        self._maybe_show_onboarding()
 
         # 加载历史
         history = self.session.load_history()
@@ -273,18 +375,21 @@ class ZenRichTUI:
 
         try:
             from prompt_toolkit import PromptSession
-            from prompt_toolkit.completion import WordCompleter
+            from prompt_toolkit.completion import WordCompleter, FuzzyCompleter
             from prompt_toolkit.patch_stdout import patch_stdout
             from prompt_toolkit.history import FileHistory
 
             # 从 CommandRegistry 获取完整命令列表
             all_commands = self._get_all_commands()
 
-            command_completer = WordCompleter(
+            # B2 命令面板：FuzzyCompleter 子串模糊匹配（"dash"→/dashboard、
+            # "perm"→/agent permission）——裸词与 / 前缀均可模糊补全
+            word_completer = WordCompleter(
                 all_commands,
                 ignore_case=True,
                 match_middle=True,
             )
+            command_completer = FuzzyCompleter(word_completer)
 
             # 持久化历史到 ~/.zenskill/tui_history
             history_path = Path.home() / ".zenskill" / "tui_history"
@@ -297,6 +402,7 @@ class ZenRichTUI:
                 user_input = await prompt.prompt_async(
                     "❯ ",
                     completer=command_completer,
+                    complete_while_typing=True,
                 )
             return user_input.strip()
 
@@ -362,7 +468,9 @@ class ZenRichTUI:
                     search_input += key
 
                 # Enter 键后检测会话切换请求
-                if key == "enter":
+                # 注：key 此处是原始字符（\r/\n），"enter" 映射只存在于
+                # handle_key 内部——三种形态都接受，否则切换入口永不触发
+                if key in ("\r", "\n", "enter"):
                     # 检查并处理会话切换
                     if agent_page._pending_session_switch:
                         self._process_pending_session_switch(agent_page)
@@ -401,7 +509,7 @@ class ZenRichTUI:
             ])
             return sorted(set(commands))
         except Exception:
-            return COMMAND_LIST
+            return list(_BUILTIN_COMMANDS)
 
     # ═══════════════════════════════════════════════════════════════
     # 状态栏
@@ -487,6 +595,43 @@ class ZenRichTUI:
         if parsed.resource == "export":
             self._export_history()
             self.mark_dirty(["dashboard"])
+            return
+
+        if parsed.resource == "sessions":
+            # /sessions | /sessions export <id> | /sessions delete <id>
+            page = self._pages.get("sessions")
+            if page:
+                page.render(
+                    action=parsed.action or "list",
+                    session_id=parsed.args[0] if parsed.args else "",
+                )
+            return
+
+        if parsed.resource == "automations":
+            # /automations | /automations toggle|run|delete <id>
+            page = self._pages.get("automations")
+            if page:
+                page.render(
+                    action=parsed.action or "list",
+                    automation_id=parsed.args[0] if parsed.args else "",
+                )
+            return
+
+        if parsed.resource == "sources":
+            # /sources | /sources toggle|delete <slug>
+            page = self._pages.get("sources")
+            if page:
+                page.render(
+                    action=parsed.action or "list",
+                    source_id=parsed.args[0] if parsed.args else "",
+                )
+            return
+
+        if parsed.resource == "gtd" and parsed.action == "kanban":
+            # /gtd kanban — pending/next/done 三列看板（C 阶段）
+            page = self._pages.get("gtd")
+            if page:
+                page.render(view="kanban")
             return
 
         if parsed.resource == "search":
@@ -926,9 +1071,42 @@ class ZenRichTUI:
                     t.add_row(tool.name, desc)
                 self.console.print(t)
 
+        elif action == "permission":
+            # /agent permission                查看当前模式
+            # /agent permission <mode>         设置并持久化（重启生效）
+            # 注：dispatch 取 args[0] 为 action，mode 在 args[1]
+            valid = ("full", "plan", "restricted", "sandbox")
+            mode = parsed.args[1] if len(parsed.args) > 1 else None
+            if mode:
+                if mode not in valid:
+                    self.console.print(
+                        f"[yellow]无效模式: {mode}，可选: {', '.join(valid)}[/yellow]")
+                    return
+                import json
+                cfg = Path.home() / ".zenskill" / "config.json"
+                data = {}
+                if cfg.exists():
+                    try:
+                        data = json.loads(cfg.read_text(encoding="utf-8"))
+                    except Exception:
+                        data = {}
+                data["agent_permission"] = mode
+                cfg.parent.mkdir(parents=True, exist_ok=True)
+                cfg.write_text(json.dumps(data, ensure_ascii=False, indent=2),
+                               encoding="utf-8")
+                self.console.print(
+                    f"[green]权限模式已设为 {mode}[/green] [dim]（重启 TUI 生效）[/dim]")
+            else:
+                current = self._load_agent_permission()
+                self.console.print(
+                    f"当前权限模式: [bold]{current}[/bold]\n"
+                    "[dim]full=放行一切 | plan=只读 | restricted=白名单+确认 | "
+                    "sandbox=白名单严格\n修改: /agent permission <mode>（重启生效）[/dim]")
+
         else:
             self.console.print(f"[yellow]未知子命令: {action}[/yellow]")
-            self.console.print("[dim]可用: status, compact, session, model, tools[/dim]")
+            self.console.print(
+                "[dim]可用: status, compact, session, model, tools, permission[/dim]")
 
     async def _handle_chat_direct(self, user_input: str):
         """直接 LLM 路径（原始行为）。"""
@@ -1044,7 +1222,7 @@ class ZenRichTUI:
                 "type": "switch_session", "sessionId": session_id,
             })
             # 持久化新 session ID
-            from ..core.agent_session import _save_session_id
+            from ..core.agent_server_session import _save_session_id
             _save_session_id(session_id)
             # 刷新 agent 页面显示
             info = agent.session_info()
@@ -1083,7 +1261,7 @@ class ZenRichTUI:
         # X8: 续聊提示
         last_sid = None
         try:
-            from ..core.agent_session import _load_last_session_id
+            from ..core.agent_server_session import _load_last_session_id
             last_sid = _load_last_session_id()
         except Exception:
             pass
@@ -1095,7 +1273,7 @@ class ZenRichTUI:
         body += (
             Text("技能成长引擎 · AI 助手", style="dim", justify="center") +
             "\n" +
-            Text("输入消息开始对话，或输入 / 查看命令", style="dim", justify="center") +
+            Text("输入消息开始对话；/ 或子串模糊匹配命令（如 dash→/dashboard）", style="dim", justify="center") +
             "\n" +
             Text("1=仪表盘 2=成长 3=技能 4=GTD 5=设置 6=帮助 7=Agent 8=知识 9=镜像", style="dim", justify="center")
         )
@@ -1104,6 +1282,32 @@ class ZenRichTUI:
             title="[bold cyan]ZenSkill[/bold cyan]",
             border_style="cyan",
         ))
+
+    def _maybe_show_onboarding(self):
+        """C/onboarding: 首次安装（无 config.json 且模型未配置）展示三步引导。
+
+        非交互向导 — 只打印可核对面板；展示一次后写 marker 不再出现。
+        """
+        try:
+            marker = Path.home() / ".zenskill" / "onboarded"
+            if marker.exists():
+                return
+            if (Path.home() / ".zenskill" / "config.json").exists():
+                return
+            if self.session.model != "未配置":
+                return
+            self.console.print(Panel(
+                "[bold]欢迎使用 ZenSkill — 三步开始[/bold]\n\n"
+                "  1. [cyan]/llm set[/cyan] 配置模型\n"
+                "  2. [cyan]/agent permission restricted[/cyan] 可选安全模式\n"
+                "  3. [cyan]/help[/cyan] 全部命令",
+                title="🧭 快速上手", border_style="cyan",
+            ))
+            marker.parent.mkdir(parents=True, exist_ok=True)
+            marker.write_text(datetime.now().isoformat(timespec="seconds"),
+                              encoding="utf-8")
+        except Exception:
+            pass
 
     def _show_version(self):
         """显示版本信息。"""

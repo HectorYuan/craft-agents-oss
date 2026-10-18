@@ -1,6 +1,6 @@
 """mcp 命令组 — `zenskill mcp serve` 启动 stdio MCP server
 
-供 Craft Agents 等 MCP 客户端作为 source 接入：
+供 ZenSkill 桌面端等 MCP 客户端作为 source 接入：
     {"type": "mcp", "mcp": {"transport": "stdio",
      "command": "zenskill", "args": ["mcp", "serve"]}}
 """
@@ -36,7 +36,7 @@ def register_mcp_parser(subparsers: Any) -> None:
     mcp_sub = mcp_parser.add_subparsers(dest="subcommand", help="MCP 操作")
     serve_p = mcp_sub.add_parser(
         "serve",
-        help="启动 stdio MCP server（供 Craft Agents 等 GUI 作为 source 接入）",
+        help="启动 stdio MCP server（供 ZenSkill 桌面端等 GUI 作为 source 接入）",
     )
     serve_p.add_argument(
         "--tools", default="", dest="tools_filter",

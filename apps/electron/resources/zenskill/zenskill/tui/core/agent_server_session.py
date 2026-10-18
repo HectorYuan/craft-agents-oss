@@ -19,13 +19,60 @@ from typing import Any, Dict, Optional
 
 logger = logging.getLogger(__name__)
 
-# 从 agent_session.py 复用的持久化 helper
-from .agent_session import (
-    _load_last_session_id,
-    _save_session_id,
-    _clear_session_id,
-    _format_args,
-)
+
+# ── Session ID 持久化（从退役的 agent_session.py 迁入）────────────
+
+def _tui_session_id_file() -> Path:
+    """TUI 会话 ID 持久化文件路径"""
+    return Path.home() / ".zenskill" / "tui_agent_session_id"
+
+
+def _load_last_session_id() -> Optional[str]:
+    f = _tui_session_id_file()
+    if f.exists():
+        try:
+            sid = f.read_text(encoding="utf-8").strip()
+            if sid:
+                return sid
+        except Exception:
+            pass
+    return None
+
+
+def _save_session_id(sid: str) -> None:
+    try:
+        f = _tui_session_id_file()
+        f.parent.mkdir(parents=True, exist_ok=True)
+        f.write_text(sid, encoding="utf-8")
+    except Exception:
+        pass
+
+
+def _clear_session_id() -> None:
+    try:
+        _tui_session_id_file().unlink(missing_ok=True)
+    except Exception:
+        pass
+
+
+# ── 工具参数格式化（从退役的 agent_session.py 迁入）────────────
+
+def _format_args(args: Any) -> str:
+    """格式化工具参数为简短摘要。"""
+    if not args or not isinstance(args, dict):
+        return ""
+    parts = []
+    for k, v in args.items():
+        if k in ("path", "pattern", "command", "name", "content"):
+            s = str(v)
+            if len(s) > 60:
+                s = s[:57] + "..."
+            parts.append(f"{k}={s}")
+        elif k == "edits":
+            parts.append(f"edits={len(v)}处")
+        elif k == "files":
+            parts.append(f"files={len(v)}个")
+    return " ".join(parts) if parts else ""
 
 
 class AgentServerSession:
@@ -38,12 +85,16 @@ class AgentServerSession:
         with_memory: bool = True,
         with_skills: bool = True,
         max_steps: int = 10,
+        permission: str = "full",
+        tool_confirm: Optional[Any] = None,
     ) -> None:
         self._model_name = model
         self._cwd = cwd
         self._with_memory = with_memory
         self._with_skills = with_skills
         self._max_steps = max_steps
+        self._permission = permission
+        self._tool_confirm = tool_confirm
 
         self._server = None
         self._initialized = False
@@ -105,6 +156,8 @@ class AgentServerSession:
                 max_steps=self._max_steps,
                 with_memory=self._with_memory,
                 with_skills=self._with_skills,
+                permission=self._permission,
+                tool_confirm=self._tool_confirm,
             )
         except Exception as e:
             self._init_error = f"AgentServer 创建失败: {e}"
@@ -165,7 +218,19 @@ class AgentServerSession:
 
         # 消费 outbox 事件，映射为 TUI chunk
         try:
+            # 事件流可能永不终止（下游任务卡死时持续产出事件并吞内存，
+            # 曾单进程涨至 13G），用墙钟上限兜底强制退出
+            max_seconds = float(os.environ.get("ZENSKILL_CHAT_MAX_SECONDS", "600"))
+            deadline = asyncio.get_running_loop().time() + max_seconds
             while self._server.running or not self._server.outbox.empty():
+                if asyncio.get_running_loop().time() > deadline:
+                    self._server.abort_event.set()
+                    yield {
+                        "type": "error",
+                        "content": f"chat 消费循环超过 {max_seconds:.0f}s 未结束，已强制中止",
+                    }
+                    yield {"type": "done", "content": ""}
+                    return
                 try:
                     event_json = await asyncio.wait_for(
                         self._server.outbox.get(), timeout=0.05,
@@ -234,7 +299,6 @@ class AgentServerSession:
         elif etype == "tool_execution_start":
             name = event.get("toolName", "")
             args = event.get("args", {})
-            from .agent_session import _format_args
             return {"type": "tool_start", "content": f"[{name}] {_format_args(args)}"}
 
         elif etype == "tool_execution_update":

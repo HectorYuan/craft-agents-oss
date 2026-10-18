@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""ZenSkill Growth 成长中心 Pages 刷新脚本（craft Pages python3 runtime）。
+"""ZenSkill Growth 成长中心 Pages 刷新脚本（Pages python3 runtime）。
 
 由宿主 cron（page.json refresh spec，默认每 2 小时）调度执行：
 - 通过 ZenSkill 只读工具收集成长数据（growth_dashboard / achievement_list /

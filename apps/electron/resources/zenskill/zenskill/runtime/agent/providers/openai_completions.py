@@ -297,12 +297,12 @@ async def openai_completions_stream(model, context, abort_event=None):
     }
     url = model.base_url.rstrip("/") + "/chat/completions"
 
-    from .retry import retry_post, retry_sse_read, should_degrade_tools, strip_tools_from_payload
+    from .retry import retry_post, retry_sse_read, should_degrade_tools, strip_tools_from_payload, shared_session_ctx
 
     state = OpenAIStreamState(model_id)
     try:
-        timeout = aiohttp.ClientTimeout(total=None, connect=30, sock_read=600)
-        async with aiohttp.ClientSession(timeout=timeout) as session:
+        sock_read = getattr(model, "sock_read_timeout", None) or 600
+        async with shared_session_ctx(sock_read) as session:
             resp, error = await retry_post(session, url, headers, payload)
             if error and should_degrade_tools(error) and payload.get("tools"):
                 # provider 不接受 tools 参数：剥参降级为纯对话重试一轮

@@ -136,18 +136,31 @@ class SkillRouter:
         """从 SkillDAO 同步已安装技能进路由表 (P3-1: 路由与真实库存联动)
 
         以 tags/keywords 作为触发词注册通用能力路由；已在路由表中的技能跳过。
+        G2 治理联查：dormant/archived/deleted 不进路由（governance_filter
+        批量过滤，异常自动降级直通）；T0/T1 与 T2 暂无差别注册（细粒度留后续）。
+        limit=2000 覆盖全量库存（338+ 规模）。
         返回新增数量（DB 不可用时返回 0，不影响内置路由）。
         """
         try:
             from .core.skill_profile import SkillProfile
 
-            profiles = SkillProfile.list_all(top_k=200)
+            profiles = SkillProfile.list_all(limit=2000)
         except Exception:
             return 0
+
+        try:
+            from .skills.governance_filter import filter_slugs
+
+            kept, _excluded = filter_slugs(
+                {p.skill_id for p in profiles if p.skill_id})
+        except Exception:
+            kept = None  # 治理过滤不可用 → 不剔除（保可用性）
 
         count = 0
         for p in profiles:
             if not p.skill_id or p.skill_id in self._routes:
+                continue
+            if kept is not None and p.skill_id not in kept:
                 continue
             keywords = [t for t in (p.tags or []) if t][:8]
             if not keywords and not p.description:

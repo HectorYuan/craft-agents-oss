@@ -1,0 +1,10 @@
+{
+  "craft_version": "0.13.3",
+  "craft_commit": "e533d3ba",
+  "built_at": "2026-09-20T07:10:03.512316+00:00",
+  "brand_replacements": [
+    "Craft Agents",
+    "Craft Agent"
+  ],
+  "dist_size_mb": 49.9
+}

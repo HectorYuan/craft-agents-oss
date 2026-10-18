@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>技能图谱</title>
 <style>
+  /* ========== Design Tokens ========== */
   :root {
     --bg: #fafafa;
     --card: #ffffff;
@@ -21,21 +22,24 @@
     --gold: #d97706;
     --gold-soft: rgba(217, 119, 6, 0.10);
     --gold-border: rgba(217, 119, 6, 0.32);
-    --ring-track: #e9ebef;
-    --cell-off: #e9ebef;
     --shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
-    --rel-prerequisite: #d97706;
-    --rel-complementary: #16a34a;
-    --rel-competing: #dc2626;
-    --rel-transfer: #9333ea;
-    --rel-co-occurrence: #2563eb;
-    --cat-coding: #2563eb;
-    --cat-writing: #9333ea;
-    --cat-analysis: #16a34a;
-    --cat-learning: #d97706;
-    --cat-productivity: #0d9488;
-    --cat-communication: #ea580c;
-    --cat-general: #6b7280;
+    /* 九域色板 */
+    --cat-lark: #4080FF;
+    --cat-arkcli: #FF8C40;
+    --cat-agentswarm: #9B59B6;
+    --cat-dev: #2ECC71;
+    --cat-data: #3498DB;
+    --cat-ai: #E74C3C;
+    --cat-design: #F39C12;
+    --cat-ops: #95A5A6;
+    --cat-life: #1ABC9C;
+    --cat-general: #BDC3C7;
+    /* 等级描边 */
+    --lv-master: var(--gold);
+    --lv-expert: var(--accent);
+    /* 弦/降级透明度 */
+    --chord-opacity: 0.35;
+    --dim-opacity: 0.15;
   }
   @media (prefers-color-scheme: dark) {
     :root {
@@ -54,21 +58,20 @@
       --gold: #e0af68;
       --gold-soft: rgba(224, 175, 104, 0.12);
       --gold-border: rgba(224, 175, 104, 0.35);
-      --ring-track: #333845;
-      --cell-off: #2d3240;
       --shadow: 0 1px 2px rgba(0, 0, 0, 0.20);
-      --rel-prerequisite: #e0af68;
-      --rel-complementary: #9ece6a;
-      --rel-competing: #f7768e;
-      --rel-transfer: #bb9af7;
-      --rel-co-occurrence: #7aa2f7;
-      --cat-coding: #7aa2f7;
-      --cat-writing: #bb9af7;
-      --cat-analysis: #9ece6a;
-      --cat-learning: #e0af68;
-      --cat-productivity: #4fd6be;
-      --cat-communication: #ff9e64;
-      --cat-general: #7c8598;
+      /* 九域色板（暗色适配） */
+      --cat-lark: #5A9CFF;
+      --cat-arkcli: #FFa566;
+      --cat-agentswarm: #B07CC6;
+      --cat-dev: #50D88A;
+      --cat-data: #5AABE4;
+      --cat-ai: #F06060;
+      --cat-design: #F5B041;
+      --cat-ops: #AAB7B8;
+      --cat-life: #48C9B0;
+      --cat-general: #95A5A6;
+      --lv-master: var(--gold);
+      --lv-expert: var(--accent);
     }
   }
   * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -77,154 +80,270 @@
     color: var(--text);
     font-family: "PingFang SC", "Microsoft YaHei", "Noto Sans SC", sans-serif;
     font-variant-numeric: tabular-nums;
-    padding: 20px;
-    min-height: 100vh;
-  }
-  .header {
-    display: flex; align-items: baseline; justify-content: space-between;
-    margin-bottom: 16px;
-  }
-  .header h1 { font-size: 18px; font-weight: 600; color: var(--text); }
-  /* 宿主顶栏已有页名，托管渲染时隐藏页内大标题 */
-  .in-host .header h1 { display: none; }
-  .updated { font-size: 12px; color: var(--text-2); }
-  .card {
-    background: var(--card);
-    border: 1px solid var(--border);
-    border-radius: 10px;
     padding: 16px;
-    box-shadow: var(--shadow);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
   }
-  .card h2 {
-    font-size: 12px; font-weight: 500; color: var(--text-2);
-    margin-bottom: 12px; letter-spacing: 1px;
+  /* 头部 */
+  .header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 12px; gap: 12px; flex-wrap: wrap;
+  }
+  .header h1 { font-size: 18px; font-weight: 600; white-space: nowrap; }
+  .in-host .header h1 { display: none; }
+  .header-right {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 12px; color: var(--text-2);
+  }
+  /* 搜索框 */
+  .search-wrap {
+    position: relative; flex: 1; min-width: 200px; max-width: 360px;
+  }
+  .search-wrap input {
+    width: 100%; padding: 7px 12px 7px 32px;
+    border: 1px solid var(--border); border-radius: 8px;
+    background: var(--card); color: var(--text);
+    font-size: 13px; outline: none;
+  }
+  .search-wrap input:focus { border-color: var(--accent); }
+  .search-wrap .search-icon {
+    position: absolute; left: 10px; top: 50%; transform: translateY(-50%);
+    width: 14px; height: 14px; color: var(--muted);
+  }
+  /* 搜索结果下拉 */
+  .search-results {
+    position: absolute; top: 100%; left: 0; right: 0; z-index: 100;
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 8px; margin-top: 4px; max-height: 240px;
+    overflow-y: auto; box-shadow: var(--shadow);
+    display: none;
+  }
+  .search-results.open { display: block; }
+  .search-results .sr-item {
+    padding: 8px 12px; cursor: pointer; font-size: 13px;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .search-results .sr-item:hover { background: var(--accent-soft); }
+  .search-results .sr-item .sr-cat {
+    font-size: 11px; color: var(--muted); padding: 1px 6px;
+    border-radius: 4px; background: var(--accent-soft);
+  }
+  .search-results .sr-empty {
+    padding: 12px; text-align: center; font-size: 12px; color: var(--muted);
+  }
+  /* 域筛选 chips */
+  .chips {
+    display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px;
+  }
+  .chip {
+    padding: 4px 10px; border-radius: 12px; font-size: 12px;
+    cursor: pointer; border: 1px solid var(--border);
+    background: var(--card); color: var(--text-2);
+    transition: all 0.15s;
+    user-select: none;
+  }
+  .chip:hover { border-color: var(--accent); }
+  .chip.active {
+    background: var(--accent); color: #fff; border-color: var(--accent);
+  }
+  .chip .chip-dot {
+    display: inline-block; width: 8px; height: 8px;
+    border-radius: 50%; margin-right: 4px; vertical-align: middle;
+  }
+  /* 治理图例（B4） */
+  .legend {
+    display: flex; gap: 12px; flex-wrap: wrap; align-items: center;
+    font-size: 11px; color: var(--text-2); margin-bottom: 12px;
+  }
+  .legend .lg-item { display: inline-flex; align-items: center; gap: 4px; }
+  .legend .lg-swatch {
+    display: inline-block; width: 11px; height: 11px; border-radius: 50%;
+    background: var(--accent-soft);
+  }
+  /* 画布区域 */
+  .canvas-wrap {
+    position: relative; flex: 1; min-height: 400px;
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 10px; overflow: hidden;
+  }
+  #graph {
+    display: block; width: 100%; height: 100%;
+    touch-action: none; cursor: grab;
+  }
+  #graph:active { cursor: grabbing; }
+  /* 面包屑（域明细视图） */
+  .breadcrumb {
+    position: absolute; top: 8px; left: 12px; z-index: 10;
+    font-size: 13px; color: var(--text-2); cursor: pointer;
+    background: var(--card); padding: 4px 10px; border-radius: 6px;
+    border: 1px solid var(--border); display: none;
+    user-select: none;
+  }
+  .breadcrumb:hover { color: var(--accent); }
+  /* 详情面板 */
+  .detail-panel {
+    position: absolute; top: 0; right: 0; width: 320px; height: 100%;
+    background: var(--card); border-left: 1px solid var(--border);
+    box-shadow: -2px 0 8px rgba(0,0,0,0.06);
+    transform: translateX(100%); transition: transform 0.25s ease;
+    z-index: 50; overflow-y: auto; padding: 16px;
+  }
+  .detail-panel.open { transform: translateX(0); }
+  .detail-panel .dp-close {
+    position: absolute; top: 8px; right: 8px;
+    width: 24px; height: 24px; border: none; background: none;
+    cursor: pointer; font-size: 16px; color: var(--muted);
+    border-radius: 4px;
+  }
+  .detail-panel .dp-close:hover { background: var(--accent-soft); color: var(--text); }
+  .detail-panel .dp-name {
+    font-size: 16px; font-weight: 600; margin-bottom: 4px;
+    padding-right: 28px; word-break: break-all;
+  }
+  .detail-panel .dp-meta {
+    font-size: 12px; color: var(--text-2); margin-bottom: 12px;
+  }
+  .detail-panel .dp-meta .dp-badge {
+    display: inline-block; padding: 1px 6px; border-radius: 4px;
+    font-size: 11px; font-weight: 500; margin-right: 4px;
+  }
+  .detail-panel .dp-section {
+    margin-top: 12px;
+  }
+  .detail-panel .dp-section h4 {
+    font-size: 11px; font-weight: 500; color: var(--text-2);
+    letter-spacing: 0.5px; margin-bottom: 6px;
+  }
+  .detail-panel .dp-bar {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 12px; margin-bottom: 4px;
+  }
+  .detail-panel .dp-bar .bar-label { width: 48px; text-align: right; color: var(--text-2); }
+  .detail-panel .dp-bar .bar-track {
+    flex: 1; height: 6px; background: var(--border); border-radius: 3px; overflow: hidden;
+  }
+  .detail-panel .dp-bar .bar-fill { height: 100%; border-radius: 3px; }
+  .detail-panel .dp-links {
+    display: flex; flex-wrap: wrap; gap: 4px;
+  }
+  .detail-panel .dp-link {
+    font-size: 12px; padding: 2px 8px; border-radius: 4px;
+    background: var(--accent-soft); color: var(--accent);
+    cursor: pointer; border: none;
+  }
+  .detail-panel .dp-link:hover { background: var(--accent-fill); }
+  .detail-panel .dp-weak {
+    font-size: 12px; color: var(--muted); margin-top: 8px;
+  }
+  /* 页脚统计 */
+  .footer-stats {
+    margin-top: 12px; display: flex; gap: 16px; flex-wrap: wrap;
+    align-items: baseline; font-size: 12px;
+  }
+  .footer-stats .fs-item b {
+    font-size: 18px; color: var(--accent); font-weight: 700;
+  }
+  .footer-stats .fs-item .fs-lbl {
+    font-size: 11px; color: var(--text-2); margin-left: 3px;
+  }
+  .footer-stats .fs-source {
+    margin-left: auto; font-size: 11px; color: var(--text-2);
+    background: var(--accent-soft); border-radius: 8px; padding: 2px 10px;
   }
   .footer {
-    margin-top: 16px; text-align: center;
+    margin-top: 12px; text-align: center;
     font-size: 11px; color: var(--muted);
   }
-  /* 图谱画布 */
-  .graph-scroll { overflow-x: auto; }
-  #graph { display: block; width: 100%; min-width: 640px; height: auto; }
-  /* 关系图例（只为快照中出现的关系类型渲染） */
-  .legend { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 10px; }
-  .legend .lg {
-    display: flex; align-items: center; gap: 4px;
-    font-size: 11px; color: var(--text-2);
+  /* Tooltip（自绘 div，弃用 SVG title） */
+  .tooltip {
+    position: fixed; z-index: 200; pointer-events: none;
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 6px; padding: 6px 10px;
+    font-size: 12px; color: var(--text);
+    box-shadow: var(--shadow); max-width: 220px;
+    display: none;
   }
-  .legend .lg .swatch { width: 18px; height: 3px; border-radius: 2px; opacity: 0.55; }
-  /* 统计行 */
-  .stats-row {
-    margin-top: 12px;
-    display: flex; gap: 24px; flex-wrap: wrap; align-items: baseline;
-  }
-  .stats-row .stat { font-size: 13px; }
-  .stats-row .stat b { font-size: 22px; color: var(--accent); font-weight: 700; }
-  .stats-row .stat .lbl { font-size: 11px; color: var(--text-2); margin-left: 4px; }
-  .stats-row .source {
-    margin-left: auto; font-size: 12px; color: var(--text-2);
-    background: var(--accent-soft); border-radius: 8px; padding: 3px 12px;
+  .tooltip .tt-name { font-weight: 600; margin-bottom: 2px; }
+  .tooltip .tt-meta { color: var(--text-2); font-size: 11px; }
+  /* 移动端适配 */
+  @media (max-width: 767px) {
+    body { padding: 10px; }
+    .header { flex-direction: column; align-items: stretch; }
+    .search-wrap { max-width: none; }
+    .canvas-wrap { min-height: 300px; }
+    .detail-panel {
+      width: 100%; height: 55vh; top: auto; bottom: 0;
+      border-left: none; border-top: 1px solid var(--border);
+      border-radius: 12px 12px 0 0;
+      transform: translateY(100%);
+    }
+    .detail-panel.open { transform: translateY(0); }
   }
 </style>
 </head>
 <body>
   <div class="header">
     <h1>技能图谱</h1>
-    <span class="updated" id="updated"></span>
-  </div>
-
-  <div class="card">
-    <h2>关系网络</h2>
-    <div class="graph-scroll">
-      <svg id="graph" viewBox="0 0 760 560" xmlns="http://www.w3.org/2000/svg"></svg>
+    <div class="search-wrap">
+      <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+      </svg>
+      <input type="text" id="search-input" placeholder="搜索技能名称..." autocomplete="off">
+      <div class="search-results" id="search-results"></div>
     </div>
-    <div class="legend" id="legend"></div>
+    <div class="header-right">
+      <span class="chip" id="archived-toggle" style="display:none"></span>
+      <span id="updated"></span>
+    </div>
   </div>
 
-  <div class="card stats-row">
-    <span class="stat"><b id="stat-nodes">-</b><span class="lbl">技能节点</span></span>
-    <span class="stat"><b id="stat-edges">-</b><span class="lbl">关系边</span></span>
-    <span class="source" id="stat-source">--</span>
+  <div class="chips" id="chips"></div>
+  <div class="legend" id="legend" style="display:none"></div>
+
+  <div class="canvas-wrap">
+    <div class="breadcrumb" id="breadcrumb">&larr; 返回域聚合</div>
+    <svg id="graph" xmlns="http://www.w3.org/2000/svg"></svg>
+    <div class="detail-panel" id="detail-panel">
+      <button class="dp-close" id="dp-close">&times;</button>
+      <div id="dp-content"></div>
+    </div>
   </div>
 
+  <div class="footer-stats" id="footer-stats"></div>
   <div class="footer">ZenSkill · 每日 04:00 自动刷新</div>
+  <div class="tooltip" id="tooltip"></div>
 
 <script>
 (function () {
   'use strict';
 
+  /* ========== 常量 ========== */
   var SVG_NS = 'http://www.w3.org/2000/svg';
-  // 画布与环形布局参数（viewBox 坐标）
-  var W = 760, H = 560, CX = W / 2, CY = H / 2, RADIUS = 205;
-
-  // 关系类型 → 中文名 / 主题变量（缺省类型自动隐藏图例）；
-  // 五类边色在浅色/深色下各有一套高对比取值（变量见 :root / dark media query）
-  var REL_TYPES = {
-    prerequisite:  { name: '前置', cssVar: '--rel-prerequisite' },
-    complementary: { name: '互补', cssVar: '--rel-complementary' },
-    competing:     { name: '竞争', cssVar: '--rel-competing' },
-    transfer:      { name: '迁移', cssVar: '--rel-transfer' },
-    co_occurrence: { name: '共现', cssVar: '--rel-co-occurrence' }
+  var DOMAIN_COLORS = {
+    lark: '#4080FF', arkcli: '#FF8C40', agentswarm: '#9B59B6', dev: '#2ECC71',
+    data: '#3498DB', ai: '#E74C3C', design: '#F39C12', ops: '#95A5A6',
+    life: '#1ABC9C', general: '#BDC3C7'
   };
-  // 分类 → 节点色主题变量（未知分类按序取色轮）
-  var CATEGORY_VARS = {
-    coding: '--cat-coding', writing: '--cat-writing', analysis: '--cat-analysis',
-    learning: '--cat-learning', productivity: '--cat-productivity',
-    communication: '--cat-communication', general: '--cat-general'
+  var DOMAIN_NAMES = {
+    lark: '飞书', arkcli: 'ArkCLI', agentswarm: 'AgentSwarm', dev: '开发',
+    data: '数据', ai: 'AI', design: '设计', ops: '运维',
+    life: '生活', general: '通用'
   };
-  var COLOR_WHEEL_VARS = ['--cat-coding', '--cat-analysis', '--cat-learning',
-    '--rel-competing', '--cat-writing', '--cat-productivity', '--cat-communication'];
   var LEVEL_TEXT = {
     NOVICE: '新手', APPRENTICE: '学徒', ADEPT: '熟手', EXPERT: '专家', MASTER: '大师'
   };
+  var LEVEL_COLORS = {
+    MASTER: 'lv-master', EXPERT: 'lv-expert'
+  };
+  /* 治理（B4）：tier/state 编码 */
+  var TIER_TEXT = { T0: '核心 T0', T1: '常用 T1', T2: '低频 T2' };
+  var STATE_TEXT = { active: '活跃', dormant: '休眠', archived: '已归档', deleted: '已删除' };
 
+  /* ========== 工具函数 ========== */
   function cssVar(name) {
     var v = getComputedStyle(document.documentElement).getPropertyValue(name);
     return (v || '').trim();
-  }
-
-  function setText(id, text) {
-    var el = document.getElementById(id);
-    if (el) el.textContent = text == null ? '-' : String(text);
-  }
-
-  // SVG 空态：waypoints 图标 + 一句话 + 数据来源提示
-  // 图标形状取自 lucide waypoints（stroke currentColor 1.75，24 viewBox）
-  var WAYPOINTS_ICON = [
-    ['circle', { cx: 12, cy: 4.5, r: 2.5 }],
-    ['path', { d: 'm10.2 6.3-3.9 3.9' }],
-    ['circle', { cx: 4.5, cy: 12, r: 2.5 }],
-    ['path', { d: 'M7 12h10' }],
-    ['circle', { cx: 19.5, cy: 12, r: 2.5 }],
-    ['path', { d: 'm13.8 17.7 3.9-3.9' }],
-    ['circle', { cx: 12, cy: 19.5, r: 2.5 }]
-  ];
-
-  function showEmpty(svg, message, hint) {
-    svg.innerHTML = '';
-    var g = svgEl('g', {
-      transform: 'translate(' + (CX - 16) + ' ' + (CY - 36) + ') scale(1.3333)',
-      fill: 'none', stroke: cssVar('--muted'),
-      'stroke-width': 1.75, 'stroke-linecap': 'round', 'stroke-linejoin': 'round'
-    });
-    WAYPOINTS_ICON.forEach(function (part) {
-      g.appendChild(svgEl(part[0], part[1]));
-    });
-    svg.appendChild(g);
-    var title = svgEl('text', {
-      x: CX, y: CY + 20, 'text-anchor': 'middle',
-      'font-size': 13, fill: cssVar('--text-2')
-    });
-    title.textContent = message || '暂无数据';
-    svg.appendChild(title);
-    if (hint) {
-      var sub = svgEl('text', {
-        x: CX, y: CY + 40, 'text-anchor': 'middle',
-        'font-size': 11, fill: cssVar('--muted')
-      });
-      sub.textContent = hint;
-      svg.appendChild(sub);
-    }
   }
 
   function svgEl(tag, attrs) {
@@ -233,122 +352,9 @@
     return el;
   }
 
-  function relColor(type) {
-    var rel = REL_TYPES[type];
-    return rel ? (cssVar(rel.cssVar) || cssVar('--muted')) : cssVar('--muted');
-  }
-
-  function categoryColor(category, index) {
-    var v = CATEGORY_VARS[category] ? cssVar(CATEGORY_VARS[category]) : '';
-    if (v) return v;
-    return cssVar(COLOR_WHEEL_VARS[index % COLOR_WHEEL_VARS.length]);
-  }
-
   function truncate(text, max) {
     text = String(text || '');
-    return text.length > max ? text.slice(0, max - 1) + '…' : text;
-  }
-
-  // ---------- 环形布局（纯内联 SVG，无外链库） ----------
-  function renderGraph(nodes, edges) {
-    var svg = document.getElementById('graph');
-    var legend = document.getElementById('legend');
-    svg.innerHTML = '';
-    legend.innerHTML = '';
-
-    if (!nodes || !nodes.length) {
-      showEmpty(svg, '暂无图谱数据', '等待依赖图引擎建立技能节点，每日 04:00 自动刷新');
-      return;
-    }
-
-    var labelColor = cssVar('--text-2');
-    var nodeStroke = cssVar('--card');
-
-    // 节点定位：按序均匀分布圆周；大小 = usage（面积感用 sqrt 缩放）
-    var maxUsage = 0;
-    nodes.forEach(function (n) { maxUsage = Math.max(maxUsage, n.usage || 0); });
-    var byId = {};
-    nodes.forEach(function (n, i) {
-      var angle = -Math.PI / 2 + i * 2 * Math.PI / nodes.length;
-      n._x = CX + RADIUS * Math.cos(angle);
-      n._y = CY + RADIUS * Math.sin(angle);
-      var ratio = maxUsage > 0 ? Math.sqrt(Math.max(0, n.usage || 0) / maxUsage) : 0;
-      n._r = Math.max(4, Math.min(12, 5 + 7 * ratio));
-      byId[n.id] = n;
-    });
-
-    // 边在下层：Q 二次贝塞尔弧线，控制点向圆心收缩使弧线内弯
-    edges.forEach(function (e) {
-      var a = byId[e.from], b = byId[e.to];
-      if (!a || !b || a === b) return;
-      var mx = (a._x + b._x) / 2, my = (a._y + b._y) / 2;
-      var bend = 0.18;
-      var qx = mx + (CX - mx) * bend, qy = my + (CY - my) * bend;
-      var color = relColor(e.type);
-      var strength = Math.max(0, Math.min(1, e.strength == null ? 0 : e.strength));
-      var path = svgEl('path', {
-        d: 'M ' + a._x.toFixed(1) + ' ' + a._y.toFixed(1) +
-           ' Q ' + qx.toFixed(1) + ' ' + qy.toFixed(1) +
-           ' ' + b._x.toFixed(1) + ' ' + b._y.toFixed(1),
-        fill: 'none',
-        stroke: color,
-        'stroke-width': (0.8 + strength * 3.2).toFixed(2),
-        'stroke-opacity': 0.55
-      });
-      var tip = svgEl('title', {});
-      tip.textContent = (REL_TYPES[e.type] ? REL_TYPES[e.type].name : e.type) +
-        '：' + (a.name || e.from) + ' → ' +
-        (b.name || e.to) + '（强度 ' + Math.round(strength * 100) + '%）';
-      path.appendChild(tip);
-      svg.appendChild(path);
-    });
-
-    // 节点在上层：按 category 分色（描边取卡片底色，与浅色/深色底自然融合）
-    var catIndex = {};
-    nodes.forEach(function (n) {
-      if (!(n.category in catIndex)) catIndex[n.category] = Object.keys(catIndex).length;
-      var color = categoryColor(n.category, catIndex[n.category]);
-
-      var circle = svgEl('circle', {
-        cx: n._x.toFixed(1), cy: n._y.toFixed(1), r: n._r.toFixed(1),
-        fill: color, 'fill-opacity': 0.9,
-        stroke: nodeStroke, 'stroke-width': 1.5
-      });
-      var tip = svgEl('title', {});
-      tip.textContent = (n.name || n.id) + '\n' + (LEVEL_TEXT[n.level] || n.level || '') +
-        ' · ' + (n.category || 'general') + ' · 使用 ' + (n.usage || 0) + ' 次';
-      circle.appendChild(tip);
-      svg.appendChild(circle);
-
-      // 标签置于节点外侧，按角度选择对齐方向
-      var cos = (n._x - CX) / RADIUS, sin = (n._y - CY) / RADIUS;
-      var anchor = cos > 0.3 ? 'start' : (cos < -0.3 ? 'end' : 'middle');
-      var lx = n._x + cos * (n._r + 6), ly = n._y + sin * (n._r + 6);
-      var label = svgEl('text', {
-        x: lx.toFixed(1), y: ly.toFixed(1),
-        'text-anchor': anchor,
-        'dominant-baseline': sin > 0.6 ? 'hanging' : (sin < -0.6 ? 'auto' : 'middle'),
-        'font-size': 10.5, fill: labelColor
-      });
-      label.textContent = truncate(n.name || n.id, 12);
-      svg.appendChild(label);
-    });
-
-    // 图例：只为快照中出现的关系类型渲染
-    var present = {};
-    (edges || []).forEach(function (e) { present[e.type] = true; });
-    Object.keys(REL_TYPES).forEach(function (type) {
-      if (!present[type]) return;
-      var rel = REL_TYPES[type];
-      var item = document.createElement('span');
-      item.className = 'lg';
-      var swatch = document.createElement('span');
-      swatch.className = 'swatch';
-      swatch.style.background = relColor(type);
-      item.appendChild(swatch);
-      item.appendChild(document.createTextNode(rel.name));
-      legend.appendChild(item);
-    });
+    return text.length > max ? text.slice(0, max - 1) + '\u2026' : text;
   }
 
   function fmtTime(ms) {
@@ -359,26 +365,1181 @@
     } catch (e) { return ''; }
   }
 
+  /* ========== 状态管理 ========== */
+  var state = {
+    nodes: [],
+    edges: [],
+    view: 'domain',      // 'domain' | 'detail'
+    activeDomain: null,   // 当前下钻的域
+    selectedNode: null,   // 选中的节点
+    zoom: 1,
+    panX: 0, panY: 0,
+    hiddenDomains: {},    // 被隐藏的域
+    showArchived: false,  // 是否显示 archived 节点（默认隐藏）
+    searchTerm: '',
+    searchResults: [],
+    searchOpen: false
+  };
+
+  /* ========== Circle Packing 算法 ========== */
+  // 螺旋放置法：从中心向外螺旋，找到第一个不重叠的位置
+  function packCircles(items, containerRadius) {
+    if (!items.length) return [];
+    // 按面积降序排列（大圆先放）
+    items.sort(function (a, b) { return b.r - a.r; });
+    var placed = [];
+    var angle = 0;
+    var step = 2;
+    var maxIter = items.length * 200;
+    var iter = 0;
+
+    for (var i = 0; i < items.length && iter < maxIter; i++) {
+      var item = items[i];
+      var x = 0, y = 0;
+      var found = false;
+      var spiralRadius = 0;
+
+      // 螺旋搜索
+      while (!found && iter < maxIter) {
+        iter++;
+        x = spiralRadius * Math.cos(angle);
+        y = spiralRadius * Math.sin(angle);
+
+        // 检查是否在容器内
+        var distFromCenter = Math.sqrt(x * x + y * y);
+        if (distFromCenter + item.r > containerRadius) {
+          spiralRadius += step;
+          angle += 0.3;
+          continue;
+        }
+
+        // 检查是否与已放置的圆重叠
+        var overlap = false;
+        for (var j = 0; j < placed.length; j++) {
+          var dx = x - placed[j].x;
+          var dy = y - placed[j].y;
+          var dist = Math.sqrt(dx * dx + dy * dy);
+          if (dist < item.r + placed[j].r + 2) {
+            overlap = true;
+            break;
+          }
+        }
+
+        if (!overlap) {
+          found = true;
+        } else {
+          spiralRadius += step;
+          angle += 0.3;
+        }
+      }
+
+      placed.push({
+        x: x, y: y, r: item.r,
+        data: item.data
+      });
+    }
+
+    return placed;
+  }
+
+  /* ========== 数据处理 ========== */
+  function groupByDomain(nodes) {
+    var groups = {};
+    nodes.forEach(function (n) {
+      var cat = n.category || 'general';
+      if (!groups[cat]) groups[cat] = [];
+      groups[cat].push(n);
+    });
+    return groups;
+  }
+
+  function getDomainStats(nodes) {
+    var groups = groupByDomain(nodes);
+    var stats = {};
+    for (var cat in groups) {
+      var ns = groups[cat];
+      var masterCount = 0;
+      var totalUsage = 0;
+      var topNode = null;
+      ns.forEach(function (n) {
+        if (n.level === 'MASTER') masterCount++;
+        totalUsage += (n.usage || 0);
+        if (!topNode || (n.usage || 0) > (topNode.usage || 0)) topNode = n;
+      });
+      stats[cat] = {
+        count: ns.length,
+        masterCount: masterCount,
+        totalUsage: totalUsage,
+        topNode: topNode
+      };
+    }
+    return stats;
+  }
+
+  // 获取节点的强关联（top-8）
+  function getStrongEdges(nodeId, edges) {
+    var result = [];
+    edges.forEach(function (e) {
+      if (e.from === nodeId || e.to === nodeId) {
+        if ((e.strength || 0) >= 0.3) {
+          result.push(e);
+        }
+      }
+    });
+    result.sort(function (a, b) { return (b.strength || 0) - (a.strength || 0); });
+    return result.slice(0, 8);
+  }
+
+  // 获取节点的弱共现计数
+  function getWeakCount(nodeId, edges) {
+    var count = 0;
+    edges.forEach(function (e) {
+      if ((e.from === nodeId || e.to === nodeId) && (e.strength || 0) < 0.3) {
+        count++;
+      }
+    });
+    return count;
+  }
+
+  /* ========== 域聚合视图 ========== */
+  function renderDomainView() {
+    var svg = document.getElementById('graph');
+    var rect = svg.parentElement.getBoundingClientRect();
+    var W = rect.width || 800;
+    var H = rect.height || 500;
+    svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
+
+    var groups = groupByDomain(state.nodes);
+    var stats = getDomainStats(state.nodes);
+    var containerR = Math.min(W, H) * 0.55;
+
+    // 构建域气泡数据
+    var bubbles = [];
+    var visibleDomains = [];
+    for (var cat in groups) {
+      if (state.hiddenDomains[cat]) continue;
+      var count = groups[cat].length;
+      // 面积∝count，对数缩放让小域不被大域完全遮挡
+      var r = Math.max(22, Math.sqrt(count) * 12);
+      bubbles.push({ r: r, data: { domain: cat, count: count, stats: stats[cat] } });
+      visibleDomains.push(cat);
+    }
+
+    // 如果所有域都被隐藏，显示提示
+    if (bubbles.length === 0) {
+      showEmpty(svg, '所有域已隐藏', '点击上方标签恢复显示');
+      return;
+    }
+
+    // Circle Packing
+    var packed = packCircles(bubbles, containerR);
+    var cx = W / 2, cy = H / 2;
+
+    svg.innerHTML = '';
+
+    // 域间聚合弦（如果有强边）
+    renderChords(svg, packed, cx, cy, visibleDomains);
+
+    // 渲染域气泡
+    packed.forEach(function (p) {
+      var color = DOMAIN_COLORS[p.data.domain] || '#BDC3C7';
+      var g = svgEl('g', { 'class': 'domain-bubble', 'data-domain': p.data.domain });
+
+      // 气泡圆
+      var circle = svgEl('circle', {
+        cx: (cx + p.x).toFixed(1),
+        cy: (cy + p.y).toFixed(1),
+        r: p.r.toFixed(1),
+        fill: color,
+        'fill-opacity': 0.2,
+        stroke: color,
+        'stroke-width': 2,
+        'stroke-opacity': 0.6,
+        cursor: 'pointer'
+      });
+      g.appendChild(circle);
+
+      // 域名称标签
+      var label = svgEl('text', {
+        x: (cx + p.x).toFixed(1),
+        y: (cy + p.y - 6).toFixed(1),
+        'text-anchor': 'middle',
+        'dominant-baseline': 'auto',
+        'font-size': p.r > 50 ? 14 : 12,
+        'font-weight': '600',
+        fill: cssVar('--text'),
+        'pointer-events': 'none'
+      });
+      label.textContent = truncate(DOMAIN_NAMES[p.data.domain] || p.data.domain, 12);
+      g.appendChild(label);
+
+      // 数量标签
+      var countLabel = svgEl('text', {
+        x: (cx + p.x).toFixed(1),
+        y: (cy + p.y + 10).toFixed(1),
+        'text-anchor': 'middle',
+        'dominant-baseline': 'auto',
+        'font-size': 11,
+        fill: cssVar('--text-2'),
+        'pointer-events': 'none'
+      });
+      countLabel.textContent = p.data.count + ' \u6280\u80fd';
+      g.appendChild(countLabel);
+
+      // 高频技能小圆（top-3）
+      if (p.data.stats && p.data.stats.topNode) {
+        var topSkills = getTopSkills(p.data.domain, 3);
+        topSkills.forEach(function (skill, idx) {
+          var angle = -Math.PI / 2 + idx * (2 * Math.PI / 3);
+          var skillR = Math.max(3, Math.min(6, (skill.usage || 0) / 100));
+          var sx = cx + p.x + (p.r * 0.6) * Math.cos(angle);
+          var sy = cy + p.y + (p.r * 0.6) * Math.sin(angle);
+
+          var skillCircle = svgEl('circle', {
+            cx: sx.toFixed(1), cy: sy.toFixed(1), r: skillR.toFixed(1),
+            fill: color, 'fill-opacity': 0.8,
+            stroke: 'none', 'pointer-events': 'none'
+          });
+          g.appendChild(skillCircle);
+        });
+      }
+
+      // 点击事件：下钻到域
+      circle.addEventListener('click', function () {
+        state.view = 'detail';
+        state.activeDomain = p.data.domain;
+        state.selectedNode = null;
+        closeDetailPanel();
+        document.getElementById('breadcrumb').style.display = 'block';
+        updateChipsActive();
+        renderDetailView();
+      });
+
+      // hover 事件
+      circle.addEventListener('mouseenter', function (e) {
+        showTooltip(e, DOMAIN_NAMES[p.data.domain] || p.data.domain,
+          p.data.count + ' \u6280\u80fd' +
+          (p.data.stats.masterCount > 0 ? ' | ' + p.data.stats.masterCount + ' MASTER' : ''));
+      });
+      circle.addEventListener('mouseleave', hideTooltip);
+
+      svg.appendChild(g);
+    });
+  }
+
+  function getTopSkills(domain, n) {
+    return state.nodes
+      .filter(function (node) { return (node.category || 'general') === domain; })
+      .sort(function (a, b) { return (b.usage || 0) - (a.usage || 0); })
+      .slice(0, n);
+  }
+
+  /* ========== 域间弦图 ========== */
+  function renderChords(svg, packed, cx, cy, visibleDomains) {
+    // 按域聚合边
+    var domainPairs = {};
+    state.edges.forEach(function (e) {
+      if ((e.strength || 0) < 0.3) return;
+      var fromNode = findNode(e.from);
+      var toNode = findNode(e.to);
+      if (!fromNode || !toNode) return;
+      var fromDomain = fromNode.category || 'general';
+      var toDomain = toNode.category || 'general';
+      if (fromDomain === toDomain) return;
+      var key = [fromDomain, toDomain].sort().join(':');
+      if (!domainPairs[key]) domainPairs[key] = { count: 0, strength: 0 };
+      domainPairs[key].count++;
+      domainPairs[key].strength += (e.strength || 0);
+    });
+
+    // 绘制弦
+    for (var key in domainPairs) {
+      var parts = key.split(':');
+      var a = findPacked(packed, parts[0]);
+      var b = findPacked(packed, parts[1]);
+      if (!a || !b) continue;
+
+      var pair = domainPairs[key];
+      var width = Math.min(4, 1 + pair.count * 0.5);
+      var mx = (a.x + b.x) / 2 + cx;
+      var my = (a.y + b.y) / 2 + cy;
+      var bend = 0.15;
+      var qx = mx + (cx - mx) * bend;
+      var qy = my + (cy - my) * bend;
+
+      var path = svgEl('path', {
+        d: 'M ' + (cx + a.x).toFixed(1) + ' ' + (cy + a.y).toFixed(1) +
+           ' Q ' + qx.toFixed(1) + ' ' + qy.toFixed(1) +
+           ' ' + (cx + b.x).toFixed(1) + ' ' + (cy + b.y).toFixed(1),
+        fill: 'none',
+        stroke: cssVar('--text-2'),
+        'stroke-width': width.toFixed(1),
+        'stroke-opacity': 0.35,
+        'pointer-events': 'none'
+      });
+      svg.appendChild(path);
+    }
+  }
+
+  function findPacked(packed, domain) {
+    for (var i = 0; i < packed.length; i++) {
+      if (packed[i].data.domain === domain) return packed[i];
+    }
+    return null;
+  }
+
+  function findNode(id) {
+    for (var i = 0; i < state.nodes.length; i++) {
+      if (state.nodes[i].id === id) return state.nodes[i];
+    }
+    return null;
+  }
+
+  /* ========== 域明细视图 ========== */
+  function renderDetailView() {
+    var svg = document.getElementById('graph');
+    var rect = svg.parentElement.getBoundingClientRect();
+    var W = rect.width || 800;
+    var H = rect.height || 500;
+    svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
+
+    var domain = state.activeDomain;
+    // 治理（B4）：archived 节点默认隐藏，可经 header 开关切显
+    var nodes = state.nodes.filter(function (n) {
+      if ((n.category || 'general') !== domain) return false;
+      if (!state.showArchived && (n.state || 'active') === 'archived') return false;
+      return true;
+    });
+
+    // 按 level 排序，MASTER 在前
+    var levelOrder = { MASTER: 0, EXPERT: 1, ADEPT: 2, APPRENTICE: 3, NOVICE: 4 };
+    nodes.sort(function (a, b) {
+      return (levelOrder[a.level] || 4) - (levelOrder[b.level] || 4);
+    });
+
+    if (!nodes.length) {
+      showEmpty(svg, '该域暂无技能', '');
+      return;
+    }
+
+    var containerR = Math.min(W, H) * 0.52;
+    var maxUsage = 0;
+    nodes.forEach(function (n) { maxUsage = Math.max(maxUsage, n.usage || 0); });
+
+    // 构建节点气泡：对数缩放（usage 0/1/1717 极不均匀，线性/sqrt 会把冷门技能压成同尺寸小点）
+    var bubbles = nodes.map(function (n) {
+      var usage = n.usage || 0;
+      // 对数缩放：usage=0→14px, 1→24px, 10→42px, 100→60px, 1717→86px（封顶）
+      var r = Math.min(90, 14 + Math.log(1 + usage) * 10);
+      return { r: r, data: n };
+    });
+
+    var packed = packCircles(bubbles, containerR);
+    var cx = W / 2, cy = H / 2;
+
+    svg.innerHTML = '';
+
+    // 使用热度着色（B-3）：0=灰 / 1-10=蓝 / 10-100=橙 / 100+=红
+    function usageHeat(usage) {
+      if (!usage || usage <= 0) return { fill: '#9CA3AF', opacity: 0.45 };
+      if (usage < 10) return { fill: '#3B82F6', opacity: 0.65 };
+      if (usage < 100) return { fill: '#F59E0B', opacity: 0.7 };
+      return { fill: '#EF4444', opacity: 0.75 };
+    }
+
+    // 渲染节点
+    packed.forEach(function (p) {
+      var n = p.data;
+      var heat = usageHeat(n.usage || 0);
+      var g = svgEl('g', { 'class': 'skill-node', 'data-id': n.id });
+
+      // 治理编码（B4）：dormant 虚线描边 / T0 金色描边 / T2 整体淡化
+      var tier = n.tier || 'T2';
+      var nodeState = n.state || 'active';
+      if (tier === 'T2') g.setAttribute('opacity', '0.55');
+
+      // 描边：dormant 虚线 > T0 金色 > 等级（MASTER/EXPERT 保持原编码）
+      var strokeColor = 'none';
+      var strokeWidth = 0;
+      var strokeDash = '';
+      if (nodeState === 'dormant') {
+        strokeColor = cssVar('--text-2');
+        strokeWidth = 1.5;
+        strokeDash = '4,3';
+      } else if (tier === 'T0') {
+        strokeColor = cssVar('--gold') || cssVar('--lv-master');
+        strokeWidth = 2.5;
+      } else if (n.level === 'MASTER') {
+        strokeColor = cssVar('--lv-master');
+        strokeWidth = 2.5;
+      } else if (n.level === 'EXPERT') {
+        strokeColor = cssVar('--lv-expert');
+        strokeWidth = 1.5;
+      }
+
+      // 节点圆（填充=使用热度，描边=tier/状态）
+      var circle = svgEl('circle', {
+        cx: (cx + p.x).toFixed(1),
+        cy: (cy + p.y).toFixed(1),
+        r: p.r.toFixed(1),
+        fill: heat.fill,
+        'fill-opacity': heat.opacity,
+        stroke: strokeColor,
+        'stroke-width': strokeWidth,
+        'stroke-dasharray': strokeDash,
+        cursor: 'pointer'
+      });
+      g.appendChild(circle);
+
+      // 标签（LOD: usage > 0 时显示）
+      if ((n.usage || 0) > 0 || p.r > 20) {
+        var label = svgEl('text', {
+          x: (cx + p.x).toFixed(1),
+          y: (cy + p.y + 1).toFixed(1),
+          'text-anchor': 'middle',
+          'dominant-baseline': 'middle',
+          'font-size': Math.min(11, p.r * 0.4).toFixed(0),
+          fill: '#fff',
+          'pointer-events': 'none'
+        });
+        label.textContent = truncate(n.name || n.id, 10);
+        g.appendChild(label);
+      }
+
+      // 点击事件：选中节点
+      circle.addEventListener('click', function (e) {
+        e.stopPropagation();
+        state.selectedNode = n;
+        highlightNode(n.id);
+        showDetailPanel(n);
+        // 反向 postMessage
+        try {
+          window.parent.postMessage({ protocol: 'craft-pages/v1', type: 'selection', id: n.id }, '*');
+        } catch (e) {}
+      });
+
+      // hover 事件
+      circle.addEventListener('mouseenter', function (e) {
+        // 治理（B4）：tier/state/quality 追加进 tooltip
+        var meta = (LEVEL_TEXT[n.level] || n.level) + ' | ' + (n.usage || 0) + ' \u6b21\u4f7f\u7528';
+        if (n.tier || n.state) {
+          meta = (TIER_TEXT[n.tier] || n.tier || 'T2') + ' · ' +
+            (STATE_TEXT[n.state] || n.state || 'active') + ' | ' + meta;
+        }
+        if (typeof n.quality_score === 'number' && n.quality_score >= 0) {
+          meta += ' | quality ' + n.quality_score;
+        }
+        showTooltip(e, n.name || n.id, meta);
+      });
+      circle.addEventListener('mouseleave', hideTooltip);
+
+      svg.appendChild(g);
+    });
+
+    // 选中节点时显示 top-8 强边
+    if (state.selectedNode) {
+      highlightNode(state.selectedNode.id);
+    }
+  }
+
+  /* ========== 节点高亮 ========== */
+  function highlightNode(nodeId) {
+    var svg = document.getElementById('graph');
+    var nodes = svg.querySelectorAll('.skill-node');
+    var strongEdges = getStrongEdges(nodeId, state.edges);
+
+    // 收集关联节点 ID
+    var relatedIds = {};
+    relatedIds[nodeId] = true;
+    strongEdges.forEach(function (e) {
+      relatedIds[e.from] = true;
+      relatedIds[e.to] = true;
+    });
+
+    // 降低无关节点透明度
+    nodes.forEach(function (g) {
+      var id = g.getAttribute('data-id');
+      var circle = g.querySelector('circle');
+      if (relatedIds[id]) {
+        circle.setAttribute('fill-opacity', '0.9');
+      } else {
+        circle.setAttribute('fill-opacity', String(cssVar('--dim-opacity') || 0.15));
+      }
+    });
+
+    // 绘制强边
+    var rect = svg.parentElement.getBoundingClientRect();
+    var W = rect.width || 800;
+    var H = rect.height || 500;
+    var domain = state.activeDomain;
+    var nodesInDomain = state.nodes.filter(function (n) {
+      return (n.category || 'general') === domain;
+    });
+    var packed = packCircles(
+      nodesInDomain.map(function (n) {
+        var r = Math.max(12, Math.sqrt((n.usage || 0) + 1) * 8);
+        r = Math.min(r, 60);
+        return { r: r, data: n };
+      }),
+      Math.min(W, H) * 0.44
+    );
+    var cx = W / 2, cy = H / 2;
+    var posMap = {};
+    packed.forEach(function (p) { posMap[p.data.id] = { x: cx + p.x, y: cy + p.y }; });
+
+    strongEdges.forEach(function (e) {
+      var a = posMap[e.from], b = posMap[e.to];
+      if (!a || !b) return;
+      var mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+      var bend = 0.15;
+      var qx = mx + (cx - mx) * bend;
+      var qy = my + (cy - my) * bend;
+
+      var path = svgEl('path', {
+        d: 'M ' + a.x.toFixed(1) + ' ' + a.y.toFixed(1) +
+           ' Q ' + qx.toFixed(1) + ' ' + qy.toFixed(1) +
+           ' ' + b.x.toFixed(1) + ' ' + b.y.toFixed(1),
+        fill: 'none',
+        stroke: cssVar('--accent'),
+        'stroke-width': (1 + (e.strength || 0) * 3).toFixed(1),
+        'stroke-opacity': '0.7',
+        'pointer-events': 'none'
+      });
+      svg.appendChild(path);
+    });
+  }
+
+  /* ========== 五维能力雷达图（纯 SVG） ========== */
+  function renderRadarChart(fiveDims, size, color) {
+    size = size || 160;
+    var dims = [
+      { key: 'proficiency', label: '熟练度' },
+      { key: 'stability', label: '稳定性' },
+      { key: 'satisfaction', label: '满意度' },
+      { key: 'responsiveness', label: '响应力' },
+      { key: 'memory', label: '记忆力' },
+    ];
+    var cx = size / 2, cy = size / 2 + 4;
+    var R = size / 2 - 22;
+    var values = dims.map(function (d) {
+      var v = fiveDims[d.key];
+      return (typeof v === 'number' && v >= 0) ? Math.min(100, v) : 0;
+    });
+
+    // 五边形顶点坐标（顶部起，顺时针）
+    function pt(i, r) {
+      var angle = -Math.PI / 2 + i * 2 * Math.PI / 5;
+      return { x: cx + r * Math.cos(angle), y: cy + r * Math.sin(angle) };
+    }
+
+    var svg = '<svg width="' + size + '" height="' + (size + 8) + '" viewBox="0 0 ' + size + ' ' + (size + 8) + '">';
+
+    // 背景网格（3 层同心五边形）
+    [0.33, 0.66, 1.0].forEach(function (f) {
+      var pts = [];
+      for (var i = 0; i < 5; i++) {
+        var p = pt(i, R * f);
+        pts.push(p.x.toFixed(1) + ',' + p.y.toFixed(1));
+      }
+      svg += '<polygon points="' + pts.join(' ') + '" fill="none" stroke="var(--border)" stroke-width="1"/>';
+    });
+    // 轴线
+    for (var i = 0; i < 5; i++) {
+      var p = pt(i, R);
+      svg += '<line x1="' + cx + '" y1="' + cy + '" x2="' + p.x.toFixed(1) + '" y2="' + p.y.toFixed(1) +
+        '" stroke="var(--border)" stroke-width="1"/>';
+    }
+
+    // 数据多边形
+    var dataPts = [];
+    for (var i = 0; i < 5; i++) {
+      var p = pt(i, R * values[i] / 100);
+      dataPts.push(p.x.toFixed(1) + ',' + p.y.toFixed(1));
+    }
+    svg += '<polygon points="' + dataPts.join(' ') + '" fill="' + (color || 'var(--accent)') + '33" ' +
+      'stroke="' + (color || 'var(--accent)') + '" stroke-width="1.5"/>';
+
+    // 数据点 + 轴标签 + 数值
+    for (var i = 0; i < 5; i++) {
+      var p = pt(i, R * values[i] / 100);
+      svg += '<circle cx="' + p.x.toFixed(1) + '" cy="' + p.y.toFixed(1) + '" r="2.5" fill="' +
+        (color || 'var(--accent)') + '"/>';
+      var lp = pt(i, R + 12);
+      var anchor = Math.abs(lp.x - cx) < 5 ? 'middle' : (lp.x > cx ? 'start' : 'end');
+      svg += '<text x="' + lp.x.toFixed(1) + '" y="' + lp.y.toFixed(1) +
+        '" text-anchor="' + anchor + '" dominant-baseline="middle" font-size="9" fill="var(--text-2)">' +
+        dims[i].label + '</text>';
+      var vp = pt(i, R * values[i] / 100 - 10);
+      if (values[i] > 0) {
+        svg += '<text x="' + vp.x.toFixed(1) + '" y="' + vp.y.toFixed(1) +
+          '" text-anchor="middle" dominant-baseline="middle" font-size="8" font-weight="600" fill="var(--text)">' +
+          values[i] + '</text>';
+      }
+    }
+    svg += '</svg>';
+    return svg;
+  }
+
+  /* ========== 详情面板 ========== */
+  function showDetailPanel(node) {
+    var panel = document.getElementById('detail-panel');
+    var content = document.getElementById('dp-content');
+    var color = DOMAIN_COLORS[node.category || 'general'] || '#BDC3C7';
+    var levelBadge = '';
+    if (node.level) {
+      var lvColor = node.level === 'MASTER' ? cssVar('--lv-master') :
+                    node.level === 'EXPERT' ? cssVar('--lv-expert') : color;
+      levelBadge = '<span class="dp-badge" style="background:' + lvColor + '22;color:' + lvColor + '">' +
+        (LEVEL_TEXT[node.level] || node.level) + '</span>';
+    }
+
+    var html = '<div class="dp-name">' + (node.name || node.id) + '</div>';
+    html += '<div class="dp-meta">' + levelBadge +
+      '<span class="dp-badge" style="background:' + color + '22;color:' + color + '">' +
+      (DOMAIN_NAMES[node.category] || node.category || 'general') + '</span>' +
+      ' \u4f7f\u7528 ' + (node.usage || 0) + ' \u6b21</div>';
+
+    // 治理（B4）：tier/state/quality 行
+    var govTier = node.tier || 'T2';
+    var govState = node.state || 'active';
+    var tierColor = govTier === 'T0' ? cssVar('--gold') : cssVar('--text-2');
+    var stateColor = govState === 'dormant' ? cssVar('--warn') :
+                     govState === 'active' ? cssVar('--good') : cssVar('--muted');
+    html += '<div class="dp-meta">' +
+      '<span class="dp-badge" style="background:' + tierColor + '22;color:' + tierColor + '">' +
+      (TIER_TEXT[govTier] || govTier) + '</span>' +
+      '<span class="dp-badge" style="background:' + stateColor + '22;color:' + stateColor + '">' +
+      (STATE_TEXT[govState] || govState) + '</span>' +
+      (typeof node.quality_score === 'number' && node.quality_score >= 0
+        ? '<span class="dp-badge" style="background:var(--accent-soft);color:var(--accent)">quality ' +
+          node.quality_score + '</span>'
+        : '') +
+      '</div>';
+    if (node.last_used_at) {
+      html += '<div class="dp-meta">\u6700\u540e\u4f7f\u7528 ' + node.last_used_at + '</div>';
+    }
+
+    // 五维能力雷达（有使用数据时展示）
+    if (node.five_dims) {
+      html += '<div class="dp-section"><h4>五维能力</h4>' +
+        renderRadarChart(node.five_dims, 170, color) + '</div>';
+    }
+
+    // 强关联技能
+    var strongEdges = getStrongEdges(node.id, state.edges);
+    if (strongEdges.length > 0) {
+      html += '<div class="dp-section"><h4>\u5f3a\u5173\u8054\u6280\u80fd (' + strongEdges.length + ')</h4><div class="dp-links">';
+      strongEdges.forEach(function (e) {
+        var otherId = e.from === node.id ? e.to : e.from;
+        var otherNode = findNode(otherId);
+        if (otherNode) {
+          html += '<button class="dp-link" data-id="' + otherId + '">' +
+            truncate(otherNode.name || otherId, 15) + '</button>';
+        }
+      });
+      html += '</div></div>';
+    }
+
+    // 弱共现计数
+    var weakCount = getWeakCount(node.id, state.edges);
+    if (weakCount > 0) {
+      html += '<div class="dp-weak">\u5f31\u5171\u73b0 ' + weakCount + ' \u6761\uff08\u5df2\u6298\u53e0\uff09</div>';
+    }
+
+    content.innerHTML = html;
+    panel.classList.add('open');
+
+    // 绑定关联技能点击事件
+    var links = content.querySelectorAll('.dp-link');
+    for (var i = 0; i < links.length; i++) {
+      links[i].addEventListener('click', function () {
+        var id = this.getAttribute('data-id');
+        var n = findNode(id);
+        if (n) {
+          state.selectedNode = n;
+          highlightNode(n.id);
+          showDetailPanel(n);
+        }
+      });
+    }
+  }
+
+  function closeDetailPanel() {
+    document.getElementById('detail-panel').classList.remove('open');
+    state.selectedNode = null;
+  }
+
+  /* ========== Tooltip ========== */
+  function showTooltip(e, title, meta) {
+    var tip = document.getElementById('tooltip');
+    tip.innerHTML = '<div class="tt-name">' + title + '</div>' +
+      (meta ? '<div class="tt-meta">' + meta + '</div>' : '');
+    tip.style.display = 'block';
+    var x = e.clientX + 12;
+    var y = e.clientY - 10;
+    if (x + 220 > window.innerWidth) x = e.clientX - 220;
+    if (y + 60 > window.innerHeight) y = e.clientY - 60;
+    tip.style.left = x + 'px';
+    tip.style.top = y + 'px';
+  }
+
+  function hideTooltip() {
+    document.getElementById('tooltip').style.display = 'none';
+  }
+
+  /* ========== 空态 ========== */
+  function showEmpty(svg, message, hint) {
+    svg.innerHTML = '';
+    var rect = svg.parentElement.getBoundingClientRect();
+    var cx = (rect.width || 800) / 2;
+    var cy = (rect.height || 500) / 2;
+
+    var text = svgEl('text', {
+      x: cx, y: cy - 10, 'text-anchor': 'middle',
+      'font-size': 14, fill: cssVar('--text-2')
+    });
+    text.textContent = message || '\u6682\u65e0\u6570\u636e';
+    svg.appendChild(text);
+
+    if (hint) {
+      var sub = svgEl('text', {
+        x: cx, y: cy + 16, 'text-anchor': 'middle',
+        'font-size': 12, fill: cssVar('--muted')
+      });
+      sub.textContent = hint;
+      svg.appendChild(sub);
+    }
+  }
+
+  /* ========== 搜索 ========== */
+  function setupSearch() {
+    var input = document.getElementById('search-input');
+    var results = document.getElementById('search-results');
+    var debounceTimer = null;
+
+    input.addEventListener('input', function () {
+      clearTimeout(debounceTimer);
+      var term = input.value.trim().toLowerCase();
+      state.searchTerm = term;
+
+      if (!term) {
+        results.classList.remove('open');
+        results.innerHTML = '';
+        return;
+      }
+
+      debounceTimer = setTimeout(function () {
+        var matches = state.nodes.filter(function (n) {
+          var name = (n.name || n.id || '').toLowerCase();
+          return name.indexOf(term) !== -1;
+        }).slice(0, 20);
+
+        state.searchResults = matches;
+
+        if (matches.length === 0) {
+          results.innerHTML = '<div class="sr-empty">\u672a\u627e\u5230\u6280\u80fd\uff0c\u8bd5\u8bd5\u57df\u540d\u5982 lark</div>';
+        } else {
+          var html = '';
+          matches.forEach(function (n) {
+            var catName = DOMAIN_NAMES[n.category] || n.category || 'general';
+            html += '<div class="sr-item" data-id="' + n.id + '">' +
+              '<span>' + (n.name || n.id) + '</span>' +
+              '<span class="sr-cat">' + catName + '</span></div>';
+          });
+          results.innerHTML = html;
+
+          // 绑定点击事件
+          var items = results.querySelectorAll('.sr-item');
+          for (var i = 0; i < items.length; i++) {
+            items[i].addEventListener('click', function () {
+              var id = this.getAttribute('data-id');
+              var node = findNode(id);
+              if (node) {
+                // 下钻到所属域
+                state.view = 'detail';
+                state.activeDomain = node.category || 'general';
+                state.selectedNode = node;
+                document.getElementById('breadcrumb').style.display = 'block';
+                updateChipsActive();
+                renderDetailView();
+                showDetailPanel(node);
+                results.classList.remove('open');
+                input.value = node.name || node.id;
+              }
+            });
+          }
+        }
+
+        results.classList.add('open');
+      }, 300);
+    });
+
+    // 点击外部关闭搜索结果
+    document.addEventListener('click', function (e) {
+      if (!e.target.closest('.search-wrap')) {
+        results.classList.remove('open');
+      }
+    });
+  }
+
+  /* ========== 域 Chips ========== */
+  function renderChips() {
+    var container = document.getElementById('chips');
+    var groups = groupByDomain(state.nodes);
+    var html = '<span class="chip active" data-domain="all">\u5168\u90e8</span>';
+
+    // 按数量降序
+    var cats = Object.keys(groups).sort(function (a, b) {
+      return groups[b].length - groups[a].length;
+    });
+
+    cats.forEach(function (cat) {
+      var color = DOMAIN_COLORS[cat] || '#BDC3C7';
+      var name = DOMAIN_NAMES[cat] || cat;
+      var active = !state.hiddenDomains[cat] ? ' active' : '';
+      html += '<span class="chip' + active + '" data-domain="' + cat + '">' +
+        '<span class="chip-dot" style="background:' + color + '"></span>' +
+        name + '\u00b7' + groups[cat].length + '</span>';
+    });
+
+    container.innerHTML = html;
+
+    // 绑定点击事件
+    var chips = container.querySelectorAll('.chip');
+    for (var i = 0; i < chips.length; i++) {
+      chips[i].addEventListener('click', function () {
+        var domain = this.getAttribute('data-domain');
+
+        if (domain === 'all') {
+          // 重置：显示全部域
+          state.hiddenDomains = {};
+        } else {
+          // 切换域的显隐
+          if (state.hiddenDomains[domain]) {
+            delete state.hiddenDomains[domain];
+          } else {
+            state.hiddenDomains[domain] = true;
+          }
+        }
+
+        updateChipsActive();
+        renderCurrentView();
+      });
+    }
+  }
+
+  function updateChipsActive() {
+    var chips = document.querySelectorAll('.chip');
+    for (var i = 0; i < chips.length; i++) {
+      var domain = chips[i].getAttribute('data-domain');
+      if (domain === 'all') {
+        var allActive = Object.keys(state.hiddenDomains).length === 0;
+        chips[i].classList.toggle('active', allActive);
+      } else {
+        chips[i].classList.toggle('active', !state.hiddenDomains[domain]);
+      }
+    }
+  }
+
+  /* ========== 缩放平移 ========== */
+  function setupZoomPan() {
+    var svg = document.getElementById('graph');
+    var isPanning = false;
+    var startX, startY;
+    var viewBox = { x: 0, y: 0, w: 800, h: 500 };
+
+    function updateViewBox() {
+      svg.setAttribute('viewBox',
+        viewBox.x + ' ' + viewBox.y + ' ' + viewBox.w + ' ' + viewBox.h);
+    }
+
+    // 滚轮缩放
+    svg.addEventListener('wheel', function (e) {
+      e.preventDefault();
+      var rect = svg.getBoundingClientRect();
+      var mouseX = (e.clientX - rect.left) / rect.width;
+      var mouseY = (e.clientY - rect.top) / rect.height;
+
+      var factor = e.deltaY > 0 ? 1.1 : 0.9;
+      var newW = viewBox.w * factor;
+      var newH = viewBox.h * factor;
+
+      // 限制缩放范围
+      if (newW < 200 || newW > 3000) return;
+
+      viewBox.x += (viewBox.w - newW) * mouseX;
+      viewBox.y += (viewBox.h - newH) * mouseY;
+      viewBox.w = newW;
+      viewBox.h = newH;
+      state.zoom = 800 / viewBox.w;
+
+      updateViewBox();
+    }, { passive: false });
+
+    // 拖拽平移
+    svg.addEventListener('mousedown', function (e) {
+      if (e.target.closest('.domain-bubble') || e.target.closest('.skill-node')) return;
+      isPanning = true;
+      startX = e.clientX;
+      startY = e.clientY;
+      svg.style.cursor = 'grabbing';
+    });
+
+    document.addEventListener('mousemove', function (e) {
+      if (!isPanning) return;
+      var rect = svg.getBoundingClientRect();
+      var dx = (e.clientX - startX) / rect.width * viewBox.w;
+      var dy = (e.clientY - startY) / rect.height * viewBox.h;
+      viewBox.x -= dx;
+      viewBox.y -= dy;
+      startX = e.clientX;
+      startY = e.clientY;
+      updateViewBox();
+    });
+
+    document.addEventListener('mouseup', function () {
+      isPanning = false;
+      svg.style.cursor = 'grab';
+    });
+
+    // 触摸支持
+    var touchStart = null;
+    var lastTouchDist = null;
+
+    svg.addEventListener('touchstart', function (e) {
+      if (e.touches.length === 1) {
+        touchStart = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+      } else if (e.touches.length === 2) {
+        lastTouchDist = Math.hypot(
+          e.touches[0].clientX - e.touches[1].clientX,
+          e.touches[0].clientY - e.touches[1].clientY
+        );
+      }
+    }, { passive: true });
+
+    svg.addEventListener('touchmove', function (e) {
+      if (e.touches.length === 1 && touchStart) {
+        var rect = svg.getBoundingClientRect();
+        var dx = (e.touches[0].clientX - touchStart.x) / rect.width * viewBox.w;
+        var dy = (e.touches[0].clientY - touchStart.y) / rect.height * viewBox.h;
+        viewBox.x -= dx;
+        viewBox.y -= dy;
+        touchStart = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+        updateViewBox();
+      } else if (e.touches.length === 2 && lastTouchDist !== null) {
+        var dist = Math.hypot(
+          e.touches[0].clientX - e.touches[1].clientX,
+          e.touches[0].clientY - e.touches[1].clientY
+        );
+        var factor = lastTouchDist / dist;
+        var newW = viewBox.w * factor;
+        var newH = viewBox.h * factor;
+        if (newW >= 200 && newW <= 3000) {
+          viewBox.w = newW;
+          viewBox.h = newH;
+          state.zoom = 800 / viewBox.w;
+          updateViewBox();
+        }
+        lastTouchDist = dist;
+      }
+    }, { passive: true });
+
+    svg.addEventListener('touchend', function () {
+      touchStart = null;
+      lastTouchDist = null;
+    });
+
+    // 点击画布空白处取消选中
+    svg.addEventListener('click', function (e) {
+      if (!e.target.closest('.skill-node') && !e.target.closest('.domain-bubble')) {
+        if (state.selectedNode) {
+          state.selectedNode = null;
+          closeDetailPanel();
+          renderCurrentView();
+        }
+      }
+    });
+  }
+
+  /* ========== 页脚统计 ========== */
+  function renderFooterStats() {
+    var container = document.getElementById('footer-stats');
+    var stats = getDomainStats(state.nodes);
+    var totalNodes = state.nodes.length;
+    var totalDomains = Object.keys(stats).length;
+
+    // 找 MASTER 数量
+    var masterCount = 0;
+    var topUsageNode = null;
+    state.nodes.forEach(function (n) {
+      if (n.level === 'MASTER') masterCount++;
+      if (!topUsageNode || (n.usage || 0) > (topUsageNode.usage || 0)) topUsageNode = n;
+    });
+
+    // 强关联数
+    var strongCount = 0;
+    state.edges.forEach(function (e) {
+      if ((e.strength || 0) >= 0.3) strongCount++;
+    });
+
+    var html = '<span class="fs-item"><b>' + masterCount + '</b><span class="fs-lbl">MASTER</span></span>';
+    if (topUsageNode && (topUsageNode.usage || 0) > 0) {
+      html += '<span class="fs-item"><b>' + truncate(topUsageNode.name || topUsageNode.id, 12) +
+        '</b><span class="fs-lbl">\u9ad8\u9891 (' + topUsageNode.usage + ')</span></span>';
+    }
+    html += '<span class="fs-item"><b>' + totalDomains + '</b><span class="fs-lbl">\u57df</span></span>';
+    if (strongCount > 0) {
+      html += '<span class="fs-item"><b>' + strongCount + '</b><span class="fs-lbl">\u5f3a\u5173\u8054</span></span>';
+    }
+
+    var source = '';
+    if (state.source === 'engine') source = '\u6570\u636e\u6765\u6e90 engine\uff08\u4f9d\u8d56\u56fe\u5f15\u64ce\uff09';
+    else if (state.source === 'fallback') source = '\u6570\u636e\u6765\u6e90 fallback\uff08\u540c\u5206\u7c7b\u5171\u73b0\u4f30\u7b97\uff09';
+    else if (state.source) source = '\u6570\u636e\u6765\u6e90 ' + state.source;
+
+    if (source) {
+      html += '<span class="fs-source">' + source + '</span>';
+    }
+
+    // 降级提示：如果 general 域占比过高
+    var generalCount = stats.general ? stats.general.count : 0;
+    if (generalCount > totalNodes * 0.5 && totalNodes > 10) {
+      html += '<span class="fs-source">\u5206\u7c7b\u6570\u636e\u5efa\u8bbe\u4e2d\uff0c' +
+        Math.round(generalCount / totalNodes * 100) + '% \u6280\u80fd\u5f85\u5f52\u7c7b</span>';
+    }
+
+    container.innerHTML = html;
+  }
+
+  /* ========== 治理图例与 archived 开关（B4） ========== */
+  function archivedCount() {
+    return state.nodes.filter(function (n) {
+      return (n.state || 'active') === 'archived';
+    }).length;
+  }
+
+  function lgSwatch(border, dashed, extra) {
+    return '<span class="lg-swatch" style="border:' + border +
+      (dashed ? ';border-style:dashed' : '') + (extra || '') + '"></span>';
+  }
+
+  function renderLegend() {
+    var el = document.getElementById('legend');
+    if (!el) return;
+    var hasTier = state.nodes.some(function (n) { return !!n.tier; });
+    if (!hasTier) { el.style.display = 'none'; return; }
+    var archived = archivedCount();
+    el.innerHTML =
+      '<span class="lg-item">' + lgSwatch('2.5px solid var(--gold)') + 'T0 核心</span>' +
+      '<span class="lg-item">' + lgSwatch('2px solid var(--accent)') + 'T1 常用</span>' +
+      '<span class="lg-item">' + lgSwatch('2px solid var(--border)', false, ';opacity:.55') + 'T2 低频（淡化）</span>' +
+      '<span class="lg-item">' + lgSwatch('1.5px dashed var(--text-2)') + 'dormant 休眠</span>' +
+      '<span class="lg-item">' + lgSwatch('2px dotted var(--muted)', false, ';opacity:.35') +
+        'archived 归档' + (archived > 0 ? ' (' + archived + ')' : '') + '</span>';
+    el.style.display = 'flex';
+  }
+
+  function updateArchivedToggle() {
+    var btn = document.getElementById('archived-toggle');
+    if (!btn) return;
+    var archived = archivedCount();
+    if (archived <= 0) { btn.style.display = 'none'; return; }
+    btn.style.display = '';
+    btn.classList.toggle('active', state.showArchived);
+    btn.textContent = (state.showArchived ? '\u9690\u85cf' : '\u663e\u793a') +
+      ' archived (' + archived + ')';
+  }
+
+  /* ========== 渲染控制 ========== */
+  function renderCurrentView() {
+    if (state.view === 'domain') {
+      document.getElementById('breadcrumb').style.display = 'none';
+      renderDomainView();
+    } else {
+      renderDetailView();
+    }
+    renderFooterStats();
+    renderLegend();
+    updateArchivedToggle();
+  }
+
+  /* ========== 数据加载 ========== */
   function applySnapshot(snapshot) {
     if (!snapshot || typeof snapshot !== 'object') return;
     var kv = snapshot.kv || {};
-    var nodes = kv.nodes || [];
-    var edges = kv.edges || [];
+    state.nodes = kv.nodes || [];
+    state.edges = kv.edges || [];
+    state.source = kv.source || snapshot.kv.source || '';
+    state.view = 'domain';
+    state.activeDomain = null;
+    state.selectedNode = null;
+    state.hiddenDomains = {};
+    state.showArchived = false;
 
-    renderGraph(nodes, edges);
-    setText('stat-nodes', nodes.length);
-    setText('stat-edges', edges.length);
+    document.getElementById('updated').textContent = '更新于 ' + fmtTime(snapshot.generatedAt || kv.generated_at);
 
-    var source = kv.source || '-';
-    var sourceText = source === 'engine' ? '数据来源 engine（依赖图引擎）'
-      : source === 'fallback' ? '数据来源 fallback（同分类共现估算）'
-      : '数据来源 ' + source;
-    setText('stat-source', sourceText);
-
-    setText('updated', '更新于 ' + fmtTime(snapshot.generatedAt || kv.generated_at));
+    renderChips();
+    renderCurrentView();
   }
 
-  // craft Pages 协议：宿主经 postMessage 注入 init/data（protocol craft-pages/v1）
+  /* ========== 初始化 ========== */
+  function init() {
+    setupSearch();
+    setupZoomPan();
+
+    // archived 显隐切换（B4，默认隐藏）
+    var archivedBtn = document.getElementById('archived-toggle');
+    if (archivedBtn) {
+      archivedBtn.addEventListener('click', function () {
+        state.showArchived = !state.showArchived;
+        updateArchivedToggle();
+        renderCurrentView();
+      });
+    }
+
+    // 面包屑返回
+    document.getElementById('breadcrumb').addEventListener('click', function () {
+      state.view = 'domain';
+      state.activeDomain = null;
+      state.selectedNode = null;
+      closeDetailPanel();
+      renderCurrentView();
+    });
+
+    // 关闭详情面板
+    document.getElementById('dp-close').addEventListener('click', function () {
+      closeDetailPanel();
+      if (state.view === 'detail' && !state.selectedNode) {
+        // 如果在域明细视图且无选中，返回域聚合
+        state.view = 'domain';
+        state.activeDomain = null;
+        document.getElementById('breadcrumb').style.display = 'none';
+        renderCurrentView();
+      }
+    });
+
+    // ESC 关闭详情
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') {
+        if (document.getElementById('detail-panel').classList.contains('open')) {
+          closeDetailPanel();
+        } else if (state.searchOpen) {
+          document.getElementById('search-results').classList.remove('open');
+        }
+      }
+    });
+
+    // 窗口大小变化时重新渲染
+    var resizeTimer = null;
+    window.addEventListener('resize', function () {
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(function () {
+        renderCurrentView();
+      }, 200);
+    });
+  }
+
+  // craft Pages 协议：宿主经 postMessage 注入 init/data
   window.addEventListener('message', function (event) {
     var msg = event.data;
     if (!msg || msg.protocol !== 'craft-pages/v1') return;
@@ -390,8 +1551,10 @@
     }
   });
 
-  // 保守兼容：直接以全局变量注入时也可渲染（本地开发 / 纯浏览器打开）
+  // 保守兼容：直接以全局变量注入时也可渲染
   if (window.__PAGE_SNAPSHOT__) applySnapshot(window.__PAGE_SNAPSHOT__);
+
+  init();
 })();
 </script>
 </body>

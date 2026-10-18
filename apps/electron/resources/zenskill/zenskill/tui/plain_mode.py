@@ -1,7 +1,9 @@
 """
-PlainTUI — 零依赖终端界面 (Phase R2)
+PlainTUI — 零依赖兜底界面 (Phase R2)
 
-当 Textual 和 Rich 都不可用时，提供基于纯 ANSI 转义码的交互界面。
+当 Rich 不可用时的自动降级落点：基于纯 ANSI 转义码的精简交互。
+定位为兜底而非对等模式——仅 6 个基础页面查览 + 对话入口，
+完整 16 页面 / 192 命令 / 流式补全体验请使用 rich_app 主模式。
 
 用法:
     from zenskill.tui.plain_mode import PlainTUI

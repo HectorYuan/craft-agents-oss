@@ -42,7 +42,7 @@ def _str_box_footer() -> str:
 
 # 版本信息（与 __init__.py 同步
 __title__ = "ZenSkill"
-__version__ = "2.9.0"
+__version__ = "2.10.0"
 __version_info__ = (2, 8, 0)
 __author__ = "ZenSkill Team"
 
@@ -1125,7 +1125,7 @@ def cmd_eco_health(args: argparse.Namespace) -> None:
 
 
 def _inject_model_switcher_keys():
-    """从 model-switcher DB 读取 API key 注入环境变量（与 Craft 共享同一份 key）。"""
+    """从 model-switcher DB 读取 API key 注入环境变量（与桌面端共享同一份 key）。"""
     import os
     import sqlite3
     from pathlib import Path
@@ -1148,7 +1148,8 @@ def _inject_model_switcher_keys():
         rows = conn.execute(
             "SELECT ka.pool_name, es.var_value FROM key_accounts ka "
             "JOIN env_vars es ON ka.key_env = es.var_name "
-            "WHERE ka.pool_name IN ('deepseek', 'mimo') AND ka.status = 'active'"
+            "WHERE ka.pool_name IN ('deepseek', 'mimo') AND ka.status = 'active' "
+            "ORDER BY ka.id ASC"
         ).fetchall()
         conn.close()
 
@@ -2287,8 +2288,15 @@ def cmd_deploy_skill(args: argparse.Namespace) -> None:
 
 def main() -> int:
     """主入口函数"""
-    # 从 model-switcher 注入 API key（与 Craft GUI 共享同一份 key）
+    # 从 model-switcher 注入 API key（与桌面端 GUI 共享同一份 key）
     _inject_model_switcher_keys()
+
+    # 从本地保险库注入 API key（DPAPI；env/上游注入优先不覆盖）
+    try:
+        from .core.llm_keyring import apply_to_env
+        apply_to_env()
+    except Exception:
+        pass
 
     # 确保所有数据目录存在（首次运行时创建）
     ensure_data_dirs()
@@ -2553,9 +2561,15 @@ def main() -> int:
     market_search_p.add_argument("query", help="搜索关键词")
     market_search_p.add_argument("--top-k", type=int, default=10, help="返回数量")
     market_search_p.set_defaults(func=cmd_market_search)
-    market_list_p = market_sub.add_parser("list", help="列出已注册市场")
-    market_list_p.set_defaults(func=cmd_market_search)  # reuses handler
-    market_parser.set_defaults(func=cmd_market_search)
+
+    # W1 市场源管理：list [--health] / add / remove / enable / disable
+    from .cli.market import cmd_market_list, register_market_admin
+    register_market_admin(market_sub)
+    market_parser.set_defaults(func=cmd_market_list)
+
+    # scan 命令（W2：安全+可用性双扫描，实现位于 zenskill/cli/scan.py）
+    from .cli.scan import register_scan_parser
+    register_scan_parser(subparsers)
 
     # tui 命令
     tui_parser = subparsers.add_parser("tui", help="启动交互式终端界面")
@@ -2587,7 +2601,7 @@ def main() -> int:
     from .cli.share import register_share_parser
     register_share_parser(subparsers)
 
-    # pages 命令组（craft Pages 页面包播种，实现位于 zenskill/cli/pages.py）
+    # pages 命令组（Pages 页面包播种，实现位于 zenskill/cli/pages.py）
     from .cli.pages import register_pages_parser
     register_pages_parser(subparsers)
 
@@ -2908,9 +2922,9 @@ def main() -> int:
         choices=["text", "json", "html", "junit"],
         default="text", help="报告格式")
     test_parser.add_argument("--quick", "-q", action="store_true",
-        help="快速验证 (<30s) — 仅 unit + integration")
+        help="快速验证 — unit 全量 pytest tests/（10-17 分钟）+ integration 合并")
     test_parser.add_argument("--smoke", action="store_true",
-        help="烟雾测试 (<10s)")
+        help="烟雾测试 — quick 的别名")
     test_parser.add_argument("--output", "-o",
         help="保存报告到文件")
     test_parser.add_argument("--coverage", "-C", action="store_true",

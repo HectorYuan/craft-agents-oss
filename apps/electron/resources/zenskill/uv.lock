@@ -2798,7 +2798,7 @@ wheels = [
 
 [[package]]
 name = "zenskill"
-version = "2.9.0"
+version = "0.9.12"
 source = { editable = "." }
 dependencies = [
     { name = "aiohttp", version = "3.13.5", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.10'" },

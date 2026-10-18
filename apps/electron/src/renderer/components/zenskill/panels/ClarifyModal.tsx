@@ -126,7 +126,7 @@ export function ClarifyModal({ item, pendingActions, busy, onConfirm, onClose }:
                   : 'hover:bg-muted/60 text-muted-foreground hover:text-foreground'
               }`}
             >
-              <span className="text-[10px] text-muted-foreground/50 font-mono w-3">{idx + 1}</span>
+              <span className="text-badge text-muted-foreground/50 font-mono w-3">{idx + 1}</span>
               <input
                 type="radio"
                 name="clarify-type"

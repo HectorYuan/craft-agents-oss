@@ -28,6 +28,7 @@ class GTDProject:
     review_date: str = ""
     notes: str = ""
     skill_id: str = ""
+    craft_project_slug: str = ""  # D2-4: 关联 Craft 项目 slug
     profile: str = ""  # 所属 profile（空=当前激活）
     created_at: str = field(default_factory=lambda: time.strftime("%Y-%m-%dT%H:%M:%S"))
     completed_at: str = ""
@@ -38,6 +39,7 @@ class GTDProject:
             "status": self.status, "next_action_id": self.next_action_id,
             "parent_project_id": self.parent_project_id, "review_date": self.review_date,
             "notes": self.notes, "skill_id": self.skill_id,
+            "craft_project_slug": self.craft_project_slug,
             "profile": self.profile,
             "created_at": self.created_at, "completed_at": self.completed_at,
         }
@@ -51,6 +53,7 @@ class GTDProject:
             parent_project_id=data.get("parent_project_id", ""),
             review_date=data.get("review_date", ""),
             notes=data.get("notes", ""), skill_id=data.get("skill_id", ""),
+            craft_project_slug=data.get("craft_project_slug", ""),
             profile=data.get("profile", ""),
             created_at=data.get("created_at", ""),
             completed_at=data.get("completed_at", ""),

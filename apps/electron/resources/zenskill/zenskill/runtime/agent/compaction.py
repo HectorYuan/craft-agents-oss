@@ -89,7 +89,11 @@ async def summarize_prefix(messages: List[Message], stream, model) -> str:
     prompt = (
         "You are a conversation summarizer. Produce a concise summary of the "
         "full history. Keep: task goal, key decisions, file paths touched, "
-        "tool results of record, and unresolved issues. Be concise.\n\n"
+        "tool results of record, and unresolved issues. "
+        "Preserve verbatim any choice the assistant offered that the user has "
+        "not answered yet (numbered/lettered options awaiting a decision, "
+        "e.g. 'A=..., B=...') — the user may answer them in a later turn. "
+        "Be concise.\n\n"
     )
     summary_context = Context(
         messages=safe_messages + [UserMessage(content=prompt)],

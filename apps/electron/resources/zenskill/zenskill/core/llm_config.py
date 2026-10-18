@@ -138,9 +138,16 @@ class LLMConfigManager:
                 pass
 
         # 1. 环境变量（最高优先级）
-        env_api_key = os.environ.get("LLM_API_KEY") or os.environ.get("DEEPSEEK_API_KEY")
+        env_api_key = os.environ.get("LLM_API_KEY")
         if env_api_key:
             config_dict["api_key"] = env_api_key
+        else:
+            # DEEPSEEK_API_KEY 是 provider 专属 key：仅对 deepseek 配置生效。
+            # GUI 会把连接凭据注入为该变量，无条件覆盖曾导致切到 mimo 后
+            # 请求带上 deepseek 的 key（401/403）
+            env_ds = os.environ.get("DEEPSEEK_API_KEY")
+            if env_ds and config_dict.get("provider") == "deepseek":
+                config_dict["api_key"] = env_ds
         env_base_url = os.environ.get("LLM_BASE_URL")
         if env_base_url:
             config_dict["base_url"] = env_base_url
@@ -166,8 +173,10 @@ class LLMConfigManager:
         if self._config is None:
             self._config = LLMConfig()
 
-        with open(self._config_file, "w", encoding="utf-8") as f:
+        tmp_file = self._config_file.with_suffix(".json.tmp")
+        with open(tmp_file, "w", encoding="utf-8") as f:
             json.dump(self._config.to_dict(), f, indent=2, ensure_ascii=False)
+        os.replace(tmp_file, self._config_file)
 
     def get(self) -> LLMConfig:
         """获取当前配置"""

@@ -202,9 +202,22 @@ class InboxEngine:
             mem_item = MemoryItem(id=item_id, content=item.raw_text,
                                   importance=0.3, tags={"inbox", item.source})
             mem = MetaMemory(skill_id="zenskill-core")
-            asyncio.get_event_loop().run_until_complete(mem.episodic.store(mem_item))
-        except Exception:
-            pass
+            coro = mem.episodic.store(mem_item)
+            try:
+                loop = asyncio.get_event_loop()
+            except RuntimeError:
+                loop = None
+            if loop is not None and loop.is_running():
+                # 本线程事件循环已运行（如回调内调用）：run_until_complete
+                # 必抛 RuntimeError，改线程安全提交
+                asyncio.run_coroutine_threadsafe(coro, loop)
+            else:
+                if loop is None:
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
+                loop.run_until_complete(coro)
+        except Exception as e:
+            logger.warning("Inbox memory bridge failed for %s: %s", item.id, e)
 
     def _sync_to_sqlite(self, item: InboxItem) -> None:
         """JSONL 写入后同步到 SQLite（逐条，WAL 模式）。失败仅 warning 不阻塞。"""

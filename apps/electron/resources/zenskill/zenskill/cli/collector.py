@@ -4,7 +4,7 @@ from __future__ import annotations
 import argparse
 
 from ..cli_utils import output as cli_output
-from ..core.paths import file_lock, atomic_write_json
+from ..core.paths import file_lock, atomic_write_json, atomic_write_text
 from ..cli_helpers import _register_collectors, _str_box_footer, _str_box_header, _str_section
 
 def cmd_collector_list(args: argparse.Namespace) -> None:
@@ -758,7 +758,7 @@ def _run_light_pipeline() -> dict | None:
         return None
 
     try:
-        from ...mirroring.processors import EventDeduplicator, SignalAggregator, NLPSignalExtractor
+        from ..mirroring.processors import EventDeduplicator, SignalAggregator, NLPSignalExtractor
         dedup = EventDeduplicator()
         unique = dedup.deduplicate(events[-100:])  # 最近 100 条
 

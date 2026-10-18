@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""ZenSkill 每日复盘 Pages 刷新脚本（craft Pages python3 runtime）。
+"""ZenSkill 每日复盘 Pages 刷新脚本（Pages python3 runtime）。
 
 由宿主 cron（page.json refresh spec，默认每日 07:00）调度执行：
 - 通过 ZenSkill 只读工具收集复盘数据（daily_review / companion_summary /

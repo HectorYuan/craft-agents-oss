@@ -26,6 +26,7 @@ class ModelConfig:
     supports_vision: bool = False    # 是否支持图片输入（P1-2）
     supports_json: bool = True       # 是否支持 response_format json_object（P1-2）
     supports_thinking_control: bool = False  # 是否支持 thinking 参数开关（成本优化）
+    sock_read_timeout: int = 600     # SSE 流空闲读超时（秒），按模型/网关可调（O7）
 
     def estimate_cost(self, usage: Usage) -> float:
         return (
@@ -179,11 +180,21 @@ def resolve_model(name: Optional[str] = None) -> ModelConfig:
     explicit = os.getenv("ZENSKILL_AGENT_MODEL")
     if explicit:
         return resolve_model(explicit)
+    # 用户显式配置（zenskill llm set / llm_config 切换）先于环境变量探测：
+    # GUI 会把连接凭据注入为 DEEPSEEK_API_KEY 等环境变量，那是凭据载体而非
+    # provider 选择信号，不应覆盖 llm_config 的显式 provider 切换
+    try:
+        from zenskill.core.llm_config import llm_config
+        config = llm_config.get()
+        if config.provider in _REGISTRY and config.api_key:
+            return build_model_config(config.provider, config.model, config.api_key)
+    except Exception:
+        pass
     for provider in _ENV_DETECT_ORDER:
         env_name = _REGISTRY[provider]["api_key_env"]
         if os.getenv(env_name):
             return build_model_config(provider)
-    # 兜底：~/.zenskill/llm_config.json 中已配置的云厂商凭据
+    # 兜底：llm_config 已配置 provider 但未显式存 key → 看该 provider 的环境变量
     # （lm-service 为自定义协议，agent 引擎暂不支持，见 docs/runtime_pi_reference_plan.md）
     try:
         from zenskill.core.llm_config import llm_config

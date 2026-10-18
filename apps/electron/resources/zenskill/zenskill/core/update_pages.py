@@ -1,8 +1,8 @@
-"""Pages 页面包播种机制（craft Pages 系统）。
+"""Pages 页面包播种机制（Pages 页面包系统）。
 
 见 docs/repo_management_and_gui_plan_v3.md 1.4 节：把主仓库
 zenskill/resources/pages/{slug}/ 播种到 {workspace_root}/pages/{slug}/，
-供 craft 宿主按 PageConfig（page.json）加载渲染与 cron 刷新。
+供桌面端宿主按 PageConfig（page.json）加载渲染与 cron 刷新。
 
 规则（与 update_guide.py 同一批 workspace 播种先例保持一致）：
 - 命名空间隔离：只管理 ``zenskill-`` 前缀 slug，幂等覆盖；
@@ -10,7 +10,7 @@ zenskill/resources/pages/{slug}/ 播种到 {workspace_root}/pages/{slug}/，
 - 升级：覆盖 zenskill- 页面时保留用户在 page.json 里关闭的
   refresh.enabled=false 开关
 - 写入顺序：index.html / scripts/ 先落盘，page.json 最后写
-  （craft 约定：page.json 是刷新完成标记，watcher 以它触发 pages:changed）
+  （宿主约定：page.json 是刷新完成标记，watcher 以它触发 pages:changed）
 """
 
 from __future__ import annotations
@@ -140,7 +140,7 @@ def sync_pages(workspace_root: Path, source_dir: Path | None = None) -> dict:
     """把 zenskill- 前缀页面包播种到 workspace 的 pages/ 目录。
 
     Args:
-        workspace_root: craft workspace 根目录（pages/ 的父目录）
+        workspace_root: workspace 根目录（pages/ 的父目录）
         source_dir: 资源目录覆写（测试用）；默认 _pages_resource_dir()
 
     Returns:
@@ -194,14 +194,25 @@ def sync_pages(workspace_root: Path, source_dir: Path | None = None) -> dict:
 
 
 def resolve_active_workspace_root() -> Path | None:
-    """从 craft config.json 解析活跃 workspace 根目录（跟随 update_guide.py）"""
-    config_path = Path.home() / ".zenskill" / "craft" / "config.json"
-    try:
-        cfg = json.loads(config_path.read_text(encoding=_ENCODING))
-        active_id = cfg.get("activeWorkspaceId", "")
-        for ws in cfg.get("workspaces", []):
-            if ws.get("id") == active_id:
-                return Path(ws["rootPath"]).expanduser()
-    except Exception:  # noqa: BLE001 — 无配置时返回 None 由调用方兜底
-        pass
+    """从桌面端 config.json 解析活跃 workspace 根目录。
+
+    优先读桌面数据目录 ~/.zenskill/desktop/config.json（P3 后约定），
+    回退顶层 ~/.zenskill/config.json（同 schema，跟随桌面端写入方）。
+    仅当 workspace 根目录真实存在时返回（旧配置可能残留指向
+    ~/.craft-agent 的悬空 rootPath，不得为其重建目录树）。
+    """
+    for config_path in (
+        Path.home() / ".zenskill" / "desktop" / "config.json",
+        Path.home() / ".zenskill" / "config.json",
+    ):
+        try:
+            cfg = json.loads(config_path.read_text(encoding=_ENCODING))
+            active_id = cfg.get("activeWorkspaceId", "")
+            for ws in cfg.get("workspaces", []):
+                if ws.get("id") == active_id:
+                    root = Path(ws["rootPath"]).expanduser()
+                    if root.is_dir():
+                        return root
+        except Exception:  # noqa: BLE001 — 当前路径无配置时尝试下一个
+            pass
     return None

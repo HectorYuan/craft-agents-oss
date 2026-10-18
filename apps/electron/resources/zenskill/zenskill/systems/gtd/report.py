@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from zenskill.core.paths import get_user_data_dir
+from zenskill.systems.gtd.health import iter_project_records
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +35,7 @@ class GTDReportEngine:
         start = now - timedelta(weeks=weeks)
 
         actions = self._load_jsonl("actions.jsonl")
-        projects = self._load_jsonl("projects.jsonl")
+        projects = iter_project_records(self._base)
         inbox = self._load_jsonl("inbox.jsonl")
         calendar = self._load_jsonl("calendar.jsonl")
 
@@ -112,7 +113,7 @@ class GTDReportEngine:
         start = now - timedelta(days=30 * months)
 
         actions = self._load_jsonl("actions.jsonl")
-        projects = self._load_jsonl("projects.jsonl")
+        projects = iter_project_records(self._base)
 
         # 本月完成
         done_this_month = [

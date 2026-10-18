@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""ZenSkill Dashboard 首页 Pages 刷新脚本（craft Pages python3 runtime）。
+"""ZenSkill Dashboard 首页 Pages 刷新脚本（Pages python3 runtime）。
 
 由宿主 cron（page.json refresh spec，每小时整点）调度执行：
 - 聚合七类只读工具收集首页数据（companion_summary / daily_review /

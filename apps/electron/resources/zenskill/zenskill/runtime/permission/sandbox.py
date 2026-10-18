@@ -31,13 +31,16 @@ class SandboxConfig:
             with open(path) as f:
                 data = yaml.safe_load(f)
             sandbox_data = data.get("sandbox", {})
+            # 默认值取自实例（default_factory 字段无类属性——
+            # cls.<field> 会 AttributeError 使任何 yaml 静默回退全默认）
+            defaults = cls()
             return cls(
-                allowed_paths=sandbox_data.get("allowed_paths", cls.allowed_paths),
-                denied_paths=sandbox_data.get("denied_paths", cls.denied_paths),
-                allowed_commands=sandbox_data.get("allowed_commands", cls.allowed_commands),
-                denied_commands=sandbox_data.get("denied_commands", cls.denied_commands),
-                timeout_seconds=sandbox_data.get("timeout_seconds", cls.timeout_seconds),
-                max_output_bytes=sandbox_data.get("max_output_bytes", cls.max_output_bytes),
+                allowed_paths=sandbox_data.get("allowed_paths", defaults.allowed_paths),
+                denied_paths=sandbox_data.get("denied_paths", defaults.denied_paths),
+                allowed_commands=sandbox_data.get("allowed_commands", defaults.allowed_commands),
+                denied_commands=sandbox_data.get("denied_commands", defaults.denied_commands),
+                timeout_seconds=sandbox_data.get("timeout_seconds", defaults.timeout_seconds),
+                max_output_bytes=sandbox_data.get("max_output_bytes", defaults.max_output_bytes),
             )
         except Exception:
             return cls()
@@ -78,9 +81,15 @@ class Sandbox:
 
     def _match_path(self, path: str, patterns: list[str]) -> bool:
         """检查路径是否匹配模式列表（realpath 解析符号链接，防沙箱逃逸）"""
-        path = os.path.realpath(os.path.abspath(path))
-        for pattern in patterns:
-            pattern = os.path.realpath(os.path.abspath(pattern))
+        if "\x00" in path:
+            return False
+        try:
+            path = os.path.realpath(os.path.abspath(path))
+            real_patterns = [os.path.realpath(os.path.abspath(p)) for p in patterns]
+        except ValueError:
+            # realpath 无法处理的畸形路径一律拒绝（fail-closed）
+            return False
+        for pattern in real_patterns:
             # 处理 ** 通配符：dir/** 匹配 dir 自身与 dir 下任意路径
             if "**" in pattern:
                 prefix = pattern.split("**")[0].rstrip("/")
@@ -121,9 +130,11 @@ class Sandbox:
 
     # 输出重定向（> >> 2> 2>> &> &>>），捕获目标路径
     _REDIRECT_RE = re.compile(r"\d*&?>{1,2}\s*(\S+)")
-    # 输入重定向（< <<）不需要检查目标写入，此处只关注输出方向
-    # 命令替换（$(...) / 反引号）——可绕过首词白名单，沙箱内直接禁止
-    _SUBSTITUTION_RE = re.compile(r"\$\(|`")
+    # 输入重定向（单 <，不含 heredoc <<）——</etc/passwd 可读任意文件
+    _INPUT_REDIRECT_RE = re.compile(r"\d*<(?!<)\s*(\S+)")
+    # 命令替换（$(...) / 反引号）与参数展开（${...}）——均绕过白名单，
+    # 沙箱内直接禁止
+    _SUBSTITUTION_RE = re.compile(r"\$\(|\$\{|`")
 
     def _find_redirect_targets(self, command: str) -> list[str]:
         """引号感知地提取输出重定向目标（引号内的 > 是比较运算符，忽略）。"""
@@ -192,7 +203,9 @@ class Sandbox:
                 current = []
                 i += 2
                 continue
-            if ch in (";", "|"):
+            # G1: 换行同样是 shell 命令分隔符（create_subprocess_shell
+            # 会真实执行第二行），必须与 ; 同等切分
+            if ch in (";", "|", "\n", "\r"):
                 segments.append("".join(current))
                 current = []
                 i += 1
@@ -226,6 +239,13 @@ class Sandbox:
             ok, reason = self._check_path(target)
             if not ok:
                 return False, f"Redirect target denied: {reason}"
+
+        # 输入重定向（单 <）同理——'</etc/passwd' 可读白名单外任意文件
+        outside_cmd = command
+        for target in self._INPUT_REDIRECT_RE.findall(outside_cmd):
+            ok, reason = self._check_path(target)
+            if not ok:
+                return False, f"Input redirect target denied: {reason}"
 
         return True, ""
 

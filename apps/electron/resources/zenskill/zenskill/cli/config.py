@@ -122,9 +122,11 @@ def cmd_config_set(args: argparse.Namespace) -> None:
     old_value = config.get(args.key, "(未设置)")
     config[args.key] = args.value
 
-    # 保存配置
-    with open(config_path, "w", encoding="utf-8") as f:
+    # 保存配置（原子写：临时文件 + rename，防半截 JSON）
+    tmp_path = config_path.with_suffix(".json.tmp")
+    with open(tmp_path, "w", encoding="utf-8") as f:
         json.dump(config, f, indent=2, ensure_ascii=False)
+    os.replace(tmp_path, config_path)
 
     result = {"ok": True, "key": args.key, "config_path": str(config_path)}
 

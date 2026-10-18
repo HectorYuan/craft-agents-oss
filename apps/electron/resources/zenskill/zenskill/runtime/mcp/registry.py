@@ -9,6 +9,7 @@ MCP content。系统 import 延迟到 handler 内部，保持 server 启动轻�
 from __future__ import annotations
 
 import json
+import logging
 import time
 from dataclasses import dataclass, field
 from typing import Any, Callable
@@ -79,6 +80,111 @@ def _display_priority(value: Any) -> Any:
     return _normalize_priority(value)
 
 
+def _dashboard_summary_core() -> dict[str, Any]:
+    """仪表盘核心指标（引擎直连核心，不依赖 TuiDataAdapter）
+
+    此逻辑原在 TuiDataAdapter.get_dashboard_summary；MCP 反转后核心上移到本函数，
+    TUI getter 经 dashboard_summary 工具走同一口径，消除 registry→adapter→registry
+    递归隐患。
+    """
+    import time
+    from pathlib import Path
+
+    result: dict[str, Any] = {
+        "today_usage": 0,
+        "active_skills": 0,
+        "avg_session_min": 0,
+        "today_insights": 0,
+        "running_session": False,
+        "recent_tools": [],
+        "perception_alerts": [],
+        "event_count": 0,
+    }
+
+    # 会话缓存
+    sf = Path.home() / ".zenskill" / "session" / "current.json"
+    if sf.exists():
+        try:
+            s = json.loads(sf.read_text(encoding="utf-8"))
+            tc = s.get("tool_count", 0)
+            started = s.get("started", 0)
+            tools = s.get("recent_tools", [])
+            elapsed = (time.time() - started) / 60 if started else 0
+            result["today_usage"] = tc
+            result["running_session"] = tc > 0
+            result["recent_tools"] = tools[-5:] if tools else []
+            result["avg_session_min"] = round(elapsed, 1) if elapsed else 0
+        except Exception:
+            pass
+
+    # pipeline 数据
+    pf = Path.home() / ".zenskill" / "mirroring" / "pipeline.json"
+    if pf.exists():
+        try:
+            p = json.loads(pf.read_text(encoding="utf-8"))
+            result["event_count"] = p.get("event_count", 0)
+            nlp = p.get("nlp", {})
+            if nlp.get("intents"):
+                result["today_insights"] = sum(nlp["intents"].values())
+        except Exception:
+            pass
+
+    # 活跃技能（与 TuiDataAdapter.list_skills 同口径：states 目录可正常加载的 state）
+    try:
+        from ...core.paths import SkillStateManager, get_user_data_dir
+
+        states_dir = get_user_data_dir() / "states"
+        active = 0
+        if states_dir.exists():
+            for f in sorted(states_dir.glob("*.json")):
+                if f.name.endswith(".history.jsonl"):
+                    continue
+                try:
+                    manager = SkillStateManager(f.stem)
+                    manager.state_path = f
+                    manager.history_path = f.with_suffix(".history.jsonl")
+                    manager.load()
+                    if not manager.last_load_recovery_failed:
+                        active += 1
+                except (json.JSONDecodeError, UnicodeDecodeError, OSError):
+                    continue
+        result["active_skills"] = active
+    except Exception:
+        pass
+
+    # 感知告警
+    try:
+        from ...perception_engine import PerceptionEngine
+
+        engine = PerceptionEngine()
+        lt = time.localtime(time.time())
+        ctx = {
+            "tool_count": result["today_usage"],
+            "elapsed_min": result["avg_session_min"],
+            "recent_tools": result["recent_tools"],
+            "current_hour": lt.tm_hour,
+            "current_minute": lt.tm_min,
+            "last_command": "",
+            "error_rate": 0.0,
+        }
+        p = engine.evaluate(ctx)
+        result["perception_alerts"] = p.get("alerts", [])
+    except Exception:
+        pass
+
+    return result
+
+
+def _growth_report_core(skill_id: str) -> str:
+    """成长洞察报告文本（引擎直连核心，不依赖 TuiDataAdapter）"""
+    from ...systems.visualization.insight_engine import GrowthInsightEngine
+
+    try:
+        return GrowthInsightEngine(skill_id).generate_insight_report()
+    except Exception:
+        return "数据不足，暂时无法生成报告"
+
+
 class ServerToolRegistry:
     """工具注册表：list_specs 供 tools/list，call 供 tools/call"""
 
@@ -100,9 +206,14 @@ class ServerToolRegistry:
         "goal_update", "goal_delete",
         "habit_set", "habit_check", "habit_delete",
         "skill_install", "skill_uninstall",
+        "skill_state", "skill_set_tier",
+        "skill_deploy",
         "calendar_add", "calendar_update", "calendar_delete",
         "project_add", "project_update",
+        "incubating_add",
         "progression_feedback",
+        "learning_path_start",
+        "market_add", "market_remove",
     })
     _READ_TOOLS = frozenset({
         "gtd_inbox_list", "gtd_review",
@@ -234,7 +345,7 @@ class ServerToolRegistry:
                 task=f"{name}: {args_summary}",
                 success=True,
                 duration_ms=0,
-                context={"mcp_tool": name, "source": "craft-gui"},
+                context={"mcp_tool": name, "source": "zenskill-gui"},
             )
         except Exception:
             pass
@@ -270,6 +381,46 @@ class ServerToolRegistry:
                     )
         except Exception:
             pass
+
+
+# ZenLoop 系统单例（zenloop_run 复用，避免每次调用新建裸实例导致
+# 插件未注册、错误计数/触发阈值状态丢失）
+_ZENLOOP_SYSTEM: Any = None
+
+
+def _get_zenloop_system() -> Any:
+    """获取 ZenLoopSystem 进程级单例；首次构造时注册四循环插件并尝试
+    绑定 MetaMemory（不可用时保持 None，循环以降级路径运行）。"""
+    global _ZENLOOP_SYSTEM
+    if _ZENLOOP_SYSTEM is not None:
+        return _ZENLOOP_SYSTEM
+    try:
+        from ...systems.zenloop.zenloop_system import ZenLoopSystem
+        from ...systems.zenloop.loops import (
+            ReflectionLoop,
+            ConsolidationLoop,
+            InsightLoop,
+            PurificationLoop,
+        )
+
+        zl = ZenLoopSystem()
+        # 插件注册与 ZenLoopSystem.initialize 一致；initialize 为 async，
+        # 同步 handler 内手动注册等价插件集
+        zl.register_plugin(ReflectionLoop())
+        zl.register_plugin(ConsolidationLoop(interval_seconds=3600))
+        zl.register_plugin(InsightLoop(trigger_threshold=5))
+        zl.register_plugin(PurificationLoop(error_threshold=3))
+        try:
+            from ...systems.memory.meta_memory import MetaMemory
+            zl.bind_memory(MetaMemory(skill_id="zenskill-core"))
+        except Exception as e:
+            logging.getLogger(__name__).warning(
+                "ZenLoop memory binding skipped: %s", e)
+        _ZENLOOP_SYSTEM = zl
+    except Exception as e:
+        logging.getLogger(__name__).warning(
+            "ZenLoopSystem init failed: %s", e)
+    return _ZENLOOP_SYSTEM
 
 
 def build_default_registry() -> ServerToolRegistry:
@@ -346,9 +497,46 @@ def build_default_registry() -> ServerToolRegistry:
         }
 
     def _skill_install(a: dict[str, Any]) -> Any:
-        from ...skills.universal_installer import install_skill
+        # B2-W3：走五阶段安全安装管线（staging→双扫描→gate→promote→供血）
+        # no_scan 不在 MCP 面暴露（评审 S1）；frontmatter 校验已并入 UsabilityValidator U-02
+        from ...skills.install_pipeline import mcp_install
 
-        return install_skill(a["uri"])
+        return mcp_install(a)
+
+    def _skill_state(a: dict[str, Any]) -> Any:
+        from ...skills.skill_governance import mcp_skill_state
+
+        return mcp_skill_state(a)
+
+    def _skill_set_tier(a: dict[str, Any]) -> Any:
+        from ...skills.skill_governance import mcp_set_tier
+
+        return mcp_set_tier(a)
+
+    def _skill_scan(a: dict[str, Any]) -> Any:
+        from ...skills.install_pipeline import mcp_scan
+
+        return mcp_scan(a)
+
+    def _skills_section_stats(a: dict[str, Any]) -> Any:
+        from ...skills.skill_profiles import mcp_skills_section_stats
+
+        return mcp_skills_section_stats(a)
+
+    def _skills_doctor(a: dict[str, Any]) -> Any:
+        from ...skills.skill_doctor import mcp_skills_doctor
+
+        return mcp_skills_doctor(a)
+
+    def _skill_export(a: dict[str, Any]) -> Any:
+        from ...skills.outbound import mcp_skill_export
+
+        return mcp_skill_export(a)
+
+    def _skill_deploy(a: dict[str, Any]) -> Any:
+        from ...skills.outbound import mcp_skill_deploy
+
+        return mcp_skill_deploy(a)
 
     def _skill_uninstall(a: dict[str, Any]) -> Any:
         from ...skills.universal_installer import uninstall_skill
@@ -378,10 +566,10 @@ def build_default_registry() -> ServerToolRegistry:
 
         result_type=action/project/calendar 时自动创建对应下游对象并回填
         target_id（显式传 target_id 时视为已关联，不重复创建）；
-        reference 只打标。"""
+        reference 只打标；someday 存入孵化池（IncubatingEngine）。"""
         from ...systems.gtd.inbox import InboxEngine
 
-        valid_types = ("action", "project", "calendar", "reference")
+        valid_types = ("action", "project", "calendar", "reference", "someday")
         engine = InboxEngine()
         item_id = a["item_id"]
         item = engine.get(item_id)
@@ -414,6 +602,9 @@ def build_default_registry() -> ServerToolRegistry:
                 elif result_type == "project":
                     from ...systems.gtd.project import ProjectEngine
                     created = ProjectEngine().create(name=text)
+                elif result_type == "someday":
+                    from ...systems.gtd.incubating import IncubatingEngine
+                    created = IncubatingEngine().add(concept=text)
             except Exception as e:
                 return {"ok": False, "item_id": item_id,
                         "result_type": result_type,
@@ -492,7 +683,7 @@ def build_default_registry() -> ServerToolRegistry:
         n = int(a.get("n", 10))
         # skill_id 为空或 "all" 时聚合全部 skill（与 guide.md 口径一致）
         if skill_id in ("", "all"):
-            skill_ids = ["zenskill", "zenskill-core", "mcp-test", "craft-gui"]
+            skill_ids = ["zenskill", "zenskill-core", "mcp-test", "zenskill-gui"]
         else:
             skill_ids = [skill_id]
         all_episodes = []
@@ -520,10 +711,99 @@ def build_default_registry() -> ServerToolRegistry:
             "message": f"找到 {len(all_episodes)} 条记忆，显示最近 {min(n, len(all_episodes))} 条",
         }
 
-    def _dashboard_summary(a: dict[str, Any]) -> Any:
-        from ...tui.data import TuiDataAdapter
+    # ── 记忆库三层（MetaMemory: Working/Episodic/Semantic）──
+    def _get_meta_memory(skill_id: str = "zenskill-core"):
+        from ...systems.memory.meta_memory import MetaMemory
 
-        result = TuiDataAdapter().get_dashboard_summary()
+        return MetaMemory(skill_id=skill_id)
+
+    def _memory_item_dict(item) -> dict:
+        return {
+            "id": item.id,
+            "content": item.content,
+            "importance": round(item.importance, 3),
+            "created_at": item.created_at,
+            "access_count": item.access_count,
+            "tags": sorted(item.tags) if item.tags else [],
+        }
+
+    def _memory_layers_stats(a: dict[str, Any]) -> Any:
+        skill_id = a.get("skill_id", "zenskill-core")
+        preview_n = int(a.get("preview", 5))
+        mm = _get_meta_memory(skill_id)
+        stats = mm.get_stats()
+        working = [
+            _memory_item_dict(i) for i in mm.working.get_recent(preview_n)
+        ]
+        episodic = sorted(
+            mm.episodic._episodes.values(),
+            key=lambda i: i.created_at, reverse=True,
+        )[:preview_n]
+        semantic_entities = mm.semantic.get_entities()[:preview_n]
+        return {
+            "skill_id": skill_id,
+            "stats": stats,
+            "preview": {
+                "working": working,
+                "episodic": [_memory_item_dict(i) for i in episodic],
+                "semantic_entities": semantic_entities,
+            },
+            "message": (
+                f"L1 工作 {stats['working']['count']}/{stats['working']['capacity']}，"
+                f"L2 情景 {stats['episodic']['count']}/{stats['episodic']['capacity']}，"
+                f"L3 语义 {stats['semantic'].get('total_facts', 0)} 三元组"
+            ),
+        }
+
+    def _memory_episodic_timeline(a: dict[str, Any]) -> Any:
+        import time as _time
+
+        skill_id = a.get("skill_id", "zenskill-core")
+        limit = int(a.get("limit", 30))
+        days = a.get("days")
+        end = _time.time()
+        start = end - float(days) * 86400 if days else None
+        mm = _get_meta_memory(skill_id)
+        items = mm.episodic.get_by_time(start_time=start, end_time=end, limit=limit)
+        return {
+            "skill_id": skill_id,
+            "count": len(items),
+            "index_stats": mm.episodic.get_index_stats(),
+            "items": [_memory_item_dict(i) for i in items],
+            "message": f"情景记忆 {len(items)} 条（近 {days or '全部'} 天）",
+        }
+
+    def _memory_semantic_graph(a: dict[str, Any]) -> Any:
+        skill_id = a.get("skill_id", "zenskill-core")
+        top_entities = int(a.get("top_entities", 10))
+        mm = _get_meta_memory(skill_id)
+        stats = mm.semantic.get_stats()
+        entities = mm.semantic.get_entities()
+        graph = []
+        for ent in entities[:top_entities]:
+            facts = mm.semantic.get_entity_facts(ent)[:8]
+            graph.append({
+                "entity": ent,
+                "fact_count": len(facts),
+                "facts": [
+                    {"subject": s, "predicate": p, "object": o,
+                     "confidence": round(c, 3)}
+                    for s, p, o, c in facts
+                ],
+            })
+        return {
+            "skill_id": skill_id,
+            "stats": stats,
+            "total_entities": len(entities),
+            "entities": graph,
+            "message": (
+                f"语义记忆 {stats.get('total_facts', 0)} 三元组 / "
+                f"{len(entities)} 实体，展示 top {len(graph)}"
+            ),
+        }
+
+    def _dashboard_summary(a: dict[str, Any]) -> Any:
+        result = _dashboard_summary_core()
         # 补充 GUI 侧需要的计数（与 guide.md 口径一致）
         try:
             from pathlib import Path
@@ -535,7 +815,7 @@ def build_default_registry() -> ServerToolRegistry:
         except Exception:
             result["installed_skills"] = 0
         try:
-            import json, time
+            import time
             idx = json.loads(
                 (Path.home() / ".zenskill" / "memory" / "sessions" / "sessions_index.json")
                 .read_text(encoding="utf-8"))
@@ -549,9 +829,7 @@ def build_default_registry() -> ServerToolRegistry:
         return result
 
     def _growth_report(a: dict[str, Any]) -> Any:
-        from ...tui.data import TuiDataAdapter
-
-        return TuiDataAdapter().get_growth_report(a["skill_id"])
+        return _growth_report_core(a["skill_id"])
 
     def _skill_context(a: dict[str, Any]) -> Any:
         """获取技能详细文档（SKILL.md 内容 + 索引元数据）"""
@@ -727,7 +1005,7 @@ def build_default_registry() -> ServerToolRegistry:
         n = int(a.get("n", 10))
 
         all_episodes = []
-        for skill_id in ["zenskill", "zenskill-core", "mcp-test", "craft-gui"]:
+        for skill_id in ["zenskill", "zenskill-core", "mcp-test", "zenskill-gui"]:
             try:
                 state = SkillStateManager(skill_id).load()
                 for ep in state.get("episodes", []):
@@ -768,7 +1046,7 @@ def build_default_registry() -> ServerToolRegistry:
                     "message": "需要 query（按内容模糊匹配，删除第一条匹配项）"}
         needle = query.lower()
         skill_id = str(a.get("skill_id") or "all").strip()
-        skill_ids = (["zenskill", "zenskill-core", "mcp-test", "craft-gui"]
+        skill_ids = (["zenskill", "zenskill-core", "mcp-test", "zenskill-gui"]
                      if skill_id in ("", "all") else [skill_id])
 
         for sid in skill_ids:
@@ -835,12 +1113,99 @@ def build_default_registry() -> ServerToolRegistry:
     )
     registry.register(
         "skill_install",
-        "安装技能（支持 github:// clawhub:// npm:// pypi:// https:// file:// builtin 等来源）",
+        "安装技能（五阶段安全管线：隔离区下载→安全+可用性双扫描→策略门→原子启用→供血；"
+        "dangerous 默认拦截需 force+confirm，warn 需 confirm）",
         _skill_install,
         {
             "type": "object",
-            "properties": {"uri": {"type": "string", "description": "技能 URI 或 GitHub URL"}},
+            "properties": {
+                "uri": {"type": "string", "description": "技能 URI 或 GitHub URL"},
+                "force": {"type": "boolean", "description": "覆盖 dangerous 拦截（走确认并记审计）"},
+                "confirm": {"type": "boolean", "description": "warn 级确认安装"},
+            },
             "required": ["uri"],
+        },
+    )
+    registry.register(
+        "skill_state",
+        "技能治理状态机：wake/dormant/archive/restore/delete（dormant 保留可发现性，"
+        "命中检索时提示唤醒；archived 30 天恢复窗口）",
+        _skill_state,
+        {
+            "type": "object",
+            "properties": {
+                "skill_id": {"type": "string"},
+                "action": {"type": "string", "enum": ["wake", "dormant", "archive",
+                                                       "restore", "delete"]},
+                "force": {"type": "boolean", "description": "跳过 deleted 30 天窗口"},
+            },
+            "required": ["skill_id", "action"],
+        },
+    )
+    registry.register(
+        "skill_set_tier",
+        "技能分级：T0 核心(常驻+pinned)/T1 活跃/T2 长尾（T0 即 pinned）",
+        _skill_set_tier,
+        {
+            "type": "object",
+            "properties": {
+                "skill_id": {"type": "string"},
+                "tier": {"type": "string", "enum": ["T0", "T1", "T2"]},
+            },
+            "required": ["skill_id", "tier"],
+        },
+    )
+    registry.register(
+        "skill_scan",
+        "安全+可用性双扫描：指定技能或全量已装技能（返回 dangerous/warn/safe 汇总与明细）",
+        _skill_scan,
+        {
+            "type": "object",
+            "properties": {"skill_id": {"type": "string", "description": "缺省扫描全部已装技能"}},
+        },
+    )
+    registry.register(
+        "skills_section_stats",
+        "当前会话技能注入统计：profile、注入技能数、token 估算、tier 分布、是否截断",
+        _skills_section_stats,
+        {
+            "type": "object",
+            "properties": {"profile": {"type": "string", "description": "缺省用当前生效 profile"}},
+        },
+    )
+    registry.register(
+        "skills_doctor",
+        "技能体系体检：质量分布/休眠建议/重复对/低分清单/when 冲突（section 可选单节）",
+        _skills_doctor,
+        {
+            "type": "object",
+            "properties": {"section": {"type": "string", "enum": ["overview", "dormant",
+                                                                    "duplicates", "quality",
+                                                                    "conflicts"]}},
+        },
+    )
+    registry.register(
+        "skill_export",
+        "导出已装技能清单（发布准备；不落盘，manifest 直接返回）",
+        _skill_export,
+        {
+            "type": "object",
+            "properties": {"skills": {"type": "array", "items": {"type": "string"},
+                                       "description": "skill_id 过滤，缺省全部已装"}},
+        },
+    )
+    registry.register(
+        "skill_deploy",
+        "部署技能到平台（local/codex/cursor/opencode；dry_run 只校验；写操作走确认流）",
+        _skill_deploy,
+        {
+            "type": "object",
+            "properties": {
+                "skill_id": {"type": "string"},
+                "platform": {"type": "string"},
+                "dry_run": {"type": "boolean", "description": "只做前置校验不写入"},
+            },
+            "required": ["skill_id", "platform"],
         },
     )
     registry.register(
@@ -870,23 +1235,23 @@ def build_default_registry() -> ServerToolRegistry:
         {
             "type": "object",
             "properties": {
-                "status": {"type": "string", "description": "unprocessed/processed，默认 unprocessed"},
+                "status": {"type": "string", "description": "unprocessed/clarified/archived，默认 unprocessed"},
                 "limit": {"type": "integer", "description": "默认 20"},
             },
         },
     )
     registry.register(
         "inbox_clarify",
-        "澄清 inbox 条目（自动意图分类 action/project/calendar/reference，"
-        "action/project/calendar 会自动创建下游对象并回填 target_id）",
+        "澄清 inbox 条目（自动意图分类 action/project/calendar/reference/someday，"
+        "action/project/calendar 自动创建下游对象并回填 target_id，someday 存入孵化池）",
         _inbox_clarify,
         {
             "type": "object",
             "properties": {
                 "item_id": {"type": "string", "description": "inbox 条目 ID"},
                 "result_type": {"type": "string",
-                                "enum": ["action", "project", "calendar", "reference"],
-                                "description": "可选，不传则自动分类；action/project/calendar 自动落下游对象"},
+                                "enum": ["action", "project", "calendar", "reference", "someday"],
+                                "description": "可选，不传则自动分类；action/project/calendar 自动落下游对象，someday 存入孵化池"},
                 "target_id": {"type": "string", "description": "可选，已存在的澄清目标 ID（传了则不重复创建）"},
             },
             "required": ["item_id"],
@@ -934,6 +1299,43 @@ def build_default_registry() -> ServerToolRegistry:
             "properties": {
                 "skill_id": {"type": "string", "description": "技能 ID，传 all 聚合全部技能"},
                 "n": {"type": "integer", "description": "返回条数，默认 10"},
+            },
+        },
+    )
+    registry.register(
+        "memory_layers_stats",
+        "记忆库三层统计（L1 工作/L2 情景/L3 语义）+ 每层预览",
+        _memory_layers_stats,
+        {
+            "type": "object",
+            "properties": {
+                "skill_id": {"type": "string", "description": "默认 zenskill-core"},
+                "preview": {"type": "integer", "description": "每层预览条数，默认 5"},
+            },
+        },
+    )
+    registry.register(
+        "memory_episodic_timeline",
+        "情景记忆时间线（按时间范围检索 + 倒排索引统计）",
+        _memory_episodic_timeline,
+        {
+            "type": "object",
+            "properties": {
+                "skill_id": {"type": "string", "description": "默认 zenskill-core"},
+                "days": {"type": "number", "description": "近 N 天，缺省全部"},
+                "limit": {"type": "integer", "description": "返回条数上限，默认 30"},
+            },
+        },
+    )
+    registry.register(
+        "memory_semantic_graph",
+        "语义记忆图谱（三元组实体 + 关系事实）",
+        _memory_semantic_graph,
+        {
+            "type": "object",
+            "properties": {
+                "skill_id": {"type": "string", "description": "默认 zenskill-core"},
+                "top_entities": {"type": "integer", "description": "展示实体数，默认 10"},
             },
         },
     )
@@ -1033,10 +1435,13 @@ def build_default_registry() -> ServerToolRegistry:
         }
 
     def _zenloop_run(a: dict[str, Any]) -> Any:
-        """触发 ZenLoop 循环（WP-B：automation/无人值守场景的工具入口）"""
+        """触发 ZenLoop 循环（WP-B：automation/无人值守场景的工具入口）
+
+        进程级单例（注册插件 + bind_memory），跨调用保留触发阈值/错误计数状态。
+        error_context 优先走 on_error_occurred（Purification 入口，连续 3 次触发）；
+        reflection 循环需要 query+response 才触发。"""
         import asyncio
         import concurrent.futures
-        from ...systems.zenloop.zenloop_system import ZenLoopSystem
         from ...systems.zenloop.loop_base import LoopType
 
         name = (a.get("loop_type") or "reflection").upper()
@@ -1047,11 +1452,27 @@ def build_default_registry() -> ServerToolRegistry:
             return {"ok": False,
                     "message": f"未知循环类型 {name}，可选: {', '.join(valid)}"}
 
-        zl = ZenLoopSystem()
-        # handler 可能跑在 serve 的 asyncio loop 内——独立线程开新 loop 执行
+        zl = _get_zenloop_system()
+        if zl is None:
+            return {"ok": False, "message": "ZenLoopSystem 初始化失败，无法执行循环"}
+
+        error_context = str(a.get("error_context") or "").strip()
+        query = str(a.get("query") or "")
+        response = str(a.get("response") or "")
+
+        async def _run():
+            if error_context:
+                result = await zl.on_error_occurred(
+                    error_context, error_query=query)
+                return [result] if result is not None else []
+            context: dict[str, Any] = {"source": "mcp"}
+            if query or response:
+                context["query"] = query
+                context["response"] = response
+            return await zl.trigger_loop(loop_type, context)
+
         with concurrent.futures.ThreadPoolExecutor(max_workers=1) as ex:
-            future = ex.submit(asyncio.run, zl.trigger_loop(
-                loop_type, {"source": "mcp"}))
+            future = ex.submit(asyncio.run, _run())
             try:
                 results = future.result(timeout=90.0)
             except concurrent.futures.TimeoutError:
@@ -1066,6 +1487,9 @@ def build_default_registry() -> ServerToolRegistry:
                 "success": getattr(r, "success", True),
             })
         if not results:
+            if error_context:
+                return {"ok": True, "executed": 0, "results": [],
+                        "message": "Purification 未触发（连续错误数未达阈值 3）"}
             return {"ok": True, "executed": 0, "results": [],
                     "message": f"ZenLoop {name} 未触发（插件触发条件未满足，如交互数/间隔/错误数）"}
         return {"ok": True, "executed": len(results), "results": summaries,
@@ -1451,13 +1875,21 @@ def build_default_registry() -> ServerToolRegistry:
     registry.register(
         "zenloop_run",
         "触发 ZenLoop 循环（reflection/consolidation/insight/purification）——"
-        "定时自动化/无人值守反思入口",
+        "定时自动化/无人值守反思入口；error_context 走净化循环（连续 3 次触发）",
         _zenloop_run,
         {
             "type": "object",
-            "properties": {"loop_type": {
-                "type": "string",
-                "description": "循环类型，默认 reflection"}},
+            "properties": {
+                "loop_type": {
+                    "type": "string",
+                    "description": "循环类型，默认 reflection"},
+                "query": {"type": "string",
+                          "description": "reflection 必需：本次交互的用户查询"},
+                "response": {"type": "string",
+                             "description": "reflection 必需：本次交互的系统回复"},
+                "error_context": {"type": "string",
+                                  "description": "错误描述；提供时优先触发净化循环（连续 3 次错误执行 Purification）"},
+            },
         },
     )
 
@@ -1731,20 +2163,30 @@ def build_default_registry() -> ServerToolRegistry:
         }
 
     def _project_list(a: dict[str, Any]) -> Any:
-        """列出项目及其进度"""
+        """列出项目及其进度（progress 按项目下行动 done/total 现算）"""
         from ...systems.gtd.project import ProjectEngine
+        from ...systems.gtd.action import ActionEngine
         engine = ProjectEngine()
         items = engine.list(
             status=a.get("status", "active"),
             parent_id=a.get("parent_id", ""),
         )
+        action_engine = ActionEngine()
+        entries = []
+        for i in items[:20]:
+            try:
+                proj_actions = action_engine.list(
+                    status="all", project_id=i.id, limit=1000)
+            except Exception:
+                proj_actions = []
+            total = len(proj_actions)
+            done = sum(1 for act in proj_actions if act.status == "done")
+            progress = round(done / total * 100) if total else 0
+            entries.append({"id": i.id, "name": i.name, "status": i.status,
+                            "progress": progress})
         return {
             "count": len(items),
-            "items": [
-                {"id": i.id, "name": i.name, "status": i.status,
-                 "progress": getattr(i, "progress", 0)}
-                for i in items[:20]
-            ],
+            "items": entries,
             "message": f"找到 {len(items)} 个项目",
         }
 
@@ -1760,6 +2202,27 @@ def build_default_registry() -> ServerToolRegistry:
         ok = engine.done(project_id)
         return {"ok": ok, "project_id": project_id, "name": project.name,
                 "message": f"项目「{project.name}」已完成" if ok else "更新失败"}
+
+    def _incubating_add(a: dict[str, Any]) -> Any:
+        """存入孵化池（IncubatingEngine.add，Someday/Incubating 创建入口）"""
+        from ...systems.gtd.incubating import IncubatingEngine
+
+        concept = str(a.get("concept") or "").strip()
+        if not concept:
+            return {"ok": False, "message": "需要 concept（想法/概念文本）"}
+        item = IncubatingEngine().add(
+            concept=concept,
+            channel=str(a.get("channel") or "reflect").strip() or "reflect",
+            action_id=str(a.get("action_id") or ""),
+            check_after_days=int(a.get("check_after_days", 7)),
+        )
+        return {
+            "ok": True,
+            "id": item.id,
+            "channel": item.channel,
+            "check_after": item.check_after,
+            "message": f"已存入孵化池（{item.channel} 通道，{item.check_after} 复核）",
+        }
 
     def _incubating_list(a: dict[str, Any]) -> Any:
         """列出孵化池条目（未成熟想法）"""
@@ -2196,6 +2659,7 @@ def build_default_registry() -> ServerToolRegistry:
             greeting = "夜深了"
 
         top_insight = None
+        top_insights: list = []
         try:
             from ...systems.active.proactive_insight import ProactiveInsightEngine
             engine = ProactiveInsightEngine(skill_id="zenskill-core")
@@ -2261,7 +2725,7 @@ def build_default_registry() -> ServerToolRegistry:
                 parts.append("夜深了，还有精力的话可以处理 inbox")
         elif 12 <= hour < 14 and len(actions) > 5:
             parts.append("午休前花 5 分钟清一下收件箱")
-        elif 18 <= hour < 20 and overdue == 0 and pending == 0:
+        elif 18 <= hour < 20 and len(overdue) == 0 and len(actions) == 0:
             parts.append("今天全部完成，做得很棒")
 
         return {
@@ -2381,7 +2845,7 @@ def build_default_registry() -> ServerToolRegistry:
         {
             "type": "object",
             "properties": {
-                "status": {"type": "string", "description": "状态过滤：pending/completed/all"},
+                "status": {"type": "string", "description": "状态过滤：pending/done/all"},
                 "project_id": {"type": "string", "description": "按项目过滤"},
                 "priority": {"type": "string", "description": "按优先级过滤"},
                 "due_today": {"type": "boolean", "description": "只显示今天到期"},
@@ -2471,6 +2935,20 @@ def build_default_registry() -> ServerToolRegistry:
             "required": ["project_id"],
         },
     )
+    registry.register("incubating_add", "将想法存入孵化池（Someday/Incubating），成熟后可提升为行动", _incubating_add,
+        {
+            "type": "object",
+            "properties": {
+                "concept": {"type": "string", "description": "想法/概念文本"},
+                "channel": {"type": "string",
+                            "enum": ["reflect", "consolidate", "insight", "purify"],
+                            "description": "孵化通道，默认 reflect"},
+                "action_id": {"type": "string", "description": "关联行动 ID（可选）"},
+                "check_after_days": {"type": "integer", "description": "N 天后复核，默认 7"},
+            },
+            "required": ["concept"],
+        },
+    )
     registry.register("incubating_list", "列出孵化池条目（未成熟想法）", _incubating_list,
         {
             "type": "object",
@@ -2488,6 +2966,47 @@ def build_default_registry() -> ServerToolRegistry:
             "required": ["item_id"],
         },
     )
+    # ── W1.4: 孵化补洞 ──
+    def _incubating_mature(a):
+        from ...systems.gtd.incubating import IncubatingEngine
+        item = IncubatingEngine().mature(a["item_id"], float(a.get("delta", 0.1)))
+        return {"ok": item is not None, "maturity": item.maturity if item else None, "status": item.status if item else None}
+
+    def _incubating_archive(a):
+        from ...systems.gtd.incubating import IncubatingEngine
+        ok = IncubatingEngine().archive(a["item_id"])
+        return {"ok": ok}
+
+    registry.register("incubating_mature", "递增孵化成熟度（≥0.8 自动 mature）", _incubating_mature,
+        {"type": "object", "properties": {"item_id": {"type": "string"}, "delta": {"type": "number", "default": 0.1}}, "required": ["item_id"]})
+    registry.register("incubating_archive", "归档孵化条目", _incubating_archive,
+        {"type": "object", "properties": {"item_id": {"type": "string"}}, "required": ["item_id"]})
+    # ── W1.4: GTD 健康度 + 周报 ──
+    def _gtd_health(a):
+        from ...systems.gtd.health import GTDHealthEngine
+        return GTDHealthEngine().compute_health(int(a.get("days", 30)))
+
+    def _gtd_report(a):
+        from ...systems.gtd.report import GTDReportEngine
+        r = GTDReportEngine()
+        period = a.get("period", "weekly")
+        if period == "monthly":
+            data = r.monthly_report(int(a.get("months", 1)))
+            return {"markdown": r.format_monthly_markdown(data), "data": data}
+        data = r.weekly_report(int(a.get("weeks", 1)))
+        return {"markdown": r.format_weekly_markdown(data), "data": data}
+
+    registry.register("gtd_health", "GTD 健康度评分（捕获率/完成率/清理率/能量效率/Review 频率）", _gtd_health,
+        {"type": "object", "properties": {"days": {"type": "integer", "default": 30}}})
+    registry.register("gtd_report", "GTD 周报/月报", _gtd_report,
+        {"type": "object", "properties": {"period": {"type": "string", "enum": ["weekly", "monthly"]}, "weeks": {"type": "integer"}, "months": {"type": "integer"}}})
+    # ── W1.4: skill_retrieve 注册为 MCP 工具 ──
+    def _skill_retrieve_mcp(a):
+        from ...runtime.agent.skill_tools import skill_retrieve
+        return {"skills": skill_retrieve(a.get("scenario", ""), top_k=int(a.get("top_k", 10)))}
+
+    registry.register("skill_retrieve", "场景检索技能（IDF 加权 + 停用词 + 技能级关键词匹配，返回 top-K）", _skill_retrieve_mcp,
+        {"type": "object", "properties": {"scenario": {"type": "string", "description": "任务场景文本"}, "top_k": {"type": "integer", "default": 10}}, "required": ["scenario"]})
     registry.register("habit_check", "记录习惯打卡", _habit_check,
         {
             "type": "object",
@@ -2609,6 +3128,15 @@ def build_default_registry() -> ServerToolRegistry:
             "properties": {"type": {"type": "string", "description": "洞察类型过滤"}},
         },
     )
+
+    # ── D5: insight 已读回传 ──
+    def _insight_mark_read(a):
+        from ...systems.active.proactive_insight import ProactiveInsightEngine
+        return {"ok": ProactiveInsightEngine().mark_as_read(a.get("id", ""))}
+
+    registry.register("insight_mark_read", "标记洞察已读", _insight_mark_read,
+        {"type": "object", "properties": {"id": {"type": "string", "description": "洞察 ID"}}, "required": ["id"]})
+
     registry.register("context_guide", "获取当前上下文指南", _context_guide)
     def _zenloop_bridge_run(a: dict[str, Any]) -> Any:
         """运行 GTD × ZenLoop 联动周期（reflect/consolidate/insight/purify）"""
@@ -2662,6 +3190,42 @@ def build_default_registry() -> ServerToolRegistry:
                 "target_skill": {"type": "string", "description": "目标技能"},
                 "current_level": {"type": "string", "description": "当前水平，默认 NOVICE"},
             },
+        },
+    )
+
+    # ── D5: 学习路径 → 一键建项目+行动+会话 ──
+    def _learning_path_start(a: dict[str, Any]) -> Any:
+        from ...systems.gtd.project import ProjectEngine, PROJECT_TEMPLATES
+        from ...systems.gtd.action import ActionEngine
+        goal = a.get("goal", "")
+        skill_id = a.get("step_skill_id", "")
+        proj = ProjectEngine().create(
+            name=f"学习: {goal}" if goal else f"学习: {skill_id}",
+            outcome=f"掌握技能 {skill_id}",
+            notes=f"由学习路径自动创建 | skill_id={skill_id}",
+        )
+        act = ActionEngine().add(
+            title=f"[{goal}] 了解 {skill_id}" if goal else f"了解 {skill_id}",
+            project_id=proj.id,
+            skill_id=skill_id,
+        )
+        return {
+            "ok": True,
+            "project_id": proj.id,
+            "action_id": act.id,
+            "chat_route": f'action/new-session?input={goal or skill_id}',
+        }
+
+    registry.register(
+        "learning_path_start",
+        "学习路径一键启动：建项目 + 首行动 → 返回会话路由",
+        _learning_path_start,
+        {"type": "object",
+         "properties": {
+             "goal": {"type": "string", "description": "学习目标"},
+             "step_skill_id": {"type": "string", "description": "首个技能 ID"},
+         },
+         "required": ["goal"],
         },
     )
 
@@ -2727,42 +3291,11 @@ def build_default_registry() -> ServerToolRegistry:
         },
     )
 
-    # ── skill_validate：校验所有技能 frontmatter v2 ──
+    # ── skill_validate：校验所有技能 frontmatter v2（校验逻辑抽至 skills/frontmatter_check.py）──
     def _skill_validate(a: dict[str, Any]) -> Any:
-        import re as _re
-        from pathlib import Path
-        skills_dir = Path.home() / ".agents" / "skills"
-        domains = {"lark", "arkcli", "agentswarm", "dev", "data", "ai", "design", "ops", "life", "general"}
-        types = {"execution", "analysis", "creation", "coordination", "knowledge", "general"}
-        errors: list[str] = []
-        total = 0
-        for d in sorted(skills_dir.iterdir()):
-            sf = d / "SKILL.md"
-            if not d.is_dir() or d.name.startswith(".") or not sf.exists():
-                continue
-            total += 1
-            slug = d.name
-            try:
-                content = sf.read_text(encoding="utf-8")
-                m = _re.match(r"^---\s*\n(.*?)\n---", content, _re.DOTALL)
-                if not m:
-                    errors.append(f"{slug}: no frontmatter")
-                    continue
-                import yaml as _yaml
-                raw = _yaml.safe_load(m.group(1)) or {}
-                for field in ("name", "description", "category", "type"):
-                    v = raw.get(field)
-                    if not v or (isinstance(v, list) and not v):
-                        errors.append(f"{slug}: missing {field}")
-                if raw.get("category") not in domains:
-                    errors.append(f"{slug}: bad category '{raw.get('category')}'")
-                if raw.get("type") not in types:
-                    errors.append(f"{slug}: bad type '{raw.get('type')}'")
-                if isinstance(raw.get("description"), str) and _re.match(r"^\s*Use when", raw["description"], _re.I):
-                    errors.append(f"{slug}: description still starts with 'Use when'")
-            except Exception as exc:
-                errors.append(f"{slug}: {exc}")
-        return {"total": total, "errors": errors, "pass": len(errors) == 0}
+        from ...skills.frontmatter_check import validate_all
+
+        return validate_all()
 
     registry.register(
         "skill_validate",
@@ -2774,6 +3307,105 @@ def build_default_registry() -> ServerToolRegistry:
     # ============================================================
     # Collaboration 子系统：跨技能洞察 / 迁移模式 / 仪表盘
     # ============================================================
+
+    def _collaboration_bootstrap(a: dict[str, Any]) -> Any:
+        """从 ~/.agents/skills frontmatter 批量注册技能图谱节点 + 关系发现 + 剪枝。
+
+        Collaboration 页 0 节点 0 边的根因：333 个已装技能从未注册进
+        SkillDependencyGraph（该图与技能安装注册表是两套体系）。本工具一次性引导，
+        幂等：节点 upsert；已有关系时跳过发现（discover_relations 是纯追加）。
+        """
+        import re as _re
+        from pathlib import Path as _Path
+        from dataclasses import asdict as _asdict
+        from ...systems.collaboration.dependency_graph import SkillDependencyGraph
+
+        graph = SkillDependencyGraph()
+        skills_dir = _Path.home() / ".agents" / "skills"
+        registered = 0
+        if skills_dir.is_dir():
+            for d in sorted(skills_dir.iterdir()):
+                sf = d / "SKILL.md"
+                if not d.is_dir() or d.name.startswith(".") or not sf.exists():
+                    continue
+                try:
+                    content = sf.read_text(encoding="utf-8")
+                    meta = {}
+                    fm = _re.match(r"^---\s*\n(.*?)\n---\s*\n", content, _re.DOTALL)
+                    if fm:
+                        import yaml as _yaml
+                        raw = _yaml.safe_load(fm.group(1))
+                        if isinstance(raw, dict):
+                            meta = raw
+                    name = meta.get("name") or d.name
+                    category = meta.get("category") or "general"
+                    graph.register_skill(d.name, name=str(name), category=str(category))
+                    registered += 1
+                except Exception:
+                    continue
+
+        discovered = 0
+        pruned = 0
+        if not graph.relations:
+            new_rels = graph.discover_relations()
+            discovered = len(new_rels)
+            # 阈值 0.3 对无使用 metrics 的技能太严（维度向量为空 → 余弦≈0，
+            # 仅 1 对过线）。补同分类互补边：frontmatter category 相同即建边。
+            from ...systems.collaboration.dependency_graph import SkillRelation as _Rel
+            by_cat: dict[str, list] = {}
+            for s in graph.get_all_skills():
+                by_cat.setdefault(s.category, []).append(s.skill_id)
+            existing = {
+                (r.from_skill, r.to_skill, r.relation_type) for r in graph.relations
+            }
+            for cat, ids in by_cat.items():
+                if len(ids) < 2 or cat == "general":
+                    continue
+                for i, sid_a in enumerate(ids):
+                    for sid_b in ids[i + 1:]:
+                        key = (sid_a, sid_b, "complementary")
+                        if key in existing:
+                            continue
+                        graph.relations.append(_Rel(
+                            relation_id=f"cat-{sid_a}-{sid_b}",
+                            from_skill=sid_a, to_skill=sid_b,
+                            relation_type="complementary",
+                            strength=0.5, confidence=0.8,
+                            evidence=[f"同分类: {cat}"],
+                        ))
+                        existing.add(key)
+                        discovered += 1
+            # 每节点 top-K 剪枝：同分类对会让大分类产生大量边，UI 无法渲染。
+            top_k = int(a.get("top_k_per_node", 4))
+            by_node: dict[str, list] = {}
+            for r in graph.relations:
+                by_node.setdefault(r.from_skill, []).append(r)
+                by_node.setdefault(r.to_skill, []).append(r)
+            kept_ids = set()
+            for rels in by_node.values():
+                for r in sorted(rels, key=lambda x: x.strength, reverse=True)[:top_k]:
+                    kept_ids.add(id(r))
+            kept = [r for r in graph.relations if id(r) in kept_ids]
+            pruned = len(graph.relations) - len(kept)
+            graph.relations = kept
+            rel_file = graph.relations_file
+            with open(rel_file, "w", encoding="utf-8") as f:
+                for r in kept:
+                    f.write(json.dumps(_asdict(r), ensure_ascii=False, default=str) + "\n")
+
+        return {
+            "ok": True,
+            "registered": registered,
+            "nodes": len(graph.get_all_skills()),
+            "relations": len(graph.relations),
+            "discovered": discovered,
+            "pruned": pruned,
+            "message": (
+                f"图谱引导完成：注册 {registered} 技能，"
+                f"当前 {len(graph.get_all_skills())} 节点 / {len(graph.relations)} 边"
+                + (f"（新发现 {discovered}，剪枝 {pruned}）" if discovered else "")
+            ),
+        }
 
     def _collaboration_insights(a: dict[str, Any]) -> Any:
         """跨技能洞察：全量扫描技能图谱，发现瓶颈/模式/协同/不均衡"""
@@ -2819,6 +3451,35 @@ def build_default_registry() -> ServerToolRegistry:
         dashboard = SkillEcosystemDashboard()
         text = dashboard.generate_dashboard()
 
+        # 结构化字段：GUI 契约需要 network/health/synergy_score，
+        # 纯文本解析拿不到（0 边显示的第二个根因）
+        structured: dict[str, Any] = {}
+        try:
+            graph = dashboard.graph
+            skills = graph.get_all_skills()
+            health = dashboard._calculate_ecosystem_health()
+            synergy = dashboard._calculate_synergy_score(skills)
+            avg_composite = (
+                sum(s.composite_score for s in skills) / len(skills) if skills else 0.0
+            )
+            structured = {
+                "network": {
+                    "node_count": len(skills),
+                    "edge_count": len(graph.relations),
+                    "avg_composite": round(avg_composite, 3),
+                },
+                "health": {
+                    "level": health.get("level", "unknown"),
+                    "overall_score": round(health.get("overall_score", 0), 1),
+                    "balance_score": round(health.get("balance_score", 0), 1),
+                    "connectivity_score": round(health.get("connectivity_score", 0), 1),
+                    "activity_score": round(health.get("activity_score", 0), 1),
+                },
+                "synergy_score": round(synergy, 1),
+            }
+        except Exception:
+            structured = {}
+
         # 尝试解析 Markdown 为结构化数据
         try:
             sections: dict[str, Any] = {}
@@ -2834,14 +3495,23 @@ def build_default_registry() -> ServerToolRegistry:
                     title = lines[0]
                     sections[title] = lines[1:]
             if sections:
-                return {"sections": sections, "raw_text": text,
+                return {"sections": sections, "raw_text": text, **structured,
                         "message": "协作仪表盘已生成"}
         except Exception:
             pass
 
         # 解析失败降级：返回原始文本
-        return {"message": text}
+        return {"message": text, **structured}
 
+    registry.register(
+        "collaboration_bootstrap",
+        "图谱引导：从已装技能 frontmatter 批量注册节点 + 关系发现 + 每节点 top-K 剪枝（幂等）",
+        _collaboration_bootstrap,
+        {"type": "object",
+         "properties": {
+             "top_k_per_node": {"type": "integer", "description": "每节点保留关系数，默认 4"},
+         }},
+    )
     registry.register(
         "collaboration_insights",
         "跨技能洞察：全量扫描技能图谱，发现瓶颈/模式/协同/不均衡",
@@ -2860,6 +3530,281 @@ def build_default_registry() -> ServerToolRegistry:
         _collaboration_dashboard,
         {"type": "object", "properties": {}},
     )
+
+    # 孤儿引擎激活（capability_audit.md Part 2）：三引擎此前无任何表面入口
+    def _ultimate_report(a: dict[str, Any]) -> Any:
+        """终极成长报告：聚合五维/目标/洞察/成就/习惯的综合总结"""
+        from ...systems.active.ultimate_report import UltimateReportEngine
+
+        return UltimateReportEngine().generate(
+            period=a.get("period", "year"),
+            output_path=a.get("output_path"),
+        )
+
+    registry.register(
+        "ultimate_report",
+        "终极成长报告：年度/季度/月度综合总结（状态/五维/目标/洞察/成就/习惯）",
+        _ultimate_report,
+        {
+            "type": "object",
+            "properties": {
+                "period": {"type": "string",
+                           "description": "报告周期: year/quarter/month",
+                           "enum": ["year", "quarter", "month"]},
+                "output_path": {"type": "string",
+                                "description": "可选输出文件路径"},
+            },
+        },
+    )
+
+    def _task_recommend(a: dict[str, Any]) -> Any:
+        """按技能画像推荐练习任务"""
+        from ...systems.active.task_recommender import TaskRecommendationEngine
+
+        engine = TaskRecommendationEngine()
+        tasks = engine.recommend_tasks(
+            count=int(a.get("count", 3)),
+            difficulty=a.get("difficulty"),
+        )
+        return [
+            {"task_id": t.task_id, "title": t.title,
+             "description": str(t.description)[:200],
+             "difficulty": t.difficulty,
+             "expected_gain": t.expected_gain,
+             "priority": t.priority}
+            for t in tasks
+        ]
+
+    registry.register(
+        "task_recommend",
+        "智能任务推荐：按技能画像与难度推荐练习任务",
+        _task_recommend,
+        {
+            "type": "object",
+            "properties": {
+                "count": {"type": "integer", "description": "推荐数量，默认 3"},
+                "difficulty": {"type": "string",
+                               "description": "难度过滤: easy/medium/hard"},
+            },
+        },
+    )
+
+    # ============================================================
+    # W1 市场源体系（方案 7.1）：market_* 六工具
+    # 聚合搜索/浏览/热门 + 源清单（read）+ 源增删（write）
+    # ============================================================
+
+    def _market_search(a: dict[str, Any]) -> Any:
+        """跨市场聚合搜索：每源并行、单源 8s 超时；失败源标 degraded 不抛错"""
+        from ...skills.market_registry import search_markets_aggregated
+
+        return search_markets_aggregated(
+            str(a.get("query", "")),
+            market=str(a.get("market") or "all"),
+            top_k=int(a.get("top_k", 10) or 10),
+        )
+
+    def _market_browse(a: dict[str, Any]) -> Any:
+        """市场浏览：skills.sh 排行榜 → skillhub.cn 榜单回退（同 CLI cmd_browse）"""
+        from ...skills.market_adapters import SkillHubAdapter, SkillsShAdapter
+
+        limit = int(a.get("limit", 10) or 10)
+        category = str(a.get("category") or "").strip()
+        market = str(a.get("market") or "").strip()
+        view = category or "trending"
+        source, entries = "", []
+        try:
+            if market != "skillhub":
+                entries = SkillsShAdapter().trending(view=view, top_k=limit)
+                source = "skills.sh"
+            if not entries:
+                hub = SkillHubAdapter().top(top_k=max(limit, 20))
+                if category:
+                    hub = [e for e in hub if (e.category or "general") == category]
+                entries, source = hub[:limit], "skillhub.cn"
+        except Exception as e:
+            return {"count": 0, "degraded": True, "source": "none",
+                    "error": f"{type(e).__name__}: {e}"[:200], "results": []}
+        return {
+            "count": len(entries),
+            "source": source,
+            "category": category or None,
+            "results": [
+                {"skill_id": e.skill_id, "name": e.name,
+                 "description": (e.description or "")[:100],
+                 "market": e.market, "downloads": e.downloads}
+                for e in entries
+            ],
+        }
+
+    def _market_trending(a: dict[str, Any]) -> Any:
+        """市场侧热度榜；市场源不可达降级本地使用热度并标注 degraded"""
+        from ...skills.market_adapters import SkillHubAdapter, SkillsShAdapter
+
+        top_k = int(a.get("top_k", 10) or 10)
+        source, entries, degraded = "", [], False
+        try:
+            entries = SkillsShAdapter().trending(view="trending", top_k=top_k)
+            source = "skills.sh"
+            if not entries:
+                entries = SkillHubAdapter().top(top_k=top_k)
+                source = "skillhub.cn"
+        except Exception:
+            degraded = True
+        results = [
+            {"skill_id": e.skill_id, "name": e.name,
+             "description": (e.description or "")[:100],
+             "market": e.market, "downloads": e.downloads}
+            for e in entries
+        ]
+        if not results:
+            degraded = True
+            source = "local"
+            try:
+                from ...skills.search_engine import SkillSearchEngine
+                for r in SkillSearchEngine().trending(top_k=top_k):
+                    results.append({
+                        "skill_id": r.skill.skill_id,
+                        "name": getattr(r.skill, "name", r.skill.skill_id),
+                        "market": "builtin", "score": round(r.score, 3),
+                    })
+            except Exception:
+                pass
+        return {
+            "count": len(results), "source": source, "degraded": degraded,
+            "results": results,
+            "message": ("市场源不可达，已降级本地热度榜" if source == "local"
+                        else f"来源: {source}"),
+        }
+
+    def _market_sources(a: dict[str, Any]) -> Any:
+        """市场源清单（builtin/config/runtime + token 状态）；health=true 逐源探测"""
+        from ...skills.market_registry import get_default_registry
+
+        reg = get_default_registry()
+        sources = reg.list_sources()
+        if a.get("health"):
+            health = {h["name"]: h for h in reg.health_check()}
+            for s in sources:
+                if s["name"] in health:
+                    s["health"] = health[s["name"]]
+        return {"count": len(sources), "sources": sources}
+
+    def _market_add(a: dict[str, Any]) -> Any:
+        """添加市场源（写 markets.yaml）；schema/明文 token/SSRF 校验失败结构化返回"""
+        from ...skills.market_registry import MarketSourceError, get_default_registry
+
+        config = a.get("config")
+        if not isinstance(config, dict):
+            return {"ok": False, "error": "config 必须为源配置对象（dict）"}
+        try:
+            info = get_default_registry().add_source(config)
+        except MarketSourceError as e:
+            return {"ok": False, "error": str(e), "errors": e.errors}
+        except Exception as e:
+            return {"ok": False, "error": f"{type(e).__name__}: {e}"}
+        return {"ok": True, **info,
+                "message": f"已添加市场源 {info['name']}（写入 markets.yaml）"}
+
+    def _market_remove(a: dict[str, Any]) -> Any:
+        """移除配置源；内置源报错提示仅可 disable"""
+        from ...skills.market_registry import MarketSourceError, get_default_registry
+
+        name = str(a.get("name", "")).strip()
+        if not name:
+            return {"ok": False, "error": "需要 name"}
+        try:
+            info = get_default_registry().remove_source(name)
+        except MarketSourceError as e:
+            return {"ok": False, "error": str(e), "errors": e.errors}
+        except Exception as e:
+            return {"ok": False, "error": f"{type(e).__name__}: {e}"}
+        return {"ok": True, **info, "message": f"已移除市场源 {name}"}
+
+    registry.register(
+        "market_search",
+        "跨市场聚合搜索技能（每源并行、单源 8s 超时；失败源标 degraded 不中断；"
+        "结果带 market 徽章 + sources_status）",
+        _market_search,
+        {
+            "type": "object",
+            "properties": {
+                "query": {"type": "string", "description": "搜索关键词"},
+                "market": {"type": "string",
+                           "description": "限定市场源名，默认 all 聚合全部启用源"},
+                "top_k": {"type": "integer", "description": "返回数量，默认 10"},
+            },
+            "required": ["query"],
+        },
+    )
+    registry.register(
+        "market_browse",
+        "市场浏览：skills.sh 排行榜（无 token 回退 skillhub.cn 榜单），"
+        "category 可作 skills.sh view 过滤",
+        _market_browse,
+        {
+            "type": "object",
+            "properties": {
+                "category": {"type": "string",
+                             "description": "分类/view 过滤（trending/hot/all-time 或 skillhub scene）"},
+                "market": {"type": "string",
+                           "description": "限定 skillhub/skillssh，默认自动回退链"},
+                "limit": {"type": "integer", "description": "返回数量，默认 10"},
+            },
+        },
+    )
+    registry.register(
+        "market_trending",
+        "市场热门技能榜；市场源不可达时降级本地使用热度并标注 degraded",
+        _market_trending,
+        {
+            "type": "object",
+            "properties": {"top_k": {"type": "integer", "description": "返回数量，默认 10"}},
+        },
+    )
+    registry.register(
+        "market_sources",
+        "市场源清单（名称/类型/enable/token 状态/来源）；health=true 逐源健康探测",
+        _market_sources,
+        {
+            "type": "object",
+            "properties": {
+                "health": {"type": "boolean",
+                           "description": "触发逐源探测（内置源 HEAD 端点、配置源空查询，5s 超时）"},
+            },
+        },
+    )
+    registry.register(
+        "market_add",
+        "添加市场源（generic-http，写 markets.yaml）；schema 校验失败/明文 token/"
+        "SSRF 私网目标 → 结构化错误返回",
+        _market_add,
+        {
+            "type": "object",
+            "properties": {
+                "config": {
+                    "type": "object",
+                    "description": "源配置: name/type=generic-http/search_url/meta_url/"
+                                   "download_url/field_mapping/auth{type: bearer|header, token_env}",
+                },
+            },
+            "required": ["config"],
+        },
+    )
+    registry.register(
+        "market_remove",
+        "移除市场源；内置源不可删除（仅可 CLI zenskill market disable 停用）",
+        _market_remove,
+        {
+            "type": "object",
+            "properties": {"name": {"type": "string", "description": "源名称"}},
+            "required": ["name"],
+        },
+    )
+
+    # 记忆三层 MCP 工具（独立文件模式，避免活跃区冲突）
+    from ...systems.memory.mcp_tools import register_memory_tools
+    register_memory_tools(registry)
 
     # 自定义工具桥接（~/.zenskill/tools/*.py → MCP registry）
     _register_custom_tools(registry)

@@ -1768,6 +1768,53 @@ def build_command_registry() -> list[CommandEntry]:
         icon="🔄",
     )
 
+    # ── skill 补充: 市场与治理 (B4, TUI 原生 Python API 直调) ──
+
+    add(
+        namespace="skill", name="market", display_name="市场搜索",
+        help="跨市场聚合搜索技能（市场徽章表格）",
+        category="skill", action_type="output",
+        handler_name="cmd_skill_market",
+        icon="🛒",
+        args=[CommandArg("query", type="string", required=True, help="搜索关键词")],
+        flags=[CommandArg("top-k", type="int", default=10, help="返回数量")],
+    )
+    add(
+        namespace="skill", name="scan", display_name="安全扫描",
+        help="扫描技能安全风险（dangerous/warn/safe 汇总）",
+        category="skill", action_type="output",
+        handler_name="cmd_skill_scan",
+        icon="🛡️",
+        args=[CommandArg("skill_id", type="string", help="技能ID，缺省扫全部")],
+    )
+    add(
+        namespace="skill", name="doctor", display_name="技能体检",
+        help="治理体检报告（overview/dormant/duplicates/quality/conflicts）",
+        category="skill", action_type="output",
+        handler_name="cmd_skill_doctor",
+        icon="🏥",
+        args=[CommandArg("section", type="choice",
+                         choices=["overview", "dormant", "duplicates",
+                                  "quality", "conflicts"],
+                         help="体检分节，缺省全量")],
+    )
+    add(
+        namespace="skill", name="state", display_name="治理状态迁移",
+        help="技能治理状态操作（wake/dormant/archive/restore/delete）",
+        category="skill", action_type="action",
+        handler_name="cmd_skill_state",
+        icon="🔀",
+        args=[
+            CommandArg("slug", type="string", required=True, help="技能 slug"),
+            CommandArg("action", type="choice", required=True,
+                       choices=["wake", "dormant", "archive", "restore", "delete"],
+                       help="状态操作"),
+        ],
+    )
+
+    # TUI 原生 handler 桥接（见文件末 _bridge_tui_handlers）
+    _bridge_tui_handlers()
+
     return registry
 
 
@@ -1817,3 +1864,228 @@ class CommandRegistry:
             if query in text:
                 results.append(entry)
         return results
+
+
+# ═══════════════════════════════════════════════════════════════
+# TUI 原生命令 handler (B4) — Python API 直调，不经 MCP
+# ═══════════════════════════════════════════════════════════════
+
+
+def _command_positionals(args: Any, subcommand: str) -> list[str]:
+    """从 TUI 分发的 Namespace 提取位置参数。
+
+    rich_app _execute_registry_command 把 '/skill market xxx' 的
+    extra_args 设为 ['market', 'xxx']（含子命令名自身），剥掉首token；
+    直接以 extra_args=['xxx'] 调用（测试/CLI 复用）时原样返回。
+    """
+    extra = [str(x) for x in (getattr(args, "extra_args", None) or [])]
+    if extra and extra[0] == subcommand:
+        extra = extra[1:]
+    return extra
+
+
+def cmd_skill_market(args: Any) -> None:
+    """/skill market <query> — 跨市场聚合搜索（market_registry 直调）"""
+    query = " ".join(_command_positionals(args, "market")).strip()
+    if not query:
+        print("用法: /skill market <query>")
+        return
+    top_k = 10
+    try:
+        top_k = max(1, min(50, int(getattr(args, "top_k", 10) or 10)))
+    except (TypeError, ValueError):
+        pass
+
+    try:
+        from zenskill.skills import market_registry
+        result = market_registry.search_markets_aggregated(query, top_k=top_k)
+    except Exception as e:
+        print(f"市场搜索失败: {type(e).__name__}: {e}")
+        return
+
+    if not result.get("ok"):
+        print(f"市场搜索失败: {result.get('error', '未知错误')}")
+        return
+
+    results = result.get("results") or []
+    lines = [f"🛒 市场搜索: {query} — {len(results)} 条结果", ""]
+    if not results:
+        lines.append("  (无匹配结果)")
+    else:
+        lines.append(f"  {'技能':<30}{'市场':<14}{'评分':>4}  下载")
+        lines.append("  " + "─" * 58)
+        for r in results:
+            rating = r.get("rating")
+            rating_text = f"{rating:.1f}" if isinstance(rating, (int, float)) else " -"
+            lines.append(
+                f"  {str(r.get('name') or r.get('skill_id') or '')[:28]:<30}"
+                f"[{r.get('market', '-')}]{'':<{max(1, 12 - len(str(r.get('market', ''))))}}"
+                f"{rating_text:>4}  {r.get('downloads', 0) or 0}"
+            )
+    degraded = [(s, st) for s, st in (result.get("sources_status") or {}).items()
+                if st.get("status") not in ("ok",)]
+    if degraded:
+        lines.append("")
+        lines.append("  源状态: " + ", ".join(
+            f"{s}({st.get('status')})" for s, st in degraded))
+    print("\n".join(lines))
+
+
+def cmd_skill_scan(args: Any) -> None:
+    """/skill scan [skill_id] — 安全扫描汇总（install_pipeline.mcp_scan 直调）"""
+    extra = _command_positionals(args, "scan")
+    skill_id = extra[0] if extra else ""
+
+    try:
+        from zenskill.skills import install_pipeline
+        result = install_pipeline.mcp_scan({"skill_id": skill_id})
+    except Exception as e:
+        print(f"安全扫描失败: {type(e).__name__}: {e}")
+        return
+
+    scope = skill_id if skill_id else "全部已装技能"
+    lines = [f"🛡️ 安全扫描: {scope}", ""]
+    lines.append(
+        f"  总计 {result.get('total', 0)} │ "
+        f"dangerous {result.get('dangerous', 0)} │ "
+        f"warn {result.get('warn', 0)} │ "
+        f"safe {result.get('safe', 0)}"
+    )
+    details = result.get("details") or []
+    if details:
+        lines.append("")
+        lines.append(f"  {'技能':<26}{'风险':<12}{'可用性':<14}发现  规则")
+        lines.append("  " + "─" * 62)
+        for d in details[:10]:
+            rules = ",".join(d.get("rules") or []) or "-"
+            lines.append(
+                f"  {str(d.get('skill_id', ''))[:24]:<26}"
+                f"{str(d.get('risk_level', '')):<12}"
+                f"{str(d.get('usability', '')):<14}"
+                f"{d.get('findings_count', 0)}  {rules[:40]}"
+            )
+        if len(details) > 10:
+            lines.append(f"  … 共 {len(details)} 条明细")
+    print("\n".join(lines))
+
+
+def cmd_skill_doctor(args: Any) -> None:
+    """/skill doctor [section] — 治理体检分节渲染（skill_doctor.mcp_skills_doctor 直调）"""
+    extra = _command_positionals(args, "doctor")
+    section = extra[0] if extra else ""
+
+    try:
+        from zenskill.skills import skill_doctor
+        report = skill_doctor.mcp_skills_doctor({"section": section} if section else {})
+    except Exception as e:
+        print(f"技能体检失败: {type(e).__name__}: {e}")
+        return
+
+    if not report.get("ok"):
+        print(f"技能体检失败: {report.get('error', '未知错误')}")
+        return
+
+    lines: list[str] = ["🏥 技能体检" + (f" — {section}" if section else ""), ""]
+
+    ov = report.get("overview")
+    if isinstance(ov, dict):
+        lines.append(f"  技能总数 {ov.get('total', 0)} │ 平均质量分 {ov.get('avg_quality', 0)}")
+        tier = ov.get("by_tier") or {}
+        state = ov.get("by_state") or {}
+        lines.append(
+            f"  Tier: T0 {tier.get('T0', 0)} / T1 {tier.get('T1', 0)} / T2 {tier.get('T2', 0)}"
+        )
+        lines.append(
+            f"  State: active {state.get('active', 0)} / dormant {state.get('dormant', 0)}"
+            f" / archived {state.get('archived', 0)} / deleted {state.get('deleted', 0)}"
+        )
+        lines.append("")
+
+    dormant = report.get("dormant_suggestions") or []
+    if dormant:
+        lines.append(f"  [休眠建议] {len(dormant)} 项")
+        for d in dormant[:8]:
+            lines.append(f"    · {d.get('slug')} — {d.get('reason')}")
+        lines.append("")
+
+    duplicates = report.get("duplicates") or []
+    if duplicates:
+        lines.append(f"  [重复检测] {len(duplicates)} 对")
+        for d in duplicates[:8]:
+            lines.append(f"    · {d.get('a')} ≈ {d.get('b')} (Jaccard {d.get('jaccard')})")
+        lines.append("")
+
+    quality_low = report.get("quality_low") or []
+    if quality_low:
+        lines.append(f"  [低质量分] {len(quality_low)} 项 (<60)")
+        for q in quality_low[:8]:
+            lines.append(f"    · {q.get('slug')} score={q.get('score')} — {q.get('fix_hint')}")
+        lines.append("")
+
+    conflicts = report.get("when_conflicts") or []
+    if conflicts:
+        lines.append(f"  [when 冲突] {len(conflicts)} 对")
+        for c in conflicts[:8]:
+            shared = ",".join(c.get("shared_words") or [])
+            lines.append(f"    · {c.get('a')} vs {c.get('b')} 共享触发词: {shared}")
+        lines.append("")
+
+    if len(lines) <= 2:
+        lines.append("  (无体检数据)")
+    print("\n".join(lines))
+
+
+def cmd_skill_state(args: Any) -> None:
+    """/skill state <slug> <action> — 治理状态迁移（skill_governance.mcp_skill_state 直调，写操作）"""
+    extra = _command_positionals(args, "state")
+    if len(extra) < 2:
+        print("用法: /skill state <slug> <wake|dormant|archive|restore|delete>")
+        return
+    slug, action = extra[0], extra[1]
+
+    try:
+        from zenskill.skills import skill_governance
+        result = skill_governance.mcp_skill_state({"skill_id": slug, "action": action})
+    except Exception as e:
+        print(f"状态操作失败: {type(e).__name__}: {e}")
+        return
+
+    if result.get("ok"):
+        changed = "已变更" if result.get("changed") else "无变化"
+        print(f"✅ {result.get('skill_id')} → {result.get('state')} "
+              f"({action}, {changed})")
+    else:
+        err = result.get("error")
+        if isinstance(err, dict):
+            err = err.get("reason") or str(err)
+        print(f"❌ {result.get('skill_id') or slug} 状态操作失败: {err}")
+
+
+# ── handler 桥接 ──
+# rich_app._execute_registry_command 只从 zenskill.__main__ 与 zenskill.cli.*
+# 解析 handler_name（tui/rich_app/app.py:754-771）。本批次文件边界禁改那两处，
+# 故 TUI 原生 4 个 handler 定义在本模块，由 build_command_registry()（每次
+# TUI 命令分发都会先走）幂等注入 zenskill.__main__ 命名空间，不覆盖已有实现。
+_TUI_NATIVE_HANDLERS = (
+    "cmd_skill_market", "cmd_skill_scan", "cmd_skill_doctor", "cmd_skill_state",
+)
+_TUI_HANDLERS_BRIDGED = False
+
+
+def _bridge_tui_handlers() -> None:
+    """把 TUI 原生 handler 注入 zenskill.__main__（幂等，失败静默降级）"""
+    global _TUI_HANDLERS_BRIDGED
+    if _TUI_HANDLERS_BRIDGED:
+        return
+    _TUI_HANDLERS_BRIDGED = True
+    try:
+        import zenskill.__main__ as cli_module
+    except Exception:
+        return
+    for name in _TUI_NATIVE_HANDLERS:
+        fn = globals().get(name)
+        if fn is not None and not hasattr(cli_module, name):
+            try:
+                setattr(cli_module, name, fn)
+            except Exception:
+                pass

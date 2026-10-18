@@ -461,3 +461,14 @@ class SessionManager:
             except (ValueError, KeyError, json.JSONDecodeError):
                 continue
         return out
+
+    def delete_session(self, session_id: str) -> bool:
+        """删除会话 JSONL 文件（对齐 ws_server SessionManager 同名语义）。"""
+        path = self.root / f"{session_id}.jsonl"
+        if path.exists():
+            try:
+                path.unlink()
+                return True
+            except OSError:
+                return False
+        return False

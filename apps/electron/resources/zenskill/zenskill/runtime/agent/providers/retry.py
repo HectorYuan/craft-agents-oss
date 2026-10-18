@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import random
 import re
 from typing import Optional, Tuple
@@ -15,6 +16,43 @@ import aiohttp
 
 # 429/5xx 之外的可重试连接错误
 RETRYABLE_STATUSES = {429, 500, 502, 503, 504}
+
+
+# ── 共享连接会话（O7）─────────────────────────────────────────────
+# 每次流式请求各建 ClientSession 会重复 TCP+TLS 握手；按事件循环键控
+# 复用一个会话即复用连接池。会话绑定循环——测试的函数级循环 / asyncio.run
+# 场景自动重建，不跨循环泄漏。
+
+_shared_session: Optional[aiohttp.ClientSession] = None
+_shared_session_loop: Optional[asyncio.AbstractEventLoop] = None
+
+
+def get_shared_session(sock_read: int = 600) -> aiohttp.ClientSession:
+    """取当前事件循环的共享会话（无则创建）。须在异步上下文中调用。"""
+    global _shared_session, _shared_session_loop
+    loop = asyncio.get_running_loop()
+    if (_shared_session is None or _shared_session.closed
+            or _shared_session_loop is not loop):
+        _shared_session = aiohttp.ClientSession(
+            timeout=aiohttp.ClientTimeout(total=None, connect=30, sock_read=sock_read)
+        )
+        _shared_session_loop = loop
+    return _shared_session
+
+
+async def close_shared_session() -> None:
+    """显式关闭共享会话（测试清理 / 优雅退出用；常规路径随进程终结）。"""
+    global _shared_session, _shared_session_loop
+    if _shared_session is not None and not _shared_session.closed:
+        await _shared_session.close()
+    _shared_session = None
+    _shared_session_loop = None
+
+
+@contextlib.asynccontextmanager
+async def shared_session_ctx(sock_read: int = 600):
+    """provider 侧沿用 `async with` 结构的最小改动包装（不关闭共享会话）。"""
+    yield get_shared_session(sock_read)
 
 
 # tools 参数降级判定（P1-6）：仅 HTTP 400 且错误体同时指向
@@ -105,6 +143,8 @@ async def retry_post(
 
     调用方需负责关闭 response。
     """
+    from ..observability import bump_metrics, log_event
+
     last_error = ""
     for attempt in range(max_retries + 1):
         try:
@@ -117,9 +157,14 @@ async def retry_post(
                 wait = compute_backoff(attempt, base_delay, max_delay)
                 await asyncio.sleep(wait)
                 continue
+            log_event("llm_error", endpoint=url.rsplit("/", 1)[-1],
+                      error=last_error[:200], attempts=max_retries + 1)
+            bump_metrics(llm_errors=1)
             return None, f"connection failed after {max_retries + 1} attempts: {last_error}"
 
         if resp.status == 200:
+            log_event("llm_response", endpoint=url.rsplit("/", 1)[-1],
+                      status=200, attempts=attempt + 1)
             return resp, None
 
         body = (await resp.text())[:500]
@@ -132,8 +177,15 @@ async def retry_post(
             await asyncio.sleep(wait)
             continue
 
+        log_event("llm_error", endpoint=url.rsplit("/", 1)[-1],
+                  status=status, error=f"HTTP {status}: {body}"[:200],
+                  attempts=attempt + 1)
+        bump_metrics(llm_errors=1)
         return None, f"HTTP {status}: {body}"
 
+    log_event("llm_error", endpoint=url.rsplit("/", 1)[-1],
+              error=last_error[:200], attempts=max_retries + 1)
+    bump_metrics(llm_errors=1)
     return None, f"failed after {max_retries + 1} attempts: {last_error}"
 
 

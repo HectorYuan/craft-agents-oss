@@ -1,26 +1,36 @@
 """
 TUI 数据适配器
 
-统一数据访问层，封装所有引擎调用。
-屏幕层通过此适配器获取数据，不直接调用引擎。
+统一数据访问层。A 阶段起，可直迁 getter 经 MCP registry（zenskill.runtime.mcp）
+读写，共享 MCP 层的 schema 校验、写门（guide 脏标记）与事件采集桥接；
+工具结果形状与旧引擎直连返回不兼容的 getter 维持引擎直连
+（映射与取舍见 docs/a_stage_spike_mapping.md）。
+批次 2 反转后 get_dashboard_summary / get_growth_report 亦经 MCP 工具
+（核心逻辑上移 registry._dashboard_summary_core / _growth_report_core），
+registry 侧不再回调本适配器，无递归。
 """
 
 import json
-from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from ..core.paths import get_user_data_dir, SkillStateManager
 from ..systems.visualization.ability_calculator import AbilityCalculator
 from ..systems.visualization.metrics_store import MetricsStore
 from ..systems.cultivating.skill_manifest import SkillManifest, SkillLevel
-from ..systems.active.goal_engine import ActiveGoalEngine
-from ..systems.active.task_recommender import TaskRecommendationEngine
 from ..systems.active.proactive_insight import ProactiveInsightEngine
-from ..systems.visualization.insight_engine import GrowthInsightEngine
 from ..systems.cultivating.cultivating_system import CultivatingSystem
 from ..mirroring.feature_store import FeatureStore
 from ..mirroring.privacy_layer import PrivacyLayer
 from ..mirroring.event_collector import EventCollector
+
+
+class _Record:
+    """MCP 工具返回 dict 的属性访问包装，保持旧 getter 的对象形状
+
+    （如 growth 页对 goal 的 g.dimension / g.target_score 属性访问）。"""
+
+    def __init__(self, data: Dict[str, Any]):
+        self.__dict__.update(data)
 
 
 class TuiDataAdapter:
@@ -28,6 +38,30 @@ class TuiDataAdapter:
 
     所有数据读取方法在遇到异常时返回安全默认值，保证 TUI 不崩溃。
     """
+
+    def __init__(self) -> None:
+        self._registry_cache = None
+
+    def _registry(self):
+        """惰性单例 MCP registry（构建 ~0.3s，仅一次）"""
+        if self._registry_cache is None:
+            from ..runtime.mcp.registry import build_default_registry
+            self._registry_cache = build_default_registry()
+        return self._registry_cache
+
+    def _call_tool(self, name: str, args: dict) -> dict:
+        """调 MCP 工具并解包 JSON；失败返回 {'error': str}（调用方按原样容错）"""
+        try:
+            return json.loads(self._registry().call(name, args))
+        except Exception as e:
+            return {"error": str(e)}
+
+    def _call_tool_text(self, name: str, args: dict) -> Optional[str]:
+        """调 MCP 工具并原样返回文本结果（工具输出为纯文本而非 JSON object 时用）"""
+        try:
+            return self._registry().call(name, args)
+        except Exception:
+            return None
 
     def get_skill_state(self, skill_id: str) -> Dict[str, Any]:
         """获取技能状态"""
@@ -101,37 +135,37 @@ class TuiDataAdapter:
         return store.get_all_snapshots()[-n:]
 
     def get_active_goals(self, skill_id: str) -> List[Any]:
-        """获取活跃目标"""
-        try:
-            engine = ActiveGoalEngine(skill_id)
-            return engine.get_active_goals()
-        except Exception:
-            return []
+        """获取活跃目标（经 MCP registry goal_progress）"""
+        result = self._call_tool("goal_progress", {"skill_id": skill_id})
+        return [_Record(item) for item in result.get("active") or []]
 
-    def get_goal_progress(self, skill_id: str, goal: Any) -> Any:
-        """获取目标进度"""
-        engine = ActiveGoalEngine(skill_id)
-        return engine.get_goal_progress(goal)
+    def get_goal_progress(self, skill_id: str, goal: Any) -> Optional[Any]:
+        """获取目标进度（经 MCP registry goal_progress，按 goal_id 匹配）"""
+        gid = getattr(goal, "goal_id", None)
+        if gid is None and isinstance(goal, dict):
+            gid = goal.get("goal_id")
+        if gid is None:
+            gid = str(goal)
+        result = self._call_tool("goal_progress", {"skill_id": skill_id})
+        for item in result.get("active") or []:
+            if item.get("goal_id") == gid:
+                return _Record(item)
+        return None
 
     def suggest_goals(self, skill_id: str) -> List[Any]:
-        """推荐成长目标"""
-        engine = ActiveGoalEngine(skill_id)
-        return engine.suggest_goals()
+        """推荐成长目标（经 MCP registry goal_set suggest=true）"""
+        result = self._call_tool("goal_set", {"skill_id": skill_id, "suggest": True})
+        return [_Record(item) for item in result.get("suggestions") or []]
 
     def get_pending_tasks(self, skill_id: str) -> List[Any]:
-        """获取待办推荐任务（无任务时自动生成）"""
-        engine = TaskRecommendationEngine(skill_id)
-        tasks = engine.get_pending_tasks()
-        if not tasks:
-            # 首次访问时自动生成基于技能状态的推荐任务
-            engine.recommend_tasks(count=5)
-            tasks = engine.get_pending_tasks()
-        return tasks
+        """获取待办列表（经 MCP registry action_list；spike 映射 task≈action）"""
+        result = self._call_tool("action_list", {"status": "pending"})
+        return result.get("items") or []
 
     def complete_task(self, skill_id: str, task_id: str) -> bool:
-        """完成任务"""
-        engine = TaskRecommendationEngine(skill_id)
-        return engine.complete_task(task_id)
+        """完成任务（经 MCP registry action_done——写路径过 MCP 门）"""
+        result = self._call_tool("action_done", {"action_id": task_id})
+        return bool(result.get("ok"))
 
     def get_insights(self, skill_id: str, include_read: bool = False) -> List[Any]:
         """获取洞察列表"""
@@ -144,12 +178,9 @@ class TuiDataAdapter:
             return []
 
     def get_growth_report(self, skill_id: str) -> str:
-        """获取成长洞察报告"""
-        try:
-            engine = GrowthInsightEngine(skill_id)
-            return engine.generate_insight_report()
-        except Exception:
-            return "数据不足，暂时无法生成报告"
+        """获取成长洞察报告（经 MCP registry growth_report）"""
+        result = self._call_tool_text("growth_report", {"skill_id": skill_id})
+        return result if result is not None else "数据不足，暂时无法生成报告"
 
     def get_growth_compare(self, skill_id: str) -> str:
         from ..systems.active.growth_analyzer import GrowthAnalyzer
@@ -256,13 +287,24 @@ class TuiDataAdapter:
         }
 
     def get_instant_feedback(self, skill_id: str) -> str:
-        from ..systems.active.instant_feedback import InstantFeedbackEngine
-        return InstantFeedbackEngine(skill_id).format_report()
+        """即时反馈报告（经 MCP registry instant_feedback，重建 format_report 版式）"""
+        result = self._call_tool("instant_feedback", {"skill_id": skill_id})
+        items = result.get("feedback") or []
+        lines = ["🎁 即时反馈与奖励 (7P)", "═" * 50, ""]
+        if not items:
+            lines.append("   暂无即时奖励信号，继续使用后会自动生成")
+            return "\n".join(lines)
+        for item in items:
+            lines.append(
+                f"   {item.get('icon', '')} [{item.get('type', '')}] {item.get('message', '')}")
+            if item.get("detail"):
+                lines.append(f"      {item['detail']}")
+        return "\n".join(lines)
 
     def get_instant_feedback_line(self, skill_id: str) -> str:
-        """一句话微反馈（无内容返回空串，适合卡片单行展示）"""
-        from ..systems.active.instant_feedback import InstantFeedbackEngine
-        return InstantFeedbackEngine(skill_id).generate_one_line()
+        """一句话微反馈（经 MCP registry instant_feedback；无内容返回空串）"""
+        result = self._call_tool("instant_feedback", {"skill_id": skill_id})
+        return result.get("one_line") or ""
 
     def get_custom_dimensions(self, skill_id: str) -> str:
         from ..systems.active.custom_dimensions import CustomDimensionManager
@@ -304,24 +346,31 @@ class TuiDataAdapter:
             return {"event_count": 0, "total_size_bytes": 0}
 
     def mark_insight_read(self, skill_id: str, insight_id: str) -> bool:
-        """标记洞察已读"""
-        engine = ProactiveInsightEngine(skill_id)
-        return engine.mark_as_read(insight_id)
+        """标记洞察已读（经 MCP registry insight_mark_read）"""
+        result = self._call_tool("insight_mark_read", {"id": insight_id})
+        return bool(result.get("ok"))
 
     def mark_all_insights_read(self, skill_id: str) -> int:
-        """标记所有洞察已读"""
+        """标记所有洞察已读（无 MCP 对应工具，保持引擎直连）"""
         engine = ProactiveInsightEngine(skill_id)
         return engine.mark_all_as_read()
 
     def complete_goal(self, skill_id: str, goal_id: str) -> bool:
-        """完成目标"""
-        engine = ActiveGoalEngine(skill_id)
-        return engine.complete_goal(goal_id)
+        """完成目标（经 MCP registry goal_update status=completed）"""
+        result = self._call_tool(
+            "goal_update", {"skill_id": skill_id, "goal_id": goal_id, "status": "completed"})
+        return bool(result.get("ok"))
 
     def create_goal(self, skill_id: str, dimension: str, target_score: int) -> Any:
-        """创建新目标"""
-        engine = ActiveGoalEngine(skill_id)
-        return engine.create_goal(dimension=dimension, target_score=target_score)
+        """创建新目标（经 MCP registry goal_set；失败沿用旧 ValueError 契约）"""
+        result = self._call_tool("goal_set", {
+            "skill_id": skill_id,
+            "dimension": dimension,
+            "target_score": target_score,
+        })
+        if result.get("success") and result.get("goal"):
+            return _Record(result["goal"])
+        raise ValueError(result.get("error") or f"创建目标失败: {result}")
 
     def get_cultivating_info(self, skill_id: str) -> Optional[Any]:
         """获取修炼体系信息"""
@@ -333,7 +382,11 @@ class TuiDataAdapter:
 
     def get_dashboard_summary(self) -> Dict[str, Any]:
         """
-        获取仪表盘今日摘要 (10C)
+        获取仪表盘今日摘要 (10C)（经 MCP registry dashboard_summary）
+
+        核心指标逻辑上移至 registry._dashboard_summary_core（引擎直连），
+        此处仅做 MCP 委托 + registry 不可达时的安全默认形状兜底
+        （pages/dashboard 按 key 直接索引，缺 key 会崩）。
 
         Returns:
             {
@@ -344,75 +397,22 @@ class TuiDataAdapter:
                 "running_session": 当前正在会话中,
                 "recent_tools": 最近工具列表,
                 "perception_alerts": 感知告警列表,
+                "event_count": 事件总数,
+                # 工具侧附加（GUI 消费）：
+                "installed_skills": 已安装技能数,
+                "today_sessions": 今日会话数,
             }
         """
-        import time
-        from pathlib import Path
-        from datetime import datetime
-
-        result: Dict[str, Any] = {
-            "today_usage": 0,
-            "active_skills": 0,
-            "avg_session_min": 0,
-            "today_insights": 0,
-            "running_session": False,
-            "recent_tools": [],
-            "perception_alerts": [],
-            "event_count": 0,
-        }
-
-        # 会话缓存
-        sf = Path.home() / ".zenskill" / "session" / "current.json"
-        if sf.exists():
-            try:
-                s = json.loads(sf.read_text(encoding="utf-8"))
-                tc = s.get("tool_count", 0)
-                started = s.get("started", 0)
-                tools = s.get("recent_tools", [])
-                elapsed = (time.time() - started) / 60 if started else 0
-                result["today_usage"] = tc
-                result["running_session"] = tc > 0
-                result["recent_tools"] = tools[-5:] if tools else []
-                result["avg_session_min"] = round(elapsed, 1) if elapsed else 0
-            except Exception:
-                pass
-
-        # pipeline 数据
-        pf = Path.home() / ".zenskill" / "mirroring" / "pipeline.json"
-        if pf.exists():
-            try:
-                p = json.loads(pf.read_text(encoding="utf-8"))
-                result["event_count"] = p.get("event_count", 0)
-                nlp = p.get("nlp", {})
-                if nlp.get("intents"):
-                    result["today_insights"] = sum(nlp["intents"].values())
-            except Exception:
-                pass
-
-        # 活跃技能
-        try:
-            skills = self.list_skills()
-            result["active_skills"] = len(skills)
-        except Exception:
-            pass
-
-        # 感知告警
-        try:
-            from ..perception_engine import PerceptionEngine
-            engine = PerceptionEngine()
-            lt = time.localtime(time.time())
-            ctx = {
-                "tool_count": result["today_usage"],
-                "elapsed_min": result["avg_session_min"],
-                "recent_tools": result["recent_tools"],
-                "current_hour": lt.tm_hour,
-                "current_minute": lt.tm_min,
-                "last_command": "",
-                "error_rate": 0.0,
+        result = self._call_tool("dashboard_summary", {})
+        if "error" in result:
+            return {
+                "today_usage": 0,
+                "active_skills": 0,
+                "avg_session_min": 0,
+                "today_insights": 0,
+                "running_session": False,
+                "recent_tools": [],
+                "perception_alerts": [],
+                "event_count": 0,
             }
-            p = engine.evaluate(ctx)
-            result["perception_alerts"] = p.get("alerts", [])
-        except Exception:
-            pass
-
         return result

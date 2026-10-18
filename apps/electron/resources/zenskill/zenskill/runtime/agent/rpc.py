@@ -169,9 +169,13 @@ class AgentServer:
         max_total_tokens: Optional[int] = None,
         with_memory: bool = False,
         with_skills: bool = True,
+        tool_confirm: Optional[Callable] = None,
     ) -> None:
         self.model = model
         self.stream_fn = stream_fn
+        # restricted 模式写/执行类工具的行内确认回调（PermissionGate.confirm，
+        # M4-6 预留落点：CLI input / TUI 卡片 / GUI 事件弹窗各自注入）
+        self.tool_confirm = tool_confirm
         self.session_manager = SessionManager(root=session_root, stateless=stateless)
         self.permission = permission
         self.cwd = cwd or "."
@@ -317,6 +321,8 @@ class AgentServer:
 
         # PermissionGate 与 capability before_tool_call 合并
         perm_gate = PermissionGate(self.permission, cwd=self.cwd) if self.permission != "full" else None
+        if perm_gate is not None and self.tool_confirm is not None:
+            perm_gate.confirm = self.tool_confirm
         cap_before = cap_hooks.get("before_tool_call")
         def merged_before_tool(tc, params):
             if perm_gate is not None:
@@ -661,6 +667,17 @@ class AgentServer:
             })
             return
         session = self._ensure_session()
+        # C5: prompt 组装留痕 —— replayed 即模型本轮可见的回放消息数，
+        # 续接是否成功/历史是否完整以该值为准（--debug 可见）
+        if logger.isEnabledFor(logging.DEBUG):
+            try:
+                _built = session.build_context()
+                logger.debug(
+                    "prompt assemble: sid=%s entries=%d replayed=%d",
+                    session.id, len(session.entries), len(_built["messages"]),
+                )
+            except Exception:
+                pass
         # 记忆桥接：宿主/GUI 用户输入进 mirroring 生态（模式无关）
         if self._event_collector is not None:
             try:
@@ -707,6 +724,16 @@ class AgentServer:
             from .delegate_tool import DelegateTool
             if self.stream_fn and self.model:
                 tools.append(DelegateTool(
+                    self.stream_fn, self.model, cwd=self.cwd,
+                    system_prompt=self._host_system_prompt or DEFAULT_SYSTEM_PROMPT,
+                ))
+        except Exception:
+            pass
+        # multi_agent_execute（MU2 编排激活）：复杂任务分解→角色视角子 agent
+        try:
+            from .multi_agent_tool import MultiAgentExecuteTool
+            if self.stream_fn and self.model:
+                tools.append(MultiAgentExecuteTool(
                     self.stream_fn, self.model, cwd=self.cwd,
                     system_prompt=self._host_system_prompt or DEFAULT_SYSTEM_PROMPT,
                 ))
@@ -1102,6 +1129,16 @@ def _stdout_write(line: Optional[str]) -> None:
 def serve_main(args: Any) -> int:
     """`zenskill agent-engine serve` 入口"""
     import asyncio as _asyncio
+
+    # C5: --debug 取证链 —— DEBUG 日志走 stderr（stdout 是 RPC 协议通道，
+    # 不可污染；宿主 zenskill-agent.ts 会把 stderr 转发到 --debug 控制台）
+    if getattr(args, "debug", False):
+        import logging as _logging
+        import sys as _sys
+        _logging.basicConfig(
+            level=_logging.DEBUG, stream=_sys.stderr,
+            format="%(asctime)s %(name)s %(levelname)s %(message)s",
+        )
 
     faux = bool(getattr(args, "faux", False))
     if faux:

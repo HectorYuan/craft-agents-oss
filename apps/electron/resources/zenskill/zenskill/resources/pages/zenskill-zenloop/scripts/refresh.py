@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""ZenSkill ZenLoop 循环 Pages 刷新脚本（craft Pages python3 runtime）。
+"""ZenSkill ZenLoop 循环 Pages 刷新脚本（Pages python3 runtime）。
 
 由宿主 cron（page.json refresh spec，每小时第 15 分）调度执行：
 - 通过 ZenSkill 只读工具收集孵化池数据（zenloop_status / incubating_list /

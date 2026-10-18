@@ -20,6 +20,7 @@ def register_agent_engine_parser(subparsers) -> None:
     serve_p.add_argument("--cwd", help="工作目录（默认当前目录）")
     serve_p.add_argument("--session-root", help="会话存储根目录（默认 ~/.zenskill/agent/sessions）")
     serve_p.add_argument("--stateless", action="store_true", help="无状态模式（不做会话持久化，由宿主管理）")
+    serve_p.add_argument("--debug", action="store_true", help="DEBUG 日志到 stderr（prompt 组装/续接回放取证）")
     serve_p.set_defaults(
         agent_command="serve",
         func=lambda args: __import__(

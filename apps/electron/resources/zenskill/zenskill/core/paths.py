@@ -140,9 +140,22 @@ def safe_child_path(base: Path, *parts: str) -> Path:
 # Profile 激活状态管理
 # ============================================================
 
+def get_config_dir() -> Path:
+    """获取配置/数据根目录。
+
+    优先级：环境变量 ZENSKILL_CONFIG_DIR → CRAFT_CONFIG_DIR → 默认 ~/.zenskill。
+    D8 数据合并后 CLI 与桌面端共用 ~/.zenskill 单一数据根，常规场景无需设
+    置任何环境变量；这两个别名仅用于多实例开发与测试时的目录隔离覆盖。
+    """
+    env_dir = os.environ.get("ZENSKILL_CONFIG_DIR") or os.environ.get("CRAFT_CONFIG_DIR")
+    if env_dir:
+        return Path(env_dir).expanduser()
+    return Path.home() / ".zenskill"
+
+
 def _get_zenskill_root() -> Path:
-    """获取 ~/.zenskill/ 根目录"""
-    root = Path.home() / ".zenskill"
+    """获取 ~/.zenskill/ 根目录（可被 ZENSKILL_CONFIG_DIR/CRAFT_CONFIG_DIR 覆盖）"""
+    root = get_config_dir()
     root.mkdir(parents=True, exist_ok=True)
     return root
 

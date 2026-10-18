@@ -1,4 +1,4 @@
-"""pages 命令组 — `zenskill pages sync` 播种 craft Pages 页面包
+"""pages 命令组 — `zenskill pages sync` 播种 Pages 页面包
 
 把 zenskill/resources/pages/ 下的 zenskill- 前缀页面播种到活跃
 workspace 的 pages/ 目录（幂等；用户自建页面不触碰）。
@@ -23,7 +23,7 @@ def cmd_pages_sync(args: argparse.Namespace) -> int:
         workspace = resolve_active_workspace_root()
     if workspace is None:
         print("未找到活跃 workspace：请用 --workspace 显式指定，"
-              "或检查 ~/.zenskill/craft/config.json 的 activeWorkspaceId")
+              "或检查 ~/.zenskill/desktop/config.json 的 activeWorkspaceId")
         return 1
 
     result = sync_pages(workspace)
@@ -51,7 +51,7 @@ def cmd_pages_sync(args: argparse.Namespace) -> int:
 
 def register_pages_parser(subparsers: Any) -> None:
     """注册 pages 命令组（由 __main__.main 调用）"""
-    pages_parser = subparsers.add_parser("pages", help="craft Pages 页面包管理")
+    pages_parser = subparsers.add_parser("pages", help="Pages 页面包管理")
     pages_sub = pages_parser.add_subparsers(dest="subcommand", help="Pages 操作")
     sync_p = pages_sub.add_parser(
         "sync",
@@ -59,7 +59,7 @@ def register_pages_parser(subparsers: Any) -> None:
     )
     sync_p.add_argument(
         "--workspace", default="",
-        help="workspace 根目录（默认取 ~/.zenskill/craft/config.json 活跃 workspace）",
+        help="workspace 根目录（默认取 ~/.zenskill/desktop/config.json 活跃 workspace）",
     )
     sync_p.add_argument(
         "--json", action="store_true",
