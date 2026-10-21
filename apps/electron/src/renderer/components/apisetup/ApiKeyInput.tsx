@@ -108,6 +108,13 @@ const ANTHROPIC_PRESETS: Preset[] = [
   { key: 'groq', label: 'Groq', url: 'https://api.groq.com/openai/v1', placeholder: 'gsk_...' },
   { key: 'mistral', label: 'Mistral', url: 'https://api.mistral.ai/v1', placeholder: 'Paste your key here...' },
   { key: 'deepseek', label: 'DeepSeek', url: 'https://api.deepseek.com', placeholder: 'sk-...' },
+  // 国产厂商补齐（2026-10-22）：qwen / volc / mimo / glm 官方端点此前**完全缺失**
+  // （GUI 里选不到），引擎侧早已支持（_REGISTRY 15 provider）。
+  // 端点与 specs/providers.yaml 真相源一致；preset key = 引擎 provider 名。
+  { key: 'qwen', label: '通义千问 (Qwen)', url: 'https://dashscope.aliyuncs.com/compatible-mode/v1', placeholder: 'sk-...' },
+  { key: 'volc', label: '火山引擎 (豆包)', url: 'https://ark.cn-beijing.volces.com/api/v3', placeholder: 'sk-...' },
+  { key: 'mimo', label: 'MiMo (小米)', url: 'https://api.xiaomimimo.com/v1', placeholder: 'sk-...' },
+  { key: 'glm', label: '智谱 GLM（官方）', url: 'https://open.bigmodel.cn/api/paas/v4', placeholder: 'sk-...' },
   { key: 'xai', label: 'xAI (Grok)', url: 'https://api.x.ai/v1', placeholder: 'xai-...' },
   { key: 'cerebras', label: 'Cerebras', url: 'https://api.cerebras.ai/v1', placeholder: 'csk-...' },
   { key: 'zai', label: 'z.ai (GLM)', url: 'https://api.z.ai/api/coding/paas/v4', placeholder: 'Paste your key here...' },
