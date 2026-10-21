@@ -79,8 +79,7 @@ export function parseTestConnectionError(msg: string, context?: ConnectionTestEr
     (lower.includes('400') || lower.includes('404')) &&
     (lower.includes('model') || lower.includes('not have model'))
   ) {
-    const parts: string[] = ['Model not found']
-    if (context?.model) parts.push(`: ${context.model}`)
+    const parts: string[] = [context?.model ? `Model not found: ${context.model}` : 'Model not found']
     const status = _statusOf(msg)
     if (status) parts.push(`(HTTP ${status})`)
     const host = _endpointHost(context?.baseUrl)
