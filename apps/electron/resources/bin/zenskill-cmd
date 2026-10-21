@@ -6,5 +6,9 @@
 export UV_PROJECT_ENVIRONMENT="${UV_PROJECT_ENVIRONMENT:-$HOME/.zenskill/electron-venv}"
 # 内置 CPython（离线首跑，无需从 GitHub 下载 Python）
 export UV_PYTHON_INSTALL_DIR="${CRAFT_ZENSKILL}/python"
+# 不写 .pyc：内置 CPython 位于**已签名**的 app bundle 内，运行时写 __pycache__
+# 会改动 sealed resource ⇒ codesign 校验失败（macOS 拒绝启动）。
+# 2026-10-22 实测：一次运行即产生 234 个 .pyc，签名随即失效。
+export PYTHONDONTWRITEBYTECODE=1
 cd "$CRAFT_ZENSKILL" || exit 1
 exec "$CRAFT_UV" run --python 3.12 --project "$CRAFT_ZENSKILL" python -m zenskill "$@"
