@@ -19,9 +19,52 @@ import {
 // ============================================================
 
 /**
- * Parse an error message from a connection test into a user-friendly string.
+ * 探活失败的上下文（用于把「真实原因」还原出来）。
+ *
+ * 2026-10-22 用户报障：探活失败一律显示 "Invalid API key"，但实测 MiniMax 的
+ * 失败有两类完全不同的原因，混成一句话 ⇒ 用户换 key / 改端点都无效：
+ *   • HTTP 401  invalid api key (2049)          ← key 无效**或**端点区域不对
+ *   • HTTP 400  unknown model 'minimax-m3.0'    ← 型号 id 线上不存在
  */
-export function parseTestConnectionError(msg: string): string {
+export interface ConnectionTestErrorContext {
+  /** 本次探活实际使用的端点（用于把 host 写进错误信息） */
+  baseUrl?: string
+  /** 本次探活实际使用的型号（用于把型号写进错误信息） */
+  model?: string
+}
+
+/** 取端点 host（用于告诉用户「打的是哪台」） */
+function _endpointHost(baseUrl?: string): string | undefined {
+  if (!baseUrl?.trim()) return undefined
+  try {
+    return new URL(baseUrl.trim()).host
+  } catch {
+    return undefined
+  }
+}
+
+/** 取厂商错误体里最能说明问题的一句原文 */
+function _serverDetail(msg: string): string | undefined {
+  const quoted = msg.match(/"message"\s*:\s*"([^"]+)"/)
+  if (quoted?.[1]) return quoted[1]
+  const single = msg.match(/'([^']*(?:model|key)[^']*)'/i)
+  if (single?.[1]) return single[1]
+  return undefined
+}
+
+/** 取 HTTP 状态码 */
+function _statusOf(msg: string): number | undefined {
+  const m = msg.match(/\b(4\d\d|5\d\d)\b/)
+  return m ? Number(m[1]) : undefined
+}
+
+/**
+ * Parse an error message from a connection test into a user-friendly string.
+ *
+ * 保真原则（2026-10-22）：**不把不同原因压成同一句话**。
+ * 错误信息里必须能看到 ① HTTP 状态 ② 实际端点 host ③ 厂商原文。
+ */
+export function parseTestConnectionError(msg: string, context?: ConnectionTestErrorContext): string {
   const lower = msg.toLowerCase()
 
   if (lower.includes('econnrefused') || lower.includes('enotfound') || lower.includes('fetch failed')) {
@@ -30,11 +73,35 @@ export function parseTestConnectionError(msg: string): string {
   if (lower.includes('no api key found for')) {
     return 'Provider mismatch during setup. Select a provider preset in ZenSkill Backend API Key mode, or use Anthropic API Key mode for arbitrary compatible endpoints.'
   }
-  if (lower.includes('401') || lower.includes('unauthorized') || lower.includes('authentication')) {
-    return 'Invalid API key'
+  // 型号错（400/404 + model）先于认证错判：厂商错误体里常常同时出现 model 字样，
+  // 但根因是型号 id 不存在，换 key 毫无意义。
+  if (
+    (lower.includes('400') || lower.includes('404')) &&
+    (lower.includes('model') || lower.includes('not have model'))
+  ) {
+    const parts: string[] = ['Model not found']
+    if (context?.model) parts.push(`: ${context.model}`)
+    const status = _statusOf(msg)
+    if (status) parts.push(`(HTTP ${status})`)
+    const host = _endpointHost(context?.baseUrl)
+    if (host) parts.push(`· endpoint: ${host}`)
+    const detail = _serverDetail(msg)
+    if (detail) parts.push(`· server: ${detail}`)
+    parts.push('· Refresh the model list from the provider instead of typing a model id by hand.')
+    return parts.join(' ')
   }
-  if (lower.includes('404') && lower.includes('model')) {
-    return 'Model not found. Check the model name and try again.'
+  if (lower.includes('401') || lower.includes('unauthorized') || lower.includes('authentication')) {
+    const parts: string[] = ['Invalid API key']
+    const status = _statusOf(msg)
+    if (status) parts.push(`(HTTP ${status})`)
+    const host = _endpointHost(context?.baseUrl)
+    if (host) {
+      parts.push(`· endpoint: ${host}`)
+      parts.push('· API keys are region-bound for many providers — check that this endpoint matches the key’s region.')
+    }
+    const detail = _serverDetail(msg)
+    if (detail) parts.push(`· server: ${detail}`)
+    return parts.join(' ')
   }
   if (lower.includes('404')) {
     return 'API endpoint not found. Check the URL.'

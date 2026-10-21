@@ -359,7 +359,11 @@ export function registerLlmConnectionsHandlers(server: RpcServer, deps: HandlerD
       if (!result.success) {
         deps.platform.logger?.info(`[testLlmConnectionSetup] Elapsed: ${elapsed}ms, success=false`)
         deps.platform.logger?.info(`[testLlmConnectionSetup] Raw error: ${(result.error || '').slice(0, 1000)}`)
-        return { success: false, error: parseTestConnectionError(result.error || 'Unknown error') }
+        return {
+          success: false,
+          // 带上下文（端点 + 型号）⇒ 错误信息里能看到「打的是哪台、用的是哪个型号」
+          error: parseTestConnectionError(result.error || 'Unknown error', { baseUrl, model: testModel }),
+        }
       }
       deps.platform.logger?.info(`[testLlmConnectionSetup] Elapsed: ${elapsed}ms, success=true`)
       return { success: true }
@@ -367,7 +371,10 @@ export function registerLlmConnectionsHandlers(server: RpcServer, deps: HandlerD
       const elapsed = Date.now() - startedAt
       const msg = error instanceof Error ? error.message : String(error)
       deps.platform.logger?.info(`[testLlmConnectionSetup] Elapsed: ${elapsed}ms, threw: ${msg.slice(0, 1000)}`)
-      return { success: false, error: parseTestConnectionError(msg) }
+      return {
+        success: false,
+        error: parseTestConnectionError(msg, { baseUrl, model: testModel }),
+      }
     }
   })
 

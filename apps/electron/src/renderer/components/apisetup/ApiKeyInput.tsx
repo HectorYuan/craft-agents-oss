@@ -165,7 +165,13 @@ const GOOGLE_PRESETS: Preset[] = [
 
 const COMPAT_ANTHROPIC_DEFAULTS = 'claude-opus-4-8, claude-opus-4-7, claude-sonnet-4-6, claude-haiku-4-5'
 const COMPAT_OPENAI_DEFAULTS = 'openai/gpt-5.2-codex, openai/gpt-5.1-codex-mini'
-const COMPAT_MINIMAX_DEFAULTS = 'MiniMax-M2.5, MiniMax-M2.5-highspeed'
+// MiniMax 型号表（2026-10-22 用真实 key 拉线上 GET /v1/models 实测校正）：
+// 线上共 9 个型号 —— M3 / M3.1-Flash / M2.7 / M2.7-highspeed / M2.5 /
+// M2.5-highspeed / M2.1 / M2.1-highspeed / M2。
+// 此处只列**当代主力**（不含已被代际取代的 M2 / M2.1 系列）。
+// 旧表只有 'MiniMax-M2.5, MiniMax-M2.5-highspeed' ⇒ GUI 从不提供 M3 / M3.1-Flash，
+// 用户只能手写型号名（线上并不存在 "MiniMax-M3.0"）⇒ 探活必失败。
+const COMPAT_MINIMAX_DEFAULTS = 'MiniMax-M3, MiniMax-M3.1-Flash, MiniMax-M2.7, MiniMax-M2.7-highspeed, MiniMax-M2.5, MiniMax-M2.5-highspeed'
 const COMPAT_KIMI_DEFAULTS = 'k3, kimi-for-coding, kimi-for-coding-highspeed'
 // DeepSeek preset suggestion — bare ID the ZenSkill engine resolves via its
 // PREDEFINED_MODELS catalog (users can still edit it).

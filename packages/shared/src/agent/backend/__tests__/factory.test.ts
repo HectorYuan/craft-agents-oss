@@ -188,6 +188,17 @@ describe('phase4 backend abstraction APIs', () => {
       .toEqual({ providerType: 'zenskill' });
   });
 
+  // 2026-10-22：此前 piAuthProvider / customEndpoint 被整个丢弃 ⇒ 探活不知道
+  // key 属于哪个厂商，「区域/协议错配」这类真实原因无法识别，只能显示成
+  // "Invalid API key"。现在保留 ⇒ 探活与真实连接用同一套 provider 语义。
+  it('resolveSetupTestConnectionHint keeps piAuthProvider', () => {
+    expect(resolveSetupTestConnectionHint({
+      provider: 'zenskill' as any,
+      baseUrl: 'https://api.minimaxi.com/v1',
+      piAuthProvider: 'minimax-cn',
+    })).toEqual({ providerType: 'zenskill', piAuthProvider: 'minimax-cn' });
+  });
+
   it('validateStoredBackendConnection returns not found for unknown slug', async () => {
     const result = await validateStoredBackendConnection({
       slug: '__missing-connection__',

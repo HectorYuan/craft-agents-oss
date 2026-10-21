@@ -455,7 +455,10 @@ export function useOnboarding({
         provider: setupTestProvider,
         apiKey: data.apiKey,
         baseUrl: data.baseUrl,
-        model: data.models?.[0],
+        // 探活型号 = 用户**显式选定**的默认型号（探活必须与真实对话同口径）；
+        // 没有默认型号时才退回列表首项（models[0] 是用户手写的第一个，
+        // 2026-10-22 用户报障即源于此：手写 "MiniMax-M3.0" 线上并不存在）。
+        model: data.connectionDefaultModel || data.models?.[0],
         piAuthProvider: data.piAuthProvider,
         customEndpoint: data.customEndpoint,
       })

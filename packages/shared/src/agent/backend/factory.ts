@@ -377,8 +377,15 @@ export function resolveSetupTestConnectionHint(args: {
 }): Pick<LlmConnection, 'providerType' | 'piAuthProvider' | 'customEndpoint'> {
   // All providers are served by the zenskill engine in this distribution —
   // setup-time connection tests always route through the zenskill backend.
+  //
+  // 2026-10-22：保留 piAuthProvider / customEndpoint（此前被整个丢弃）。
+  // 丢弃它们 ⇒ 探活只知道「一个裸端点 + 一个 key」，不知道这个 key 属于哪个厂商，
+  // 于是「区域不匹配 / 协议不匹配」这类真实原因无法被识别，只能显示成
+  // "Invalid API key"。保留后，探活与真实连接用**同一套 provider 语义**。
   return {
     providerType: 'zenskill',
+    ...(args.piAuthProvider ? { piAuthProvider: args.piAuthProvider } : {}),
+    ...(args.customEndpoint ? { customEndpoint: args.customEndpoint } : {}),
   };
 }
 

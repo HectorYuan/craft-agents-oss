@@ -170,15 +170,47 @@ describe('parseTestConnectionError', () => {
 
   it('maps 401 to invalid API key', () => {
     const result = parseTestConnectionError('Request failed with status 401')
-    expect(result).toBe('Invalid API key')
+    expect(result).toContain('Invalid API key')
+    expect(result).toContain('401')
   })
 
   it('maps unauthorized to invalid API key', () => {
     const result = parseTestConnectionError('Unauthorized access')
-    expect(result).toBe('Invalid API key')
+    expect(result).toContain('Invalid API key')
   })
 
-  it('maps 404+model to model message', () => {
+  // 2026-10-22 用户报障：401 一律显示 "Invalid API key"，把「key 无效」与
+  // 「端点区域不对」抹成同一句 ⇒ 换 key / 改端点都无效。
+  // 保真要求：错误里必须能看到**实际端点**与**厂商原文**。
+  it('401 keeps the actual endpoint and the server message', () => {
+    const raw = 'HTTP 401: {"type":"error","error":{"type":"authorized_error","message":"invalid api key (2049)"}}'
+    const result = parseTestConnectionError(raw, {
+      baseUrl: 'https://api.minimax.io/v1',
+      model: 'MiniMax-M3',
+    })
+    expect(result).toContain('Invalid API key')
+    expect(result).toContain('HTTP 401')
+    expect(result).toContain('api.minimax.io')
+    expect(result).toContain('invalid api key (2049)')
+  })
+
+  // 认证错(401) 与 型号错(400) 是两类错误，必须分开呈现：
+  // 线上并不存在 "MiniMax-M3.0" ⇒ 厂商回 400 unknown model，换 key 毫无意义。
+  it('400 unknown model is reported as a model problem, not an auth problem', () => {
+    const raw = 'HTTP 400: {"type":"error","error":{"type":"bad_request_error","message":"invalid params, unknown model \'minimax-m3.0\' (2013)"}}'
+    const result = parseTestConnectionError(raw, {
+      baseUrl: 'https://api.minimaxi.com/v1',
+      model: 'MiniMax-M3.0',
+    })
+    expect(result).toContain('Model not found')
+    expect(result).toContain('MiniMax-M3.0')
+    expect(result).toContain('HTTP 400')
+    expect(result).toContain('api.minimaxi.com')
+    expect(result).toContain('unknown model')
+    expect(result).not.toContain('Invalid API key')
+  })
+
+  it('404+model still maps to a model message', () => {
     const result = parseTestConnectionError('404: model not found')
     expect(result).toContain('Model not found')
   })
