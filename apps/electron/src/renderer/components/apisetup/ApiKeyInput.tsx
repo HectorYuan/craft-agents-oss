@@ -112,8 +112,16 @@ const ANTHROPIC_PRESETS: Preset[] = [
   { key: 'cerebras', label: 'Cerebras', url: 'https://api.cerebras.ai/v1', placeholder: 'csk-...' },
   { key: 'zai', label: 'z.ai (GLM)', url: 'https://api.z.ai/api/coding/paas/v4', placeholder: 'Paste your key here...' },
   { key: 'huggingface', label: 'Hugging Face', url: 'https://router.huggingface.co/v1', placeholder: 'hf_...' },
-  { key: 'minimax-global', label: 'Minimax Global', url: 'https://api.minimax.io/anthropic', placeholder: 'Paste your key here...', piOnly: true },
-  { key: 'minimax-cn', label: 'Minimax CN', url: 'https://api.minimaxi.com/anthropic', placeholder: 'Paste your key here...', piOnly: true },
+  // MiniMax 端点必须用 OpenAI 兼容 base（/v1），不是 Anthropic 兼容 base（/anthropic）。
+  // 引擎侧 minimax/minimax-cn 注册为 openai-completions 协议，会在 base 后拼
+  // "/chat/completions"——若 base 带 /anthropic，最终打到
+  // https://api.minimax.io/anthropic/chat/completions，该路由不存在 → 探活 404
+  // （GUI 显示 "API endpoint not found. Check the URL."）。
+  // Anthropic 兼容 base（/anthropic → /v1/messages）只在引擎按 anthropic-messages
+  // 协议解析时可用；引擎注册表把这两个 provider 锁在 openai-completions 上。
+  // 端点语义：api.minimax.io = 国际站，api.minimaxi.com = 国内站（key 不可跨区）。
+  { key: 'minimax-global', label: 'Minimax Global', url: 'https://api.minimax.io/v1', placeholder: 'Paste your key here...', piOnly: true },
+  { key: 'minimax-cn', label: 'Minimax CN', url: 'https://api.minimaxi.com/v1', placeholder: 'Paste your key here...', piOnly: true },
   { key: 'kimi-coding', label: 'Kimi (Coding)', url: 'https://api.kimi.com/coding', placeholder: 'sk-kimi-...' },
   { key: 'moonshotai', label: 'Moonshot AI', url: 'https://api.moonshot.ai/v1', placeholder: 'sk-...', piOnly: true },
   { key: 'moonshotai-cn', label: 'Moonshot AI (CN)', url: 'https://api.moonshot.cn/v1', placeholder: 'sk-...', piOnly: true },
