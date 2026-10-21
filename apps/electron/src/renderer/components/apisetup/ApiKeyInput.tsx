@@ -10,11 +10,12 @@
  * Used in: Onboarding CredentialsStep, Settings API dialog
  */
 
-import { useState, useEffect, useCallback, useRef } from "react"
+import { useState, useEffect, useCallback, useMemo, useRef } from "react"
 import { useTranslation } from "react-i18next"
 import { Command as CommandPrimitive } from "cmdk"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -245,6 +246,10 @@ export function ApiKeyInput({
   const [defaultModel, setDefaultModel] = useState('')
   const [cheapModel, setCheapModel] = useState('')
   const [openTier, setOpenTier] = useState<string | null>(null)
+  // 厂商**线上**型号清单（2026-10-22）：pi SDK 内置目录会过期
+  // （minimax 只到 MiniMax-M2.5 ⇒ 用户手写 "MiniMax-M3.0"，线上并不存在）。
+  const [onlineModels, setOnlineModels] = useState<string[]>([])
+  const [fetchingOnlineModels, setFetchingOnlineModels] = useState(false)
   const [tierFilter, setTierFilter] = useState('')
   const [tierDropdownPosition, setTierDropdownPosition] = useState<{ top: number; left: number; width: number } | null>(null)
   const tierFilterInputRef = useRef<HTMLInputElement>(null)
@@ -298,6 +303,87 @@ export function ApiKeyInput({
 
   // Whether to show 3 tier dropdowns instead of text input
   const hasPiModels = isPiApiKeyFlow && piModels.length > 0 && !isDefaultProviderPreset && activePreset !== 'custom' && !isBedrock
+
+  // 端点协议：决定拉哪个型号清单 URL（openai → {base}/models；anthropic → {base}/v1/models）
+  const endpointProtocol: 'openai-completions' | 'anthropic-messages' =
+    customApi === 'anthropic-messages' ? 'anthropic-messages' : 'openai-completions'
+
+  /**
+   * 拉取厂商线上型号清单（真实 HTTP）。
+   * 失败**不阻断**配置——目录拉不到时仍可手填型号；成功时用于：
+   *   ① 校验用户填的型号是否线上真实存在（填表即预检）
+   *   ② 用线上目录补齐 pi SDK 的过期目录（让 M3 / M3.1-Flash 直接可选）
+   */
+  const fetchOnlineModels = useCallback(async (): Promise<string[]> => {
+    const base = baseUrl.trim()
+    const key = apiKey.trim()
+    if (!base) {
+      setModelError('请先选择预设或填写端点地址')
+      return []
+    }
+    if (!key) {
+      setModelError('请先填写 API Key（拉取线上型号需要它）')
+      return []
+    }
+    setFetchingOnlineModels(true)
+    try {
+      const result = await window.electronAPI.fetchLlmModels({
+        provider: providerType === 'anthropic' ? 'anthropic' : 'zenskill',
+        apiKey: key,
+        baseUrl: base,
+        protocol: endpointProtocol,
+      })
+      if (!result.success) {
+        setOnlineModels([])
+        setModelError(result.error || '拉取线上型号失败')
+        return []
+      }
+      const models = result.models ?? []
+      setOnlineModels(models)
+      return models
+    } catch (err) {
+      console.error('[ApiKeyInput] Failed to fetch online models', err)
+      setOnlineModels([])
+      setModelError('拉取线上型号失败')
+      return []
+    } finally {
+      setFetchingOnlineModels(false)
+    }
+  }, [apiKey, baseUrl, providerType, endpointProtocol])
+
+  /** 校验填写的型号是否在厂商线上目录中（目录未知时不阻断） */
+  const validateModelsAgainstOnline = useCallback((models: string[]): boolean => {
+    if (models.length === 0) return true
+    const typed = parseModelList(connectionDefaultModel)
+    if (typed.length === 0) return true
+    // Anthropic 兼容路由会把未知型号静默归一化（实测 M3.0 → 200 且实际跑 M3.1-Flash）
+    // ⇒ 只有 openai 兼容协议才把「不在目录」当错误。
+    if (endpointProtocol === 'anthropic-messages') return true
+    const missing = typed.filter((m) => !models.includes(m))
+    if (missing.length > 0) {
+      setModelError(
+        `型号 ${missing.join(', ')} 不在厂商线上目录中。可用：${models.slice(0, 8).join(', ')}${models.length > 8 ? ' …' : ''}`
+      )
+      return false
+    }
+    setModelError(null)
+    return true
+  }, [connectionDefaultModel, endpointProtocol])
+
+  /** tier 下拉列表 = 线上目录优先（补齐 pi SDK 的过期目录）+ pi SDK 目录 */
+  const tierModelOptions = useMemo<PiModelInfo[]>(() => {
+    if (onlineModels.length === 0) return piModels
+    const onlineItems: PiModelInfo[] = onlineModels.map((id) => ({
+      id: id.startsWith('pi/') ? id : `pi/${id}`,
+      name: id,
+      costInput: 0,
+      costOutput: 0,
+      contextWindow: 0,
+      reasoning: false,
+    }))
+    const known = new Set(onlineItems.map((m) => m.id))
+    return [...onlineItems, ...piModels.filter((m) => !known.has(m.id))]
+  }, [onlineModels, piModels])
 
   const handlePresetSelect = (preset: Preset) => {
     setActivePreset(preset.key)
@@ -375,6 +461,16 @@ export function ApiKeyInput({
         return
       }
       const models: string[] = [bestModel, defaultModel, cheapModel]
+      // 填表即预检：已拉到线上目录时，型号不在目录就别提交（省掉一次必然失败的探活）
+      if (onlineModels.length > 0) {
+        const missing = models.filter((m) => !onlineModels.includes(m.replace(/^pi\//, '')))
+        if (missing.length > 0 && endpointProtocol !== 'anthropic-messages') {
+          setModelError(
+            `型号 ${missing.join(', ')} 不在厂商线上目录中。可用：${onlineModels.slice(0, 8).join(', ')}${onlineModels.length > 8 ? ' …' : ''}`
+          )
+          return
+        }
+      }
       onSubmit({
         apiKey: apiKey.trim(),
         baseUrl: baseUrl.trim() || undefined,
@@ -398,6 +494,11 @@ export function ApiKeyInput({
         return
       }
       const parsedModels = parseModelList(connectionDefaultModel)
+
+    // 填表即预检（与 pi 流程同一条规则）
+    if (onlineModels.length > 0 && !validateModelsAgainstOnline(onlineModels)) {
+      return
+    }
       onSubmit({
         apiKey: '',
         piAuthProvider: effectivePiAuthProvider,
@@ -703,6 +804,35 @@ export function ApiKeyInput({
       )}
 
       {/* Model Selection — 3 tier dropdowns for Pi providers, text input for custom/compat */}
+      {/* 拉取厂商线上型号（2026-10-22）：pi SDK 内置目录会过期
+          （minimax 只到 MiniMax-M2.5 ⇒ 用户手写 "MiniMax-M3.0"，线上并不存在） */}
+      <div className="flex items-center gap-2">
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="h-7 px-2 text-xs text-foreground/70"
+          disabled={isDisabled || fetchingOnlineModels}
+          onClick={async () => {
+            const models = await fetchOnlineModels()
+            if (models.length === 0) return
+            const typed = parseModelList(connectionDefaultModel)
+            if (typed.length === 0) {
+              setConnectionDefaultModel(models[0])
+              setModelError(null)
+            } else {
+              validateModelsAgainstOnline(models)
+            }
+          }}
+        >
+          {fetchingOnlineModels ? <Loader2 className="size-3 animate-spin" /> : null}
+          拉取线上型号
+        </Button>
+        {onlineModels.length > 0 && (
+          <span className="text-xs text-foreground/40">线上 {onlineModels.length} 个型号</span>
+        )}
+      </div>
+
       {hasPiModels ? (
         <div className="space-y-3">
           {piModelsLoading ? (
@@ -741,7 +871,7 @@ export function ApiKeyInput({
                     )}
                   >
                     <span className="truncate text-foreground">
-                      {piModels.find(m => m.id === value)?.name ?? 'Select model...'}
+                      {tierModelOptions.find(m => m.id === value)?.name ?? 'Select model...'}
                     </span>
                     <ChevronDown className="size-3 opacity-50 shrink-0" />
                   </button>
@@ -776,7 +906,7 @@ export function ApiKeyInput({
                         />
                       </div>
                       <CommandPrimitive.List className="max-h-[240px] overflow-y-auto p-1">
-                        {piModels
+                        {tierModelOptions
                           .filter(m => m.name.toLowerCase().includes(tierFilter.toLowerCase()))
                           .map((model) => (
                             <CommandPrimitive.Item

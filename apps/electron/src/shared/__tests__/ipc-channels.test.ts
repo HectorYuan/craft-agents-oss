@@ -270,6 +270,7 @@ const EXPECTED_CHANNELS: string[] = [
   'sessions:unreadSummaryChanged',
   'sessions:unwatchFiles',
   'sessions:watchFiles',
+  'settings:fetchLlmModels',
   'settings:getDefaultThinkingLevel',
   'settings:getNetworkProxy',
   'settings:getServerConfig',

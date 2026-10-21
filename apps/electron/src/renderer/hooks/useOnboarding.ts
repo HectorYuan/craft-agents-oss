@@ -451,6 +451,39 @@ export function useOnboarding({
 
       // Validate connection via the zenskill backend (only shipped backend).
       const setupTestProvider = 'zenskill'
+      // ── 填表即预检（2026-10-22）────────────────────────────────
+      // 先向厂商拉一次线上型号目录：
+      //   · 目录拉不到 → 不阻断（探活仍然给出保真后的错误信息）
+      //   · 型号不在目录 → 直接告诉用户「这个 id 线上不存在」，
+      //     而不是让它撞一次 400 unknown model 再被压成 "Invalid API key"。
+      const probeModel = data.connectionDefaultModel || data.models?.[0]
+      if (probeModel && data.baseUrl && data.apiKey?.trim()) {
+        const catalogProtocol = data.customEndpoint?.api === 'anthropic-messages'
+          ? 'anthropic-messages'
+          : 'openai-completions'
+        try {
+          const catalog = await window.electronAPI.fetchLlmModels({
+            provider: setupTestProvider,
+            apiKey: data.apiKey.trim(),
+            baseUrl: data.baseUrl,
+            protocol: catalogProtocol,
+          })
+          const online = catalog.models ?? []
+          // Anthropic 兼容路由会把未知型号静默归一化（实测 M3.0 → 200 且实际跑 M3.1-Flash）
+          // ⇒ 只有 openai 兼容协议才把「不在目录」当错误。
+          if (catalog.success && online.length > 0 && catalogProtocol !== 'anthropic-messages' && !online.includes(probeModel)) {
+            setState(s => ({
+              ...s,
+              credentialStatus: 'error',
+              errorMessage: `型号 ${probeModel} 不在厂商线上目录中（该端点返回 ${online.length} 个型号）。可用：${online.slice(0, 8).join(', ')}${online.length > 8 ? ' …' : ''}`,
+            }))
+            return
+          }
+        } catch {
+          // 目录拉取失败不阻断探活——保真后的探活错误已足够可读
+        }
+      }
+
       const testResult = await window.electronAPI.testLlmConnectionSetup({
         provider: setupTestProvider,
         apiKey: data.apiKey,

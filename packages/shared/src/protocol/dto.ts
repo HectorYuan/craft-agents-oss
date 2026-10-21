@@ -619,6 +619,28 @@ export interface TestLlmConnectionResult {
   error?: string
 }
 
+/**
+ * 拉取厂商**线上**型号清单（表单态即可用，不要求先建好连接）。
+ *
+ * 2026-10-22：GUI 的型号表是静态硬编码，用户只能手写型号 id；
+ * 而线上并不存在 "MiniMax-M3.0"（未知型号 → HTTP 400 unknown model (2013)）。
+ * 这个 RPC 让 GUI 在「填表阶段」就能拿到线上真实目录并做预检。
+ */
+export interface FetchLlmModelsParams {
+  provider: 'anthropic' | 'zenskill'
+  apiKey: string
+  baseUrl?: string
+  /** 端点协议：决定拉哪个 URL（openai → {base}/models；anthropic → {base}/v1/models） */
+  protocol?: 'openai-completions' | 'anthropic-messages'
+}
+
+export interface FetchLlmModelsResult {
+  success: boolean
+  /** 线上型号 id（success 时） */
+  models?: string[]
+  error?: string
+}
+
 // ---------------------------------------------------------------------------
 // Source / skill types
 // ---------------------------------------------------------------------------

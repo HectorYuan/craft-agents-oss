@@ -10,6 +10,7 @@ import {
 } from '@craft-agent/shared/agent/backend'
 import { getModelRefreshService } from '@craft-agent/server-core/model-fetchers'
 import { parseTestConnectionError, createBuiltInConnection, validateModelList, piAuthProviderDisplayName, validateSetupTestInput, setupTestRequiresApiKey, resolveCustomEndpointSetup } from '@craft-agent/server-core/domain'
+import { buildModelsUrl, parseModelsPayload, extractServerMessage, type CatalogProtocol } from '@craft-agent/server-core/domain'
 import { getWorkspaceOrThrow, buildBackendHostRuntimeContext } from '@craft-agent/server-core/handlers'
 import { pushTyped, type RpcServer } from '@craft-agent/server-core/transport'
 import type { HandlerDeps } from '../handler-deps'
@@ -38,6 +39,7 @@ export const HANDLED_CHANNELS = [
   RPC_CHANNELS.copilot.LOGOUT,
   RPC_CHANNELS.settings.SETUP_LLM_CONNECTION,
   RPC_CHANNELS.settings.TEST_LLM_CONNECTION_SETUP,
+  RPC_CHANNELS.settings.FETCH_LLM_MODELS,
 ] as const
 
 export function registerLlmConnectionsHandlers(server: RpcServer, deps: HandlerDeps): void {
@@ -341,8 +343,9 @@ export function registerLlmConnectionsHandlers(server: RpcServer, deps: HandlerD
     deps.platform.logger?.info(`[testLlmConnectionSetup] Testing: provider=${provider}${piAuthProvider ? ` piAuth=${piAuthProvider}` : ''}${baseUrl ? ` baseUrl=${baseUrl}` : ''} hasCustomEndpoint=${!!customEndpoint} hintProvider=${hint.providerType}`)
 
     const startedAt = Date.now()
+    // testModel 提到 try 外：catch 分支也要用它做错误上下文（型号）
+    const testModel = model || getDefaultModelForConnection(provider, piAuthProvider)
     try {
-      const testModel = model || getDefaultModelForConnection(provider, piAuthProvider)
       deps.platform.logger?.info(`[testLlmConnectionSetup] Resolved model: ${testModel}`)
       const result = await testBackendConnection({
         provider: 'zenskill',
@@ -375,6 +378,56 @@ export function registerLlmConnectionsHandlers(server: RpcServer, deps: HandlerD
         success: false,
         error: parseTestConnectionError(msg, { baseUrl, model: testModel }),
       }
+    }
+  })
+
+  // ── 拉取厂商线上型号清单（表单态即可用，2026-10-22）────────────────
+  //
+  // 用途：GUI 的型号表是静态硬编码 ⇒ 用户只能手写型号 id，而线上并不存在
+  // "MiniMax-M3.0"（未知型号 → HTTP 400 unknown model (2013)）。
+  // 这个 RPC 让 GUI 在「填表阶段」就能拿到线上真实目录：填表即预检，
+  // 不再等探活失败才拿到一句笼统的 "Invalid API key"。
+  server.handle(RPC_CHANNELS.settings.FETCH_LLM_MODELS, async (_ctx, params: import('@craft-agent/shared/protocol').FetchLlmModelsParams): Promise<import('@craft-agent/shared/protocol').FetchLlmModelsResult> => {
+    const baseUrl = (params?.baseUrl || '').trim()
+    const apiKey = (params?.apiKey || '').trim()
+    const protocol: CatalogProtocol = params?.protocol === 'anthropic-messages' ? 'anthropic-messages' : 'openai-completions'
+
+    if (!baseUrl) {
+      return { success: false, error: '缺少端点地址（baseUrl）' }
+    }
+    const url = buildModelsUrl(baseUrl, protocol)
+    if (!url) {
+      return { success: false, error: '端点地址无效' }
+    }
+    // 只允许 http(s)，避免 file:// 等协议
+    if (!/^https?:\/\//i.test(url)) {
+      return { success: false, error: '端点地址必须以 http:// 或 https:// 开头' }
+    }
+
+    const headers: Record<string, string> = protocol === 'anthropic-messages'
+      ? { 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' }
+      : { Authorization: `Bearer ${apiKey}` }
+
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), 15000)
+    try {
+      const resp = await fetch(url, { headers, signal: controller.signal })
+      const text = await resp.text()
+      if (!resp.ok) {
+        const detail = extractServerMessage(text)
+        return { success: false, error: `HTTP ${resp.status} @ ${url}${detail ? `：${detail}` : ''}` }
+      }
+      const models = parseModelsPayload(text)
+      if (models.length === 0) {
+        return { success: false, error: `线上型号清单为空或格式不符 @ ${url}` }
+      }
+      deps.platform.logger?.info(`[fetchLlmModels] ${url} → ${models.length} models`)
+      return { success: true, models }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      return { success: false, error: `拉取线上型号失败 @ ${url}：${msg}` }
+    } finally {
+      clearTimeout(timer)
     }
   })
 

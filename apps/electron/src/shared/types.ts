@@ -204,6 +204,8 @@ import type {
   LlmConnectionSetup,
   TestLlmConnectionParams,
   TestLlmConnectionResult,
+  FetchLlmModelsParams,
+  FetchLlmModelsResult,
   SkillFile,
   SessionFile,
   OAuthResult,
@@ -439,6 +441,8 @@ export interface ElectronAPI {
   setupLlmConnection(setup: LlmConnectionSetup): Promise<{ success: boolean; error?: string }>
   /** Unified connection test — spawns a lightweight agent subprocess to validate credentials */
   testLlmConnectionSetup(params: TestLlmConnectionParams): Promise<TestLlmConnectionResult>
+  /** 拉取厂商线上型号清单（表单态即可用，不要求先建连接）——用于填表即预检 */
+  fetchLlmModels(params: FetchLlmModelsParams): Promise<FetchLlmModelsResult>
   // Pi provider discovery (main process only — Pi SDK can't run in renderer)
   getPiApiKeyProviders(): Promise<Array<{ key: string; label: string; placeholder: string }>>
   getPiProviderBaseUrl(provider: string): Promise<string | undefined>
