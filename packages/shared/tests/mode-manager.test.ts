@@ -2000,10 +2000,17 @@ describe('unwrapPowerShellCommand', () => {
 
 describe('PowerShell plans folder exception', () => {
   const psAvailable = isPowerShellAvailable();
+  // These cases assert Windows path semantics (case-insensitive matching against
+  // a `C:\...` plans folder). PowerShell Core (`pwsh`) exists on Linux/macOS,
+  // so `psAvailable` alone is not a Windows guard: on a non-Windows host with
+  // pwsh installed the cases executed and failed (bun reports an early
+  // `if (!psAvailable) return;` as a skip only when no assertion runs).
+  // Sibling blocks in this file already use `it.skipIf(!isWindows)` — same guard.
+  const isWindows = process.platform === 'win32';
   const plansFolderPath = 'C:\\Users\\test\\.craft-agent\\workspaces\\ws\\sessions\\s1\\plans';
 
   describe('should allow Out-File to plans folder', () => {
-    it('allows Out-File with -FilePath to plans folder', () => {
+    it.skipIf(!isWindows)('allows Out-File with -FilePath to plans folder', () => {
       if (!psAvailable) return;
 
       const command = `@('# Sample Plan','','## Goal','Test') | Out-File -FilePath '${plansFolderPath}\\sample-plan.md' -Encoding utf8`;
@@ -2016,7 +2023,7 @@ describe('PowerShell plans folder exception', () => {
       expect(result.allowed).toBe(true);
     });
 
-    it('allows Set-Content to plans folder', () => {
+    it.skipIf(!isWindows)('allows Set-Content to plans folder', () => {
       if (!psAvailable) return;
 
       const command = `'# Plan content' | Set-Content -Path '${plansFolderPath}\\plan.md'`;
@@ -2059,7 +2066,7 @@ describe('PowerShell plans folder exception', () => {
   });
 
   describe('case-insensitive path matching on Windows', () => {
-    it('allows write when path case differs from plansFolderPath', () => {
+    it.skipIf(!isWindows)('allows write when path case differs from plansFolderPath', () => {
       if (!psAvailable) return;
 
       // plansFolderPath uses lowercase 'test', command uses 'Test'
