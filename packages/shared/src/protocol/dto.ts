@@ -627,7 +627,6 @@ export interface TestLlmConnectionResult {
  * 这个 RPC 让 GUI 在「填表阶段」就能拿到线上真实目录并做预检。
  */
 export interface FetchLlmModelsParams {
-  provider: 'anthropic' | 'zenskill'
   apiKey: string
   baseUrl?: string
   /** 端点协议：决定拉哪个 URL（openai → {base}/models；anthropic → {base}/v1/models） */

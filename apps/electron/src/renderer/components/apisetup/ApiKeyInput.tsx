@@ -328,7 +328,6 @@ export function ApiKeyInput({
     setFetchingOnlineModels(true)
     try {
       const result = await window.electronAPI.fetchLlmModels({
-        provider: providerType === 'anthropic' ? 'anthropic' : 'zenskill',
         apiKey: key,
         baseUrl: base,
         protocol: endpointProtocol,

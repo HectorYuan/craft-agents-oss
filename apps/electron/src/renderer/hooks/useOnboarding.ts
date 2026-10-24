@@ -463,7 +463,6 @@ export function useOnboarding({
           : 'openai-completions'
         try {
           const catalog = await window.electronAPI.fetchLlmModels({
-            provider: setupTestProvider,
             apiKey: data.apiKey.trim(),
             baseUrl: data.baseUrl,
             protocol: catalogProtocol,
