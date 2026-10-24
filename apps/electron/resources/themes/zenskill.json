@@ -1,0 +1,26 @@
+{
+  "name": "ZenSkill",
+  "description": "ZenSkill 品牌主题 —— 深蓝主色、克制的密度、留白与秩序感；配套 zenloop 中枢设计语言",
+  "author": "ZenSkill Team",
+  "license": "MIT",
+  "source": "https://github.com/HectorYuan/ZenSkill",
+  "supportedModes": ["light", "dark"],
+  "shikiTheme": {
+    "light": "github-light",
+    "dark": "github-dark"
+  },
+  "background": "#F7F8FA",
+  "foreground": "#111317",
+  "accent": "#0171E3",
+  "info": "#FFAA1B",
+  "success": "#51C147",
+  "destructive": "#F92434",
+  "dark": {
+    "background": "#080A10",
+    "foreground": "#ECEEF5",
+    "accent": "#90C7FF",
+    "info": "#FFAA1B",
+    "success": "#7DD774",
+    "destructive": "#FF7972"
+  }
+}
