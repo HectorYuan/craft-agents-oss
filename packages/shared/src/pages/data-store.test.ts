@@ -4,6 +4,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
+import { Database } from 'bun:sqlite';
 import { mkdtempSync, rmSync, existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -93,9 +94,21 @@ describe('pages/data-store', () => {
 
   describe('growth caps', () => {
     it('rejects the kv write that would exceed the key cap and rolls it back', () => {
-      for (let i = 0; i < PAGE_DATA_MAX_KV_KEYS; i++) {
-        store.kvSet(`k${i}`, i);
-      }
+      // 前置：把库填到 kv 上限。
+      //
+      // ⚠️ 必须用**一次批量事务**直插，而不是 1000 次 kvSet：
+      // kvSet 每次都是一个独立事务（每次 commit = 一次 fsync），逐条写 1000 次
+      // 在慢盘 CI runner 上实测 5~17s（本地 33ms）⇒ 直接撞 bun test 的 5s
+      // timeout，表现为与本仓代码无关的偶发红灯（两轮 CI 同因：17.5s / 5.1s）。
+      // 批量直插只改变「怎么把库填满」，被测的仍然是 kvSet 的 cap 拒绝 + 回滚路径。
+      const db = (store as unknown as { db: Database }).db;
+      const fill = db.transaction(() => {
+        const insert = db.query('INSERT INTO kv (key, value, updated_at) VALUES (?1, ?2, ?3)');
+        for (let i = 0; i < PAGE_DATA_MAX_KV_KEYS; i++) {
+          insert.run(`k${i}`, JSON.stringify(i), Date.now());
+        }
+      });
+      fill();
       expect(() => store.kvSet('one-too-many', 1)).toThrow(/kv keys > max/);
       // Rolled back: the offending key is gone and the count did not grow.
       expect(store.kvGet('one-too-many')).toBeUndefined();
