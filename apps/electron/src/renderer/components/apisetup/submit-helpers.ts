@@ -1,5 +1,5 @@
 import type { CustomEndpointApi, CustomEndpointConfig } from '@config/llm-connections'
-import { ZENSKILL_PROVIDER_PRESETS } from '@config/providers-zenskill'
+import { PROVIDER_PRESETS } from '@config/provider-presets'
 
 export type PresetKey = string
 
@@ -18,7 +18,7 @@ export interface EnginePresetView {
 /**
  * 引擎真相源下发的预设（2026-10-24 P3 / P6）。
  *
- * 真相源 = 父仓 specs/providers.yaml，生成物 = packages/shared/src/config/providers-zenskill.ts
+ * 真相源 = 父仓 specs/providers.yaml，生成物 = packages/shared/src/config/provider-presets.ts
  * （由 scripts/sync_provider_registry.py 生成，勿手改）。
  *
  * 为什么不再在 GUI 里硬编码端点副本：minimax 的端点语义（国际站 / 国内站 /
@@ -33,7 +33,7 @@ export interface EnginePresetView {
  *      openrouter / vercel / manifest / bedrock / azure / kimi-coding / custom）
  *      保持本地定义 —— 它们不在引擎注册表里。
  */
-const ENGINE_PRESET_BY_KEY = new Map(ZENSKILL_PROVIDER_PRESETS.map(p => [p.key, p]))
+const ENGINE_PRESET_BY_KEY = new Map(PROVIDER_PRESETS.map(p => [p.key, p]))
 
 export function mergeEnginePresets(local: EnginePresetView[]): EnginePresetView[] {
   const merged: EnginePresetView[] = []
@@ -55,7 +55,7 @@ export function mergeEnginePresets(local: EnginePresetView[]): EnginePresetView[
       merged.push(p)
     }
   }
-  const extra = ZENSKILL_PROVIDER_PRESETS.filter(p => !seen.has(p.key)).map(p => ({
+  const extra = PROVIDER_PRESETS.filter(p => !seen.has(p.key)).map(p => ({
     key: p.key,
     label: p.label,
     url: p.baseUrl,

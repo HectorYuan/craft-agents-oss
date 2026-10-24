@@ -5,11 +5,11 @@
  *
  *   - **预设清单与静态型号目录的真相源 = 父仓 `specs/providers.yaml`**，
  *     经 `scripts/sync_provider_registry.py` 生成到
- *     `packages/shared/src/config/providers-zenskill.ts` ⇒ GUI 不再硬编码
+ *     `packages/shared/src/config/provider-presets.ts` ⇒ GUI 不再硬编码
  *     端点副本（历史上 minimax 的端点语义漂移就是这么来的）。
- *   - **目录新鲜度的真相源 = 引擎自己**：`~/.zenskill/llm_catalog.json`
- *     （引擎的 llm_catalog 策略层写：首次配置必同步 / TTL / 拉取结果覆盖层）。
- *     GUI 只**读**它，不另造第二份缓存。
+ *   - **目录新鲜度的真相源 = 引擎自己**：引擎配置根目录下的
+ *     `llm_catalog.json`（引擎的 llm_catalog 策略层写：首次配置必同步 /
+ *     TTL / 拉取结果覆盖层）。GUI 只**读**它，不另造第二份缓存。
  *   - **线上最新目录**仍由「直连厂商 /models」拿（引擎没有 key 时也能拉），
  *     作为兜底：GUI 优先用引擎目录 + 真相源预设，拿不到再直连厂商。
  *
@@ -17,15 +17,21 @@
  * `invalid api key (2049)`，与「key 填错」长得一模一样 ⇒ 用户无从判断。
  * 诊断办法：**用同一个 key 去试同厂商的另一个区域端点** —— 那边通 ⇒ key 属于那边。
  * 判定所需的「端点 → 区域 / 厂商族」来自真相源（region / vendorFamily）。
+ *
+ * ── 依赖倒置：配置根目录由调用方给 ──────────────────────────────────
+ * 本模块**不自己解析 HOME / 环境变量**，只接收「配置根目录」这一入参：
+ *   - 理由：配置根目录的解析（环境变量覆盖 + 旧目录迁移）在 shared 的
+ *     config/paths 里已有既有真相源；在这里再写一份就是第二份真相。
+ *   - 副作用：import 本模块不会触发任何导入期的目录迁移/IO。
+ *   - 调用方（RPC handler）按既有真相源解析后传入。
  */
 
 import { readFileSync } from 'node:fs'
-import { homedir } from 'node:os'
 import { join } from 'node:path'
 import {
-  ZENSKILL_PROVIDER_PRESETS,
-  ZENSKILL_PROVIDER_CATALOG,
-} from '@craft-agent/shared/config/providers-zenskill'
+  PROVIDER_PRESETS,
+  PROVIDER_CATALOG,
+} from '@craft-agent/shared/config/provider-presets'
 import type { LlmCatalogProviderEntry, LlmCatalogResult } from '@craft-agent/shared/protocol'
 
 /** 引擎覆盖层的 TTL（与 Python `llm_catalog.DEFAULT_TTL_SECONDS` 同步 = 24h） */
@@ -47,9 +53,9 @@ export interface EngineCatalogOverlay {
   providers?: Record<string, EngineOverlayEntry>
 }
 
-/** 覆盖层落盘位置（随 HOME；引擎写、GUI 读） */
-export function engineCatalogOverlayPath(home: string = homedir()): string {
-  return join(home, '.zenskill', 'llm_catalog.json')
+/** 覆盖层落盘位置（引擎写、GUI 读；configDir = 引擎配置根目录） */
+export function engineCatalogOverlayPath(configDir: string): string {
+  return join(configDir, 'llm_catalog.json')
 }
 
 /**
@@ -58,9 +64,9 @@ export function engineCatalogOverlayPath(home: string = homedir()): string {
  * 读不到 / 损坏 ⇒ 返回空覆盖层（**不抛**）：目录不可知不该把 GUI 带崩，
  * 上层据此回退到「直连厂商拉线上目录」。
  */
-export function readEngineCatalogOverlay(home: string = homedir()): EngineCatalogOverlay {
+export function readEngineCatalogOverlay(configDir: string): EngineCatalogOverlay {
   try {
-    const raw = readFileSync(engineCatalogOverlayPath(home), 'utf-8')
+    const raw = readFileSync(engineCatalogOverlayPath(configDir), 'utf-8')
     const data = JSON.parse(raw) as EngineCatalogOverlay
     if (!data || typeof data !== 'object') return { providers: {} }
     if (!data.providers || typeof data.providers !== 'object') data.providers = {}
@@ -78,18 +84,19 @@ export function readEngineCatalogOverlay(home: string = homedir()): EngineCatalo
  *   - `source='catalog'` ⇒ 只有静态目录（真相源生成物）
  *   - `stale` ⇒ 覆盖层缺失（从未同步）或年龄 > TTL（引擎同一条判据）
  */
-export function buildLlmCatalogSnapshot(params?: {
+export function buildLlmCatalogSnapshot(params: {
+  /** 引擎配置根目录（覆盖层所在处）；由调用方按既有真相源解析 */
+  configDir: string
   providers?: string[]
   overlay?: EngineCatalogOverlay
   now?: number
-  home?: string
 }): LlmCatalogResult {
-  const now = params?.now ?? Date.now()
-  const overlay = params?.overlay ?? readEngineCatalogOverlay(params?.home)
-  const wanted = params?.providers?.length ? new Set(params.providers) : null
+  const now = params.now ?? Date.now()
+  const overlay = params.overlay ?? readEngineCatalogOverlay(params.configDir)
+  const wanted = params.providers?.length ? new Set(params.providers) : null
 
   const entries: LlmCatalogProviderEntry[] = []
-  for (const entry of ZENSKILL_PROVIDER_CATALOG) {
+  for (const entry of PROVIDER_CATALOG) {
     if (wanted && !wanted.has(entry.provider)) continue
     const overlayEntry = overlay.providers?.[entry.provider]
     const fetchedAtSec = typeof overlayEntry?.fetched_at === 'number' ? overlayEntry.fetched_at : undefined
@@ -114,7 +121,7 @@ export function buildLlmCatalogSnapshot(params?: {
 
   return {
     success: true,
-    presets: ZENSKILL_PROVIDER_PRESETS.map(p => ({
+    presets: PROVIDER_PRESETS.map(p => ({
       key: p.key,
       provider: p.provider,
       baseUrl: p.baseUrl,
@@ -156,7 +163,7 @@ export interface ProviderEndpoint {
 }
 
 export function providerEndpoints(): ProviderEndpoint[] {
-  const fromCatalog: ProviderEndpoint[] = ZENSKILL_PROVIDER_CATALOG.map(e => ({
+  const fromCatalog: ProviderEndpoint[] = PROVIDER_CATALOG.map(e => ({
     provider: e.provider,
     display: e.display,
     baseUrl: e.baseUrl,
@@ -165,7 +172,7 @@ export function providerEndpoints(): ProviderEndpoint[] {
     vendorFamily: e.vendorFamily ?? '',
   }))
   const seen = new Set(fromCatalog.map(e => e.provider))
-  const fromPresets: ProviderEndpoint[] = ZENSKILL_PROVIDER_PRESETS.filter(p => !seen.has(p.provider)).map(
+  const fromPresets: ProviderEndpoint[] = PROVIDER_PRESETS.filter(p => !seen.has(p.provider)).map(
     p => ({
       provider: p.provider,
       display: p.label,

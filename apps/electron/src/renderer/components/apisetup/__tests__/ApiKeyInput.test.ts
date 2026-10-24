@@ -161,7 +161,7 @@ describe('resolveCustomEndpointPayload', () => {
 // 背景：minimax 的端点语义（国际站 / 国内站 / Anthropic 兼容变体）历史上在
 // GUI 与引擎之间漂移过 —— GUI 只硬编码了 openai 兼容的两个预设，引擎却已注册
 // anthropic 变体 ⇒ 用户选不到。修法：GUI 的同名条目以真相源为准，真相源新增
-// 的条目自动出现（生成物 = packages/shared/src/config/providers-zenskill.ts）。
+// 的条目自动出现（生成物 = packages/shared/src/config/provider-presets.ts）。
 
 describe('mergeEnginePresets —— 引擎真相源优先', () => {
   it('同名条目以真相源为准（端点 / 标签 / 占位符 / piOnly）', () => {

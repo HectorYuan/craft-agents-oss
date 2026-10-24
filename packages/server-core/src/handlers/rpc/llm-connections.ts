@@ -10,9 +10,9 @@ import {
 } from '@craft-agent/shared/agent/backend'
 import { getModelRefreshService } from '@craft-agent/server-core/model-fetchers'
 import { parseTestConnectionError, createBuiltInConnection, validateModelList, piAuthProviderDisplayName, validateSetupTestInput, setupTestRequiresApiKey, resolveCustomEndpointSetup } from '@craft-agent/server-core/domain'
-import { buildModelsUrl, parseModelsPayload, extractServerMessage, type CatalogProtocol } from '@craft-agent/server-core/domain'
-import { buildLlmCatalogSnapshot, findCatalogEntryByBaseUrl, findSiblingRegionProvider, isRegionMismatchResponse } from '@craft-agent/server-core/domain'
-import { ZENSKILL_PROVIDER_PRESETS } from '@craft-agent/shared/config/providers-zenskill'
+import { buildModelsUrl, parseModelsPayload, extractServerMessage, type CatalogProtocol, buildLlmCatalogSnapshot, findCatalogEntryByBaseUrl, findSiblingRegionProvider, isRegionMismatchResponse } from '@craft-agent/server-core/domain'
+import { PROVIDER_PRESETS } from '@craft-agent/shared/config/provider-presets'
+import { CONFIG_DIR } from '@craft-agent/shared/config/paths'
 import { getWorkspaceOrThrow, buildBackendHostRuntimeContext } from '@craft-agent/server-core/handlers'
 import { pushTyped, type RpcServer } from '@craft-agent/server-core/transport'
 import type { HandlerDeps } from '../handler-deps'
@@ -84,7 +84,7 @@ export async function diagnoseRegionMismatch(
     const resp = await fetch(siblingUrl, { headers, signal: controller.signal })
     if (!resp.ok) return undefined
     const label =
-      ZENSKILL_PROVIDER_PRESETS.find(p => p.provider === sibling.provider)?.label ?? sibling.display
+      PROVIDER_PRESETS.find(p => p.provider === sibling.provider)?.label ?? sibling.display
     const regionName = (r: string): string =>
       r === 'cn' ? '国内站' : r === 'global' ? '国际站' : r
     return {
@@ -506,11 +506,11 @@ export function registerLlmConnectionsHandlers(server: RpcServer, deps: HandlerD
   // ── 型号目录（引擎真相源下发，2026-10-24 P3）────────────────────
   //
   // 预设清单与静态型号目录 = 父仓 specs/providers.yaml 的生成物（真相源）；
-  // 新鲜度 = 引擎自己的目录覆盖层 ~/.zenskill/llm_catalog.json（引擎写、GUI 读）。
+  // 新鲜度 = 引擎自己的目录覆盖层（引擎 home 下的 llm_catalog.json，引擎写、GUI 读）。
   // GUI 优先用这份；拿不到再回退「直连厂商拉线上目录」（fetchLlmModels）。
   server.handle(RPC_CHANNELS.settings.LLM_CATALOG, async (_ctx, params: LlmCatalogParams): Promise<LlmCatalogResult> => {
     try {
-      return buildLlmCatalogSnapshot({ providers: params?.providers })
+      return buildLlmCatalogSnapshot({ configDir: CONFIG_DIR, providers: params?.providers })
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
       deps.platform.logger?.warn(`[llmCatalog] 快照构建失败：${msg}`)

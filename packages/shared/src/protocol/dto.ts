@@ -667,8 +667,8 @@ export interface FetchLlmModelsResult {
 // ── 型号目录（引擎真相源下发，2026-10-24 P3）────────────────────
 //
 // 真相源 = specs/providers.yaml（父仓），经生成器产出
-// packages/shared/src/config/providers-zenskill.ts；引擎侧的目录覆盖层
-// （~/.zenskill/llm_catalog.json）提供新鲜度。GUI 优先用这份，
+// packages/shared/src/config/provider-presets.ts；引擎侧的目录覆盖层
+// （引擎 home 下的 llm_catalog.json）提供新鲜度。GUI 优先用这份，
 // 失败再回退「直连厂商拉线上目录」。
 
 export interface LlmCatalogParams {

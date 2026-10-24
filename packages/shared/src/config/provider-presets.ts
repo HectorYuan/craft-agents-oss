@@ -6,10 +6,10 @@
  */
 
 /** 引擎支持的端点协议 */
-export type ZenskillProviderApi = 'openai-completions' | 'anthropic-messages'
+export type ProviderApi = 'openai-completions' | 'anthropic-messages'
 
 /** GUI 建连向导的预设（真相源 gui_presets 段） */
-export interface ZenskillProviderPreset {
+export interface ProviderPreset {
   /** 预设 key（GUI 侧标识） */
   key: string
   /** 引擎 provider 名（唯一真相源） */
@@ -19,7 +19,7 @@ export interface ZenskillProviderPreset {
   /** 展示名 */
   label: string
   /** 端点协议 */
-  api: ZenskillProviderApi
+  api: ProviderApi
   /** 输入框占位符 */
   placeholder: string
   /** 只在 Pi SDK 路径可用（Anthropic/Claude 路径隐藏） */
@@ -31,7 +31,7 @@ export interface ZenskillProviderPreset {
 }
 
 /** 静态型号目录（真相源 catalog 段） */
-export interface ZenskillProviderModel {
+export interface ProviderModel {
   name: string
   display: string
   tier: string
@@ -40,20 +40,20 @@ export interface ZenskillProviderModel {
 }
 
 /** 单个 provider 的目录条目 */
-export interface ZenskillProviderCatalogEntry {
+export interface ProviderCatalogEntry {
   provider: string
   display: string
   baseUrl: string
-  api: ZenskillProviderApi
+  api: ProviderApi
   apiKeyEnv: string
   docsUrl: string
   tags: string[]
   region: string
   vendorFamily: string
-  models: ZenskillProviderModel[]
+  models: ProviderModel[]
 }
 
-export const ZENSKILL_PROVIDER_PRESETS: ZenskillProviderPreset[] = [
+export const PROVIDER_PRESETS: ProviderPreset[] = [
   {
     key: 'deepseek',
     provider: 'deepseek',
@@ -221,7 +221,7 @@ export const ZENSKILL_PROVIDER_PRESETS: ZenskillProviderPreset[] = [
   },
 ]
 
-export const ZENSKILL_PROVIDER_CATALOG: ZenskillProviderCatalogEntry[] = [
+export const PROVIDER_CATALOG: ProviderCatalogEntry[] = [
   {
     provider: 'deepseek',
     display: 'DeepSeek',

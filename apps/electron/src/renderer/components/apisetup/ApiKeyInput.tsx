@@ -34,7 +34,7 @@ import {
 } from "./submit-helpers"
 
 import type { CustomEndpointApi, CustomEndpointConfig } from '@config/llm-connections'
-import { ZENSKILL_PROVIDER_PRESETS } from '@config/providers-zenskill'
+import { PROVIDER_PRESETS } from '@config/provider-presets'
 import type { LlmCatalogResult, RegionMismatchDiagnosis } from '@craft-agent/shared/protocol'
 
 const DEFAULT_ENDPOINT_PROVIDERS = new Set(['anthropic', 'openai', 'pi', 'google'])
@@ -402,7 +402,7 @@ export function ApiKeyInput({
     if (!regionMismatch) return
     const preset =
       engineCatalog?.presets?.find(p => p.provider === regionMismatch.suggestedProvider) ??
-      ZENSKILL_PROVIDER_PRESETS.find(p => p.provider === regionMismatch.suggestedProvider)
+      PROVIDER_PRESETS.find(p => p.provider === regionMismatch.suggestedProvider)
     if (preset) {
       setActivePreset(preset.key)
       setLastNonCustomPreset(preset.key)
