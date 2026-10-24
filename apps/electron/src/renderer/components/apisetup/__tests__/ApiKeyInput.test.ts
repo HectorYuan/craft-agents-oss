@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'bun:test'
 import {
+  mergeEnginePresets,
   resolveCustomEndpointPayload,
   resolvePiAuthProviderForSubmit,
   resolvePresetStateForBaseUrlChange,
@@ -152,5 +153,57 @@ describe('resolveCustomEndpointPayload', () => {
       customEndpoint: undefined,
       piAuthProvider: undefined,
     })
+  })
+})
+
+// ── 引擎真相源优先的预设合并（2026-10-24 P3 / P6）────────────────────
+//
+// 背景：minimax 的端点语义（国际站 / 国内站 / Anthropic 兼容变体）历史上在
+// GUI 与引擎之间漂移过 —— GUI 只硬编码了 openai 兼容的两个预设，引擎却已注册
+// anthropic 变体 ⇒ 用户选不到。修法：GUI 的同名条目以真相源为准，真相源新增
+// 的条目自动出现（生成物 = packages/shared/src/config/providers-zenskill.ts）。
+
+describe('mergeEnginePresets —— 引擎真相源优先', () => {
+  it('同名条目以真相源为准（端点 / 标签 / 占位符 / piOnly）', () => {
+    const merged = mergeEnginePresets([
+      { key: 'minimax-cn', label: '本地写死的旧标签', url: 'https://old.example.com/v1', placeholder: '旧占位', piOnly: false },
+    ])
+    const cn = merged.find(p => p.key === 'minimax-cn')
+    expect(cn?.url).toBe('https://api.minimaxi.com/v1')
+    expect(cn?.label).not.toBe('本地写死的旧标签')
+    expect(cn?.piOnly).toBe(true) // openai 兼容 ⇒ Pi 专属（真相源口径）
+  })
+
+  it('真相源新增的预设自动出现：minimax 的两个 Anthropic 兼容变体（P6）', () => {
+    const merged = mergeEnginePresets([{ key: 'anthropic', label: 'Anthropic', url: 'https://api.anthropic.com' }])
+    const cn = merged.find(p => p.key === 'minimax-cn-anthropic')
+    expect(cn).toBeDefined()
+    expect(cn?.url).toBe('https://api.minimax.cn/anthropic')
+    expect(cn?.piOnly).toBe(false) // Anthropic 路径可用
+    const global = merged.find(p => p.key === 'minimax-anthropic')
+    expect(global?.url).toBe('https://api.minimax.io/anthropic')
+  })
+
+  it('GUI 专有预设原样保留（不在引擎注册表里的那些）', () => {
+    const local = [
+      { key: 'groq', label: 'Groq', url: 'https://api.groq.com/openai/v1' },
+      { key: 'custom', label: 'Custom', url: '' },
+    ]
+    const merged = mergeEnginePresets(local)
+    expect(merged.find(p => p.key === 'groq')).toEqual(local[0])
+    expect(merged.find(p => p.key === 'custom')).toEqual(local[1])
+  })
+
+  it('新增条目插在引擎区块末尾，不打乱 GUI 专有预设的相对顺序', () => {
+    const merged = mergeEnginePresets([
+      { key: 'anthropic', label: 'Anthropic', url: 'https://api.anthropic.com' },
+      { key: 'groq', label: 'Groq', url: 'https://api.groq.com/openai/v1' },
+      { key: 'manifest', label: 'Manifest', url: 'https://app.manifest.build/v1' },
+    ])
+    const keys = merged.map(p => p.key)
+    expect(keys.indexOf('groq')).toBeLessThan(keys.indexOf('manifest'))
+    // 引擎区块（anthropic 之后）里追加了真相源新增项
+    expect(keys.indexOf('minimax-cn-anthropic')).toBeGreaterThan(keys.indexOf('anthropic'))
+    expect(keys.indexOf('minimax-cn-anthropic')).toBeLessThan(keys.indexOf('groq'))
   })
 })

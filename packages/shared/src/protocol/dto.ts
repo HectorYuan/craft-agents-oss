@@ -633,10 +633,91 @@ export interface FetchLlmModelsParams {
   protocol?: 'openai-completions' | 'anthropic-messages'
 }
 
+/**
+ * 区域不符诊断（2026-10-24 P4）。
+ *
+ * 境内 key 打国际站（或反之）⇒ 厂商返回 401 `invalid api key (2049)`，
+ * 与「key 填错」长得一样 ⇒ 用户无从判断。诊断办法：**用同一个 key 去试
+ * 同厂商的另一个区域端点** —— 若那边通 ⇒ key 属于那边区域。
+ */
+export interface RegionMismatchDiagnosis {
+  /** 端点所属区域（按 host 判定） */
+  endpointRegion: string
+  /** key 实测归属区域（试出来的） */
+  keyRegion: string
+  /** 建议改用的引擎 provider 名 */
+  suggestedProvider: string
+  /** 建议改用的端点基址 */
+  suggestedBaseUrl: string
+  /** 建议改用的 GUI 预设名 */
+  suggestedLabel: string
+  /** 面向用户的说明（可直接展示） */
+  message: string
+}
+
 export interface FetchLlmModelsResult {
   success: boolean
   /** 线上型号 id（success 时） */
   models?: string[]
+  error?: string
+  /** 区域不符诊断（探到 key 与端点区域不一致时给出；success 仍可能为 false） */
+  regionMismatch?: RegionMismatchDiagnosis
+}
+
+// ── 型号目录（引擎真相源下发，2026-10-24 P3）────────────────────
+//
+// 真相源 = specs/providers.yaml（父仓），经生成器产出
+// packages/shared/src/config/providers-zenskill.ts；引擎侧的目录覆盖层
+// （~/.zenskill/llm_catalog.json）提供新鲜度。GUI 优先用这份，
+// 失败再回退「直连厂商拉线上目录」。
+
+export interface LlmCatalogParams {
+  /** 只查这些 provider；空 = 全部 */
+  providers?: string[]
+  /** 强制刷新（绕过 TTL） */
+  force?: boolean
+}
+
+export interface LlmCatalogPreset {
+  /** GUI 预设 key */
+  key: string
+  /** 引擎 provider 名（唯一真相源） */
+  provider: string
+  /** 端点基址 */
+  baseUrl: string
+  /** 展示名 */
+  label: string
+  /** 端点协议 */
+  api: 'openai-completions' | 'anthropic-messages'
+  /** 只在 Pi SDK 路径可用（Anthropic/Claude 路径隐藏） */
+  piOnly: boolean
+  /** 区域：cn / global（空串 = 不适用） */
+  region: string
+  /** 厂商族（minimax / moonshot / …）—— 同族才有跨区域兄弟端点 */
+  vendorFamily: string
+}
+
+export interface LlmCatalogProviderEntry {
+  provider: string
+  display: string
+  /** 目录来源：remote（线上拉取）/ cache（引擎覆盖层）/ catalog（静态目录）/ seed（未拉过） */
+  source: string
+  /** 可选型号 id */
+  models: string[]
+  /** 上次成功拉取时间戳（ms） */
+  fetchedAt?: number
+  /** 目录年龄（秒） */
+  ageSeconds?: number
+  /** 是否已过期（引擎 TTL 判据） */
+  stale: boolean
+  region: string
+  vendorFamily: string
+}
+
+export interface LlmCatalogResult {
+  success: boolean
+  presets?: LlmCatalogPreset[]
+  providers?: LlmCatalogProviderEntry[]
   error?: string
 }
 

@@ -1,4 +1,4 @@
-import { RPC_CHANNELS, type LlmConnectionSetup } from '@craft-agent/shared/protocol'
+import { RPC_CHANNELS, type LlmConnectionSetup, type LlmCatalogParams, type LlmCatalogResult, type RegionMismatchDiagnosis } from '@craft-agent/shared/protocol'
 import { getLlmConnections, getLlmConnection, addLlmConnection, updateLlmConnection, deleteLlmConnection, getDefaultLlmConnection, setDefaultLlmConnection, touchLlmConnection, isCompatProvider, isAnthropicProvider, getDefaultModelsForConnection, getDefaultModelForConnection, type LlmConnection, type LlmConnectionWithStatus, toBedrockNativeId, deriveBedrockRegionPrefix } from '@craft-agent/shared/config'
 import { getCredentialManager } from '@craft-agent/shared/credentials'
 import { parseValidationError } from '@craft-agent/shared/utils/parse-validation-error.ts'
@@ -11,6 +11,8 @@ import {
 import { getModelRefreshService } from '@craft-agent/server-core/model-fetchers'
 import { parseTestConnectionError, createBuiltInConnection, validateModelList, piAuthProviderDisplayName, validateSetupTestInput, setupTestRequiresApiKey, resolveCustomEndpointSetup } from '@craft-agent/server-core/domain'
 import { buildModelsUrl, parseModelsPayload, extractServerMessage, type CatalogProtocol } from '@craft-agent/server-core/domain'
+import { buildLlmCatalogSnapshot, findCatalogEntryByBaseUrl, findSiblingRegionProvider, isRegionMismatchResponse } from '@craft-agent/server-core/domain'
+import { ZENSKILL_PROVIDER_PRESETS } from '@craft-agent/shared/config/providers-zenskill'
 import { getWorkspaceOrThrow, buildBackendHostRuntimeContext } from '@craft-agent/server-core/handlers'
 import { pushTyped, type RpcServer } from '@craft-agent/server-core/transport'
 import type { HandlerDeps } from '../handler-deps'
@@ -40,7 +42,67 @@ export const HANDLED_CHANNELS = [
   RPC_CHANNELS.settings.SETUP_LLM_CONNECTION,
   RPC_CHANNELS.settings.TEST_LLM_CONNECTION_SETUP,
   RPC_CHANNELS.settings.FETCH_LLM_MODELS,
+  RPC_CHANNELS.settings.LLM_CATALOG,
 ] as const
+
+/**
+ * 区域不符诊断（2026-10-24 P4）
+ *
+ * 事实：MiniMax 的 key **不可跨区**（境内 key 打国际站 ⇒ 401 `invalid api key (2049)`，
+ * 与「key 填错」完全同形 ⇒ 用户无从判断）。Moonshot 同理。
+ *
+ * 判法：**用同一个 key 去试同厂商的另一个区域端点** ——
+ * 那边能列出型号 ⇒ key 属于那边 ⇒ 明确告诉用户该用哪个端点。
+ * 「端点 → 区域 / 厂商族」的映射来自真相源（providers.yaml 的 region / vendor_family），
+ * 本函数不硬编码任何厂商。
+ *
+ * 任何一步失败（找不到同族端点、兄弟端点也不通、超时）⇒ 返回 undefined
+ * ⇒ 上层照旧返回原始 401 错误，**不猜**。
+ */
+export async function diagnoseRegionMismatch(
+  baseUrl: string,
+  apiKey: string,
+): Promise<RegionMismatchDiagnosis | undefined> {
+  const entry = findCatalogEntryByBaseUrl(baseUrl)
+  if (!entry || !entry.region) return undefined
+  const sibling = findSiblingRegionProvider(entry.provider)
+  if (!sibling || !sibling.region) return undefined
+
+  const siblingProtocol: CatalogProtocol =
+    sibling.api === 'anthropic-messages' ? 'anthropic-messages' : 'openai-completions'
+  const siblingUrl = buildModelsUrl(sibling.baseUrl, siblingProtocol)
+  if (!siblingUrl) return undefined
+
+  const headers: Record<string, string> =
+    siblingProtocol === 'anthropic-messages'
+      ? { 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' }
+      : { Authorization: `Bearer ${apiKey}` }
+
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), 15000)
+  try {
+    const resp = await fetch(siblingUrl, { headers, signal: controller.signal })
+    if (!resp.ok) return undefined
+    const label =
+      ZENSKILL_PROVIDER_PRESETS.find(p => p.provider === sibling.provider)?.label ?? sibling.display
+    const regionName = (r: string): string =>
+      r === 'cn' ? '国内站' : r === 'global' ? '国际站' : r
+    return {
+      endpointRegion: entry.region,
+      keyRegion: sibling.region,
+      suggestedProvider: sibling.provider,
+      suggestedBaseUrl: sibling.baseUrl,
+      suggestedLabel: label,
+      message:
+        `这个 key 属于${regionName(sibling.region)}，但当前端点是${regionName(entry.region)}` +
+        `——该厂商的 key 不能跨区使用。请改用「${label}」端点。`,
+    }
+  } catch {
+    return undefined
+  } finally {
+    clearTimeout(timer)
+  }
+}
 
 export function registerLlmConnectionsHandlers(server: RpcServer, deps: HandlerDeps): void {
   const { sessionManager } = deps
@@ -415,7 +477,17 @@ export function registerLlmConnectionsHandlers(server: RpcServer, deps: HandlerD
       const text = await resp.text()
       if (!resp.ok) {
         const detail = extractServerMessage(text)
-        return { success: false, error: `HTTP ${resp.status} @ ${url}${detail ? `：${detail}` : ''}` }
+        // 区域不符诊断（P4）：跨区 key 的 401 与「key 填错」长得一样 ⇒ 用同一个
+        // key 去试同厂商的另一个区域端点；那边通 ⇒ key 属于那边 ⇒ 明确告诉用户
+        // 该用哪个端点（真相源里的 region / vendorFamily 提供映射）。
+        const regionMismatch = isRegionMismatchResponse(resp.status, text)
+          ? await diagnoseRegionMismatch(baseUrl, apiKey)
+          : undefined
+        return {
+          success: false,
+          error: `HTTP ${resp.status} @ ${url}${detail ? `：${detail}` : ''}`,
+          regionMismatch,
+        }
       }
       const models = parseModelsPayload(text)
       if (models.length === 0) {
@@ -428,6 +500,21 @@ export function registerLlmConnectionsHandlers(server: RpcServer, deps: HandlerD
       return { success: false, error: `拉取线上型号失败 @ ${url}：${msg}` }
     } finally {
       clearTimeout(timer)
+    }
+  })
+
+  // ── 型号目录（引擎真相源下发，2026-10-24 P3）────────────────────
+  //
+  // 预设清单与静态型号目录 = 父仓 specs/providers.yaml 的生成物（真相源）；
+  // 新鲜度 = 引擎自己的目录覆盖层 ~/.zenskill/llm_catalog.json（引擎写、GUI 读）。
+  // GUI 优先用这份；拿不到再回退「直连厂商拉线上目录」（fetchLlmModels）。
+  server.handle(RPC_CHANNELS.settings.LLM_CATALOG, async (_ctx, params: LlmCatalogParams): Promise<LlmCatalogResult> => {
+    try {
+      return buildLlmCatalogSnapshot({ providers: params?.providers })
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      deps.platform.logger?.warn(`[llmCatalog] 快照构建失败：${msg}`)
+      return { success: false, error: msg }
     }
   })
 

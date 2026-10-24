@@ -26,6 +26,7 @@ import { cn } from "@/lib/utils"
 import { Check, ChevronDown, Eye, EyeOff, Loader2 } from "lucide-react"
 import { pickTierDefaults, resolveTierModels, type PiModelInfo } from "./tier-models"
 import {
+  mergeEnginePresets,
   resolveCustomEndpointPayload,
   resolvePiAuthProviderForSubmit,
   resolvePresetStateForBaseUrlChange,
@@ -33,6 +34,8 @@ import {
 } from "./submit-helpers"
 
 import type { CustomEndpointApi, CustomEndpointConfig } from '@config/llm-connections'
+import { ZENSKILL_PROVIDER_PRESETS } from '@config/providers-zenskill'
+import type { LlmCatalogResult, RegionMismatchDiagnosis } from '@craft-agent/shared/protocol'
 
 const DEFAULT_ENDPOINT_PROVIDERS = new Set(['anthropic', 'openai', 'pi', 'google'])
 
@@ -97,7 +100,7 @@ interface Preset {
 
 // Anthropic provider presets - for Claude Code backend
 // Also used by Pi API key flow (same providers, routed via Pi SDK)
-const ANTHROPIC_PRESETS: Preset[] = [
+const ANTHROPIC_PRESETS: Preset[] = mergeEnginePresets([
   { key: 'anthropic', label: 'Anthropic', url: 'https://api.anthropic.com', placeholder: 'sk-ant-...' },
   { key: 'openai', label: 'OpenAI', url: 'https://api.openai.com/v1', placeholder: 'sk-...' },
   { key: 'openai-eu', label: 'OpenAI EU', url: 'https://eu.api.openai.com/v1', placeholder: 'sk-...' },
@@ -136,7 +139,7 @@ const ANTHROPIC_PRESETS: Preset[] = [
   { key: 'vercel-ai-gateway', label: 'Vercel AI Gateway', url: 'https://ai-gateway.vercel.sh', placeholder: 'Paste your key here...' },
   { key: 'manifest', label: 'Manifest', url: 'https://app.manifest.build/v1', placeholder: 'mnfst_...' },
   { key: 'custom', label: 'Custom', url: '', placeholder: 'Paste your key here...' },
-]
+])
 
 /**
  * Presets without a Pi SDK provider entry that nonetheless expose a known
@@ -231,6 +234,17 @@ export function ApiKeyInput({
   const [connectionDefaultModel, setConnectionDefaultModel] = useState(initialValues?.connectionDefaultModel ?? '')
   const [customApi, setCustomApi] = useState<CustomEndpointApi>(initialValues?.customApi ?? 'openai-completions')
   const [modelError, setModelError] = useState<string | null>(null)
+  /**
+   * 区域不符诊断（2026-10-24 P4）：厂商的 401 与「key 填错」同形 ⇒ 引擎侧用
+   * 同一个 key 试过同厂商的另一个区域端点、确证 key 属于那边之后才给这份结论。
+   * 有它 ⇒ 提交被阻断，并给出「该用哪个端点」的一键切换。
+   */
+  const [regionMismatch, setRegionMismatch] = useState<RegionMismatchDiagnosis | null>(null)
+  /**
+   * 引擎型号目录快照（2026-10-24 P3）：预设映射 + 型号目录新鲜度。
+   * 拉不到不阻断（回退到静态真相源 + 直连厂商拉线上目录）。
+   */
+  const [engineCatalog, setEngineCatalog] = useState<LlmCatalogResult | null>(null)
 
   // Bedrock auth state
   const [bedrockAuthMethod, setBedrockAuthMethod] = useState<'iam_credentials' | 'environment'>('iam_credentials')
@@ -301,6 +315,24 @@ export function ApiKeyInput({
     loadPiModels(activePreset)
   }, [activePreset, loadPiModels])
 
+  // 引擎型号目录快照（P3）：预设映射（provider → GUI 预设 key）与新鲜度。
+  // 拉失败**不阻断**——静态真相源（生成物）已在编译期进包，直连厂商拉线上目录
+  // 也仍然可用（fetchOnlineModels）。
+  useEffect(() => {
+    let cancelled = false
+    window.electronAPI
+      .fetchLlmCatalog({})
+      .then(res => {
+        if (!cancelled && res?.success) setEngineCatalog(res)
+      })
+      .catch(() => {
+        /* 引擎目录不可用 → 回退静态真相源 + 直连厂商 */
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
   // Whether to show 3 tier dropdowns instead of text input
   const hasPiModels = isPiApiKeyFlow && piModels.length > 0 && !isDefaultProviderPreset && activePreset !== 'custom' && !isBedrock
 
@@ -334,9 +366,19 @@ export function ApiKeyInput({
       })
       if (!result.success) {
         setOnlineModels([])
+        // 区域不符（P4）：厂商 401 与「key 填错」同形 ⇒ 引擎侧用同一个 key 试过
+        // 同厂商的另一个区域端点，确证 key 属于那边之后才给这份结论。
+        // 有确证 ⇒ 给出「该用哪个端点」；没有 ⇒ 照旧显示原始错误（不猜）。
+        if (result.regionMismatch) {
+          setRegionMismatch(result.regionMismatch)
+          setModelError(result.regionMismatch.message)
+          return []
+        }
+        setRegionMismatch(null)
         setModelError(result.error || '拉取线上型号失败')
         return []
       }
+      setRegionMismatch(null)
       const models = result.models ?? []
       setOnlineModels(models)
       return models
@@ -350,8 +392,29 @@ export function ApiKeyInput({
     }
   }, [apiKey, baseUrl, providerType, endpointProtocol])
 
-  /** 校验填写的型号是否在厂商线上目录中（目录未知时不阻断） */
-  const validateModelsAgainstOnline = useCallback((models: string[]): boolean => {
+  /**
+   * 一键切到诊断给出的端点（P4）：区域不符时省去用户自己去找端点。
+   * 预设 key 从引擎目录快照里按 provider 反查（provider 名与 GUI 预设 key
+   * 不总是同名，例如 provider `minimax` ↔ 预设 `minimax-global`）；
+   * 快照不可用时回退到编译期进包的静态真相源。
+   */
+  const applySuggestedEndpoint = useCallback(() => {
+    if (!regionMismatch) return
+    const preset =
+      engineCatalog?.presets?.find(p => p.provider === regionMismatch.suggestedProvider) ??
+      ZENSKILL_PROVIDER_PRESETS.find(p => p.provider === regionMismatch.suggestedProvider)
+    if (preset) {
+      setActivePreset(preset.key)
+      setLastNonCustomPreset(preset.key)
+      setBaseUrl(preset.baseUrl)
+    } else {
+      setBaseUrl(regionMismatch.suggestedBaseUrl)
+    }
+    setModelError(null)
+    setRegionMismatch(null)
+  }, [regionMismatch, engineCatalog])
+
+  /** 校验填写的型号是否在厂商线上目录中（目录未知时不阻断） */  const validateModelsAgainstOnline = useCallback((models: string[]): boolean => {
     if (models.length === 0) return true
     const typed = parseModelList(connectionDefaultModel)
     if (typed.length === 0) return true
@@ -448,6 +511,13 @@ export function ApiKeyInput({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
+
+    // 区域不符已确证 ⇒ 阻断提交（P4）：此时提交必然得到 401，
+    // 而用户改对端点就能用 ⇒ 明确阻断 + 给一键切换，比放行再失败好。
+    if (regionMismatch) {
+      setModelError(regionMismatch.message)
+      return
+    }
 
     const effectivePiAuthProvider = isPiApiKeyFlow
       ? resolvePiAuthProviderForSubmit(activePreset, lastNonCustomPreset)
@@ -973,6 +1043,17 @@ export function ApiKeyInput({
           </div>
           {modelError && (
             <p className="text-xs text-destructive">{modelError}</p>
+          )}
+          {regionMismatch && (
+            <Button
+              type="button"
+              variant="link"
+              size="sm"
+              className="h-auto justify-start p-0 text-xs"
+              onClick={applySuggestedEndpoint}
+            >
+              改用「{regionMismatch.suggestedLabel}」端点
+            </Button>
           )}
           <p className="text-xs text-foreground/30">
             Comma-separated list. The first model is the default. The last is used for summarization.

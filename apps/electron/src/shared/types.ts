@@ -206,6 +206,8 @@ import type {
   TestLlmConnectionResult,
   FetchLlmModelsParams,
   FetchLlmModelsResult,
+  LlmCatalogParams,
+  LlmCatalogResult,
   SkillFile,
   SessionFile,
   OAuthResult,
@@ -443,6 +445,11 @@ export interface ElectronAPI {
   testLlmConnectionSetup(params: TestLlmConnectionParams): Promise<TestLlmConnectionResult>
   /** 拉取厂商线上型号清单（表单态即可用，不要求先建连接）——用于填表即预检 */
   fetchLlmModels(params: FetchLlmModelsParams): Promise<FetchLlmModelsResult>
+  /**
+   * 型号目录（引擎真相源下发，2026-10-24 P3）：预设清单 + 每个 provider 的
+   * 型号目录与新鲜度。GUI 优先用这份；失败/不可用时回退「直连厂商拉线上目录」。
+   */
+  fetchLlmCatalog(params?: LlmCatalogParams): Promise<LlmCatalogResult>
   // Pi provider discovery (main process only — Pi SDK can't run in renderer)
   getPiApiKeyProviders(): Promise<Array<{ key: string; label: string; placeholder: string }>>
   getPiProviderBaseUrl(provider: string): Promise<string | undefined>

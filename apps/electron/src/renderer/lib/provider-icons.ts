@@ -69,7 +69,10 @@ export function getProviderDisplayName(providerType: string, baseUrl?: string | 
     if (url.includes('ollama')) return 'Ollama'
     if (url.includes('kimi.com')) return 'Kimi'
     if (url.includes('moonshot.ai') || url.includes('moonshot.cn')) return 'Moonshot AI'
-    if (url.includes('minimax.io') || url.includes('minimaxi.com')) return 'Minimax'
+    // minimax.cn = 国内站的 Anthropic 兼容端点（api.minimax.cn/anthropic）——
+    // 与国际站 api.minimax.io、国内 openai 兼容站 api.minimaxi.com 并列，
+    // 漏掉它 ⇒ 图标与展示名退化成 generic/custom（2026-10-24 P6 补）。
+    if (url.includes('minimax.io') || url.includes('minimaxi.com') || url.includes('minimax.cn')) return 'Minimax'
     if (url.includes('v0.dev') || url.includes('vercel')) return 'Vercel'
     if (url.includes('manifest.build')) return 'Manifest'
   }
@@ -90,7 +93,7 @@ function detectProviderFromUrl(baseUrl: string): ProviderIconKey | null {
   if (url.includes('generativelanguage.googleapis.com') || url.includes('ai.google')) return 'google'
   if (url.includes('kimi.com')) return 'kimi'
   if (url.includes('moonshot.ai') || url.includes('moonshot.cn')) return 'kimi'
-  if (url.includes('minimax.io') || url.includes('minimaxi.com')) return 'minimax'
+  if (url.includes('minimax.io') || url.includes('minimaxi.com') || url.includes('minimax.cn')) return 'minimax'
   if (url.includes('mistral.ai')) return 'mistral'
   if (url.includes('bedrock')) return 'aws'
   if (url.includes('huggingface.co')) return 'huggingface'
@@ -123,6 +126,8 @@ function piAuthProviderToIcon(piAuthProvider: string): ProviderIconKey | null {
     case 'minimax':
     case 'minimax-global':
     case 'minimax-cn':
+    case 'minimax-anthropic':
+    case 'minimax-cn-anthropic':
       return 'minimax'
     case 'mistral':
       return 'mistral'
