@@ -1,6 +1,6 @@
 {
   "name": "ZenSkill",
-  "description": "ZenSkill 品牌主题 —— 深蓝主色、克制的密度、留白与秩序感；配套 zenloop 中枢设计语言",
+  "description": "ZenSkill 品牌主题 —— 深蓝主色、五级表面层级（画布/卡片/侧栏/输入/弹层）、克制的密度；配套 zenloop 中枢设计语言",
   "author": "ZenSkill Team",
   "license": "MIT",
   "source": "https://github.com/HectorYuan/ZenSkill",
@@ -15,12 +15,22 @@
   "info": "#FFAA1B",
   "success": "#51C147",
   "destructive": "#F92434",
+  "paper": "#FFFFFF",
+  "navigator": "#F7F8FA",
+  "input": "#FFFFFF",
+  "popover": "#FFFFFF",
+  "popoverSolid": "#FFFFFF",
   "dark": {
     "background": "#080A10",
     "foreground": "#ECEEF5",
     "accent": "#90C7FF",
     "info": "#FFAA1B",
     "success": "#7DD774",
-    "destructive": "#FF7972"
+    "destructive": "#FF7972",
+    "paper": "#14171E",
+    "navigator": "#080A10",
+    "input": "#14171E",
+    "popover": "#14171E",
+    "popoverSolid": "#14171E"
   }
 }
