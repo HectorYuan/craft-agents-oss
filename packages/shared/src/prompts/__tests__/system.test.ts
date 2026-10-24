@@ -1,21 +1,40 @@
 import { describe, it, expect, mock, beforeEach } from 'bun:test'
+import * as actualPreferences from '../../config/preferences.ts'
+import * as actualStorage from '../../config/storage.ts'
+import { completeModuleMock } from '../../__tests__/helpers/complete-module-mock.ts'
 
 // The system prompt pipeline reads config-defaults.json from CONFIG_DIR, which
 // is captured at module load and depends on how the developer's environment is
 // initialized. Stub the only config piece `system.ts` uses so these tests stay
 // hermetic regardless of which config dir this process resolved.
-mock.module('../../config/storage.ts', () => ({
-  getBrowserToolEnabled: () => true,
-}))
+//
+// ⚠️ 同样必须**转发真实模块的全部导出**（completeModuleMock）：bun 的 mock.module
+// 是**进程级整块替换**且持续到之后加载的所有测试文件 ⇒ 只给部分导出时，
+// 之后任何静态导入了缺失导出的文件会在链接期炸
+// （SyntaxError: export 'X' not found in '<真实文件路径>'）。
+mock.module('../../config/storage.ts', () =>
+  completeModuleMock(actualStorage, {
+    getBrowserToolEnabled: () => true,
+  }),
+)
 
 // Stub the preferences module so we can toggle `getCoAuthorPreference` per test
 // without touching disk. `formatPreferencesForPrompt` is stubbed to '' because
 // it's unrelated to the behavior under test here.
+//
+// ⚠️ 必须**转发真实模块的全部导出**（completeModuleMock）：bun 的 mock.module 是
+// **进程级整块替换**且持续到之后加载的所有测试文件 ⇒ 只给一部分导出时，
+// 之后任何静态导入了缺失导出的文件会在链接期炸：
+//   SyntaxError: export 'updatePreferences' not found in '.../preferences.ts'
+// 而那个路径是**真实文件路径**（文件明明有该导出）⇒ 极具误导性。
+// 2026-10-24 CI 红灯就是这个 ⇒ 见 src/__tests__/module-mock-completeness.test.ts。
 let mockIncludeCoAuthoredBy = true
-mock.module('../../config/preferences.ts', () => ({
-  getCoAuthorPreference: () => mockIncludeCoAuthoredBy,
-  formatPreferencesForPrompt: () => '',
-}))
+mock.module('../../config/preferences.ts', () =>
+  completeModuleMock(actualPreferences, {
+    getCoAuthorPreference: () => mockIncludeCoAuthoredBy,
+    formatPreferencesForPrompt: () => '',
+  }),
+)
 
 const { getSystemPrompt, formatProjectContextForPrompt } = await import('../system')
 import type { ProjectPromptContext } from '../../projects/types.ts'
