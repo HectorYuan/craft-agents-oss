@@ -280,7 +280,7 @@ export function MemoryBrowser({ workspaceId }: ZenSkillPageProps) {
         <div className="px-5 pt-2 shrink-0">
           <div className="flex items-center gap-3 text-badge text-muted-foreground">
             {([
-              ['L1 工作', stats.data.working?.count ?? 0, stats.data.working?.capacity ?? 0, 'bg-blue-500/60'],
+              ['L1 工作', stats.data.working?.count ?? 0, stats.data.working?.capacity ?? 0, 'bg-accent/60'],
               ['L2 情景', stats.data.episodic?.count ?? 0, stats.data.episodic?.capacity ?? 0, 'bg-accent/60'],
               ['L3 语义', stats.data.semantic?.total_facts ?? 0, null, 'bg-purple-500/60'],
             ] as const).map(([label, used, cap, color]) => {
@@ -336,8 +336,8 @@ export function MemoryBrowser({ workspaceId }: ZenSkillPageProps) {
                       <button
                         className={`opacity-0 group-hover:opacity-100 p-1 rounded shrink-0 transition-opacity ${
                           confirmKey === key
-                            ? 'opacity-100 bg-red-500/25 text-red-400'
-                            : 'hover:bg-red-500/20 text-muted-foreground hover:text-red-400'
+                            ? 'opacity-100 bg-destructive/25 text-destructive-text'
+                            : 'hover:bg-destructive/20 text-muted-foreground hover:text-destructive-text'
                         }`}
                         title={confirmKey === key ? t('zenskill.gtd.calendar.deleteConfirm') : t('zenskill.memory.delete')}
                         disabled={forgetting}
@@ -414,7 +414,7 @@ export function MemoryBrowser({ workspaceId }: ZenSkillPageProps) {
                 return (
                   <div key={i} className="text-xs rounded px-2.5 py-2 border border-border/40 bg-muted/20">
                     <div className="flex items-start gap-1.5">
-                      <span className="px-1 py-px rounded bg-blue-500/10 text-blue-500 shrink-0">{r.type ?? 'recall'}</span>
+                      <span className="px-1 py-px rounded bg-accent/10 text-accent shrink-0">{r.type ?? 'recall'}</span>
                       <span className="min-w-0 flex-1 break-words">{r.message}</span>
                     </div>
                     {dateShow && (

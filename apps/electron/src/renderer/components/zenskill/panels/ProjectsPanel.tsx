@@ -252,7 +252,7 @@ export function ProjectsPanel({
                   )}
                   {isFull && (
                     <button
-                      className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-green-500/20 text-muted-foreground hover:text-green-400 shrink-0"
+                      className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-success/20 text-muted-foreground hover:text-success-text shrink-0"
                       title={t('zenskill.gtd.projects.done', 'Done')}
                       disabled={busyId === p.id}
                       onClick={() => onDone?.(p.id)}
@@ -306,7 +306,7 @@ export function ProjectsPanel({
                           <button
                             onClick={saveEdit}
                             disabled={editProjectDisabled || busyId === editing.id || !editing.name.trim()}
-                            className="p-1 rounded hover:bg-green-500/20 text-green-400 disabled:opacity-40"
+                            className="p-1 rounded hover:bg-success/20 text-success-text disabled:opacity-40"
                             title={t('zenskill.gtd.actions.editSave')}
                           >
                             <Check className="h-3 w-3" />

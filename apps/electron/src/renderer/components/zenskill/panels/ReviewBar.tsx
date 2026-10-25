@@ -98,19 +98,19 @@ export function ReviewBar({
       {/* Right: done / pending / overdue counts */}
       <div className="flex items-center gap-3 shrink-0 tabular-nums">
         <span className="text-muted-foreground flex items-center gap-1">
-          <CheckCircle2 className="h-3 w-3 text-green-500/60" />
+          <CheckCircle2 className="h-3 w-3 text-success/60" />
           {t('zenskill.gtd.review.doneToday')}{' '}
-          <span className={`font-medium ${doneToday > 0 ? 'text-green-400' : 'text-muted-foreground'}`}>{doneToday}</span>
+          <span className={`font-medium ${doneToday > 0 ? 'text-success-text' : 'text-muted-foreground'}`}>{doneToday}</span>
         </span>
         <span className="text-muted-foreground flex items-center gap-1">
-          <Clock className="h-3 w-3 text-yellow-500/60" />
+          <Clock className="h-3 w-3 text-info/60" />
           {t('zenskill.gtd.review.pending')}{' '}
-          <span className={`font-medium ${pendingCount > 0 ? 'text-yellow-500' : 'text-muted-foreground'}`}>{pendingCount}</span>
+          <span className={`font-medium ${pendingCount > 0 ? 'text-info' : 'text-muted-foreground'}`}>{pendingCount}</span>
         </span>
         <span className="text-muted-foreground flex items-center gap-1">
-          <AlertTriangle className="h-3 w-3 text-red-400/60" />
+          <AlertTriangle className="h-3 w-3 text-destructive-text/60" />
           {t('zenskill.gtd.review.overdue')}{' '}
-          <span className={`font-medium ${overdueCount > 0 ? 'text-red-400' : 'text-muted-foreground'}`}>{overdueCount}</span>
+          <span className={`font-medium ${overdueCount > 0 ? 'text-destructive-text' : 'text-muted-foreground'}`}>{overdueCount}</span>
         </span>
       </div>
 

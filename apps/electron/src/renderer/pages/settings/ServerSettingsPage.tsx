@@ -184,7 +184,7 @@ export default function ServerSettingsPage() {
             </SettingsCard>
 
             {needsRestart && (
-              <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-warning/10 border border-warning/20 text-xs text-warning">
+              <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-info/10 border border-info/20 text-xs text-info">
                 <RotateCw className="h-3.5 w-3.5 shrink-0" />
                 <span className="flex-1">{t("settings.server.restartRequired")}</span>
                 <Button
@@ -263,7 +263,7 @@ export default function ServerSettingsPage() {
               </SettingsCard>
 
               {form.enabled && !hasTls && (
-                <div className="flex items-start gap-2 px-3 py-2 rounded-lg bg-warning/10 border border-warning/20 text-xs text-warning">
+                <div className="flex items-start gap-2 px-3 py-2 rounded-lg bg-info/10 border border-info/20 text-xs text-info">
                   <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
                   <span>
                     {status?.insecureWarning

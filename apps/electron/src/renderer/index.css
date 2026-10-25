@@ -205,6 +205,14 @@
   --spacing: 0.25rem;
   --tracking-normal: 0em;
 
+  /* === ZENSKILL EXTENSIONS (design system alignment) ===
+     能量/状态色阶。原先是 components/zenskill/panels/* 里硬编码的 Tailwind 500 系
+     （green-500 / yellow-500 / orange-500 / red-500）⇒ 不随主题切换、暗色下过亮。
+     现改为令牌：绿/黄/红 复用既有语义色（success / info / destructive），
+     只为「橙」新增一档（--energy-low）—— 语义体系里原本没有橙。 */
+  --energy-low: oklch(0.705 0.213 47.60);
+  --energy-low-text: oklch(0.75 0.164 55.99);
+
   /* === Z-INDEX SCALE ===
      Centralized z-index registry for consistent stacking order.
      Use semantic names (z-panel, z-modal) instead of magic numbers.
@@ -308,6 +316,10 @@
   /* Markdown list markers */
   --md-bullets: var(--foreground-50);
   --md-counters: var(--foreground-50);
+
+  /* === ZENSKILL EXTENSIONS === */
+  --energy-low: oklch(0.75 0.164 55.99);
+  --energy-low-text: oklch(0.837 0.117 66.29);
 }
 
 /* Theme Override - Semi-transparent background to allow vibrancy through */
@@ -424,6 +436,20 @@ html[data-font="inter"] {
   /* User message bubble background (overridden on unfocused panels) */
   --color-user-message-bubble: var(--user-message-bubble);
 
+  /* === ZENSKILL EXTENSIONS === */
+  --color-energy-low: var(--energy-low);
+  --color-energy-low-text: var(--energy-low-text);
+
+  /* 语义色「文字档」（向前景色 oklab 混 50%）。
+     仓内原有的消费点用的是 arbitrary value（text-[var(--success-text)]），
+     那种写法不需要 @theme 注册、本就能工作。
+     注册这三条是为了让 components/zenskill/** 把硬编码色族迁到语义令牌后
+     可以直接写 text-success-text / text-info-text / text-destructive-text
+     （等价的非 arbitrary 写法），与 bg-success / bg-info / bg-destructive 对称。 */
+  --color-success-text: var(--success-text);
+  --color-info-text: var(--info-text);
+  --color-destructive-text: var(--destructive-text);
+
   /* === LEGACY COMPATIBILITY === */
   --color-card: var(--card);
   --color-card-foreground: var(--card-foreground);
@@ -443,6 +469,16 @@ html[data-font="inter"] {
   --font-sans: var(--font-sans);
   --font-mono: var(--font-mono);
   --font-serif: var(--font-serif);
+
+  /* === MICRO TYPE SCALE (4 档) ===
+     这 4 档此前只在 apps/webui/src/index.css 定义，Electron 端缺失
+     ⇒ components/zenskill/panels/tokens.ts 引用的 text-nano / text-micro /
+        text-badge / text-caption 在 GUI 里全部失效（回落到继承字号）。
+        此处补齐，与 webui 保持一致。 */
+  --text-nano: 8px;
+  --text-micro: 9px;
+  --text-badge: 10px;
+  --text-caption: 11px;
 
   /* === Z-INDEX SCALE === */
   --z-index-base: var(--z-base);

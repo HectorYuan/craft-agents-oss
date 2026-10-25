@@ -11,10 +11,10 @@ import { useTranslation } from 'react-i18next'
 export type SuggestType = 'action' | 'project' | 'reference' | 'calendar'
 
 const TYPE_COLORS: Record<SuggestType, string> = {
-  action: 'bg-blue-500/15 text-blue-400',
+  action: 'bg-accent/15 text-accent',
   project: 'bg-purple-500/15 text-purple-400',
-  reference: 'bg-yellow-500/15 text-yellow-400',
-  calendar: 'bg-green-500/15 text-green-400',
+  reference: 'bg-info/15 text-info-text',
+  calendar: 'bg-success/15 text-success-text',
 }
 
 export interface AutoClassifyBadgeProps {

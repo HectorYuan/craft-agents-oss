@@ -151,8 +151,8 @@ function lightTaskCountOf(suggestion: string): number | null {
 
 /** Priority dot color — unknown values collapse to low/grey */
 function priorityDotClass(priority?: string): string {
-  if (priority === 'high') return 'bg-red-400'
-  if (priority === 'medium') return 'bg-yellow-500'
+  if (priority === 'high') return 'bg-destructive'
+  if (priority === 'medium') return 'bg-info'
   return 'bg-muted-foreground/40'
 }
 
@@ -391,7 +391,7 @@ export function ProgressionBar({ workspaceId, progressions, mode }: ProgressionB
       role="list"
       aria-label={t('zenskill.progression.title')}
       className={`mx-5 mt-2 rounded-md border bg-muted/5 text-xs shrink-0 ${
-        hasHigh ? 'border-red-400/30 progression-breathe' : 'border-border/30'
+        hasHigh ? 'border-destructive/30 progression-breathe' : 'border-border/30'
       }`}
     >
       {visible.map((progression, index) => {
@@ -404,14 +404,14 @@ export function ProgressionBar({ workspaceId, progressions, mode }: ProgressionB
           const lightCount = lightTaskCountOf(suggestion)
           return (
             <div key={id} role="listitem" className="border-b border-border/20 last:border-b-0 min-w-0 px-2 py-1.5">
-              <div className="rounded-md border border-orange-500/30 border-l-2 border-l-orange-500 bg-gradient-to-r from-orange-500/10 via-orange-500/5 to-transparent px-3 py-2">
+              <div className="rounded-md border border-energy-low/30 border-l-2 border-l-orange-500 bg-gradient-to-r from-energy-low/10 via-energy-low/5 to-transparent px-3 py-2">
                 <div className="flex items-center gap-1.5 min-w-0">
-                  <Zap className={`h-4 w-4 shrink-0 text-orange-500 ${busy ? 'animate-pulse' : ''}`} />
+                  <Zap className={`h-4 w-4 shrink-0 text-energy-low ${busy ? 'animate-pulse' : ''}`} />
                   <span className="truncate text-xs font-semibold text-foreground">
                     {t('zenskill.progression.lowEnergy')}
                   </span>
                   {lightCount !== null && (
-                    <span className="ml-auto shrink-0 rounded-full border border-orange-500/30 bg-orange-500/10 px-1.5 py-px text-xs font-medium text-orange-600 dark:text-orange-400">
+                    <span className="ml-auto shrink-0 rounded-full border border-energy-low/30 bg-energy-low/10 px-1.5 py-px text-xs font-medium text-energy-low-text dark:text-energy-low-text">
                       ⚡ {lightCount}
                     </span>
                   )}
@@ -427,7 +427,7 @@ export function ProgressionBar({ workspaceId, progressions, mode }: ProgressionB
                     onClick={() => void sendPrompt(progression, index)}
                     disabled={!prompt || busy}
                     title={t('zenskill.progression.send')}
-                    className="inline-flex shrink-0 items-center gap-1 rounded bg-orange-500/90 px-2.5 py-1 text-sm font-medium text-white transition-colors hover:bg-orange-500 disabled:opacity-40"
+                    className="inline-flex shrink-0 items-center gap-1 rounded bg-energy-low/90 px-2.5 py-1 text-sm font-medium text-white transition-colors hover:bg-energy-low disabled:opacity-40"
                   >
                     <ArrowRight className={`h-3 w-3 ${busy ? 'animate-pulse' : ''}`} />
                     {t('zenskill.progression.send')}

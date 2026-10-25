@@ -87,9 +87,9 @@ function findingsCount(security: any): number {
 
 function riskBadgeClass(level?: string): string {
   const l = (level || '').toLowerCase()
-  if (l.includes('danger') || l === 'high' || l === 'blocked') return 'bg-red-500/10 text-red-500'
+  if (l.includes('danger') || l === 'high' || l === 'blocked') return 'bg-destructive/10 text-destructive-text'
   if (l.includes('warn') || l === 'medium' || l === 'degraded') return 'bg-amber-500/10 text-amber-500'
-  return 'bg-green-500/10 text-green-500'
+  return 'bg-success/10 text-success-text'
 }
 
 function SectionHeader({ icon: Icon, title, right }: { icon: typeof Server; title: string; right?: React.ReactNode }) {
@@ -135,11 +135,11 @@ function MarketSkillCard({ skill, state }: { skill: MarketSkill; state: CardStat
           )}
         </div>
         {isInstalled ? (
-          <span className="shrink-0 flex items-center gap-0.5 text-badge text-green-500">
+          <span className="shrink-0 flex items-center gap-0.5 text-badge text-success-text">
             <Check className="h-3 w-3" /> {t('zenskill.market.installed')}
           </span>
         ) : rules ? (
-          <span className="shrink-0 inline-flex items-center gap-1 text-badge px-1.5 py-0.5 rounded bg-red-500/10 text-red-500">
+          <span className="shrink-0 inline-flex items-center gap-1 text-badge px-1.5 py-0.5 rounded bg-destructive/10 text-destructive-text">
             <ShieldAlert className="h-3 w-3" /> {t('zenskill.market.blocked')}
           </span>
         ) : confirm ? (
@@ -165,7 +165,7 @@ function MarketSkillCard({ skill, state }: { skill: MarketSkill; state: CardStat
         )}
       </div>
       {rules && rules.length > 0 && (
-        <div className="text-badge text-red-500/80">{t('zenskill.market.rules', { rules: rules.join(', ') })}</div>
+        <div className="text-badge text-destructive-text/80">{t('zenskill.market.rules', { rules: rules.join(', ') })}</div>
       )}
     </div>
   )
@@ -249,7 +249,7 @@ function SourcesSection({ workspaceId }: { workspaceId?: string }) {
                 {s.url && <div className="truncate text-badge text-muted-foreground">{s.url}</div>}
               </div>
               {s.enabled === false && <span className="text-micro px-1 py-px rounded bg-muted text-muted-foreground shrink-0">off</span>}
-              <span className={`shrink-0 inline-flex items-center gap-1 text-badge px-1.5 py-0.5 rounded ${healthy ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'}`}>
+              <span className={`shrink-0 inline-flex items-center gap-1 text-badge px-1.5 py-0.5 rounded ${healthy ? 'bg-success/10 text-success-text' : 'bg-destructive/10 text-destructive-text'}`}>
                 {healthy ? <ShieldCheck className="h-3 w-3" /> : <ShieldAlert className="h-3 w-3" />}
                 {healthy ? t('zenskill.market.sources.healthy') : t('zenskill.market.sources.unhealthy')}
               </span>
@@ -566,9 +566,9 @@ export function SkillMarketPage({ workspaceId }: { workspaceId?: string; initial
                 <div className="mt-2 text-xs rounded border border-border/30 px-2 py-1.5 space-y-1">
                   <div className="flex items-center gap-1.5">
                     {lastReport.blocked ? (
-                      <ShieldAlert className="h-3.5 w-3.5 text-red-500" />
+                      <ShieldAlert className="h-3.5 w-3.5 text-destructive-text" />
                     ) : lastReport.ok ? (
-                      <ShieldCheck className="h-3.5 w-3.5 text-green-500" />
+                      <ShieldCheck className="h-3.5 w-3.5 text-success-text" />
                     ) : (
                       <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />
                     )}
@@ -578,7 +578,7 @@ export function SkillMarketPage({ workspaceId }: { workspaceId?: string; initial
                     </span>
                   </div>
                   {lastReport.rules && lastReport.rules.length > 0 && (
-                    <div className="text-badge text-red-500/80">{t('zenskill.market.rules', { rules: lastReport.rules.join(', ') })}</div>
+                    <div className="text-badge text-destructive-text/80">{t('zenskill.market.rules', { rules: lastReport.rules.join(', ') })}</div>
                   )}
                 </div>
               )}
@@ -645,7 +645,7 @@ export function SkillMarketPage({ workspaceId }: { workspaceId?: string; initial
                       )}
                       {arming === skillId ? (
                         <button
-                          className="shrink-0 flex items-center gap-1 text-badge px-1.5 py-0.5 rounded bg-red-500/10 text-red-500 hover:bg-red-500/20"
+                          className="shrink-0 flex items-center gap-1 text-badge px-1.5 py-0.5 rounded bg-destructive/10 text-destructive-text hover:bg-destructive/20"
                           disabled={removing === skillId}
                           onClick={() => void uninstall(skillId)}
                         >

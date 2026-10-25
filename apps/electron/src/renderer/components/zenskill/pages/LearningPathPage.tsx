@@ -38,10 +38,10 @@ interface LearningPathPageProps {
 }
 
 const DIFFICULTY_COLORS: Record<string, string> = {
-  beginner: 'bg-green-500/15 text-green-400',
-  intermediate: 'bg-yellow-500/15 text-yellow-400',
-  advanced: 'bg-orange-500/15 text-orange-400',
-  expert: 'bg-red-500/15 text-red-400',
+  beginner: 'bg-success/15 text-success-text',
+  intermediate: 'bg-info/15 text-info-text',
+  advanced: 'bg-energy-low/15 text-energy-low-text',
+  expert: 'bg-destructive/15 text-destructive-text',
 }
 
 export function LearningPathPage({ workspaceId, onNavigateToChat }: LearningPathPageProps) {

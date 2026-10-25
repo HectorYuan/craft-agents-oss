@@ -102,17 +102,17 @@ export interface TaskProgression {
 }
 
 export const PRIORITY_COLOR: Record<string, string> = {
-  P0: 'bg-red-500/15 text-red-400',
-  P1: 'bg-orange-500/15 text-orange-400',
-  P2: 'bg-yellow-500/15 text-yellow-400',
+  P0: 'bg-destructive/15 text-destructive-text',
+  P1: 'bg-energy-low/15 text-energy-low-text',
+  P2: 'bg-info/15 text-info-text',
   P3: 'bg-muted text-muted-foreground',
 }
 
 /** energy_required chip color, tiered by numeric value (low / mid / high) */
 export function energyChipClass(value: number): string {
-  if (value <= 3) return 'bg-green-500/10 text-green-400'
-  if (value <= 6) return 'bg-yellow-500/10 text-yellow-400'
-  return 'bg-red-500/10 text-red-400'
+  if (value <= 3) return 'bg-success/10 text-success-text'
+  if (value <= 6) return 'bg-info/10 text-info-text'
+  return 'bg-destructive/10 text-destructive-text'
 }
 
 /** Parse "YYYY-MM-DD..." as a local date (new Date(iso) would parse as UTC) */

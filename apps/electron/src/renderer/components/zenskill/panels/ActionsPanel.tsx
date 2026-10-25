@@ -297,7 +297,7 @@ export function ActionsPanel({
     return (
       <div
         key={a.id}
-        className={`flex items-center gap-1.5 text-sm rounded-lg px-3 py-2 hover:bg-muted/50 group transition-colors duration-300 ${isJustDone ? 'bg-green-500/10' : ''}`}
+        className={`flex items-center gap-1.5 text-sm rounded-lg px-3 py-2 hover:bg-muted/50 group transition-colors duration-300 ${isJustDone ? 'bg-success/10' : ''}`}
       >
         {isFull && !isDoneView && editing && editing.id === a.id ? (
           <div className="flex items-center gap-1 flex-1 min-w-0">
@@ -330,7 +330,7 @@ export function ActionsPanel({
             <button
               onClick={saveEdit}
               disabled={editDisabled || busyId === editing.id || !editing.title.trim()}
-              className="p-0.5 rounded hover:bg-green-500/20 text-green-400 disabled:opacity-40 shrink-0"
+              className="p-0.5 rounded hover:bg-success/20 text-success-text disabled:opacity-40 shrink-0"
               title={t('zenskill.gtd.actions.editSave')}
             >
               <Check className="h-3 w-3" />
@@ -405,7 +405,7 @@ export function ActionsPanel({
                 <button
                   className={`text-badge px-1 py-px rounded shrink-0 tabular-nums transition-colors ${
                     sess.running > 0
-                      ? 'bg-green-500/15 text-green-500 hover:bg-green-500/25'
+                      ? 'bg-success/15 text-success hover:bg-success/25'
                       : 'bg-muted/60 text-muted-foreground/70 hover:bg-muted'
                   }`}
                   title={t('zenskill.gtd.actions.sessions', '关联会话')}
@@ -439,7 +439,7 @@ export function ActionsPanel({
                 <button
                   onClick={() => confirmSchedule(a)}
                   disabled={!scheduleDate || busyId === a.id}
-                  className="p-0.5 rounded hover:bg-green-500/20 text-green-400 disabled:opacity-40 shrink-0"
+                  className="p-0.5 rounded hover:bg-success/20 text-success-text disabled:opacity-40 shrink-0"
                   title={t('zenskill.gtd.actions.schedule')}
                 >
                   <Check className="h-3 w-3" />
@@ -456,7 +456,7 @@ export function ActionsPanel({
             {!isDoneView && isFull && onSchedule && schedulingId !== a.id && (
               scheduledDates?.[a.id] ? (
                 <button
-                  className="p-0.5 rounded hover:bg-accent/20 text-green-400 shrink-0"
+                  className="p-0.5 rounded hover:bg-accent/20 text-success-text shrink-0"
                   title={t('zenskill.gtd.actions.scheduled', { date: scheduledDates[a.id] })}
                   disabled={busyId === a.id}
                   onClick={() => startSchedule(a, todayIso)}
@@ -487,7 +487,7 @@ export function ActionsPanel({
                   </button>
                 )}
                 <button
-                  className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-green-500/20 text-muted-foreground hover:text-green-400 shrink-0"
+                  className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-success/20 text-muted-foreground hover:text-success-text shrink-0"
                   title={t('zenskill.gtd.actions.done', 'Done')}
                   disabled={busyId === a.id}
                   onClick={() => onDone?.(a.id)}
@@ -523,8 +523,8 @@ export function ActionsPanel({
                 <button
                   className={`opacity-0 group-hover:opacity-100 p-0.5 rounded shrink-0 ${
                     activeConfirmId === a.id
-                      ? 'bg-red-500/25 text-red-400'
-                      : 'hover:bg-red-500/20 text-muted-foreground hover:text-red-400'
+                      ? 'bg-destructive/25 text-destructive-text'
+                      : 'hover:bg-destructive/20 text-muted-foreground hover:text-destructive-text'
                   }`}
                   title={activeConfirmId === a.id ? '点击再次确认删除' : 'Delete'}
                   disabled={busyId === a.id}
@@ -543,7 +543,7 @@ export function ActionsPanel({
               </>
             )}
             {isDoneView && (
-              <Check className="h-2.5 w-2.5 text-green-500/60 shrink-0" />
+              <Check className="h-2.5 w-2.5 text-success/60 shrink-0" />
             )}
           </>
         )}
@@ -555,7 +555,7 @@ export function ActionsPanel({
     <div className="space-y-1">
       {gs.map((g) => (
         <div key={g.key}>
-          <div className={`flex items-center gap-1 text-xs font-medium px-2 pt-1.5 ${g.danger ? 'text-red-400' : 'text-muted-foreground'}`}>
+          <div className={`flex items-center gap-1 text-xs font-medium px-2 pt-1.5 ${g.danger ? 'text-destructive-text' : 'text-muted-foreground'}`}>
             {g.label}
             <span className="text-muted-foreground/60">({g.items.length})</span>
           </div>
@@ -742,7 +742,7 @@ export function ActionsPanel({
                 </span>
                 <span className="truncate flex-1" title={a.title}>{a.title}</span>
                 <button
-                  className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-green-500/20 text-muted-foreground hover:text-green-400 shrink-0"
+                  className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-success/20 text-muted-foreground hover:text-success-text shrink-0"
                   title={t('zenskill.gtd.actions.done', 'Done')}
                   disabled={busyId === a.id}
                   onClick={() => onDone?.(a.id)}
@@ -786,7 +786,7 @@ export function ActionsPanel({
                     >
                       <div className="truncate">{a.title}</div>
                       <div className="flex items-center gap-1 mt-0.5">
-                        <span className={`text-xs px-1 rounded ${a.priority === 'P0' ? 'bg-red-500/15 text-red-400' : a.priority === 'P1' ? 'bg-orange-500/15 text-orange-400' : 'bg-muted text-muted-foreground'}`}>
+                        <span className={`text-xs px-1 rounded ${a.priority === 'P0' ? 'bg-destructive/15 text-destructive-text' : a.priority === 'P1' ? 'bg-energy-low/15 text-energy-low-text' : 'bg-muted text-muted-foreground'}`}>
                           {a.priority}
                         </span>
                         <button
@@ -827,7 +827,7 @@ export function ActionsPanel({
         <div className="mt-1.5 pl-5 space-y-0.5">
           {doneActions.slice(0, doneMaxItems).map((a) => (
             <div key={a.id} className="flex items-center gap-1.5 text-sm text-muted-foreground/70">
-              <Check className="h-2.5 w-2.5 text-green-500/60 shrink-0" />
+              <Check className="h-2.5 w-2.5 text-success/60 shrink-0" />
               <span className="truncate line-through decoration-muted-foreground/40">{a.title}</span>
             </div>
           ))}

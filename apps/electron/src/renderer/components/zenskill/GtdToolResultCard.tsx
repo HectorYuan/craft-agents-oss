@@ -560,8 +560,8 @@ export function GtdToolResultCard({ toolName, resultText, workspaceId, sourceSlu
               onClick={handleDeleteEvent}
               className={`${btnBase} ${
                 confirmingDelete
-                  ? 'border-red-500/50 bg-red-500/20 text-red-600 dark:text-red-400'
-                  : 'border-red-500/40 bg-red-500/10 text-red-600 hover:bg-red-500/20 dark:text-red-400'
+                  ? 'border-destructive/50 bg-destructive/20 text-destructive-text dark:text-destructive-text'
+                  : 'border-destructive/40 bg-destructive/10 text-destructive-text hover:bg-destructive/20 dark:text-destructive-text'
               }`}
             >
               {confirmingDelete ? t('zenskill.card.deleteConfirm') : t('zenskill.card.delete')}

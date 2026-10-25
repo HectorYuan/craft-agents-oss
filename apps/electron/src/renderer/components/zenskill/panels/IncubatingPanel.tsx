@@ -21,8 +21,8 @@ const PROMOTE_THRESHOLD_PCT = 80
 
 const STATUS_COLOR: Record<string, string> = {
   active: 'bg-accent/10 text-accent',
-  mature: 'bg-green-500/15 text-green-400',
-  matured: 'bg-green-500/15 text-green-400',
+  mature: 'bg-success/15 text-success-text',
+  matured: 'bg-success/15 text-success-text',
   promoted: 'bg-muted text-muted-foreground',
   archived: 'bg-muted text-muted-foreground/70',
 }
@@ -108,7 +108,7 @@ function IncubatingEntry({
         </span>
         {isFull && mature && onPromote && (
           <button
-            className="flex items-center gap-0.5 px-1 py-0.5 rounded bg-green-500/10 text-green-400 hover:bg-green-500/20 shrink-0 text-xs disabled:opacity-40"
+            className="flex items-center gap-0.5 px-1 py-0.5 rounded bg-success/10 text-success-text hover:bg-success/20 shrink-0 text-xs disabled:opacity-40"
             title={t('zenskill.gtd.incubating.promote')}
             disabled={busyId === item.id}
             onClick={() => onPromote(item.id)}
@@ -121,7 +121,7 @@ function IncubatingEntry({
       <div className="flex items-center mt-1">
         <div className="flex-1 h-1 rounded bg-muted/60 overflow-hidden">
           <div
-            className={`h-full rounded transition-all ${mature ? 'bg-green-500/70' : 'bg-accent/70'}`}
+            className={`h-full rounded transition-all ${mature ? 'bg-success/70' : 'bg-accent/70'}`}
             style={{ width: `${pct}%` }}
           />
         </div>
@@ -331,7 +331,7 @@ export function IncubatingPanel({
               {selectedIds.size > 0 && (
                 <button
                   onClick={handleBatchPromote}
-                  className="flex items-center gap-1 px-2 py-0.5 rounded bg-green-500/10 text-green-400 hover:bg-green-500/20 text-xs"
+                  className="flex items-center gap-1 px-2 py-0.5 rounded bg-success/10 text-success-text hover:bg-success/20 text-xs"
                 >
                   <TrendingUp className="h-3 w-3" />
                   {t('zenskill.gtd.incubating.batchPromote', '批量提升')} ({selectedIds.size})

@@ -175,7 +175,7 @@ const SOURCE_TYPE_CONFIG: Record<string, { label: string; colorClass: string }> 
 
 const SOURCE_STATUS_CONFIG: Record<string, { label: string; colorClass: string } | null> = {
   connected: null,
-  needs_auth: { label: 'Auth Required', colorClass: 'bg-warning/10 text-warning' },
+  needs_auth: { label: 'Auth Required', colorClass: 'bg-info/10 text-info' },
   failed: { label: 'Disconnected', colorClass: 'bg-destructive/10 text-destructive' },
   untested: { label: 'Not Tested', colorClass: 'bg-foreground/10 text-foreground/50' },
 }

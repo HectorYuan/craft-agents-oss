@@ -112,7 +112,7 @@ export function InboxPanel({
             <button
               onClick={onBatchClassify}
               disabled={batchClassifyDisabled}
-              className="flex items-center gap-1 px-2 py-1.5 rounded bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 text-xs disabled:opacity-40 shrink-0"
+              className="flex items-center gap-1 px-2 py-1.5 rounded bg-accent/10 text-accent hover:bg-accent/20 text-xs disabled:opacity-40 shrink-0"
               title={t('zenskill.inbox.batchClassify', '按 AI 建议一键整理全部条目')}
             >
               <Sparkles className="h-3 w-3" />

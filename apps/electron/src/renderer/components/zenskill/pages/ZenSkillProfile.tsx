@@ -105,7 +105,7 @@ const GOAL_STATUSES = ['active', 'completed', 'cancelled']
 
 function goalStatusBadgeClass(status: string): string {
   switch (status) {
-    case 'completed': return 'bg-green-500/15 text-green-400'
+    case 'completed': return 'bg-success/15 text-success-text'
     case 'cancelled': return 'bg-muted text-muted-foreground'
     default: return 'bg-accent/10 text-accent'
   }
@@ -493,7 +493,7 @@ export function ZenSkillProfile({ workspaceId }: ZenSkillProfileProps) {
                     {week.map((day, d) => (
                       <span
                         key={d}
-                        className={`h-2 w-2 rounded-[2px] ${day ? 'bg-green-500/70' : 'bg-muted/40'}`}
+                        className={`h-2 w-2 rounded-[2px] ${day ? 'bg-success/70' : 'bg-muted/40'}`}
                       />
                     ))}
                   </div>
@@ -532,12 +532,12 @@ export function ZenSkillProfile({ workspaceId }: ZenSkillProfileProps) {
           {/* 6. Habit tracking: per-habit rows + habit_set/habit_delete management — collapsible */}
           <div className={`${ZS.card}`}>
             <div className={ZS.sectionHeader}>
-              <Flame className="h-3.5 w-3.5 text-orange-400" />
+              <Flame className="h-3.5 w-3.5 text-energy-low-text" />
               <span className={ZS.body + ' font-medium text-muted-foreground'}>
                 {t('zenskill.profile.habits', 'Habits')} ({habitEntries.length})
               </span>
               {streak > 0 && (
-                <span className="text-xs text-orange-400 ml-auto">
+                <span className="text-xs text-energy-low-text ml-auto">
                   🔥 {streak} {t('zenskill.profile.streak', 'day streak')}
                 </span>
               )}
@@ -557,7 +557,7 @@ export function ZenSkillProfile({ workspaceId }: ZenSkillProfileProps) {
                         <span className="truncate">{h.title || habitId}</span>
                         <div className="flex items-center gap-2 shrink-0">
                           {(h.streak ?? 0) > 0 && (
-                            <span className="text-xs text-orange-500">🔥{h.streak}</span>
+                            <span className="text-xs text-energy-low-text">🔥{h.streak}</span>
                           )}
                           <span className="text-xs text-muted-foreground tabular-nums">
                             {Math.round((h.completion_rate ?? 0) * 100)}%
@@ -565,8 +565,8 @@ export function ZenSkillProfile({ workspaceId }: ZenSkillProfileProps) {
                           <button
                             className={`opacity-0 group-hover:opacity-100 p-0.5 rounded shrink-0 ${
                               confirmDeleteId === habitId
-                                ? 'bg-red-500/25 text-red-400'
-                                : 'hover:bg-red-500/20 text-muted-foreground hover:text-red-400'
+                                ? 'bg-destructive/25 text-destructive-text'
+                                : 'hover:bg-destructive/20 text-muted-foreground hover:text-destructive-text'
                             }`}
                             title={confirmDeleteId === habitId ? t('zenskill.gtd.calendar.deleteConfirm') : t('zenskill.profile.habits.delete')}
                             disabled={deleting || !h.id}
@@ -582,7 +582,7 @@ export function ZenSkillProfile({ workspaceId }: ZenSkillProfileProps) {
                             <span
                               key={day}
                               title={day}
-                              className={`h-2.5 w-2.5 rounded-[3px] ${ok ? 'bg-green-500/70' : 'bg-muted/60'}`}
+                              className={`h-2.5 w-2.5 rounded-[3px] ${ok ? 'bg-success/70' : 'bg-muted/60'}`}
                             />
                           ))}
                         </div>
@@ -719,7 +719,7 @@ export function ZenSkillProfile({ workspaceId }: ZenSkillProfileProps) {
                           <button
                             onClick={() => void submitGoalEdit(goalId)}
                             disabled={busyTool === 'goal_update'}
-                            className="p-1 rounded hover:bg-green-500/20 text-green-400 disabled:opacity-40"
+                            className="p-1 rounded hover:bg-success/20 text-success-text disabled:opacity-40"
                             title={t('zenskill.gtd.actions.editSave', 'Save')}
                           >
                             <Check className="h-3 w-3" />
@@ -759,8 +759,8 @@ export function ZenSkillProfile({ workspaceId }: ZenSkillProfileProps) {
                               <button
                                 className={`opacity-0 group-hover:opacity-100 p-0.5 rounded shrink-0 ${
                                   confirmDeleteId === goalId
-                                    ? 'bg-red-500/25 text-red-400'
-                                    : 'hover:bg-red-500/20 text-muted-foreground hover:text-red-400'
+                                    ? 'bg-destructive/25 text-destructive-text'
+                                    : 'hover:bg-destructive/20 text-muted-foreground hover:text-destructive-text'
                                 }`}
                                 title={confirmDeleteId === goalId ? t('zenskill.gtd.calendar.deleteConfirm') : t('zenskill.profile.goals.delete')}
                                 disabled={busyTool === 'goal_delete'}

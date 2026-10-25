@@ -490,7 +490,7 @@ export function CalendarPanel({
                             <button
                               onClick={saveEventEdit}
                               disabled={updateEventDisabled || busyId === editingEvent.eventId || !editingEvent.title.trim()}
-                              className="p-0.5 rounded hover:bg-green-500/20 text-green-400 disabled:opacity-40 shrink-0"
+                              className="p-0.5 rounded hover:bg-success/20 text-success-text disabled:opacity-40 shrink-0"
                               title={t('zenskill.gtd.actions.editSave')}
                             >
                               <Check className="h-3 w-3" />
@@ -542,7 +542,7 @@ export function CalendarPanel({
                               </button>
                               {e.date && selectedDate && e.date !== selectedDate && (
                                 <button
-                                  className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-blue-500/20 text-muted-foreground hover:text-blue-400 shrink-0"
+                                  className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-accent/20 text-muted-foreground hover:text-accent shrink-0"
                                   title={`移到 ${selectedDate}`}
                                   disabled={updateEventDisabled}
                                   onClick={() => onUpdateEvent({ eventId, title: e.title ?? '', date: selectedDate, timeStr: eventTimeOf(e) })}
@@ -556,8 +556,8 @@ export function CalendarPanel({
                             <button
                               className={`opacity-0 group-hover:opacity-100 p-0.5 rounded shrink-0 ${
                                 confirmEventId === eventId
-                                  ? 'bg-red-500/25 text-red-400'
-                                  : 'hover:bg-red-500/20 text-muted-foreground hover:text-red-400'
+                                  ? 'bg-destructive/25 text-destructive-text'
+                                  : 'hover:bg-destructive/20 text-muted-foreground hover:text-destructive-text'
                               }`}
                               title={confirmEventId === eventId ? t('zenskill.gtd.calendar.deleteConfirm') : t('zenskill.gtd.calendar.deleteEvent')}
                               disabled={busyId === eventId}
@@ -604,9 +604,9 @@ export function CalendarPanel({
 /** Priority chip background (local helper to keep the sidebar rows light) */
 function PRIORITY_BG(priority?: string): string {
   switch (priority) {
-    case 'P0': return 'bg-red-500/15 text-red-400'
-    case 'P1': return 'bg-orange-500/15 text-orange-400'
-    case 'P2': return 'bg-yellow-500/15 text-yellow-400'
+    case 'P0': return 'bg-destructive/15 text-destructive-text'
+    case 'P1': return 'bg-energy-low/15 text-energy-low-text'
+    case 'P2': return 'bg-info/15 text-info-text'
     default: return 'bg-muted text-muted-foreground'
   }
 }

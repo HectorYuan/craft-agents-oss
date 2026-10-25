@@ -13,10 +13,10 @@ export interface EnergyBarProps {
 }
 
 function energyColor(pct: number): string {
-  if (pct > 0.7) return 'bg-green-500/70'
-  if (pct > 0.3) return 'bg-yellow-500/70'
-  if (pct > 0.1) return 'bg-orange-500/70'
-  return 'bg-red-500/70'
+  if (pct > 0.7) return 'bg-success/70'
+  if (pct > 0.3) return 'bg-info/70'
+  if (pct > 0.1) return 'bg-energy-low/70'
+  return 'bg-destructive/70'
 }
 
 export function EnergyBar({ level, pct, current, max }: EnergyBarProps) {
@@ -37,7 +37,7 @@ export function EnergyBar({ level, pct, current, max }: EnergyBarProps) {
 
 /** energyChipClass — 根据 energy_required 值返回芯片颜色类 */
 export function energyChipClass(value: number): string {
-  if (value <= 3) return 'bg-green-500/10 text-green-400'
-  if (value <= 6) return 'bg-yellow-500/10 text-yellow-400'
-  return 'bg-red-500/10 text-red-400'
+  if (value <= 3) return 'bg-success/10 text-success-text'
+  if (value <= 6) return 'bg-info/10 text-info-text'
+  return 'bg-destructive/10 text-destructive-text'
 }

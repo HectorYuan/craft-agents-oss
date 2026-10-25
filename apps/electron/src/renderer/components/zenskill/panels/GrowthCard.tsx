@@ -83,7 +83,7 @@ export function GrowthCard({ skills, maxItems = 3, onNavigateToChat }: GrowthCar
                   <span className="text-xs text-muted-foreground">{g.usage_count}次</span>
                 )}
                 {g.success_rate != null && (
-                  <span className="text-xs text-green-500/80">
+                  <span className="text-xs text-success/80">
                     {Math.round(g.success_rate * 100)}%
                   </span>
                 )}

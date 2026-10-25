@@ -33,8 +33,8 @@ interface LevelUpCeremonyProps {
 const LEVEL_COLORS: Record<string, { bg: string; text: string; border: string }> = {
   MASTER: { bg: 'bg-amber-500/10', text: 'text-amber-500', border: 'border-amber-400/60' },
   EXPERT: { bg: 'bg-purple-500/10', text: 'text-purple-500', border: 'border-purple-400/60' },
-  ADEPT: { bg: 'bg-blue-500/10', text: 'text-blue-500', border: 'border-blue-400/60' },
-  APPRENTICE: { bg: 'bg-green-500/10', text: 'text-green-500', border: 'border-green-400/60' },
+  ADEPT: { bg: 'bg-accent/10', text: 'text-accent', border: 'border-accent/60' },
+  APPRENTICE: { bg: 'bg-success/10', text: 'text-success-text', border: 'border-success/60' },
   NOVICE: { bg: 'bg-gray-500/10', text: 'text-gray-400', border: 'border-gray-400/40' },
 }
 

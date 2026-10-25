@@ -35,10 +35,10 @@ export function CompanionCard({ companion, suggestions, dailyReviewMsg, onNaviga
       {(companion.overdue > 0 || companion.due_today > 0) && (
         <div className="flex gap-3 text-xs">
           {companion.overdue > 0 && (
-            <span className="text-red-400">⚠ {companion.overdue} overdue</span>
+            <span className="text-destructive-text">⚠ {companion.overdue} overdue</span>
           )}
           {companion.due_today > 0 && (
-            <span className="text-yellow-400">📅 {companion.due_today} due today</span>
+            <span className="text-info-text">📅 {companion.due_today} due today</span>
           )}
         </div>
       )}
@@ -48,14 +48,14 @@ export function CompanionCard({ companion, suggestions, dailyReviewMsg, onNaviga
           className="flex items-start gap-1.5 text-xs text-muted-foreground/70 text-left w-full"
           onClick={() => onNavigateToChat?.(`帮我分析这个洞察: ${companion.top_insight!.title}`)}
         >
-          <Lightbulb className="h-3 w-3 mt-px shrink-0 text-yellow-500/60" />
+          <Lightbulb className="h-3 w-3 mt-px shrink-0 text-info/60" />
           <span>{companion.top_insight.title}</span>
         </button>
       )}
 
       {suggestions && suggestions.length > 0 && (
         <div className="flex items-start gap-1.5 text-xs text-muted-foreground/70">
-          <Lightbulb className="h-3 w-3 mt-px shrink-0 text-yellow-500/60" />
+          <Lightbulb className="h-3 w-3 mt-px shrink-0 text-info/60" />
           <span>{suggestions[0]}</span>
         </div>
       )}

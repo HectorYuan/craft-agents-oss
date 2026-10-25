@@ -400,7 +400,7 @@ function InsightsList({ insights }: { insights: InsightItem[] }) {
               {item.severity && (
                 <span className={`text-nano px-1 py-0.5 rounded shrink-0 ${
                   item.severity === 'high' ? 'bg-destructive/10 text-destructive' :
-                  item.severity === 'medium' ? 'bg-yellow-500/10 text-yellow-500' :
+                  item.severity === 'medium' ? 'bg-info/10 text-info-text' :
                   'bg-muted/60 text-muted-foreground'
                 }`}>
                   {item.severity}

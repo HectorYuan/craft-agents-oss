@@ -32,9 +32,9 @@ export interface InsightsPanelProps {
 }
 
 const LEVEL_COLORS: Record<string, string> = {
-  high: 'bg-red-500/15 text-red-400',
-  medium: 'bg-yellow-500/15 text-yellow-400',
-  low: 'bg-green-500/15 text-green-400',
+  high: 'bg-destructive/15 text-destructive-text',
+  medium: 'bg-info/15 text-info-text',
+  low: 'bg-success/15 text-success-text',
 }
 
 const TYPE_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {

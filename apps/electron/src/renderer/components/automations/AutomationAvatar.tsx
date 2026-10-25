@@ -41,10 +41,10 @@ const sizeConfig: Record<AvatarSize, { container: string; icon: string }> = {
 const categoryConfig: Record<EventCategory, { icon: React.ElementType; bg: string; text: string }> = {
   scheduled:    { icon: Clock,          bg: 'bg-success/10',      text: 'text-success' },
   label:        { icon: Tag,            bg: 'bg-accent/10',       text: 'text-accent' },
-  permission:   { icon: Shield,         bg: 'bg-warning/10',      text: 'text-warning' },
+  permission:   { icon: Shield,         bg: 'bg-info/10',      text: 'text-info' },
   flag:         { icon: Flag,           bg: 'bg-info/10',         text: 'text-info' },
   todo:         { icon: ListChecks,     bg: 'bg-info/10',         text: 'text-info' },
-  'agent-pre':  { icon: Zap,            bg: 'bg-warning/10',      text: 'text-warning' },
+  'agent-pre':  { icon: Zap,            bg: 'bg-info/10',      text: 'text-info' },
   'agent-post': { icon: CheckCircle2,   bg: 'bg-success/10',      text: 'text-success' },
   'agent-error':{ icon: AlertTriangle,  bg: 'bg-destructive/10',  text: 'text-destructive' },
   session:      { icon: MessageSquare,  bg: 'bg-foreground/10',   text: 'text-foreground/70' },

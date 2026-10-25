@@ -9,18 +9,18 @@ import { describe, test, expect } from 'bun:test'
 // ─── energyChipClass ───
 // 从 EnergyBar 提取
 function energyChipClass(value: number): string {
-  if (value <= 3) return 'bg-green-500/10 text-green-400'
-  if (value <= 6) return 'bg-yellow-500/10 text-yellow-400'
-  return 'bg-red-500/10 text-red-400'
+  if (value <= 3) return 'bg-success/10 text-success-text'
+  if (value <= 6) return 'bg-info/10 text-info-text'
+  return 'bg-destructive/10 text-destructive-text'
 }
 
 describe('energyChipClass', () => {
-  test('value=0 → green', () => expect(energyChipClass(0)).toContain('green'))
-  test('value=3 → green (边界)', () => expect(energyChipClass(3)).toContain('green'))
-  test('value=4 → yellow', () => expect(energyChipClass(4)).toContain('yellow'))
-  test('value=6 → yellow (边界)', () => expect(energyChipClass(6)).toContain('yellow'))
-  test('value=7 → red', () => expect(energyChipClass(7)).toContain('red'))
-  test('value=10 → red', () => expect(energyChipClass(10)).toContain('red'))
+  test('value=0 → success', () => expect(energyChipClass(0)).toContain('success'))
+  test('value=3 → success (边界)', () => expect(energyChipClass(3)).toContain('success'))
+  test('value=4 → info', () => expect(energyChipClass(4)).toContain('info'))
+  test('value=6 → info (边界)', () => expect(energyChipClass(6)).toContain('info'))
+  test('value=7 → destructive', () => expect(energyChipClass(7)).toContain('destructive'))
+  test('value=10 → destructive', () => expect(energyChipClass(10)).toContain('destructive'))
 })
 
 // ─── parseIsoDate ───
@@ -174,35 +174,35 @@ describe('filterScores', () => {
 
 // ─── InsightsPanel level colors ───
 const INSIGHT_LEVEL_COLORS: Record<string, string> = {
-  high: 'bg-red-500/15 text-red-400',
-  medium: 'bg-yellow-500/15 text-yellow-400',
-  low: 'bg-green-500/15 text-green-400',
+  high: 'bg-destructive/15 text-destructive-text',
+  medium: 'bg-info/15 text-info-text',
+  low: 'bg-success/15 text-success-text',
 }
 
 describe('InsightLevelColors', () => {
-  test('high → red', () => expect(INSIGHT_LEVEL_COLORS.high).toContain('red'))
-  test('medium → yellow', () => expect(INSIGHT_LEVEL_COLORS.medium).toContain('yellow'))
-  test('low → green', () => expect(INSIGHT_LEVEL_COLORS.low).toContain('green'))
+  test('high → destructive', () => expect(INSIGHT_LEVEL_COLORS.high).toContain('destructive'))
+  test('medium → info', () => expect(INSIGHT_LEVEL_COLORS.medium).toContain('info'))
+  test('low → success', () => expect(INSIGHT_LEVEL_COLORS.low).toContain('success'))
   test('未知级别 fallback 到 low', () => {
     const level = 'unknown'
     const color = INSIGHT_LEVEL_COLORS[level] || INSIGHT_LEVEL_COLORS.low
-    expect(color).toContain('green')
+    expect(color).toContain('success')
   })
 })
 
 // ─── IncubatingPanel channel colors ───
 const CHANNEL_COLORS: Record<string, string> = {
-  reflect: 'bg-blue-500/15 text-blue-400',
+  reflect: 'bg-accent/15 text-accent',
   consolidate: 'bg-purple-500/15 text-purple-400',
-  insight: 'bg-yellow-500/15 text-yellow-400',
-  purify: 'bg-green-500/15 text-green-400',
+  insight: 'bg-info/15 text-info-text',
+  purify: 'bg-success/15 text-success-text',
 }
 
 describe('IncubatingChannelColors', () => {
-  test('reflect → blue', () => expect(CHANNEL_COLORS.reflect).toContain('blue'))
+  test('reflect → accent', () => expect(CHANNEL_COLORS.reflect).toContain('accent'))
   test('consolidate → purple', () => expect(CHANNEL_COLORS.consolidate).toContain('purple'))
-  test('insight → yellow', () => expect(CHANNEL_COLORS.insight).toContain('yellow'))
-  test('purify → green', () => expect(CHANNEL_COLORS.purify).toContain('green'))
+  test('insight → info', () => expect(CHANNEL_COLORS.insight).toContain('info'))
+  test('purify → success', () => expect(CHANNEL_COLORS.purify).toContain('success'))
   test('未知通道 fallback', () => {
     const channel = 'unknown'
     const color = CHANNEL_COLORS[channel] || 'bg-muted text-muted-foreground'
@@ -234,17 +234,17 @@ describe('IncubatingPromoteThreshold', () => {
 // ─── EnergyBar color thresholds ───
 describe('EnergyBarColors', () => {
   function energyColor(pct: number): string {
-    if (pct > 0.7) return 'bg-green-500/70'
-    if (pct > 0.3) return 'bg-yellow-500/70'
-    if (pct > 0.1) return 'bg-orange-500/70'
-    return 'bg-red-500/70'
+    if (pct > 0.7) return 'bg-success/70'
+    if (pct > 0.3) return 'bg-info/70'
+    if (pct > 0.1) return 'bg-energy-low/70'
+    return 'bg-destructive/70'
   }
-  test('pct > 0.7 → green', () => expect(energyColor(0.8)).toContain('green'))
-  test('pct > 0.3 → yellow', () => expect(energyColor(0.5)).toContain('yellow'))
-  test('pct > 0.1 → orange', () => expect(energyColor(0.2)).toContain('orange'))
-  test('pct <= 0.1 → red', () => expect(energyColor(0.05)).toContain('red'))
-  test('pct = 0 → red', () => expect(energyColor(0)).toContain('red'))
-  test('pct = 1 → green', () => expect(energyColor(1)).toContain('green'))
+  test('pct > 0.7 → success', () => expect(energyColor(0.8)).toContain('success'))
+  test('pct > 0.3 → info', () => expect(energyColor(0.5)).toContain('info'))
+  test('pct > 0.1 → energy-low', () => expect(energyColor(0.2)).toContain('energy-low'))
+  test('pct <= 0.1 → destructive', () => expect(energyColor(0.05)).toContain('destructive'))
+  test('pct = 0 → destructive', () => expect(energyColor(0)).toContain('destructive'))
+  test('pct = 1 → success', () => expect(energyColor(1)).toContain('success'))
 })
 
 // ─── RadarChart vertex calculation ───
@@ -280,19 +280,19 @@ describe('RadarChartVertices', () => {
 // ─── LearningPath difficulty colors ───
 describe('LearningPathDifficultyColors', () => {
   const DIFFICULTY_COLORS: Record<string, string> = {
-    beginner: 'bg-green-500/15 text-green-400',
-    intermediate: 'bg-yellow-500/15 text-yellow-400',
-    advanced: 'bg-orange-500/15 text-orange-400',
-    expert: 'bg-red-500/15 text-red-400',
+    beginner: 'bg-success/15 text-success-text',
+    intermediate: 'bg-info/15 text-info-text',
+    advanced: 'bg-energy-low/15 text-energy-low-text',
+    expert: 'bg-destructive/15 text-destructive-text',
   }
-  test('beginner → green', () => expect(DIFFICULTY_COLORS.beginner).toContain('green'))
-  test('intermediate → yellow', () => expect(DIFFICULTY_COLORS.intermediate).toContain('yellow'))
-  test('advanced → orange', () => expect(DIFFICULTY_COLORS.advanced).toContain('orange'))
-  test('expert → red', () => expect(DIFFICULTY_COLORS.expert).toContain('red'))
+  test('beginner → success', () => expect(DIFFICULTY_COLORS.beginner).toContain('success'))
+  test('intermediate → info', () => expect(DIFFICULTY_COLORS.intermediate).toContain('info'))
+  test('advanced → energy-low', () => expect(DIFFICULTY_COLORS.advanced).toContain('energy-low'))
+  test('expert → destructive', () => expect(DIFFICULTY_COLORS.expert).toContain('destructive'))
   test('未知难度 fallback', () => {
     const level = 'unknown'
     const color = DIFFICULTY_COLORS[level] || DIFFICULTY_COLORS.beginner
-    expect(color).toContain('green')
+    expect(color).toContain('success')
   })
 })
 
@@ -305,11 +305,11 @@ describe('SkillGraphRelationColors', () => {
     enables: '#10b981',
     conflicts: '#ef4444',
   }
-  test('prerequisite → blue', () => expect(RELATION_COLORS.prerequisite).toBe('#3b82f6'))
+  test('prerequisite → accent', () => expect(RELATION_COLORS.prerequisite).toBe('#3b82f6'))
   test('related → purple', () => expect(RELATION_COLORS.related).toBe('#8b5cf6'))
-  test('similar → yellow', () => expect(RELATION_COLORS.similar).toBe('#f59e0b'))
-  test('enables → green', () => expect(RELATION_COLORS.enables).toBe('#10b981'))
-  test('conflicts → red', () => expect(RELATION_COLORS.conflicts).toBe('#ef4444'))
+  test('similar → info', () => expect(RELATION_COLORS.similar).toBe('#f59e0b'))
+  test('enables → success', () => expect(RELATION_COLORS.enables).toBe('#10b981'))
+  test('conflicts → destructive', () => expect(RELATION_COLORS.conflicts).toBe('#ef4444'))
   test('未知关系 fallback', () => {
     const relation = 'unknown'
     const color = RELATION_COLORS[relation] ?? '#666'
@@ -320,15 +320,15 @@ describe('SkillGraphRelationColors', () => {
 // ─── ZenLoop channel colors ───
 describe('ZenLoopChannelColors', () => {
   const CHANNEL_COLORS: Record<string, string> = {
-    reflect: 'bg-blue-500/15 text-blue-400',
+    reflect: 'bg-accent/15 text-accent',
     consolidate: 'bg-purple-500/15 text-purple-400',
-    insight: 'bg-yellow-500/15 text-yellow-400',
-    purify: 'bg-green-500/15 text-green-400',
+    insight: 'bg-info/15 text-info-text',
+    purify: 'bg-success/15 text-success-text',
   }
-  test('reflect → blue', () => expect(CHANNEL_COLORS.reflect).toContain('blue'))
+  test('reflect → accent', () => expect(CHANNEL_COLORS.reflect).toContain('accent'))
   test('consolidate → purple', () => expect(CHANNEL_COLORS.consolidate).toContain('purple'))
-  test('insight → yellow', () => expect(CHANNEL_COLORS.insight).toContain('yellow'))
-  test('purify → green', () => expect(CHANNEL_COLORS.purify).toContain('green'))
+  test('insight → info', () => expect(CHANNEL_COLORS.insight).toContain('info'))
+  test('purify → success', () => expect(CHANNEL_COLORS.purify).toContain('success'))
 })
 
 // ─── Design Token 验证 ───

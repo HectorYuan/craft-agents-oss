@@ -114,7 +114,7 @@ export function ZenSkillMarketSearch({ workspaceId }: { workspaceId?: string }) 
                 <div className="truncate text-badge text-muted-foreground">{r.description}</div>
               </div>
               {installedUris.has(uri) ? (
-                <span className="text-badge text-green-500 shrink-0 flex items-center gap-0.5"><Check className="h-3 w-3" /> Installed</span>
+                <span className="text-badge text-success-text shrink-0 flex items-center gap-0.5"><Check className="h-3 w-3" /> Installed</span>
               ) : (
                 <button
                   className="opacity-0 group-hover:opacity-100 shrink-0 flex items-center gap-1 text-badge px-1.5 py-0.5 rounded bg-accent/10 text-accent hover:bg-accent/20"

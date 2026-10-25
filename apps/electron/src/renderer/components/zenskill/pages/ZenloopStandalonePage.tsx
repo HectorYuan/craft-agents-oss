@@ -50,10 +50,10 @@ interface ZenloopStandalonePageProps {
 }
 
 const CHANNEL_COLORS: Record<string, string> = {
-  reflect: 'bg-blue-500/15 text-blue-400',
+  reflect: 'bg-accent/15 text-accent',
   consolidate: 'bg-purple-500/15 text-purple-400',
-  insight: 'bg-yellow-500/15 text-yellow-400',
-  purify: 'bg-green-500/15 text-green-400',
+  insight: 'bg-info/15 text-info-text',
+  purify: 'bg-success/15 text-success-text',
 }
 
 export function ZenloopStandalonePage({ workspaceId }: ZenloopStandalonePageProps) {
@@ -258,9 +258,9 @@ export function ZenloopStandalonePage({ workspaceId }: ZenloopStandalonePageProp
                 {insights.data.items.slice(0, 5).map((item, i) => (
                   <div key={item.id || i} className="text-sm flex items-start gap-1.5">
                     <span className={`px-1.5 py-0.5 rounded text-xs shrink-0 ${
-                      item.type === 'celebration' ? 'bg-green-500/15 text-green-400' :
-                      item.type === 'warning' ? 'bg-red-500/15 text-red-400' :
-                      'bg-blue-500/15 text-blue-400'
+                      item.type === 'celebration' ? 'bg-success/15 text-success-text' :
+                      item.type === 'warning' ? 'bg-destructive/15 text-destructive-text' :
+                      'bg-accent/15 text-accent'
                     }`}>
                       {item.type || 'info'}
                     </span>
@@ -311,9 +311,9 @@ export function ZenloopStandalonePage({ workspaceId }: ZenloopStandalonePageProp
                   {review.data.inbox.recent_items.slice(0, 5).map((it, i) => (
                     <div key={i} className="text-xs flex items-start gap-1.5">
                       <span className={`px-1.5 py-0.5 rounded shrink-0 ${
-                        it.status === 'clarified' ? 'bg-blue-500/15 text-blue-400' :
+                        it.status === 'clarified' ? 'bg-accent/15 text-accent' :
                         it.status === 'archived' ? 'bg-muted text-muted-foreground' :
-                        'bg-yellow-500/15 text-yellow-400'
+                        'bg-info/15 text-info-text'
                       }`}>
                         {it.status || 'unprocessed'}
                       </span>

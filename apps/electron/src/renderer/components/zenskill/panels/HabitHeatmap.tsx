@@ -24,7 +24,7 @@ export function HabitHeatmap({ completed, days = 7 }: HabitHeatmapProps) {
         <span
           key={day}
           title={day}
-          className={`h-2.5 w-2.5 rounded-[3px] ${ok ? 'bg-green-500/70' : 'bg-muted/60'}`}
+          className={`h-2.5 w-2.5 rounded-[3px] ${ok ? 'bg-success/70' : 'bg-muted/60'}`}
         />
       ))}
       <span className="text-xs text-muted-foreground/60 ml-1">{days}d</span>

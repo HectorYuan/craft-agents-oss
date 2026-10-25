@@ -210,7 +210,10 @@ export function themeToCSS(theme: ThemeOverrides, isDark: boolean = false): stri
   const bg = colors.background || 'var(--background)';
   vars.push(`--paper: ${colors.paper || bg};`);
   vars.push(`--navigator: ${colors.navigator || bg};`);
-  vars.push(`--input: ${colors.input || bg};`);
+  // --input 只在预设显式指定时注入。index.css 里 --input 是「前景 10% 叠加」
+  // （输入框底色），此前这里无条件注入 `|| bg` 兜底 ⇒ 任何非默认主题下
+  // --input 都被覆盖成纯背景色，冲掉了 shadcn 语义。
+  if (colors.input) vars.push(`--input: ${colors.input};`);
   vars.push(`--popover: ${colors.popover || bg};`);
   // popoverSolid: guaranteed 100% opaque for scenic mode popovers
   // Falls back to popover, then background (should always be solid in scenic themes)
@@ -248,7 +251,10 @@ export function getBackgroundColor(isDark: boolean): string {
 export const DEFAULT_THEME: ThemeOverrides = {
   background: 'oklch(0.98 0.003 265)',
   foreground: 'oklch(0.185 0.01 270)',
-  accent: 'oklch(0.58 0.22 293)',
+  // 与 apps/electron/src/renderer/index.css 的 :root --accent 保持一致。
+  // 此前此处是 oklch(0.58 0.22 293)，与 index.css 的 oklch(0.62 0.13 293) 不同
+  // ⇒ 同一窗口内 GUI chrome 一种紫、browser-pane 底色另一种紫。
+  accent: 'oklch(0.62 0.13 293)',
   info: 'oklch(0.75 0.16 70)',
   success: 'oklch(0.55 0.17 145)',
   destructive: 'oklch(0.58 0.24 28)',
