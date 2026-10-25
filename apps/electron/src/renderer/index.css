@@ -1,4 +1,16 @@
 @import "tailwindcss" source(none);
+
+/* ★ ZenSkill 语义层契约（**投影文件**；真相源在主仓 `specs/design/zenloop_tokens.css`）
+ * —— `--Semantic-*` 与上游 craft `:root` **同名交集 0** ⇒ 零冲突；
+ *    `.dark` 块匹配上游机制（`html.dark`）⇒ 暗色自动跟随。
+ * 改法：改主仓 → `python3 scripts/sync_vendor_contracts.py --write`
+ * 对账：`python3 scripts/sync_vendor_contracts.py --check`（门禁 G-11）
+ * ⚠️ 刻意**不**引 `craft_design_tokens.css`：实测它与上游同名 50 项、值不同 33 项
+ *    ⇒ 接进来会改写整个 craft 配色、并把上游多主题 oklch 架构压成单主题 hex 快照
+ *    （台账 §4.20.2）。
+ */
+@import "./components/zenskill/brand/zenloop_tokens.css";
+
 @plugin "@tailwindcss/typography";
 
 /* Tell Tailwind where to scan for utility classes */

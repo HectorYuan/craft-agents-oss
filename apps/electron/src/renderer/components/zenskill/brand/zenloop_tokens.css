@@ -1,0 +1,151 @@
+/*
+ * ===== ZENSKILL VENDOR PROJECTION (generated) =====
+ * ⚠️ **这是投影，不是真相源。**
+ * 真源：`specs/design/zenloop_tokens.css`（主仓）
+ * 改法：改主仓 → 跑 `python3 scripts/sync_vendor_contracts.py --write`
+ * 对账：`python3 scripts/sync_vendor_contracts.py --check`（CI 门禁 G-11）
+ * 为什么投影：ZenSkill 语义层 `--Semantic-*` 与上游 craft `:root` 同名交集 0
+ * ⇒ 零冲突可接；带 `.dark` 块 ⇒ 暗色跟随上游机制（`html.dark`）。
+ */
+ * ===== END ZENSKILL VENDOR PROJECTION =====
+/* ZenLoop 设计 Token（ZenSkill 自有）— 前端契约
+ *
+ * 来源：ardot 设计文件「ZenSkill 设计系统」（fileId 739815654967152）
+ *       变量集 Primitives / Semantic，Light + Dark 双模
+ * 导出：ardot MCP `export_variables({format:"css"})`（与设计文件变量面板手动下载逐字一致）
+ * 真源：docs/plan_zenloop_center_design_v1_20261024.md
+ *
+ * ⚠️ 已剔除 `Brand` 段（primary/success/warning/danger/info/primary-dark）——
+ *    该段是 Brand 变量的投影，与 Semantic 段的 accent-primary / semantic-* 完全重复；
+ *    且本机 ardot `apply_variables` 工具在设计文件建立后出现工具侧故障
+ *    （任何载荷都报 `(intermediate value)(...).map is not a function`），
+ *    导致 Brand 集的值停留在初始白。**消费方一律以 Semantic 段为准**；
+ *    工具恢复后应重新导出并把 Brand 段补回（品牌色真源见 zs-colors.ts）。
+ *
+ * 语义层 ↔ 前端映射（供实现时对照）：
+ *   bg-canvas        → 页面底（= 上游 --background）
+ *   bg-surface       → 卡片面（新增 token）
+ *   bg-elevated      → 浮层 / 次级面（新增 token）
+ *   text-primary     → 主文字（= 上游 --foreground）
+ *   text-secondary   → 次文字（= 上游 --muted-foreground，fg 50%）
+ *   text-muted       → 弱化文字（新增，fg 32%）
+ *   border-subtle    → 细描边（= 上游 --border，fg 5%）
+ *   border-strong    → 强描边（新增，fg 13%）
+ *   accent-primary   → 主行动 / 品牌蓝（= zs-scope --accent）
+ *   semantic-success / -warning / -error / -info → 四态
+ *   callout-*-bg / -border → 提示块
+ */
+
+:root {
+  /* ── 间距阶梯：单位 = 3.75px（不是 4px！）────────────────────────────
+   * ★ 第十七批裁定（§4.19）：**档号 ≡ Tailwind 类号**。
+   *
+   * 运行时根字号来自上游 craft：
+   *   packages/ui/src/styles/index.css:141  --font-size-base: 15px
+   *   packages/ui/src/styles/index.css:288  html { font-size: var(--font-size-base); }
+   *   packages/ui/src/styles/index.css:143  --spacing: 0.25rem   (Tailwind v4 动态刻度)
+   * ⇒ 1rem = 15px ⇒ **1 间距单位 = 0.25rem = 3.75px**
+   * ⇒ 本表每一档 = 档号 × 3.75px ⇒ `--Primitives-space-6` ≡ Tailwind `gap-6` = 22.5px。
+   *
+   * ★ 这不是理论洁癖 —— 设计稿实测就是这个刻度：
+   *   ardot 修炼域 `capture_layout(6:432)`：section 间距 **22.5**（六段卡全等）
+   *   容器底留白 **37.5**（= space-10）· 页边距 **180**（= space-48）· 卡内间距 6（≈ space-1.5）
+   * ⇒ 早先这套 4px 网格（space-6=24px）与运行时的 3.75 网格**错位一档**（差 6.25%），
+   *   同一屏混用两套间距会看不出但摸得着的「密度对不上」。
+   *
+   * ⚠️ 禁止改回 4px 网格。门禁 G-10 会从上游根字号**推导**单位并逐档比对。
+   */
+  --Primitives-space-1: 3.75px;
+  --Primitives-space-2: 7.5px;
+  --Primitives-space-3: 11.25px;
+  --Primitives-space-4: 15px;
+  --Primitives-space-5: 18.75px;
+  --Primitives-space-6: 22.5px;
+  --Primitives-space-8: 30px;
+  --Primitives-space-10: 37.5px;
+  --Primitives-space-12: 45px;
+  --Primitives-space-16: 60px;
+  --Primitives-radius-xs: 2px;
+  --Primitives-radius-sm: 4px;
+  --Primitives-radius-md: 6px;
+  --Primitives-radius-lg: 8px;
+  --Primitives-radius-xl: 12px;
+  --Primitives-radius-pill: 999px;
+  --Primitives-font-nano: 8px;
+  --Primitives-font-micro: 9px;
+  --Primitives-font-badge: 10px;
+  --Primitives-font-caption: 11px;
+  --Primitives-font-xs: 12px;
+  --Primitives-font-sm: 14px;
+  --Primitives-font-base: 16px;
+  --Primitives-font-lg: 18px;
+  --Primitives-font-xl: 20px;
+  --Primitives-font-2xl: 24px;
+  --Primitives-font-3xl: 30px;
+  --Primitives-line-tight: 16px;
+  --Primitives-line-caption: 15px;
+  --Primitives-line-body: 20px;
+  --Primitives-line-title: 28px;
+  --Primitives-font-sans: "Inter, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif";
+  --Primitives-font-mono: "JetBrains Mono, ui-monospace, SFMono-Regular, Menlo, monospace";
+  --Semantic-bg-canvas: #F7F8FAFF;
+  --Semantic-bg-surface: #FFFFFFFF;
+  --Semantic-bg-elevated: #FDFDFFFF;
+  --Semantic-bg-brand-primary: #0171E3FF;
+  --Semantic-text-primary: #111317FF;
+  --Semantic-text-secondary: #848688FF;
+  --Semantic-text-muted: #ADAFB1FF;
+  --Semantic-text-on-brand: #FFFFFFFF;
+  --Semantic-border-subtle: #EBEDEFFF;
+  --Semantic-border-strong: #D9DADCFF;
+  --Semantic-accent-primary: #0171E3FF;
+  --Semantic-semantic-success: #51C147FF;
+  --Semantic-semantic-warning: #FFAA1BFF;
+  --Semantic-semantic-error: #F92434FF;
+  --Semantic-semantic-info: #2B88C0FF;
+  --Semantic-table-header-bg: #F0F1F3FF;
+  --Semantic-callout-info-bg: #F0F6FDFF;
+  --Semantic-callout-info-border: #0171E3FF;
+  --Semantic-callout-success-bg: #F1FAF0FF;
+  --Semantic-callout-success-border: #51C147FF;
+  --Semantic-callout-warn-bg: #FFF6E8FF;
+  --Semantic-callout-warn-border: #FFAA1BFF;
+}
+
+/* ★ 暗色激活机制 = `.dark`（与上游 craft 一致，勿改回 data-theme）
+ *
+ *   依据 ① 上游 `vendor/craft-agents/packages/ui/src/styles/index.css:151` 用
+ *        `.dark { --background: ... }`，JS 侧读 `document.documentElement.classList.contains('dark')`；
+ *        ② 本仓姊妹契约 `specs/design/craft_design_tokens.css:117` 同样用 `.dark`，淡染族逐项反色。
+ *   反例 craft 的 `data-theme` 存的是**主题名**（light/dark/自定义主题），不是模式开关
+ *   ⇒ 原写法 `[data-theme="Dark"]` 是**死代码**，暗色块从不生效
+ *   ⇒ 后果：暗色下 24 个 `--Semantic-*` 全部停在亮色值（页面底是白的，不是暗底）。
+ *   特异性：`:root` 与 `.dark` 同为 (0,1,0) ⇒ 靠**源码顺序**取胜 ⇒ 暗色块必须留在 `:root` 之后。
+ */
+.dark {
+  --Semantic-bg-canvas: #080A10FF;
+  --Semantic-bg-surface: #14171EFF;
+  --Semantic-bg-elevated: #1B1F27FF;
+  --Semantic-bg-brand-primary: #90C7FFFF;
+  --Semantic-text-primary: #ECEEF5FF;
+  --Semantic-text-secondary: #7A7C82FF;
+  --Semantic-text-muted: #56585EFF;
+  /* ★ 暗色下品牌面翻成浅蓝 #90C7FF ⇒ 白字压上去只有 1.78:1（不可读）。
+   *   翻成画布墨 #080A10 ⇒ 11.12:1（AA 4.5:1 之上）。
+   *   值源 = ardot Semantic 集的 text-on-brand（17:135）Dark 模。 */
+  --Semantic-text-on-brand: #080A10FF;
+  --Semantic-border-subtle: #1A1C22FF;
+  --Semantic-border-strong: #2C2E35FF;
+  --Semantic-accent-primary: #90C7FFFF;
+  --Semantic-semantic-success: #7DD774FF;
+  --Semantic-semantic-warning: #FFAA1BFF;
+  --Semantic-semantic-error: #FF7972FF;
+  --Semantic-semantic-info: #6AB7EBFF;
+  --Semantic-table-header-bg: #181A20FF;
+  --Semantic-callout-info-bg: #1D2732FF;
+  --Semantic-callout-info-border: #6AB7EBFF;
+  --Semantic-callout-success-bg: #212E28FF;
+  --Semantic-callout-success-border: #7DD774FF;
+  --Semantic-callout-warn-bg: #30291EFF;
+  --Semantic-callout-warn-border: #FFAA1BFF;
+}

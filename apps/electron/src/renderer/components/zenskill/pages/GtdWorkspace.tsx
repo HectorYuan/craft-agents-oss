@@ -41,6 +41,8 @@ import { ProjectsPanel } from '../panels/ProjectsPanel'
 import { IncubatingPanel } from '../panels/IncubatingPanel'
 import { ClarifyModal, type ClarifyResultType } from '../panels/ClarifyModal'
 import { ReviewBar } from '../panels/ReviewBar'
+// ★ ZenSkill 特有件（ardot 导出投影）：双读数分账条 —— 能量是燃料，注意力是闸门
+import { DualReadoutBar } from '../generated'
 import { ErrorBoundary } from '../panels/ErrorBoundary'
 import { ProgressionBar } from '../panels/ProgressionBar'
 import type {
@@ -516,6 +518,17 @@ export function GtdWorkspace({ workspaceId, initialTab }: GtdWorkspaceProps) {
         overdueCount={overdueCount}
         message={reviewMessage}
       />
+
+      {/* ★ 第十八批 B3：ZenSkill 量纲分账条（设计稿「双读数分账条」）
+          —— 两种单位**不可相加**：能量是燃料，注意力是闸门。
+          能量用真数据（energy_level 的 current_energy = 点）；
+          注意力分钟数待 B6 接线，先显示量纲标签。 */}
+      <div className="flex items-center gap-4 px-5 py-3 border-b border-border/30">
+        <DualReadoutBar
+          taskLabel={currentEnergy !== null ? `任务能量 ${currentEnergy} 点` : '任务能量（点）'}
+          attentionLabel="注意力损耗（分钟）"
+        />
+      </div>
 
       {/* Day 4: progression proactivity — three-mode selector controlling the
           suggestion density of the ProgressionBar below (active = all,
