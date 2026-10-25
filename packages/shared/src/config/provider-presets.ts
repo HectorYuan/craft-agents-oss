@@ -254,6 +254,13 @@ export const PROVIDER_CATALOG: ProviderCatalogEntry[] = [
         capabilities: ['reasoning', 'coding', 'analysis'],
         contextWindow: 128000,
       },
+      {
+        name: 'deepseek-v4-flash',
+        display: 'DeepSeek V4 Flash',
+        tier: 'standard',
+        capabilities: ['chat', 'coding', 'reasoning'],
+        contextWindow: 1000000,
+      },
     ],
   },
   {

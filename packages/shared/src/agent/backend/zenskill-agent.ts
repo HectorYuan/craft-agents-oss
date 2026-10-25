@@ -282,6 +282,11 @@ export class ZenskillAgent extends BaseAgent {
       // 未知模型走未知提供方兜底必然失败，回退到注册表第一项（当前默认）。
       // 自定义网关连接（config.baseUrl）的模型 id 任意、不在静态目录也必须
       // 透传——否则用户配的网关模型被 DEFAULT_MODEL 顶掉（baseUrl 修复链闭合）
+      // 已知型号判定：**白名单来自真相源生成物**（B15：主仓
+      // specs/providers.yaml → shared/config/models-zenskill.generated.ts），
+      // 覆盖全部厂商的型号 ⇒ 此前只含 4 条 deepseek，国产型号
+      // （mimo / qwen / volc / glm / minimax / moonshot …）不在表里
+      // ⇒ 会被静默替换成 DEFAULT_MODEL（**用户选的型号直接被顶掉**）。
       const known = ZENSKILL_MODEL_REGISTRY.some((m) => m.id === engineModel);
       const isGateway = !!this.config.baseUrl;
       args.push('--model', isGateway || known ? engineModel : DEFAULT_MODEL);
