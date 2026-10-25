@@ -70,6 +70,21 @@ interface EnergyLevelData {
   status?: { current_energy?: number; max_energy?: number; pct?: number; level?: string }
   message?: string
 }
+/** ★ attention_status payload（第十八批 C 段）—— 注意力是**闸门**不是存量，单位 = 分钟 */
+interface AttentionStatusData {
+  status?: {
+    available_minutes?: number
+    used_minutes?: number
+    remaining_minutes?: number
+    habit_reserved_minutes?: number
+    habit_spent_minutes?: number
+    session_focus_minutes?: number
+    session_window?: number
+    session_available?: boolean
+    fatigue?: number
+  }
+  message?: string
+}
 /** daily_review payload (contract-pending, defensive reads) */
 interface DailyReviewData {
   inbox?: { processed?: number; pending?: number }
@@ -166,6 +181,8 @@ export function GtdWorkspace({ workspaceId, initialTab }: GtdWorkspaceProps) {
   const projects = useMcpTool<ProjectData>(workspaceId, sourceSlug, 'project_list', { status: 'active' })
   // B04+B15+B16: Review Bar data (energy + daily review), refreshed by zenskill:changed
   const energyLevel = useMcpTool<EnergyLevelData>(workspaceId, sourceSlug, 'energy_level', {})
+  // ★ 第十八批 C 段：注意力量纲（单位 = 分钟）—— 注意力是**闸门**不是存量
+  const attentionStatus = useMcpTool<AttentionStatusData>(workspaceId, sourceSlug, 'attention_status', {})
   const dailyReview = useMcpTool<DailyReviewData>(workspaceId, sourceSlug, 'daily_review', {})
   // B09: AI classification suggestions for unprocessed inbox items (read-only)
   const inboxSuggest = useMcpTool<InboxSuggestData>(workspaceId, sourceSlug, 'inbox_suggest', { limit: 50 })
@@ -438,6 +455,14 @@ export function GtdWorkspace({ workspaceId, initialTab }: GtdWorkspaceProps) {
     ? energyStatus.pct
     : currentEnergy !== null && maxEnergy ? currentEnergy / Math.max(maxEnergy, 1) : null
   const energyLevelLabel = typeof energyStatus?.level === 'string' ? energyStatus.level : undefined
+  // ★ 注意力量纲（分钟）：只有拿到真数才显示「还剩 N 分钟」，否则退回量纲标签
+  const attentionRemaining = typeof attentionStatus.data?.status?.remaining_minutes === 'number'
+    ? attentionStatus.data.status.remaining_minutes
+    : null
+  // ★ 会话侧读不到时，剩余值是**上限**（未计入近期深度占用）—— 必须说清楚，
+  //   否则「读不到」会被读成「没有深度占用」（同「回执绿 ≠ 事实对」纪律）。
+  const attentionSessionAvailable = attentionStatus.data?.status?.session_available !== false
+  const attentionWindow = attentionStatus.data?.status?.session_window
   const doneToday = dailyReview.data?.actions?.completed ?? 0
   const pendingCount = dailyReview.data?.inbox?.pending ?? 0
   const overdueCount = (dueActions.data?.items ?? []).filter(
@@ -519,14 +544,24 @@ export function GtdWorkspace({ workspaceId, initialTab }: GtdWorkspaceProps) {
         message={reviewMessage}
       />
 
-      {/* ★ 第十八批 B3：ZenSkill 量纲分账条（设计稿「双读数分账条」）
+      {/* ★ 第十八批 B3/C3：ZenSkill 量纲分账条（设计稿「双读数分账条」）
           —— 两种单位**不可相加**：能量是燃料，注意力是闸门。
           能量用真数据（energy_level 的 current_energy = 点）；
-          注意力分钟数待 B6 接线，先显示量纲标签。 */}
+          注意力用真数据（attention_status 的 remaining_minutes = 分钟）。
+          ★ 会话侧读不到时，注意力值只是**上限**（未计近期深度占用）⇒ 标注清楚。 */}
       <div className="flex items-center gap-4 px-5 py-3 border-b border-border/30">
         <DualReadoutBar
           taskLabel={currentEnergy !== null ? `任务能量 ${currentEnergy} 点` : '任务能量（点）'}
-          attentionLabel="注意力损耗（分钟）"
+          attentionLabel={
+            attentionRemaining !== null
+              ? `注意力预算 · ${attentionSessionAvailable ? '还剩' : '至多还剩'} ${attentionRemaining} 分钟`
+              : '注意力预算（分钟）'
+          }
+          footnote={
+            attentionSessionAvailable
+              ? '两种单位不可相加：能量是燃料，注意力是闸门'
+              : `两种单位不可相加：能量是燃料，注意力是闸门（近期${attentionWindow ?? 10}条深度占用暂不可读，此值为上限）`
+          }
         />
       </div>
 

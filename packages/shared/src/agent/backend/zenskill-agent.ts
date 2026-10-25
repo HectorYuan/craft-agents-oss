@@ -791,7 +791,9 @@ export class ZenskillAgent extends BaseAgent {
         'growth_milestone', 'web_search', 'web_fetch',
         // G8: companion/daily review read-only tools (WP-A/B additions)
         'companion_summary', 'daily_review', 'incubating_list', 'skill_browse',
-        'growth_dashboard', 'habit_analyze'];
+        'growth_dashboard', 'habit_analyze',
+        // 第十八批 C 段：注意力量纲（只读，plan 模式允许）
+        'attention_status'];
       if (readOnlyTools.some(t => toolName.includes(t))) return { blocked: false };
       return { blocked: true, reason: `Tool '${toolName}' not allowed in plan mode` };
     }
