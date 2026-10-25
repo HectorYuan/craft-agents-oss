@@ -1,6 +1,6 @@
 {
   "name": "zenskill",
-  "version": "0.9.14",
+  "version": "0.9.17",
   "description": "ZenSkill desktop app",
   "main": "dist/main.cjs",
   "private": true,
