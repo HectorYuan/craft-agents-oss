@@ -1886,20 +1886,28 @@ describe('extractPowerShellWriteTarget', () => {
   });
 
   describe('non-write commands', () => {
+    // ⚠️ 这两条会**真拉起 pwsh 进程**做 AST 解析（每条 2~3 次调用），
+    // 而 pwsh 冷启动（.NET runtime）约 2.5s/次 ⇒ 累计 5.0~5.3s，
+    // 撞 bun test 默认的 5s per-test timeout ⇒ 表现为**与代码无关的偶发红灯**
+    // （实测 2026-10-25：CI 轮 40151702285 报 5329.85ms / 5038.84ms 超时，
+    //  而本机 mac 无 pwsh ⇒ 走 `if (!psAvailable) return` 快路径 ⇒ 本地全绿）。
+    // 断言一条不减，只把「这类测试需要的时间预算」调到与它实际工作量相符。
+    const PS_PARSE_TIMEOUT_MS = 20_000;
+
     it('should return null for read-only commands', () => {
       if (!psAvailable) return;
 
       expect(extractPowerShellWriteTarget('Get-Process')).toBeNull();
       expect(extractPowerShellWriteTarget('Get-ChildItem')).toBeNull();
       expect(extractPowerShellWriteTarget('Get-Content file.txt')).toBeNull();
-    });
+    }, PS_PARSE_TIMEOUT_MS);
 
     it('should return null for non-file-writing pipelines', () => {
       if (!psAvailable) return;
 
       expect(extractPowerShellWriteTarget('Get-Process | Select-Object Name')).toBeNull();
       expect(extractPowerShellWriteTarget('Get-ChildItem | Where-Object { $_.Length -gt 1000 }')).toBeNull();
-    });
+    }, PS_PARSE_TIMEOUT_MS);
   });
 
   describe('powershell.exe -Command wrapper unwrapping', () => {
