@@ -2087,6 +2087,7 @@
   "zenskill.profile.streak": "天连续",
   "zenskill.profile.subtitle": "你的成长之旅",
   "zenskill.profile.title": "画像",
+  "zenskill.profile.understandingError": "基于 {n} 个样本 · 误差范围 ±{e} 分",
   "zenskill.progression.celebrationReview": "开始复盘",
   "zenskill.progression.celebrationShare": "分享卡片已生成",
   "zenskill.progression.dismiss": "忽略",

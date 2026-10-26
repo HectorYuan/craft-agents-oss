@@ -2087,6 +2087,7 @@
   "zenskill.profile.streak": "dni z rzędu",
   "zenskill.profile.subtitle": "Twoja droga rozwoju",
   "zenskill.profile.title": "Profil",
+  "zenskill.profile.understandingError": "Na podstawie {n} próbek · zakres błędu ±{e}",
   "zenskill.progression.celebrationReview": "Rozpocznij podsumowanie",
   "zenskill.progression.celebrationShare": "Karta wygenerowana",
   "zenskill.progression.dismiss": "Odrzuć",

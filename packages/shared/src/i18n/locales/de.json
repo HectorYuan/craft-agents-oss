@@ -2087,6 +2087,7 @@
   "zenskill.profile.streak": "Tage-Serie",
   "zenskill.profile.subtitle": "Deine Wachstumsreise",
   "zenskill.profile.title": "Profil",
+  "zenskill.profile.understandingError": "Basierend auf {n} Stichproben · Fehlerbereich ±{e}",
   "zenskill.progression.celebrationReview": "Rückblick starten",
   "zenskill.progression.celebrationShare": "Karte zum Teilen erstellt",
   "zenskill.progression.dismiss": "Ausblenden",

@@ -41,6 +41,19 @@ interface GrowthData {
   snapshots?: { scores?: Record<string, number>; timestamp?: string }[]
 }
 
+/** ★ 第二十批 D 段：了解度（误差范围）payload —— 单位 = 分数单位 */
+interface UnderstandingData {
+  status?: {
+    available?: boolean
+    sample_size?: number
+    min_samples?: number
+    value?: number | null
+    error_range?: number | null
+    dimensions?: Record<string, { value?: number | null; error_range?: number | null; sample_size?: number }>
+  }
+  message?: string
+}
+
 interface AchievementData {
   badges?: { id: string; icon?: string; title?: string; name?: string; progress?: number; detail?: string }[]
   locked?: { id: string; icon?: string; title?: string; name?: string; progress?: number }[]
@@ -182,6 +195,10 @@ export function ZenSkillProfile({ workspaceId }: ZenSkillProfileProps) {
   const habits = useMcpTool<HabitData>(workspaceId, ZENSKILL_SOURCE_SLUG, 'habit_analyze', { days: 28 })
   const goals = useMcpTool<GoalProgressData>(workspaceId, ZENSKILL_SOURCE_SLUG, 'goal_progress', {})
   const energy = useMcpTool<EnergyData>(workspaceId, ZENSKILL_SOURCE_SLUG, 'energy_level', {})
+  // ★ 第二十批 D 段：了解度误差范围（90% 置信区间半宽；样本不足则不可用）
+  const understanding = useMcpTool<UnderstandingData>(
+    workspaceId, ZENSKILL_SOURCE_SLUG, 'understanding_status', {},
+  )
   const review = useMcpTool<ReviewData>(workspaceId, ZENSKILL_SOURCE_SLUG, 'daily_review', {})
 
   // --- write tools (habit_set / habit_delete / goal_set / goal_update / goal_delete) ---
@@ -455,6 +472,16 @@ export function ZenSkillProfile({ workspaceId }: ZenSkillProfileProps) {
                   </div>
                 ))}
               </div>
+              {/* ★ 了解度误差范围（稿「个体模型」页的「误差范围 · 基于 N 个任务」）——
+                  口径：五维估计的 90% 置信区间半宽；样本不足 ⇒ **不显示**（不猜）。 */}
+              {understanding.data?.status?.available && (
+                <div className="mt-2 text-center text-[11.25px] text-muted-foreground">
+                  {t('zenskill.profile.understandingError', '基于 {n} 个样本 · 误差范围 ±{e} 分', {
+                    n: understanding.data.status.sample_size ?? 0,
+                    e: understanding.data.status.error_range ?? 0,
+                  })}
+                </div>
+              )}
             </div>
           )}
 
