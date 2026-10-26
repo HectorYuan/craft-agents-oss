@@ -476,7 +476,7 @@ export function ZenSkillProfile({ workspaceId }: ZenSkillProfileProps) {
                   口径：五维估计的 90% 置信区间半宽；样本不足 ⇒ **不显示**（不猜）。 */}
               {understanding.data?.status?.available && (
                 <div className="mt-2 text-center text-[11.25px] text-muted-foreground">
-                  {t('zenskill.profile.understandingError', '基于 {n} 个样本 · 误差范围 ±{e} 分', {
+                  {t('zenskill.profile.errorRange', '基于 {n} 个样本 · 误差范围 ±{e} 分', {
                     n: understanding.data.status.sample_size ?? 0,
                     e: understanding.data.status.error_range ?? 0,
                   })}

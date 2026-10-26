@@ -73,7 +73,7 @@ T: dict[str, dict[str, str]] = {
         "zenskill.readout.delegation": "智能体承担",
         "zenskill.readout.delegationHint": "{n} / {total} 项由智能体接下",
         "zenskill.readout.energyRecovering": "恢复中 +{n} 点",
-        "zenskill.profile.understandingError": "基于 {n} 个样本 · 误差范围 ±{e} 分",
+        "zenskill.profile.errorRange": "基于 {n} 个样本 · 误差范围 ±{e} 分",
     },
     "en": {
         "zenskill.collaboration.statsEmpty": "No skill statistics yet — install one more skill to see them",
@@ -121,7 +121,7 @@ T: dict[str, dict[str, str]] = {
         "zenskill.readout.delegation": "Agent handles",
         "zenskill.readout.delegationHint": "{n} of {total} handled by the agent",
         "zenskill.readout.energyRecovering": "recovering +{n} pts",
-        "zenskill.profile.understandingError": "Based on {n} samples · error range ±{e}",
+        "zenskill.profile.errorRange": "Based on {n} samples · error range ±{e}",
     },
     "de": {
         "zenskill.collaboration.statsEmpty": "Noch keine Skill-Statistiken — installiere eine weitere Skill, um sie zu sehen",
@@ -169,7 +169,7 @@ T: dict[str, dict[str, str]] = {
         "zenskill.readout.delegation": "Agent übernimmt",
         "zenskill.readout.delegationHint": "{n} von {total} vom Agenten übernommen",
         "zenskill.readout.energyRecovering": "Erholt sich +{n} Punkte",
-        "zenskill.profile.understandingError": "Basierend auf {n} Stichproben · Fehlerbereich ±{e}",
+        "zenskill.profile.errorRange": "Basierend auf {n} Stichproben · Fehlerbereich ±{e}",
     },
     "es": {
         "zenskill.collaboration.statsEmpty": "Aún no hay estadísticas de habilidades — instala otra habilidad para verlas",
@@ -216,7 +216,7 @@ T: dict[str, dict[str, str]] = {
         "zenskill.readout.delegation": "El agente asume",
         "zenskill.readout.delegationHint": "{n} de {total} asumidos por el agente",
         "zenskill.readout.energyRecovering": "recuperando +{n} puntos",
-        "zenskill.profile.understandingError": "Basado en {n} muestras · rango de error ±{e}",
+        "zenskill.profile.errorRange": "Basado en {n} muestras · rango de error ±{e}",
     },
     "hu": {
         "zenskill.collaboration.statsEmpty": "Még nincsenek készségstatisztikák — telepítsz még egy készséget, hogy lásd",
@@ -263,7 +263,7 @@ T: dict[str, dict[str, str]] = {
         "zenskill.readout.delegation": "Az ügynök átvállal",
         "zenskill.readout.delegationHint": "{n} / {total} átvállalva az ügynök által",
         "zenskill.readout.energyRecovering": "visszaszerzés +{n} pont",
-        "zenskill.profile.understandingError": "{n} minta alapján · hibatartomány ±{e}",
+        "zenskill.profile.errorRange": "{n} minta alapján · hibatartomány ±{e}",
     },
     "ja": {
         "zenskill.collaboration.statsEmpty": "スキル統計はまだありません — もう一つスキルを入れると表示されます",
@@ -310,7 +310,7 @@ T: dict[str, dict[str, str]] = {
         "zenskill.readout.delegation": "エージェントが担当",
         "zenskill.readout.delegationHint": "{total} 件中 {n} 件をエージェントが担当",
         "zenskill.readout.energyRecovering": "回復中 +{n} ポイント",
-        "zenskill.profile.understandingError": "{n} サンプルに基づく · 誤差範囲 ±{e}",
+        "zenskill.profile.errorRange": "{n} サンプルに基づく · 誤差範囲 ±{e}",
     },
     "pl": {
         "zenskill.collaboration.statsEmpty": "Brak statystyk umiejętności — zainstaluj jeszcze jedną, żeby je zobaczyć",
@@ -357,7 +357,7 @@ T: dict[str, dict[str, str]] = {
         "zenskill.readout.delegation": "Agent przejmuje",
         "zenskill.readout.delegationHint": "{n} z {total} przejętych przez agenta",
         "zenskill.readout.energyRecovering": "odzyskuje +{n} pkt",
-        "zenskill.profile.understandingError": "Na podstawie {n} próbek · zakres błędu ±{e}",
+        "zenskill.profile.errorRange": "Na podstawie {n} próbek · zakres błędu ±{e}",
     },
 }
 
