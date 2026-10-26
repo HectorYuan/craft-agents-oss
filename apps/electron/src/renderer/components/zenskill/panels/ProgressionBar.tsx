@@ -404,7 +404,7 @@ export function ProgressionBar({ workspaceId, progressions, mode }: ProgressionB
           const lightCount = lightTaskCountOf(suggestion)
           return (
             <div key={id} role="listitem" className="border-b border-border/20 last:border-b-0 min-w-0 px-2 py-1.5">
-              <div className="rounded-md border border-energy-low/30 border-l-2 border-l-orange-500 bg-gradient-to-r from-energy-low/10 via-energy-low/5 to-transparent px-3 py-2">
+              <div className="rounded-md border border-energy-low/30 border-l-2 border-l-energy-low bg-gradient-to-r from-energy-low/10 via-energy-low/5 to-transparent px-3 py-2">
                 <div className="flex items-center gap-1.5 min-w-0">
                   <Zap className={`h-4 w-4 shrink-0 text-energy-low ${busy ? 'animate-pulse' : ''}`} />
                   <span className="truncate text-xs font-semibold text-foreground">
@@ -452,9 +452,9 @@ export function ProgressionBar({ workspaceId, progressions, mode }: ProgressionB
         if (isCelebrationTrigger(progression?.trigger)) {
           return (
             <div key={id} role="listitem" className="border-b border-border/20 last:border-b-0 min-w-0 px-2 py-1.5">
-              <div className="progression-celebrate rounded-md border border-amber-400/40 border-l-2 border-l-amber-400 px-3 py-2">
+              <div className="progression-celebrate rounded-md border border-energy-low/40 border-l-2 border-l-energy-low px-3 py-2">
                 <div className="flex items-center gap-1.5 min-w-0">
-                  <PartyPopper className="h-4 w-4 shrink-0 text-amber-500" />
+                  <PartyPopper className="h-4 w-4 shrink-0 text-energy-low" />
                   <span className="truncate text-xs font-semibold text-foreground">
                     {t('zenskill.progression.projectCelebration')}
                   </span>
@@ -470,7 +470,7 @@ export function ProgressionBar({ workspaceId, progressions, mode }: ProgressionB
                     onClick={() => void handleShareCard()}
                     disabled={busy || sharing}
                     title={t('zenskill.progression.shareCard')}
-                    className="inline-flex shrink-0 items-center gap-1 rounded bg-amber-500/90 px-2.5 py-1 text-sm font-medium text-white transition-colors hover:bg-amber-500 disabled:opacity-40"
+                    className="inline-flex shrink-0 items-center gap-1 rounded bg-energy-low/90 px-2.5 py-1 text-sm font-medium text-white transition-colors hover:bg-energy-low disabled:opacity-40"
                   >
                     <Sparkles className={`h-3 w-3 ${sharing ? 'animate-pulse' : ''}`} />
                     {t('zenskill.progression.shareCard')}
@@ -479,7 +479,7 @@ export function ProgressionBar({ workspaceId, progressions, mode }: ProgressionB
                     type="button"
                     onClick={() => void sendPrompt(progression, index)}
                     disabled={!prompt || busy}
-                    className="inline-flex shrink-0 items-center gap-1 rounded border border-amber-500/40 bg-amber-500/10 px-2 py-1 text-sm font-medium text-amber-600 transition-colors hover:bg-amber-500/20 dark:text-amber-400 disabled:opacity-40"
+                    className="inline-flex shrink-0 items-center gap-1 rounded border border-energy-low/40 bg-energy-low/10 px-2 py-1 text-sm font-medium text-energy-low transition-colors hover:bg-energy-low/20 disabled:opacity-40"
                   >
                     <ArrowRight className="h-3 w-3" />
                     {t('zenskill.progression.celebrationReview')}

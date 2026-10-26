@@ -260,7 +260,7 @@ export function MemoryBrowser({ workspaceId }: ZenSkillPageProps) {
           </button>
         ))}
         {tab === 'episodes' && stats.data?.episodic?.near_limit && (
-          <span className="ml-auto text-badge px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-500">
+          <span className="ml-auto text-badge px-1.5 py-0.5 rounded bg-energy-low/15 text-energy-low">
             接近容量上限
           </span>
         )}

@@ -191,7 +191,7 @@ export function ZenSkillOverview({ workspaceId, onNavigateToChat }: ZenSkillOver
               aria-label={t('zenskill.ceremony.viewCeremony', '查看境界仪式')}
               className="inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-accent"
             >
-              <Sparkles className="h-3.5 w-3.5 text-amber-500" />
+              <Sparkles className="h-3.5 w-3.5 text-energy-low" />
             </button>
             <PageToChatBridge
               pageName="ZenSkill Overview"

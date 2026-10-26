@@ -444,7 +444,7 @@ export function GtdToolResultCard({ toolName, resultText, workspaceId, sourceSlu
           </span>
         )}
         {liveStatus === 'done' && (
-          <span className="ml-auto shrink-0 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-1.5 py-px text-badge font-medium text-emerald-600 dark:text-emerald-400">
+          <span className="ml-auto shrink-0 rounded-full border border-success/30 bg-success/10 px-1.5 py-px text-badge font-medium text-success-text">
             {t('zenskill.card.statusDone')}
           </span>
         )}
@@ -494,7 +494,7 @@ export function GtdToolResultCard({ toolName, resultText, workspaceId, sourceSlu
             type="button"
             disabled={busy || !editing.title.trim()}
             onClick={saveEdit}
-            className={`${btnBase} border-emerald-500/40 bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20 dark:text-emerald-400`}
+            className={`${btnBase} border-success/40 bg-success/10 text-success-text hover:bg-success/20`}
           >
             ✓ {t('zenskill.card.edit')}
           </button>
@@ -518,7 +518,7 @@ export function GtdToolResultCard({ toolName, resultText, workspaceId, sourceSlu
               type="button"
               disabled={busy || liveStatus === 'done'}
               onClick={handleComplete}
-              className={`${btnBase} border-emerald-500/40 bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20 dark:text-emerald-400`}
+              className={`${btnBase} border-success/40 bg-success/10 text-success-text hover:bg-success/20`}
             >
               ✓ {t('zenskill.card.completeAction')}
             </button>
@@ -572,7 +572,7 @@ export function GtdToolResultCard({ toolName, resultText, workspaceId, sourceSlu
               type="button"
               disabled={busy || liveStatus === 'done'}
               onClick={handleProjectDone}
-              className={`${btnBase} border-emerald-500/40 bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20 dark:text-emerald-400`}
+              className={`${btnBase} border-success/40 bg-success/10 text-success-text hover:bg-success/20`}
             >
               ✓ {t('zenskill.card.completeAction')}
             </button>

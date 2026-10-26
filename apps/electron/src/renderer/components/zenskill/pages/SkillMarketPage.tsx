@@ -88,7 +88,7 @@ function findingsCount(security: any): number {
 function riskBadgeClass(level?: string): string {
   const l = (level || '').toLowerCase()
   if (l.includes('danger') || l === 'high' || l === 'blocked') return 'bg-destructive/10 text-destructive-text'
-  if (l.includes('warn') || l === 'medium' || l === 'degraded') return 'bg-amber-500/10 text-amber-500'
+  if (l.includes('warn') || l === 'medium' || l === 'degraded') return 'bg-info/10 text-info-text'
   return 'bg-success/10 text-success-text'
 }
 
@@ -144,7 +144,7 @@ function MarketSkillCard({ skill, state }: { skill: MarketSkill; state: CardStat
           </span>
         ) : confirm ? (
           <button
-            className="shrink-0 flex items-center gap-1 text-badge px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-600 hover:bg-amber-500/20"
+            className="shrink-0 flex items-center gap-1 text-badge px-1.5 py-0.5 rounded bg-info/10 text-info-text hover:bg-info/20"
             disabled={state.installing === uri}
             onClick={() => state.onInstall(uri, name, true)}
             title={t('zenskill.market.riskFindings', { risk: confirm.risk ?? '—', n: confirm.findings })}
@@ -570,7 +570,7 @@ export function SkillMarketPage({ workspaceId }: { workspaceId?: string; initial
                     ) : lastReport.ok ? (
                       <ShieldCheck className="h-3.5 w-3.5 text-success-text" />
                     ) : (
-                      <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />
+                      <AlertTriangle className="h-3.5 w-3.5 text-info-text" />
                     )}
                     <span className="truncate font-medium">{lastReport.name}</span>
                     <span className={`text-badge px-1.5 py-0.5 rounded shrink-0 ${riskBadgeClass(lastReport.risk)}`}>
