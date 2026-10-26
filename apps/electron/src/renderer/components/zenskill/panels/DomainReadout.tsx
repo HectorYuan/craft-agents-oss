@@ -38,9 +38,28 @@ export interface ZenloopStatusData {
   message?: string
 }
 
-export interface CompanionData {
-  energy?: { level?: string; pct?: number; current?: number; max?: number }
-  mood?: string
+export interface EnergyLevelData {
+  status?: {
+    level?: string
+    pct?: number
+    current_energy?: number
+    max_energy?: number
+    /** ★ 第二十批 B 段：待结算的被动恢复量（点）—— 读数已含它 */
+    pending_recovery?: number
+    stored_energy?: number
+    recovery_rate?: number
+  }
+  message?: string
+}
+
+export interface DelegationStatusData {
+  status?: {
+    total?: number
+    agent_created?: number
+    ratio?: number
+    available?: boolean
+  }
+  message?: string
 }
 
 export interface AttentionStatusData {
@@ -69,8 +88,9 @@ export type ReadoutTranslate = (
  */
 export function buildReadoutCells(
   loop: ZenloopStatusData | null,
-  companion: CompanionData | null,
+  energy: EnergyLevelData | null,
   attention: AttentionStatusData | null,
+  delegation: DelegationStatusData | null,
   t: ReadoutTranslate,
 ): ReadoutCell[] {
   const cells: ReadoutCell[] = []
@@ -88,12 +108,33 @@ export function buildReadoutCells(
     })
   }
 
-  const energy = companion?.energy
-  if (energy && typeof energy.current === 'number') {
+  // ★ 能量读**规范口径** `energy_level`（不是 companion_summary 的那份）：
+  //   它带 `pending_recovery` ⇒ 能显示「恢复中 +N/小时」，也能直接吃到
+  //   第二十批 B 段的**投影值**（读到的是此刻真实值，不是落盘值）。
+  const es = energy?.status
+  if (es && typeof es.current_energy === 'number') {
+    const pending = es.pending_recovery ?? 0
     cells.push({
       label: t('zenskill.readout.energy', '能量'),
-      value: `${energy.current} / ${energy.max ?? 0}`,
+      value: `${es.current_energy} / ${es.max_energy ?? 0}`,
       unit: t('zenskill.unit.point', '点'),
+      hint:
+        pending > 0
+          ? t('zenskill.readout.energyRecovering', '恢复中 +{n} 点', { n: pending })
+          : undefined,
+    })
+  }
+
+  // ★ 智能体承担（**比例**）—— 第四种量纲，独立一格，**不与点/分钟混算**
+  const ds = delegation?.status
+  if (ds && ds.available && typeof ds.ratio === 'number') {
+    cells.push({
+      label: t('zenskill.readout.delegation', '智能体承担'),
+      value: `${Math.round(ds.ratio * 100)}%`,
+      hint: t('zenskill.readout.delegationHint', '{n} / {total} 项由智能体接下', {
+        n: ds.agent_created ?? 0,
+        total: ds.total ?? 0,
+      }),
     })
   }
 
@@ -122,11 +163,14 @@ export function DomainReadout({ workspaceId }: { workspaceId?: string }) {
   const { t } = useTranslation()
 
   const loop = useMcpTool<ZenloopStatusData>(workspaceId, ZENSKILL_SOURCE_SLUG, 'zenloop_status', {})
-  const companion = useMcpTool<CompanionData>(
-    workspaceId, ZENSKILL_SOURCE_SLUG, 'companion_summary', {},
+  const energy = useMcpTool<EnergyLevelData>(
+    workspaceId, ZENSKILL_SOURCE_SLUG, 'energy_level', {},
   )
   const attention = useMcpTool<AttentionStatusData>(
     workspaceId, ZENSKILL_SOURCE_SLUG, 'attention_status', {},
+  )
+  const delegation = useMcpTool<DelegationStatusData>(
+    workspaceId, ZENSKILL_SOURCE_SLUG, 'delegation_status', {},
   )
 
   // ★ 没有工作区 ⇒ 什么数据源都连不上 ⇒ **不渲染**（不是「无权限」）
@@ -135,12 +179,14 @@ export function DomainReadout({ workspaceId }: { workspaceId?: string }) {
   const translate: ReadoutTranslate = (key, fallback, opts) =>
     t(key, { defaultValue: fallback, ...(opts ?? {}) }) as string
 
-  const cells = buildReadoutCells(loop.data, companion.data, attention.data, translate)
+  const cells = buildReadoutCells(loop.data, energy.data, attention.data, delegation.data, translate)
 
-  const errors = [loop.error, companion.error, attention.error].filter(Boolean) as string[]
+  const errors = [loop.error, energy.error, attention.error, delegation.error].filter(
+    Boolean,
+  ) as string[]
   const noAccess = errors.some(isNoDataSourceError)
   const error = errors.find((e) => !isNoDataSourceError(e)) ?? null
-  const loading = loop.loading || companion.loading || attention.loading
+  const loading = loop.loading || energy.loading || attention.loading || delegation.loading
 
   if (error || noAccess || loading) {
     return (
@@ -151,8 +197,9 @@ export function DomainReadout({ workspaceId }: { workspaceId?: string }) {
         noAccess={noAccess}
         onRetry={() => {
           loop.refresh()
-          companion.refresh()
+          energy.refresh()
           attention.refresh()
+          delegation.refresh()
         }}
       />
     )

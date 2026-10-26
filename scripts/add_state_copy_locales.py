@@ -70,6 +70,9 @@ T: dict[str, dict[str, str]] = {
         "zenskill.readout.attentionUpperHint": "近期深度占用暂时读不到，此值为上限",
         "zenskill.unit.point": "点",
         "zenskill.unit.minute": "分钟",
+        "zenskill.readout.delegation": "智能体承担",
+        "zenskill.readout.delegationHint": "{n} / {total} 项由智能体接下",
+        "zenskill.readout.energyRecovering": "恢复中 +{n} 点",
     },
     "en": {
         "zenskill.collaboration.statsEmpty": "No skill statistics yet — install one more skill to see them",
@@ -114,6 +117,9 @@ T: dict[str, dict[str, str]] = {
         "zenskill.readout.attentionUpperHint": "Recent focus usage can't be read right now — this value is an upper bound",
         "zenskill.unit.point": "points",
         "zenskill.unit.minute": "minutes",
+        "zenskill.readout.delegation": "Agent handles",
+        "zenskill.readout.delegationHint": "{n} of {total} handled by the agent",
+        "zenskill.readout.energyRecovering": "recovering +{n} pts",
     },
     "de": {
         "zenskill.collaboration.statsEmpty": "Noch keine Skill-Statistiken — installiere eine weitere Skill, um sie zu sehen",
@@ -158,6 +164,9 @@ T: dict[str, dict[str, str]] = {
         "zenskill.readout.attentionUpperHint": "Die jüngste Fokusnutzung ist gerade nicht lesbar — dieser Wert ist eine Obergrenze",
         "zenskill.unit.point": "Punkte",
         "zenskill.unit.minute": "Minuten",
+        "zenskill.readout.delegation": "Agent übernimmt",
+        "zenskill.readout.delegationHint": "{n} von {total} vom Agenten übernommen",
+        "zenskill.readout.energyRecovering": "Erholt sich +{n} Punkte",
     },
     "es": {
         "zenskill.collaboration.statsEmpty": "Aún no hay estadísticas de habilidades — instala otra habilidad para verlas",
@@ -201,6 +210,9 @@ T: dict[str, dict[str, str]] = {
         "zenskill.readout.attentionUpperHint": "El uso de foco reciente no se puede leer ahora — este valor es un máximo",
         "zenskill.unit.point": "puntos",
         "zenskill.unit.minute": "minutos",
+        "zenskill.readout.delegation": "El agente asume",
+        "zenskill.readout.delegationHint": "{n} de {total} asumidos por el agente",
+        "zenskill.readout.energyRecovering": "recuperando +{n} puntos",
     },
     "hu": {
         "zenskill.collaboration.statsEmpty": "Még nincsenek készségstatisztikák — telepítsz még egy készséget, hogy lásd",
@@ -244,6 +256,9 @@ T: dict[str, dict[str, str]] = {
         "zenskill.readout.attentionUpperHint": "A legutóbbi fókuszhasználat most nem olvasható — ez az érték felső korlát",
         "zenskill.unit.point": "pont",
         "zenskill.unit.minute": "perc",
+        "zenskill.readout.delegation": "Az ügynök átvállal",
+        "zenskill.readout.delegationHint": "{n} / {total} átvállalva az ügynök által",
+        "zenskill.readout.energyRecovering": "visszaszerzés +{n} pont",
     },
     "ja": {
         "zenskill.collaboration.statsEmpty": "スキル統計はまだありません — もう一つスキルを入れると表示されます",
@@ -287,6 +302,9 @@ T: dict[str, dict[str, str]] = {
         "zenskill.readout.attentionUpperHint": "直近の集中使用量は一時的に読み取れません — この値は上限です",
         "zenskill.unit.point": "ポイント",
         "zenskill.unit.minute": "分",
+        "zenskill.readout.delegation": "エージェントが担当",
+        "zenskill.readout.delegationHint": "{total} 件中 {n} 件をエージェントが担当",
+        "zenskill.readout.energyRecovering": "回復中 +{n} ポイント",
     },
     "pl": {
         "zenskill.collaboration.statsEmpty": "Brak statystyk umiejętności — zainstaluj jeszcze jedną, żeby je zobaczyć",
@@ -330,6 +348,9 @@ T: dict[str, dict[str, str]] = {
         "zenskill.readout.attentionUpperHint": "Najnowsze zużycie skupienia jest teraz nieczytelne — ta wartość to górna granica",
         "zenskill.unit.point": "punktów",
         "zenskill.unit.minute": "minut",
+        "zenskill.readout.delegation": "Agent przejmuje",
+        "zenskill.readout.delegationHint": "{n} z {total} przejętych przez agenta",
+        "zenskill.readout.energyRecovering": "odzyskuje +{n} pkt",
     },
 }
 
