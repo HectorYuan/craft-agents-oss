@@ -11,6 +11,7 @@ import { useEffect, useState, useCallback, useMemo } from 'react'
 import { useAtomValue } from 'jotai'
 import { FolderKanban, FolderOpen, Plus, Trash2, Upload } from 'lucide-react'
 import { toast } from 'sonner'
+import { DomainReadout } from '@/components/zenskill/panels/DomainReadout'
 import { useActiveWorkspace, useAppShellContext } from '@/context/AppShellContext'
 import { navigate, routes } from '@/lib/navigate'
 import { sessionMetaMapAtom } from '@/atoms/sessions'
@@ -244,6 +245,8 @@ export default function ProjectInfoPage({ projectSlug }: ProjectInfoPageProps) {
                 </Button>
               }
             >
+              {/* ★ 第十九批 D 段：项目域的 ZenSkill 读数条（回路 / 能量点 / 注意力分钟） */}
+              <DomainReadout workspaceId={workspaceId} />
               {projectSessions.length === 0 ? (
                 <div className="px-4 py-6 text-sm text-muted-foreground">
                   {t('projectInfo.noSessions')}

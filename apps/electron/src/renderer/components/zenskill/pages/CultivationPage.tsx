@@ -52,6 +52,7 @@ import { GrowthCard, filterScores } from '../panels/GrowthCard'
 import { AchievementGrid } from '../panels/AchievementGrid'
 import { CompanionCard } from '../panels/CompanionCard'
 import { isNoDataSourceError } from '../panels/errors'
+import { LoadingBlock, ErrorBlock, NoDataSourceBlock } from '../panels/stateBlocks'
 import { HabitList, type Habit } from '../panels/HabitList'
 import { IncubatingPanel } from '../panels/IncubatingPanel'
 import { RadarChart } from '../panels/RadarChart'
@@ -245,52 +246,6 @@ function AlertBox({ children }: { children: React.ReactNode }) {
   )
 }
 
-/** 加载态：Spinner（craft 既有形态；禁止用 shimmer 条代替） */
-function LoadingBlock({ label }: { label: string }) {
-  return (
-    <div className="flex items-center gap-2 py-3 text-foreground/30">
-      <Spinner className="h-3.5 w-3.5" />
-      <span className="text-xs">{label}</span>
-    </div>
-  )
-}
-
-/** 错误态：craft 详情页既有形态（max-w-sm + rounded-[8px] + border-destructive/20） */
-function ErrorBlock({ message, onRetry }: { message: string; onRetry?: () => void }) {
-  const { t } = useTranslation()
-  return (
-    <div className="max-w-sm rounded-[8px] border border-destructive/20 p-2 text-xs text-destructive">
-      <div className="text-foreground">{t('zenskill.cultivation.error.title', '这一块暂时读不到')}</div>
-      <div className="mt-0.5 text-muted-foreground">{message}</div>
-      {onRetry && (
-        <button
-          onClick={onRetry}
-          className="mt-1.5 inline-flex items-center gap-1 rounded border border-border/30 px-2 py-1 text-[11.25px] hover:bg-muted/50"
-        >
-          <RefreshCw className="h-3 w-3" />
-          {t('zenskill.cultivation.error.retry', '重试')}
-        </button>
-      )}
-    </div>
-  )
-}
-
-/** 无权限态（稿 `24:20` SystemMessage/system）：工作区没有 ZenSkill 数据源 */
-function NoDataSourceBlock() {
-  const { t } = useTranslation()
-  return (
-    <div className="rounded-[5.625px] bg-foreground/10 px-[11.25px] py-[7.5px] text-[13.125px] text-muted-foreground">
-      {t('zenskill.cultivation.noDataSource.title', '这个工作区没有 ZenSkill 数据源')}
-      <div className="mt-0.5 text-[11.25px] text-muted-foreground/80">
-        {t(
-          'zenskill.cultivation.noDataSource.hint',
-          '在这个工作区里添加 ZenSkill 数据源后，这里会显示你的回路、习惯与引文',
-        )}
-      </div>
-    </div>
-  )
-}
-
 /**
  * 「工作区没有 ZenSkill 数据源」的判定 → 见 `panels/errors.ts`（纯函数，可被测试导入）。
  * ★ 这**不是故障** —— 重试无用 ⇒ 不能落进错误卡（会误报为故障 + 给出无用的「重试」）。
@@ -478,7 +433,7 @@ export function CultivationPage({
       {/* Content —— 稿 `6:432`：单列、内容区 840 居中 */}
       <div className="flex-1 overflow-y-auto px-6 py-5">
         <div className="mx-auto w-full max-w-[840px] space-y-5">
-          {pageLoading && <LoadingBlock label={t('zenskill.cultivation.loading', '读取中')} />}
+          {pageLoading && <LoadingBlock label={t('zenskill.state.loading', '读取中')} />}
 
           {/* Hero（稿 6:373） */}
           <div className="space-y-0.5">
@@ -505,7 +460,7 @@ export function CultivationPage({
             <ContentCard>
               {loop.error && <ErrorBlock message={loop.error} onRetry={loop.refresh} />}
               {!loop.error && loop.loading && !loop.data && (
-                <LoadingBlock label={t('zenskill.cultivation.loading', '读取中')} />
+                <LoadingBlock label={t('zenskill.state.loading', '读取中')} />
               )}
               {loop.data && (
                 <div className="space-y-2">
@@ -668,7 +623,7 @@ export function CultivationPage({
           >
             {habits.error && <ErrorBlock message={habits.error} onRetry={habits.refresh} />}
             {!habits.error && habits.loading && !habits.data && (
-              <LoadingBlock label={t('zenskill.cultivation.loading', '读取中')} />
+              <LoadingBlock label={t('zenskill.state.loading', '读取中')} />
             )}
             {!habits.error && habitRows.length === 0 && (
               <div className="text-[11.25px] text-muted-foreground">
@@ -704,7 +659,7 @@ export function CultivationPage({
           >
             {thought.error && <ErrorBlock message={thought.error} onRetry={thought.refresh} />}
             {!thought.error && thought.loading && !thought.data && (
-              <LoadingBlock label={t('zenskill.cultivation.loading', '读取中')} />
+              <LoadingBlock label={t('zenskill.state.loading', '读取中')} />
             )}
             {!thought.error && thought.data?.ok && thought.data.text && (
               <>

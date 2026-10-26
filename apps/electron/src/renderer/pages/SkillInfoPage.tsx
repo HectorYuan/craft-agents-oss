@@ -10,6 +10,7 @@ import * as React from 'react'
 import { useTranslation } from 'react-i18next'
 import { useEffect, useState, useCallback } from 'react'
 import { Check, X, Minus } from 'lucide-react'
+import { DomainReadout } from '@/components/zenskill/panels/DomainReadout'
 import { EditPopover, EditButton, getEditConfig } from '@/components/ui/EditPopover'
 import { toast } from 'sonner'
 import { SkillMenu } from '@/components/app-shell/SkillMenu'
@@ -189,6 +190,8 @@ export default function SkillInfoPage({ skillSlug, workspaceId, workingDirectory
               />
             }
           >
+            {/* ★ 第十九批 D 段：技能域的 ZenSkill 读数条（回路 / 能量点 / 注意力分钟） */}
+            <DomainReadout workspaceId={workspaceId} />
             <Info_Table>
               <Info_Table.Row label={t('common.slug')} value={skill.slug} />
               <Info_Table.Row label={t('common.name')}>{skill.metadata.name}</Info_Table.Row>

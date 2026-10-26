@@ -57,6 +57,19 @@ T: dict[str, dict[str, str]] = {
         "zenskill.collaboration.transfer": "可迁移模式",
         "zenskill.collaboration.insights": "跨技能洞察",
         "zenskill.session.empty": "还没有会话 —— 新建一个试试",
+        "zenskill.state.loading": "读取中",
+        "zenskill.state.error.title": "这一块暂时读不到",
+        "zenskill.state.error.retry": "重试",
+        "zenskill.state.noAccess.title": "这个工作区没有 ZenSkill 数据源",
+        "zenskill.state.noAccess.hint": "在这个工作区里添加 ZenSkill 数据源后，这里会显示成长与过程的读数",
+        "zenskill.readout.loop": "轮次",
+        "zenskill.readout.loopCount": "{n} 条在跑",
+        "zenskill.readout.energy": "能量",
+        "zenskill.readout.attention": "注意力",
+        "zenskill.readout.atMost": "至多",
+        "zenskill.readout.attentionUpperHint": "近期深度占用暂时读不到，此值为上限",
+        "zenskill.unit.point": "点",
+        "zenskill.unit.minute": "分钟",
     },
     "en": {
         "zenskill.collaboration.statsEmpty": "No skill statistics yet — install one more skill to see them",
@@ -88,6 +101,19 @@ T: dict[str, dict[str, str]] = {
         "zenskill.collaboration.transfer": "Transferable Patterns",
         "zenskill.collaboration.insights": "Cross-Skill Insights",
         "zenskill.session.empty": "No session yet — create one",
+        "zenskill.state.loading": "Loading",
+        "zenskill.state.error.title": "This block can't be read right now",
+        "zenskill.state.error.retry": "Retry",
+        "zenskill.state.noAccess.title": "This workspace has no ZenSkill data source",
+        "zenskill.state.noAccess.hint": "Add a ZenSkill data source to this workspace, and growth and process readouts will show up here",
+        "zenskill.readout.loop": "Loop",
+        "zenskill.readout.loopCount": "{n} running",
+        "zenskill.readout.energy": "Energy",
+        "zenskill.readout.attention": "Attention",
+        "zenskill.readout.atMost": "at most",
+        "zenskill.readout.attentionUpperHint": "Recent focus usage can't be read right now — this value is an upper bound",
+        "zenskill.unit.point": "points",
+        "zenskill.unit.minute": "minutes",
     },
     "de": {
         "zenskill.collaboration.statsEmpty": "Noch keine Skill-Statistiken — installiere eine weitere Skill, um sie zu sehen",
@@ -119,6 +145,19 @@ T: dict[str, dict[str, str]] = {
         "zenskill.collaboration.insights": "Skill-übergreifende Erkenntnisse",
         "zenskill.toast.captured": "Erfasst",
         "zenskill.session.empty": "Noch keine Sitzung — leg eine an",
+        "zenskill.state.loading": "Lädt",
+        "zenskill.state.error.title": "Dieser Abschnitt ist gerade nicht lesbar",
+        "zenskill.state.error.retry": "Erneut versuchen",
+        "zenskill.state.noAccess.title": "Dieser Arbeitsbereich hat keine ZenSkill-Datenquelle",
+        "zenskill.state.noAccess.hint": "Füge diesem Arbeitsbereich eine ZenSkill-Datenquelle hinzu — dann erscheinen hier Fortschritts- und Prozesswerte",
+        "zenskill.readout.loop": "Kreislauf",
+        "zenskill.readout.loopCount": "{n} laufend",
+        "zenskill.readout.energy": "Energie",
+        "zenskill.readout.attention": "Aufmerksamkeit",
+        "zenskill.readout.atMost": "höchstens",
+        "zenskill.readout.attentionUpperHint": "Die jüngste Fokusnutzung ist gerade nicht lesbar — dieser Wert ist eine Obergrenze",
+        "zenskill.unit.point": "Punkte",
+        "zenskill.unit.minute": "Minuten",
     },
     "es": {
         "zenskill.collaboration.statsEmpty": "Aún no hay estadísticas de habilidades — instala otra habilidad para verlas",
@@ -149,6 +188,19 @@ T: dict[str, dict[str, str]] = {
         "zenskill.collaboration.transfer": "Patrones Transferibles",
         "zenskill.collaboration.insights": "Perspectivas entre Habilidades",
         "zenskill.session.empty": "Aún no hay sesión — crea una",
+        "zenskill.state.loading": "Cargando",
+        "zenskill.state.error.title": "Este bloque no se puede leer ahora",
+        "zenskill.state.error.retry": "Reintentar",
+        "zenskill.state.noAccess.title": "Este espacio de trabajo no tiene fuente de datos de ZenSkill",
+        "zenskill.state.noAccess.hint": "Añade una fuente de datos de ZenSkill a este espacio de trabajo y aquí aparecerán los datos de crecimiento y proceso",
+        "zenskill.readout.loop": "Ciclo",
+        "zenskill.readout.loopCount": "{n} en marcha",
+        "zenskill.readout.energy": "Energía",
+        "zenskill.readout.attention": "Atención",
+        "zenskill.readout.atMost": "como máximo",
+        "zenskill.readout.attentionUpperHint": "El uso de foco reciente no se puede leer ahora — este valor es un máximo",
+        "zenskill.unit.point": "puntos",
+        "zenskill.unit.minute": "minutos",
     },
     "hu": {
         "zenskill.collaboration.statsEmpty": "Még nincsenek készségstatisztikák — telepítsz még egy készséget, hogy lásd",
@@ -179,6 +231,19 @@ T: dict[str, dict[str, str]] = {
         "zenskill.collaboration.transfer": "Atadhato Mintak",
         "zenskill.collaboration.insights": "Keszsegkozi Betekintesek",
         "zenskill.session.empty": "Még nincs munkamenet — hozz létre egyet",
+        "zenskill.state.loading": "Betöltés",
+        "zenskill.state.error.title": "Ez a blokk most nem olvasható",
+        "zenskill.state.error.retry": "Újra",
+        "zenskill.state.noAccess.title": "Ennek a munkaterületnek nincs ZenSkill adatforrása",
+        "zenskill.state.noAccess.hint": "Adj meg egy ZenSkill adatforrást ehhez a munkaterülethez, és itt megjelennek a növekedés és folyamat adatai",
+        "zenskill.readout.loop": "Kör",
+        "zenskill.readout.loopCount": "{n} fut",
+        "zenskill.readout.energy": "Energia",
+        "zenskill.readout.attention": "Figyelem",
+        "zenskill.readout.atMost": "legfeljebb",
+        "zenskill.readout.attentionUpperHint": "A legutóbbi fókuszhasználat most nem olvasható — ez az érték felső korlát",
+        "zenskill.unit.point": "pont",
+        "zenskill.unit.minute": "perc",
     },
     "ja": {
         "zenskill.collaboration.statsEmpty": "スキル統計はまだありません — もう一つスキルを入れると表示されます",
@@ -209,6 +274,19 @@ T: dict[str, dict[str, str]] = {
         "zenskill.collaboration.transfer": "転移可能なパターン",
         "zenskill.collaboration.insights": "スキル横断インサイト",
         "zenskill.session.empty": "セッションはまだありません — 作成してみましょう",
+        "zenskill.state.loading": "読み込み中",
+        "zenskill.state.error.title": "このブロックは一時的に読み取れません",
+        "zenskill.state.error.retry": "再試行",
+        "zenskill.state.noAccess.title": "このワークスペースには ZenSkill データソースがありません",
+        "zenskill.state.noAccess.hint": "このワークスペースに ZenSkill データソースを追加すると、成長と過程の読み取りがここに表示されます",
+        "zenskill.readout.loop": "ループ",
+        "zenskill.readout.loopCount": "{n} 件進行中",
+        "zenskill.readout.energy": "エネルギー",
+        "zenskill.readout.attention": "集中力",
+        "zenskill.readout.atMost": "最大",
+        "zenskill.readout.attentionUpperHint": "直近の集中使用量は一時的に読み取れません — この値は上限です",
+        "zenskill.unit.point": "ポイント",
+        "zenskill.unit.minute": "分",
     },
     "pl": {
         "zenskill.collaboration.statsEmpty": "Brak statystyk umiejętności — zainstaluj jeszcze jedną, żeby je zobaczyć",
@@ -239,8 +317,33 @@ T: dict[str, dict[str, str]] = {
         "zenskill.collaboration.transfer": "Wzorce Przenoszenia",
         "zenskill.collaboration.insights": "Spojrzenia Miedzy Umiejetnosciami",
         "zenskill.session.empty": "Brak sesji — utwórz jedną",
+        "zenskill.state.loading": "Ładowanie",
+        "zenskill.state.error.title": "Tego bloku nie da się teraz odczytać",
+        "zenskill.state.error.retry": "Spróbuj ponownie",
+        "zenskill.state.noAccess.title": "Ten obszar roboczy nie ma źródła danych ZenSkill",
+        "zenskill.state.noAccess.hint": "Dodaj źródło danych ZenSkill do tego obszaru roboczego, a pojawią się tutaj odczyty wzrostu i procesu",
+        "zenskill.readout.loop": "Pętla",
+        "zenskill.readout.loopCount": "{n} w toku",
+        "zenskill.readout.energy": "Energia",
+        "zenskill.readout.attention": "Uwaga",
+        "zenskill.readout.atMost": "najwyżej",
+        "zenskill.readout.attentionUpperHint": "Najnowsze zużycie skupienia jest teraz nieczytelne — ta wartość to górna granica",
+        "zenskill.unit.point": "punktów",
+        "zenskill.unit.minute": "minut",
     },
 }
+
+
+# ── 退役的 key（通用五态文案迁到 `zenskill.state.*` 后，原 `cultivation.*` 那 5 条**必须删掉**）──
+# ★ 为什么必须删：locale 里留着就成了**孤儿 key**（没有真相源登记、也没有任何页面引用）
+#   ⇒ 门禁 C-11 的「漏登记」会判红，而且它们是「同一概念的第二个名字」⇒ 违反不另造同义词。
+REMOVED_KEYS = (
+    "zenskill.cultivation.loading",
+    "zenskill.cultivation.error.title",
+    "zenskill.cultivation.error.retry",
+    "zenskill.cultivation.noDataSource.title",
+    "zenskill.cultivation.noDataSource.hint",
+)
 
 
 def dump(data: dict) -> str:
@@ -267,6 +370,8 @@ def main() -> int:
             else:
                 print(f"[新增] {loc}: 新增 {len(missing)} 个 key（{', '.join(sorted(missing))}）")
         merged = {**data, **table}
+        for k in REMOVED_KEYS:
+            merged.pop(k, None)
         if check:
             if path.read_text(encoding="utf-8") != dump(merged):
                 print(f"[FAIL] {loc}: 文件内容与预期不一致（--check 判红）")
