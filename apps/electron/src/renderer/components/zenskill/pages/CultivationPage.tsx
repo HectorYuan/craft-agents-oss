@@ -289,7 +289,11 @@ export function CultivationPage({
 
   /* 主区：当前回路 */
   const loop = useMcpTool<ZenloopStatusData>(workspaceId, ZENSKILL_SOURCE_SLUG, 'zenloop_status', {})
-  const actions = useMcpTool<ProgressionData>(workspaceId, ZENSKILL_SOURCE_SLUG, 'task_progressions', { limit: 3 })
+  // ★ peek=true：**只看不推** —— 推进建议的主动推送额度属于 GTD 工作台，
+  //   本页只展示同一批建议，不该替它消耗频控额度（DAILY_LIMIT=3 + 24h 冷却）。
+  const actions = useMcpTool<ProgressionData>(
+    workspaceId, ZENSKILL_SOURCE_SLUG, 'task_progressions', { limit: 3, peek: true },
+  )
 
   /* 侧区 B：成长 */
   const growth = useMcpTool<GrowthData>(workspaceId, ZENSKILL_SOURCE_SLUG, 'growth_dashboard', {})
