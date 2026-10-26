@@ -12,7 +12,7 @@
  */
 import type { ComponentType } from 'react'
 import type { LucideIcon } from 'lucide-react'
-import { Brain, Inbox, Zap, Lightbulb, User, Network, GitBranch, BookOpen, RefreshCw, Store } from 'lucide-react'
+import { Brain, Inbox, Zap, Lightbulb, User, Network, GitBranch, BookOpen, RefreshCw, Store, Sprout } from 'lucide-react'
 import { GtdWorkspace } from './pages/GtdWorkspace'
 import { MemoryBrowser } from './pages/MemoryBrowser'
 import { ZenSkillOverview } from './pages/ZenSkillOverview'
@@ -23,6 +23,7 @@ import { ZenSkillSkillGraph } from './pages/ZenSkillSkillGraph'
 import { SkillMarketPage } from './pages/SkillMarketPage'
 import { LearningPathPage } from './pages/LearningPathPage'
 import { ZenloopStandalonePage } from './pages/ZenloopStandalonePage'
+import { CultivationPage } from './pages/CultivationPage'
 
 /**
  * The ZenSkill MCP source slug all ZenSkill pages talk to.
@@ -111,6 +112,15 @@ export const ZENSKILL_PAGES: ZenSkillPageRegistration[] = [
     component: ZenloopStandalonePage,
     icon: RefreshCw,
     i18nLabelKey: 'zenskill.zenloop.title',
+  },
+  {
+    // 修炼域（第十八批 D 段 D2）—— 设计真相源 ardot `6:372`「修炼域 · Info_Page」。
+    // ★ 与 `zenloop` 页分工：zenloop 是**引擎运维视图**，修炼域是**用户向成长页**
+    //   （见 `docs/spec_zenskill_four_domains_v1_20261025.md` §5）。
+    slug: 'cultivation',
+    component: CultivationPage,
+    icon: Sprout,
+    i18nLabelKey: 'zenskill.cultivation.title',
   },
 ]
 
