@@ -2117,6 +2117,7 @@
   "zenskill.progression.weeklyConfirm": "Iniciar el repaso",
   "zenskill.progression.weeklyDismiss": "La próxima semana",
   "zenskill.progression.weeklyTitle": "Repaso del viernes",
+  "zenskill.session.empty": "Aún no hay sesión — crea una",
   "zenskill.skillGraph.allDomains": "Todos",
   "zenskill.skillGraph.allHidden": "Todos los dominios ocultos — haz clic en una etiqueta de arriba para restaurarlos",
   "zenskill.skillGraph.avgScore": "Puntuación Promedio",

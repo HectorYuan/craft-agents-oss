@@ -2117,6 +2117,7 @@
   "zenskill.progression.weeklyConfirm": "Start the review",
   "zenskill.progression.weeklyDismiss": "Next week",
   "zenskill.progression.weeklyTitle": "Friday review",
+  "zenskill.session.empty": "No session yet — create one",
   "zenskill.skillGraph.allDomains": "All",
   "zenskill.skillGraph.allHidden": "All domains hidden — click a chip above to restore",
   "zenskill.skillGraph.avgScore": "Avg Score",

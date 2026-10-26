@@ -56,6 +56,7 @@ T: dict[str, dict[str, str]] = {
         "zenskill.collaboration.overview": "生态概览",
         "zenskill.collaboration.transfer": "可迁移模式",
         "zenskill.collaboration.insights": "跨技能洞察",
+        "zenskill.session.empty": "还没有会话 —— 新建一个试试",
     },
     "en": {
         "zenskill.collaboration.statsEmpty": "No skill statistics yet — install one more skill to see them",
@@ -86,6 +87,7 @@ T: dict[str, dict[str, str]] = {
         "zenskill.collaboration.overview": "Ecosystem Overview",
         "zenskill.collaboration.transfer": "Transferable Patterns",
         "zenskill.collaboration.insights": "Cross-Skill Insights",
+        "zenskill.session.empty": "No session yet — create one",
     },
     "de": {
         "zenskill.collaboration.statsEmpty": "Noch keine Skill-Statistiken — installiere eine weitere Skill, um sie zu sehen",
@@ -116,6 +118,7 @@ T: dict[str, dict[str, str]] = {
         "zenskill.collaboration.transfer": "Übertragbare Muster",
         "zenskill.collaboration.insights": "Skill-übergreifende Erkenntnisse",
         "zenskill.toast.captured": "Erfasst",
+        "zenskill.session.empty": "Noch keine Sitzung — leg eine an",
     },
     "es": {
         "zenskill.collaboration.statsEmpty": "Aún no hay estadísticas de habilidades — instala otra habilidad para verlas",
@@ -145,6 +148,7 @@ T: dict[str, dict[str, str]] = {
         "zenskill.collaboration.overview": "Resumen del Ecosistema",
         "zenskill.collaboration.transfer": "Patrones Transferibles",
         "zenskill.collaboration.insights": "Perspectivas entre Habilidades",
+        "zenskill.session.empty": "Aún no hay sesión — crea una",
     },
     "hu": {
         "zenskill.collaboration.statsEmpty": "Még nincsenek készségstatisztikák — telepítsz még egy készséget, hogy lásd",
@@ -174,6 +178,7 @@ T: dict[str, dict[str, str]] = {
         "zenskill.collaboration.overview": "Okoszisztima attekintese",
         "zenskill.collaboration.transfer": "Atadhato Mintak",
         "zenskill.collaboration.insights": "Keszsegkozi Betekintesek",
+        "zenskill.session.empty": "Még nincs munkamenet — hozz létre egyet",
     },
     "ja": {
         "zenskill.collaboration.statsEmpty": "スキル統計はまだありません — もう一つスキルを入れると表示されます",
@@ -203,6 +208,7 @@ T: dict[str, dict[str, str]] = {
         "zenskill.collaboration.overview": "エコシステム概要",
         "zenskill.collaboration.transfer": "転移可能なパターン",
         "zenskill.collaboration.insights": "スキル横断インサイト",
+        "zenskill.session.empty": "セッションはまだありません — 作成してみましょう",
     },
     "pl": {
         "zenskill.collaboration.statsEmpty": "Brak statystyk umiejętności — zainstaluj jeszcze jedną, żeby je zobaczyć",
@@ -232,6 +238,7 @@ T: dict[str, dict[str, str]] = {
         "zenskill.collaboration.overview": "Przeglad Ekosystemu",
         "zenskill.collaboration.transfer": "Wzorce Przenoszenia",
         "zenskill.collaboration.insights": "Spojrzenia Miedzy Umiejetnosciami",
+        "zenskill.session.empty": "Brak sesji — utwórz jedną",
     },
 }
 
@@ -252,8 +259,13 @@ def main() -> int:
         data = json.loads(path.read_text(encoding="utf-8"))
         missing = expected - set(data)
         if missing:
-            print(f"[FAIL] {loc}: 缺 {len(missing)} 个 key")
-            bad += 1
+            # ★ 写模式下「缺 key」是**正常**的（这次就是新增 key）；
+            #   只有 --check 模式才判红（那时文件本该已经写好 ⇒ 缺 = 没写成功）。
+            if check:
+                print(f"[FAIL] {loc}: 缺 {len(missing)} 个 key")
+                bad += 1
+            else:
+                print(f"[新增] {loc}: 新增 {len(missing)} 个 key（{', '.join(sorted(missing))}）")
         merged = {**data, **table}
         if check:
             if path.read_text(encoding="utf-8") != dump(merged):

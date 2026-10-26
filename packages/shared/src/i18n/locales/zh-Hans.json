@@ -2117,6 +2117,7 @@
   "zenskill.progression.weeklyConfirm": "开始回顾",
   "zenskill.progression.weeklyDismiss": "下周再说",
   "zenskill.progression.weeklyTitle": "周五回顾",
+  "zenskill.session.empty": "还没有会话 —— 新建一个试试",
   "zenskill.skillGraph.allDomains": "全部",
   "zenskill.skillGraph.allHidden": "所有域已隐藏 — 点击上方标签恢复",
   "zenskill.skillGraph.avgScore": "平均分",

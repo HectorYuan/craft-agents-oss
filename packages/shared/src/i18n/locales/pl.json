@@ -2117,6 +2117,7 @@
   "zenskill.progression.weeklyConfirm": "Rozpocznij przegląd",
   "zenskill.progression.weeklyDismiss": "W przyszłym tygodniu",
   "zenskill.progression.weeklyTitle": "Piątkowy przegląd",
+  "zenskill.session.empty": "Brak sesji — utwórz jedną",
   "zenskill.skillGraph.allDomains": "Wszystkie",
   "zenskill.skillGraph.allHidden": "Wszystkie domeny ukryte — kliknij chip powyżej, aby przywrócić",
   "zenskill.skillGraph.avgScore": "Średnia",

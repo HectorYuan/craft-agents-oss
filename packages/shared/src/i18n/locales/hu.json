@@ -2117,6 +2117,7 @@
   "zenskill.progression.weeklyConfirm": "Áttekintés indítása",
   "zenskill.progression.weeklyDismiss": "Jövő héten",
   "zenskill.progression.weeklyTitle": "Pénteki áttekintés",
+  "zenskill.session.empty": "Még nincs munkamenet — hozz létre egyet",
   "zenskill.skillGraph.allDomains": "Összes",
   "zenskill.skillGraph.allHidden": "Minden tartomány elrejtve — kattints a fenti chipre a visszaállításhoz",
   "zenskill.skillGraph.avgScore": "Átlagpont",

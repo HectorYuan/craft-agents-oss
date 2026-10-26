@@ -2117,6 +2117,7 @@
   "zenskill.progression.weeklyConfirm": "レビューを始める",
   "zenskill.progression.weeklyDismiss": "また来週",
   "zenskill.progression.weeklyTitle": "金曜レビュー",
+  "zenskill.session.empty": "セッションはまだありません — 作成してみましょう",
   "zenskill.skillGraph.allDomains": "すべて",
   "zenskill.skillGraph.allHidden": "すべてのドメインを非表示にしました — 上のチップをクリックして復元",
   "zenskill.skillGraph.avgScore": "平均スコア",
