@@ -1839,6 +1839,8 @@
   "zenskill.cultivation.hero.loop": "Bieżąca pętla",
   "zenskill.cultivation.hero.loopNamed": "Bieżąca pętla · {{concept}}",
   "zenskill.cultivation.loading": "Ładowanie",
+  "zenskill.cultivation.noDataSource.hint": "Dodaj źródło danych ZenSkill do tego obszaru roboczego, a pojawią się tutaj bieżąca pętla, dzisiejsze nawyki i myśl dnia.",
+  "zenskill.cultivation.noDataSource.title": "Ten obszar roboczy nie ma źródła danych ZenSkill",
   "zenskill.cultivation.section.actions": "Działania w toku",
   "zenskill.cultivation.section.actionsEmpty": "Brak sugestii — sprawdź zadania w Projektach",
   "zenskill.cultivation.section.advice": "Rada towarzysza",

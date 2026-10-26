@@ -1839,6 +1839,8 @@
   "zenskill.cultivation.hero.loop": "Aktueller Kreislauf",
   "zenskill.cultivation.hero.loopNamed": "Aktueller Kreislauf · {{concept}}",
   "zenskill.cultivation.loading": "Wird geladen",
+  "zenskill.cultivation.noDataSource.hint": "Füge diesem Arbeitsbereich eine ZenSkill-Datenquelle hinzu — dann erscheinen hier dein aktueller Kreislauf, heutige Gewohnheiten und der Tagesgedanke.",
+  "zenskill.cultivation.noDataSource.title": "Dieser Arbeitsbereich hat keine ZenSkill-Datenquelle",
   "zenskill.cultivation.section.actions": "Laufende Aktionen",
   "zenskill.cultivation.section.actionsEmpty": "Noch keine Vorschläge — schau in Projekte nach Aufgaben",
   "zenskill.cultivation.section.advice": "Rat des Gefährten",

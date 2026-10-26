@@ -28,7 +28,7 @@ export interface DualReadoutBarProps {
 
 export function DualReadoutBar({ taskLabel, attentionLabel, footnote, className, style }: DualReadoutBarProps) {
   const taskLabelText = taskLabel ?? "任务能量（点）"
-  const attentionLabelText = attentionLabel ?? "注意力损耗（分钟）"
+  const attentionLabelText = attentionLabel ?? "注意力预算（分钟）"
   const footnoteText = footnote ?? "两种单位不可相加：能量是燃料，注意力是闸门"
   return (
     <div className={className} style={{ display: 'flex', flexDirection: 'column', gap: 6, background: 'var(--Semantic-bg-surface)', width: 240, flex: '0 0 auto', ...style }}>

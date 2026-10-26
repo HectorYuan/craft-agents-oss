@@ -1839,6 +1839,8 @@
   "zenskill.cultivation.hero.loop": "Current loop",
   "zenskill.cultivation.hero.loopNamed": "Current loop · {{concept}}",
   "zenskill.cultivation.loading": "Loading",
+  "zenskill.cultivation.noDataSource.hint": "Add a ZenSkill data source to this workspace, and your current loop, today's habits and daily thought will show up here.",
+  "zenskill.cultivation.noDataSource.title": "This workspace has no ZenSkill data source",
   "zenskill.cultivation.section.actions": "Actions in progress",
   "zenskill.cultivation.section.actionsEmpty": "No suggestions yet — check your tasks in Projects",
   "zenskill.cultivation.section.advice": "Peer advice",

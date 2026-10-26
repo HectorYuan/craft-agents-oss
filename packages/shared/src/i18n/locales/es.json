@@ -1839,6 +1839,8 @@
   "zenskill.cultivation.hero.loop": "Ciclo actual",
   "zenskill.cultivation.hero.loopNamed": "Ciclo actual · {{concept}}",
   "zenskill.cultivation.loading": "Cargando",
+  "zenskill.cultivation.noDataSource.hint": "Añade una fuente de datos de ZenSkill a este espacio de trabajo y aquí aparecerán tu ciclo actual, hábitos de hoy y el pensamiento del día.",
+  "zenskill.cultivation.noDataSource.title": "Este espacio de trabajo no tiene fuente de datos de ZenSkill",
   "zenskill.cultivation.section.actions": "Acciones en curso",
   "zenskill.cultivation.section.actionsEmpty": "Sin sugerencias todavía — revisa tus tareas en Proyectos",
   "zenskill.cultivation.section.advice": "Consejo del compañero",

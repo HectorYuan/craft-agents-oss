@@ -51,6 +51,7 @@ import { EnergyBar } from '../panels/EnergyBar'
 import { GrowthCard, filterScores } from '../panels/GrowthCard'
 import { AchievementGrid } from '../panels/AchievementGrid'
 import { CompanionCard } from '../panels/CompanionCard'
+import { isNoDataSourceError } from '../panels/errors'
 import { HabitList, type Habit } from '../panels/HabitList'
 import { IncubatingPanel } from '../panels/IncubatingPanel'
 import { RadarChart } from '../panels/RadarChart'
@@ -274,6 +275,27 @@ function ErrorBlock({ message, onRetry }: { message: string; onRetry?: () => voi
   )
 }
 
+/** 无权限态（稿 `24:20` SystemMessage/system）：工作区没有 ZenSkill 数据源 */
+function NoDataSourceBlock() {
+  const { t } = useTranslation()
+  return (
+    <div className="rounded-[5.625px] bg-foreground/10 px-[11.25px] py-[7.5px] text-[13.125px] text-muted-foreground">
+      {t('zenskill.cultivation.noDataSource.title', '这个工作区没有 ZenSkill 数据源')}
+      <div className="mt-0.5 text-[11.25px] text-muted-foreground/80">
+        {t(
+          'zenskill.cultivation.noDataSource.hint',
+          '在这个工作区里添加 ZenSkill 数据源后，这里会显示你的回路、习惯与引文',
+        )}
+      </div>
+    </div>
+  )
+}
+
+/**
+ * 「工作区没有 ZenSkill 数据源」的判定 → 见 `panels/errors.ts`（纯函数，可被测试导入）。
+ * ★ 这**不是故障** —— 重试无用 ⇒ 不能落进错误卡（会误报为故障 + 给出无用的「重试」）。
+ */
+
 /* ------------------------------------------------------------------ 页面 */
 
 export function CultivationPage({
@@ -408,20 +430,50 @@ export function CultivationPage({
   const pageLoading =
     loop.loading && !loop.data && growth.loading && !growth.data && habits.loading && !habits.data
 
-  return (
-    <div className="flex flex-col h-full min-w-0 overflow-x-hidden">
-      {/* Header */}
-      <div className={`${ZS.pagePad} border-b border-border/30 shrink-0`}>
-        <div className="flex items-center gap-2">
-          <Sparkles className="h-4 w-4 text-accent" />
-          <div>
-            <div className={ZS.title}>{t('zenskill.cultivation.title', '修炼域')}</div>
-            <div className={ZS.subtitle}>
-              {t('zenskill.cultivation.subtitle', '和智能体一起，把成长变成看得见的回路')}
-            </div>
+  // ★ 无权限态（稿 `24:20` SystemMessage/system）：工作区没有 ZenSkill 数据源
+  //   ⇒ 整页只给这一态，不逐块报错（8 块同样的错误卡 = 噪声）。
+  const noDataSource = [
+    loop.error,
+    actions.error,
+    growth.error,
+    achievements.error,
+    companion.error,
+    habits.error,
+    thought.error,
+    persona.error,
+  ].some(isNoDataSourceError)
+
+  const header = (
+    <div className={`${ZS.pagePad} border-b border-border/30 shrink-0`}>
+      <div className="flex items-center gap-2">
+        <Sparkles className="h-4 w-4 text-accent" />
+        <div>
+          <div className={ZS.title}>{t('zenskill.cultivation.title', '修炼域')}</div>
+          <div className={ZS.subtitle}>
+            {t('zenskill.cultivation.subtitle', '和智能体一起，把成长变成看得见的回路')}
           </div>
         </div>
       </div>
+    </div>
+  )
+
+  if (noDataSource) {
+    return (
+      <div className="flex flex-col h-full min-w-0 overflow-x-hidden">
+        {header}
+        <div className="flex-1 overflow-y-auto px-6 py-5">
+          <div className="mx-auto w-full max-w-[840px] space-y-5">
+            <NoDataSourceBlock />
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex flex-col h-full min-w-0 overflow-x-hidden">
+      {/* Header */}
+      {header}
 
       {/* Content —— 稿 `6:432`：单列、内容区 840 居中 */}
       <div className="flex-1 overflow-y-auto px-6 py-5">

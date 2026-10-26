@@ -1839,6 +1839,8 @@
   "zenskill.cultivation.hero.loop": "当前回路",
   "zenskill.cultivation.hero.loopNamed": "当前回路 · {{concept}}",
   "zenskill.cultivation.loading": "读取中",
+  "zenskill.cultivation.noDataSource.hint": "在这个工作区里添加 ZenSkill 数据源后，这里会显示你的当前回路、今日习惯与每日一思",
+  "zenskill.cultivation.noDataSource.title": "这个工作区没有 ZenSkill 数据源",
   "zenskill.cultivation.section.actions": "进行中动作",
   "zenskill.cultivation.section.actionsEmpty": "暂无推进建议 —— 去「项目」域看待办",
   "zenskill.cultivation.section.advice": "同修建议",

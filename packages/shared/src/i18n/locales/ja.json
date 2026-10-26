@@ -1839,6 +1839,8 @@
   "zenskill.cultivation.hero.loop": "現在のループ",
   "zenskill.cultivation.hero.loopNamed": "現在のループ · {{concept}}",
   "zenskill.cultivation.loading": "読み込み中",
+  "zenskill.cultivation.noDataSource.hint": "このワークスペースに ZenSkill データソースを追加すると、現在のループ・今日の習慣・今日の一思がここに表示されます。",
+  "zenskill.cultivation.noDataSource.title": "このワークスペースには ZenSkill データソースがありません",
   "zenskill.cultivation.section.actions": "進行中のアクション",
   "zenskill.cultivation.section.actionsEmpty": "提案はまだありません — 「プロジェクト」で ToDo を確認しましょう",
   "zenskill.cultivation.section.advice": "仲間の助言",

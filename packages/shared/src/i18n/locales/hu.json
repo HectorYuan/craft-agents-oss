@@ -1839,6 +1839,8 @@
   "zenskill.cultivation.hero.loop": "Aktuális kör",
   "zenskill.cultivation.hero.loopNamed": "Aktuális kör · {{concept}}",
   "zenskill.cultivation.loading": "Betöltés",
+  "zenskill.cultivation.noDataSource.hint": "Adj meg egy ZenSkill adatforrást ehhez a munkaterülethez, és itt megjelennek az aktuális kör, a mai szokások és a napi gondolat.",
+  "zenskill.cultivation.noDataSource.title": "Ennek a munkaterületnek nincs ZenSkill adatforrása",
   "zenskill.cultivation.section.actions": "Folyamatban lévő műveletek",
   "zenskill.cultivation.section.actionsEmpty": "Még nincs javaslat — nézd meg a teendőket a „Projektek” területen",
   "zenskill.cultivation.section.advice": "Társ tanácsa",
