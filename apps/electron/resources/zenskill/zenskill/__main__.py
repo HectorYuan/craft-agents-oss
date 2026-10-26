@@ -2601,10 +2601,6 @@ def main() -> int:
     from .cli.share import register_share_parser
     register_share_parser(subparsers)
 
-    # pages 命令组（Pages 页面包播种，实现位于 zenskill/cli/pages.py）
-    from .cli.pages import register_pages_parser
-    register_pages_parser(subparsers)
-
     # serve 命令（WebUI server）
     from .cli.serve import register_serve_parser
     register_serve_parser(subparsers)

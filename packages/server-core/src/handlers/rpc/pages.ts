@@ -65,7 +65,7 @@ const ACTION_BODY_MAX_CHARS = 512 * 1024
  *
  * Throws listing every tried candidate when none exists.
  */
-function resolveTemplatePoolDir(): string {
+function resolveTemplatePoolDir(): string | null {
   const poolSubpath = ['zenskill', 'resources', 'pages'] as const
   const candidates: string[] = []
 
@@ -85,7 +85,13 @@ function resolveTemplatePoolDir(): string {
 
   const hit = candidates.find(candidate => existsSync(candidate))
   if (hit) return hit
-  throw new Error(`Page template pool not found. Tried: ${candidates.join(', ')}`)
+  // 2026-10-26: the ZenSkill template pool is RETIRED on the engine side
+  // (main retired the five zenskill-* template pages on 2026-10-01; the React
+  // sidebar pages are the only equivalent surface). The packaged payload no
+  // longer ships resources/pages/ => a missing pool is the NORMAL state,
+  // not an error. Return null so callers degrade instead of throwing an RPC
+  // error at the user (the old code threw on every probe).
+  return null
 }
 
 /** Defensive page.json read (CLI _load_page_json: missing/corrupt → null). */
@@ -294,6 +300,8 @@ export function registerPagesHandlers(server: RpcServer, deps: HandlerDeps): voi
   // a copied bundle's page.json may predate the demotion and lack the flag.
   server.handle(RPC_CHANNELS.pages.LIST_TEMPLATES, async (): Promise<PageTemplateInfo[]> => {
     const poolDir = resolveTemplatePoolDir()
+    // Pool retired / not shipped => there are simply no templates to offer.
+    if (!poolDir) return []
     const entries: PageTemplateInfo[] = []
     const children = readdirSync(poolDir, { withFileTypes: true })
       .filter(child => child.isDirectory())
@@ -331,6 +339,9 @@ export function registerPagesHandlers(server: RpcServer, deps: HandlerDeps): voi
       throw new Error(`Invalid template slug: ${templateSlug}`)
     }
     const poolDir = resolveTemplatePoolDir()
+    if (!poolDir) {
+      throw new Error('No page template pool available (template pages are retired)')
+    }
     const templateCfg = loadTemplateConfig(join(poolDir, templateSlug, 'page.json'))
     if (!templateCfg) {
       throw new Error(`Template not found or page.json invalid: ${templateSlug}`)

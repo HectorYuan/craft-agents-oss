@@ -201,11 +201,6 @@ from zenskill.cli.notify import (
     register_notify_parser,
 )
 
-from zenskill.cli.pages import (
-    cmd_pages_sync,
-    register_pages_parser,
-)
-
 from zenskill.cli.perceive import (
     cmd_perceive,
     cmd_perceive_context,
