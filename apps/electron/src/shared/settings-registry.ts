@@ -46,7 +46,6 @@ export const SETTINGS_PAGES = [
   { id: 'server' as const, labelKey: 'settings.server.title', descriptionKey: 'settings.server.description' },
   { id: 'shortcuts' as const, labelKey: 'settings.shortcuts.title', descriptionKey: 'settings.shortcuts.description' },
   { id: 'preferences' as const, labelKey: 'settings.preferences.title', descriptionKey: 'settings.preferences.description' },
-  // 第十八批 D 段 D2：ZenSkill 设置（人称模式等）—— 修炼域的口吻设置落在这里
   { id: 'zenskill' as const, labelKey: 'settings.zenskill.title', descriptionKey: 'settings.zenskill.description' },
 ] satisfies readonly SettingsPageDefinition[]
 
