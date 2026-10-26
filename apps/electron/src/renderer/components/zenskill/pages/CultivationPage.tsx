@@ -182,7 +182,7 @@ function Section({
     <section className="space-y-2">
       <div className="flex items-center gap-1.5">
         {icon}
-        <h2 className="text-[15px] font-semibold text-foreground">{title}</h2>
+        <h2 className="text-base font-semibold text-foreground">{title}</h2>
       </div>
       {children}
     </section>
@@ -437,7 +437,7 @@ export function CultivationPage({
 
           {/* Hero（稿 6:373） */}
           <div className="space-y-0.5">
-            <div className="text-[15px] font-semibold text-foreground">
+            <div className="text-base font-semibold text-foreground">
               {topConcept
                 ? t('zenskill.cultivation.hero.loopNamed', '当前回路 · {{concept}}', { concept: topConcept })
                 : t('zenskill.cultivation.hero.loop', '当前回路')}
@@ -664,7 +664,7 @@ export function CultivationPage({
             {!thought.error && thought.data?.ok && thought.data.text && (
               <>
                 {/* 引文：逐字（真相源 copy_poetry.json），出处可核 */}
-                <div className="text-[15px] text-foreground">{thought.data.text}</div>
+                <div className="text-base text-foreground">{thought.data.text}</div>
                 <div className="text-[11.25px] text-muted-foreground">
                   {t('zenskill.cultivation.card.thought.source', '《{{source}}》{{chapter}}', {
                     source: thought.data.source ?? '',
