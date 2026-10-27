@@ -32,6 +32,10 @@
  */
 
 /** 一档的完整三态（底 / 字 / 描边）—— 与 `ReadoutCell` 的「各带自己的口径」同族。 */
+// ★ 第二十一批 D-2：动态分类色的**双模定义**（色值只在这份 CSS 里）
+//   —— 集中表只持有**变量名** ⇒ 「色值两份副本」的隐患从根上消除。
+import './dataColors.css'
+
 export interface SemanticSwatch {
   /** 底色（浅染：用 `bg-<语义>/<alpha>`） */
   bg: string
@@ -133,4 +137,36 @@ export const MEMORY_LAYER_COLORS: Record<string, string> = {
   L1: 'bg-accent/60',
   L2: 'bg-accent/60',
   L3: 'bg-accent/60',
+}
+
+/**
+ * 技能**域名色**（10 个分类）—— 分类来自技能数据，**不可穷举成语义类**
+ * ⇒ 只能留在数据表；★ 用 CSS 变量引用 ⇒ **双模自动跟随**（亮/暗各一套值）。
+ *
+ * ★ 色值在 `panels/dataColors.css`（亮色用加深版、暗色用鲜艳版）。
+ */
+export const DOMAIN_COLOR_VARS: Record<string, string> = {
+  lark: 'var(--zenskill-domain-lark)',
+  arkcli: 'var(--zenskill-domain-arkcli)',
+  agentswarm: 'var(--zenskill-domain-agentswarm)',
+  dev: 'var(--zenskill-domain-dev)',
+  data: 'var(--zenskill-domain-data)',
+  ai: 'var(--zenskill-domain-ai)',
+  design: 'var(--zenskill-domain-design)',
+  ops: 'var(--zenskill-domain-ops)',
+  life: 'var(--zenskill-domain-life)',
+  general: 'var(--zenskill-domain-general)',
+}
+
+/**
+ * 协作页**洞察类型色**（7 类）—— 同上：多值分类 ⇒ 数据表 + CSS 变量双模。
+ */
+export const INSIGHT_COLOR_VARS: Record<string, string> = {
+  bottleneck: 'var(--zenskill-insight-bottleneck)',
+  transferable: 'var(--zenskill-insight-transferable)',
+  synergy: 'var(--zenskill-insight-synergy)',
+  imbalance: 'var(--zenskill-insight-imbalance)',
+  comparison: 'var(--zenskill-insight-comparison)',
+  pattern: 'var(--zenskill-insight-pattern)',
+  milestone: 'var(--zenskill-insight-milestone)',
 }

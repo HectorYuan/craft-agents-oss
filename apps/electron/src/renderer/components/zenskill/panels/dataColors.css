@@ -1,0 +1,68 @@
+/* dataColors.css — ZenSkill **动态分类色的双模定义**（第二十一批 D-2）
+ *
+ * ★ 为什么这两个文件（表）要用 CSS 变量，而不是 TS 里的常量
+ * --------------------------------------------------
+ * 技能图谱的**域名色**（10 个）与协作页的**洞察类型色**（7 个）是**分类标识**
+ * —— 分类名来自数据，**不可穷举成语义类**（`accent`/`info`/… 只有几个，撑不起 10+7 个
+ * 互相可区分的色）⇒ 它们**必须**留在数据表里。
+ *
+ * ★ ★ 但「留在数据表里」不等于「放弃双模」：
+ *   实测（对比度核算，亮底 `#F7F8FA` / 暗底 `#080A10`）：
+ *     · 这 17 个色在**暗底**上对比度都 ≥ 4.24（前景/图形够用）✔
+ *     · 但在**亮底**上有一半 < 3:1（域名色 general 1.68、ops 2.41 …；
+ *       洞察色 synergy 2.14、imbalance 2.02、pattern 2.28 …）⇒ ★ **亮色模式才是问题**
+ *   ⇒ 所以正解不是「补一套暗色变体」，而是**给亮色模式配一套加深版**
+ *     （保持色相、压低明度，直到对亮底 ≥ 3:1）⇒ ★ **两套值**。
+ *
+ * ★ 机制与上游一致：`:root` 是亮色值，`.dark` 块是暗色值
+ *   （上游 `index.css:271` 用 `.dark`，匹配 `html.dark`）⇒ 暗色自动跟随，无需 JS 监听。
+ *
+ * ★ 取值来源：`semanticColors.ts` 只持有**变量名**（`var(--zenskill-domain-lark)` 等），
+ *   **色值只在这里** ⇒ 「同一概念两份副本」的隐患从根上消除。
+ * ★ 本文件由 `semanticColors.ts` 统一 import（见该文件顶部）⇒ 用了色表就会带上本 CSS。
+ */
+
+:root {
+  /* ── 技能域名色（亮色模式：加深版，保证对亮底 ≥ 3:1）── */
+  --zenskill-domain-lark: #4080ff;
+  --zenskill-domain-arkcli: #f26000;
+  --zenskill-domain-agentswarm: #9b59b6;
+  --zenskill-domain-dev: #25a35a;
+  --zenskill-domain-data: #3297db;
+  --zenskill-domain-ai: #e74c3c;
+  --zenskill-domain-design: #c97f0a;
+  --zenskill-domain-ops: #7f9293;
+  --zenskill-domain-life: #16a286;
+  --zenskill-domain-general: #869199;
+
+  /* ── 洞察类型色（亮色模式：加深版）── */
+  --zenskill-insight-bottleneck: #ef4444;
+  --zenskill-insight-transferable: #a855f7;
+  --zenskill-insight-synergy: #1da54f;
+  --zenskill-insight-imbalance: #c78008;
+  --zenskill-insight-comparison: #3b82f6;
+  --zenskill-insight-pattern: #059db6;
+  --zenskill-insight-milestone: #8b5cf6;
+}
+
+/* ★ 暗色模式：回到**更鲜艳的浅色版**（在深底上对比度更高：4.24–11.11） */
+.dark {
+  --zenskill-domain-lark: #4080ff;
+  --zenskill-domain-arkcli: #ff8c40;
+  --zenskill-domain-agentswarm: #9b59b6;
+  --zenskill-domain-dev: #2ecc71;
+  --zenskill-domain-data: #3498db;
+  --zenskill-domain-ai: #e74c3c;
+  --zenskill-domain-design: #f39c12;
+  --zenskill-domain-ops: #95a5a6;
+  --zenskill-domain-life: #1abc9c;
+  --zenskill-domain-general: #bdc3c7;
+
+  --zenskill-insight-bottleneck: #ef4444;
+  --zenskill-insight-transferable: #a855f7;
+  --zenskill-insight-synergy: #22c55e;
+  --zenskill-insight-imbalance: #f59e0b;
+  --zenskill-insight-comparison: #3b82f6;
+  --zenskill-insight-pattern: #06b6d4;
+  --zenskill-insight-milestone: #8b5cf6;
+}

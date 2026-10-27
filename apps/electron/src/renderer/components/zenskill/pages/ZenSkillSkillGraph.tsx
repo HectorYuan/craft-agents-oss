@@ -25,7 +25,7 @@ import { RadarChart } from '../panels/RadarChart'
 import { PageToChatBridge } from '../PageToChatBridge'
 import { ZS } from '../panels/tokens'
 import { ZENSKILL_SOURCE_SLUG, type ZenSkillPageProps } from '../zenskill-registry'
-import { RELATION_COLORS as SEMANTIC_RELATION_COLORS } from '../panels/semanticColors'
+import { RELATION_COLORS as SEMANTIC_RELATION_COLORS, DOMAIN_COLOR_VARS } from '../panels/semanticColors'
 
 interface SkillNode {
   // growth_dashboard 口径
@@ -109,11 +109,9 @@ const VIEW_W = 800
 const VIEW_H = 500
 const INIT_VIEWBOX = { x: 0, y: 0, w: VIEW_W, h: VIEW_H }
 
-const DOMAIN_COLORS: Record<string, string> = {
-  lark: '#4080FF', arkcli: '#FF8C40', agentswarm: '#9B59B6', dev: '#2ECC71',
-  data: '#3498DB', ai: '#E74C3C', design: '#F39C12', ops: '#95A5A6',
-  life: '#1ABC9C', general: '#BDC3C7',
-}
+// ★ 第二十一批 D-2：域名色改**双模变量**（色值在 `panels/dataColors.css`）
+//   —— 原实现是 10 个字面量 hex（只有一套值 ⇒ 亮色模式下多个色对比度 < 3:1）
+const DOMAIN_COLORS: Record<string, string> = DOMAIN_COLOR_VARS
 
 /** 域名词表（对齐磁盘版 DOMAIN_NAMES，产品内固定词表） */
 const DOMAIN_NAMES: Record<string, string> = {
@@ -219,10 +217,12 @@ function nodeRadius(usage: number): number {
 
 /** 使用热度着色（B-3）：0=灰 / 1-10=蓝 / 10-100=橙 / 100+=红 */
 function usageHeat(usage: number): { fill: string; opacity: number } {
-  if (!usage || usage <= 0) return { fill: '#9CA3AF', opacity: 0.45 }
-  if (usage < 10) return { fill: '#3B82F6', opacity: 0.65 }
-  if (usage < 100) return { fill: '#F59E0B', opacity: 0.7 }
-  return { fill: '#EF4444', opacity: 0.75 }
+  // ★ 第二十一批 D-2：使用热度分档色**归位到上游双模语义类**
+  //   （原实现是 4 个字面量 hex；灰/蓝/橙/红 = 负载由轻到重 ⇒ 语义是「负载」）
+  if (!usage || usage <= 0) return { fill: 'var(--muted-foreground)', opacity: 0.45 }
+  if (usage < 10) return { fill: 'var(--accent)', opacity: 0.65 }
+  if (usage < 100) return { fill: 'var(--info)', opacity: 0.7 }
+  return { fill: 'var(--destructive)', opacity: 0.75 }
 }
 
 function truncate(text: string, max: number): string {
@@ -425,7 +425,7 @@ export function ZenSkillSkillGraph({ workspaceId }: ZenSkillPageProps) {
       paths.push({
         d: `M ${a.x} ${a.y} Q ${qx} ${qy} ${b.x} ${b.y}`,
         width: 1 + e.strength * 3,
-        color: RELATION_COLORS[e.type] ?? '#7c5cff',
+        color: RELATION_COLORS[e.type] ?? 'var(--accent)',
       })
     }
     return { related, paths, strong }
@@ -768,7 +768,7 @@ export function ZenSkillSkillGraph({ workspaceId }: ZenSkillPageProps) {
                   >
                     <span
                       className="h-2 w-2 rounded-full inline-block"
-                      style={{ backgroundColor: DOMAIN_COLORS[cat] ?? '#BDC3C7' }}
+                      style={{ backgroundColor: DOMAIN_COLORS[cat] ?? DOMAIN_COLOR_VARS.general }}
                     />
                     {domainLabel(cat)}·{domainStats[cat].count}
                   </button>
@@ -923,7 +923,7 @@ export function ZenSkillSkillGraph({ workspaceId }: ZenSkillPageProps) {
                         key={i}
                         d={c.d}
                         fill="none"
-                        stroke="#6b7280"
+                        stroke="var(--muted-foreground)"
                         strokeWidth={c.width}
                         strokeOpacity={0.35}
                         pointerEvents="none"
@@ -932,7 +932,7 @@ export function ZenSkillSkillGraph({ workspaceId }: ZenSkillPageProps) {
                     {/* 域气泡 */}
                     {domainPacked.map((p) => {
                       const cat = p.data
-                      const color = DOMAIN_COLORS[cat] ?? '#BDC3C7'
+                      const color = DOMAIN_COLORS[cat] ?? DOMAIN_COLOR_VARS.general
                       const stat = domainStats[cat]
                       return (
                         <g key={cat}>
@@ -1054,7 +1054,7 @@ export function ZenSkillSkillGraph({ workspaceId }: ZenSkillPageProps) {
                             r={p.r}
                             fill={heat.fill}
                             fillOpacity={fillOpacity}
-                            stroke={isSelected ? '#7c5cff' : stroke}
+                            stroke={isSelected ? 'var(--info)' : stroke}
                             strokeWidth={isSelected ? Math.max(2, strokeWidth) : strokeWidth}
                             strokeDasharray={strokeDash}
                             className="cursor-pointer"
@@ -1154,13 +1154,13 @@ export function ZenSkillSkillGraph({ workspaceId }: ZenSkillPageProps) {
                           ? GOLD
                           : selectedNode.level === 'EXPERT'
                             ? EXPERT_STROKE
-                            : (DOMAIN_COLORS[selectedNode.category] ?? '#BDC3C7'),
+                            : (DOMAIN_COLORS[selectedNode.category] ?? DOMAIN_COLOR_VARS.general),
                       backgroundColor: `${
                         selectedNode.level === 'MASTER'
                           ? GOLD
                           : selectedNode.level === 'EXPERT'
                             ? EXPERT_STROKE
-                            : (DOMAIN_COLORS[selectedNode.category] ?? '#BDC3C7')
+                            : (DOMAIN_COLORS[selectedNode.category] ?? DOMAIN_COLOR_VARS.general)
                       }22`,
                     }}
                   >
@@ -1169,8 +1169,8 @@ export function ZenSkillSkillGraph({ workspaceId }: ZenSkillPageProps) {
                   <span
                     className="px-1.5 py-0.5 rounded text-caption"
                     style={{
-                      color: DOMAIN_COLORS[selectedNode.category] ?? '#BDC3C7',
-                      backgroundColor: `${DOMAIN_COLORS[selectedNode.category] ?? '#BDC3C7'}22`,
+                      color: DOMAIN_COLORS[selectedNode.category] ?? DOMAIN_COLOR_VARS.general,
+                      backgroundColor: `${DOMAIN_COLORS[selectedNode.category] ?? DOMAIN_COLOR_VARS.general}22`,
                     }}
                   >
                     {domainLabel(selectedNode.category)}
@@ -1199,9 +1199,9 @@ export function ZenSkillSkillGraph({ workspaceId }: ZenSkillPageProps) {
                         className="px-1.5 py-0.5 rounded text-caption"
                         style={{
                           color:
-                            selectedNode.state === 'dormant' ? '#d97706' : selectedNode.state === 'active' ? '#16a34a' : '#9ca3af',
+                            selectedNode.state === 'dormant' ? 'var(--info)' : selectedNode.state === 'active' ? 'var(--success)' : 'var(--muted-foreground)',
                           backgroundColor: `${
-                            selectedNode.state === 'dormant' ? '#d97706' : selectedNode.state === 'active' ? '#16a34a' : '#9ca3af'
+                            selectedNode.state === 'dormant' ? 'var(--info)' : selectedNode.state === 'active' ? 'var(--success)' : 'var(--muted-foreground)'
                           }22`,
                         }}
                       >

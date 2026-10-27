@@ -22,6 +22,7 @@ import {
 import { useMcpTool } from '@/hooks/zenskill/useMcpTool'
 import { ZS } from '../panels/tokens'
 import { ZENSKILL_SOURCE_SLUG } from '../zenskill-registry'
+import { INSIGHT_COLOR_VARS } from '../panels/semanticColors'
 
 /* ------------------------------------------------------------------ */
 /*  Data shapes                                                        */
@@ -105,14 +106,16 @@ const HEALTH_COLORS: Record<string, string> = {
   poor: 'var(--destructive)',
 }
 
+// ★ 第二十一批 D-2：洞察类型色改**双模变量**（色值在 `panels/dataColors.css`）
+//   —— 原实现是 7 个字面量 hex（亮色模式下 3 个 < 3:1 ⇒ 图标看不清）
 const INSIGHT_TYPE_CONFIG: Record<string, { icon: typeof AlertTriangle; color: string }> = {
-  bottleneck: { icon: AlertCircle, color: '#ef4444' },
-  transferable: { icon: ArrowRight, color: '#a855f7' },
-  synergy: { icon: Zap, color: '#22c55e' },
-  imbalance: { icon: BarChart3, color: '#f59e0b' },
-  comparison: { icon: Info, color: '#3b82f6' },
-  pattern: { icon: TrendingUp, color: '#06b6d4' },
-  milestone: { icon: ShieldCheck, color: '#8b5cf6' },
+  bottleneck: { icon: AlertCircle, color: INSIGHT_COLOR_VARS.bottleneck },
+  transferable: { icon: ArrowRight, color: INSIGHT_COLOR_VARS.transferable },
+  synergy: { icon: Zap, color: INSIGHT_COLOR_VARS.synergy },
+  imbalance: { icon: BarChart3, color: INSIGHT_COLOR_VARS.imbalance },
+  comparison: { icon: Info, color: INSIGHT_COLOR_VARS.comparison },
+  pattern: { icon: TrendingUp, color: INSIGHT_COLOR_VARS.pattern },
+  milestone: { icon: ShieldCheck, color: INSIGHT_COLOR_VARS.milestone },
 }
 
 type InsightFilterType = 'all' | string
