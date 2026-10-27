@@ -31,16 +31,21 @@ export interface ReviewBarProps {
   message?: string
 }
 
-/** 16px SVG ring for energy level */
+/**
+ * 16px SVG ring —— 环的**长度**表示能量比例（`filled`）。
+ *
+ * ★ 第二十一批 D 段：原实现用 **4 档阈值色**（红/橙/黄/绿）表达能量档位 ⇒
+ *   ① 违反「**色相不承载档位**」（第十九批 E 段裁定）；
+ *   ② 且那 4 个 hex 是**能量四档的另一份副本**，色值还与品牌真相源
+ *      （`brand/zs-colors.ts` 的 success / warning / energy-low / danger）**不一致**
+ *      ⇒ 同一概念两份副本 + 两套色值。
+ * ⇒ 改为**中性色**（`currentColor`，继承所在处的文字色）：环只表示「有多少」，
+ *   档位由**文字**承载（能量读数条上的「能量 · 点」与档位文字）。
+ */
 function EnergyRing({ pct, size = 16 }: { pct: number; size?: number }) {
   const r = 6
   const c = 2 * Math.PI * r
   const filled = Math.min(Math.max(pct, 0), 1)
-  const color =
-    filled < 0.1 ? '#ef4444'
-    : filled < 0.3 ? '#f97316'
-    : filled <= 0.7 ? '#eab308'
-    : '#22c55e'
   return (
     <svg width={size} height={size} viewBox="0 0 16 16" className="shrink-0">
       <circle cx="8" cy="8" r={r} fill="none" stroke="currentColor" strokeOpacity={0.15} strokeWidth="2" />
@@ -49,7 +54,7 @@ function EnergyRing({ pct, size = 16 }: { pct: number; size?: number }) {
         cy="8"
         r={r}
         fill="none"
-        stroke={color}
+        stroke="currentColor"
         strokeWidth="2"
         strokeDasharray={c}
         strokeDashoffset={c * (1 - filled)}

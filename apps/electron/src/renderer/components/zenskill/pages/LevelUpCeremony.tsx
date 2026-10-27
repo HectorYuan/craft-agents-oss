@@ -30,13 +30,9 @@ interface LevelUpCeremonyProps {
   onClose?: () => void
 }
 
-const LEVEL_COLORS: Record<string, { bg: string; text: string; border: string }> = {
-  MASTER: { bg: 'bg-amber-500/10', text: 'text-amber-500', border: 'border-amber-400/60' },
-  EXPERT: { bg: 'bg-purple-500/10', text: 'text-purple-500', border: 'border-purple-400/60' },
-  ADEPT: { bg: 'bg-accent/10', text: 'text-accent', border: 'border-accent/60' },
-  APPRENTICE: { bg: 'bg-success/10', text: 'text-success-text', border: 'border-success/60' },
-  NOVICE: { bg: 'bg-gray-500/10', text: 'text-gray-400', border: 'border-gray-400/40' },
-}
+// ★ 第二十一批 D 段：境界色阶**集中到语义色表**（5 档同族同源，全部用上游双模语义类）
+//   —— 原实现里 MASTER/EXPERT/NOVICE 是 Tailwind 默认色（amber/purple/gray）。
+import { LEVEL_COLORS } from '../panels/semanticColors'
 
 export function LevelUpCeremony({ workspaceId, open, onClose }: LevelUpCeremonyProps) {
   const { t } = useTranslation()

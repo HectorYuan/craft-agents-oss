@@ -91,11 +91,18 @@ interface ZenSkillCollaborationProps {
 
 const FIVE_DIMS = ['proficiency', 'stability', 'satisfaction', 'responsiveness', 'memory']
 
+/**
+ * 健康度 4 档色 —— ★ 第二十一批 D 段：归位到上游**双模**语义类
+ * （原实现是 4 个字面量 hex ⇒ 无暗色变体 ⇒ 暗色下对比不可控）。
+ *
+ * ★ 好↔坏是**语义**（红=差、绿=好）⇒ 不是「等级色阶」，故保留色相；
+ *   真正的「档位用文字、色相不承载档位」只适用于**技术分层**（见记忆层级）。
+ */
 const HEALTH_COLORS: Record<string, string> = {
-  excellent: '#22c55e',
-  good: '#3b82f6',
-  fair: '#f59e0b',
-  poor: '#ef4444',
+  excellent: 'var(--success)',
+  good: 'var(--accent)',
+  fair: 'var(--info)',
+  poor: 'var(--destructive)',
 }
 
 const INSIGHT_TYPE_CONFIG: Record<string, { icon: typeof AlertTriangle; color: string }> = {
@@ -152,11 +159,13 @@ function ringLayout(skills: GrowthSkill[], width: number, height: number): Map<s
 }
 
 function nodeColor(scores?: Record<string, number>): string {
+  // ★ 第二十一批 D 段：**复用 `HEALTH_COLORS`** —— 原实现是**同一语义的两份副本**
+  //   （另一份用字面量 hex）⇒ 改一处色阶要改两处 ⇒ 容易漂移。
   const p = scores?.proficiency ?? 50
-  if (p >= 80) return '#22c55e'
-  if (p >= 60) return '#3b82f6'
-  if (p >= 40) return '#f59e0b'
-  return '#ef4444'
+  if (p >= 80) return HEALTH_COLORS.excellent
+  if (p >= 60) return HEALTH_COLORS.good
+  if (p >= 40) return HEALTH_COLORS.fair
+  return HEALTH_COLORS.poor
 }
 
 /* ------------------------------------------------------------------ */

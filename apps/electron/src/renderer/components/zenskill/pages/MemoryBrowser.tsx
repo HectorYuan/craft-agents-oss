@@ -14,6 +14,7 @@
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { MEMORY_LAYER_COLORS } from '../panels/semanticColors'
 import { toast } from 'sonner'
 import { Brain, Search, Trash2 } from 'lucide-react'
 import { useMcpTool, extractMcpJson } from '@/hooks/zenskill/useMcpTool'
@@ -280,9 +281,11 @@ export function MemoryBrowser({ workspaceId }: ZenSkillPageProps) {
         <div className="px-5 pt-2 shrink-0">
           <div className="flex items-center gap-3 text-badge text-muted-foreground">
             {([
-              ['L1 工作', stats.data.working?.count ?? 0, stats.data.working?.capacity ?? 0, 'bg-accent/60'],
-              ['L2 情景', stats.data.episodic?.count ?? 0, stats.data.episodic?.capacity ?? 0, 'bg-accent/60'],
-              ['L3 语义', stats.data.semantic?.total_facts ?? 0, null, 'bg-purple-500/60'],
+              // ★ 第二十一批 D 段：L1/L2/L3 是**技术分层** ⇒ **三层同色**
+              //   （原实现 L3 用 purple ⇒ 技术分层被画成了「等级」；档位由标签文字承载）
+              ['L1 工作', stats.data.working?.count ?? 0, stats.data.working?.capacity ?? 0, MEMORY_LAYER_COLORS.L1],
+              ['L2 情景', stats.data.episodic?.count ?? 0, stats.data.episodic?.capacity ?? 0, MEMORY_LAYER_COLORS.L2],
+              ['L3 语义', stats.data.semantic?.total_facts ?? 0, null, MEMORY_LAYER_COLORS.L3],
             ] as const).map(([label, used, cap, color]) => {
               const pct = cap ? Math.min(100, Math.round((used / cap) * 100)) : null
               return (

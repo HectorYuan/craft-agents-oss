@@ -49,12 +49,9 @@ interface ZenloopStandalonePageProps {
   onNavigateToChat?: (msg: string) => void
 }
 
-const CHANNEL_COLORS: Record<string, string> = {
-  reflect: 'bg-accent/15 text-accent',
-  consolidate: 'bg-purple-500/15 text-purple-400',
-  insight: 'bg-info/15 text-info-text',
-  purify: 'bg-success/15 text-success-text',
-}
+// ★ 第二十一批 D 段：四通道色**集中到语义色表**，且**互不撞色**
+//   （原实现 reflect 与 consolidate 其实**都是紫** ⇒ 标签分不开）。
+import { LOOP_CHANNEL_COLORS as CHANNEL_COLORS } from '../panels/semanticColors'
 
 export function ZenloopStandalonePage({ workspaceId }: ZenloopStandalonePageProps) {
   const { t } = useTranslation()

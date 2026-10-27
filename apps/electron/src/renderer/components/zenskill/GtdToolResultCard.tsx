@@ -438,8 +438,10 @@ export function GtdToolResultCard({ toolName, resultText, workspaceId, sourceSlu
       <span className="flex items-center gap-1.5 min-w-0">
         <span className="shrink-0 text-accent">{icon}</span>
         <span className="truncate font-medium text-foreground">{headline}</span>
+        {/* ★ 第二十一批 D 段：`next`（已排为下一步）用 **accent**（品牌紫）
+            —— 原实现用 purple 默认色；与 `done` 的 success 形成「未完成 / 已完成」两态 */}
         {liveStatus === 'next' && (
-          <span className="ml-auto shrink-0 rounded-full border border-purple-500/30 bg-purple-500/10 px-1.5 py-px text-badge font-medium text-purple-600 dark:text-purple-400">
+          <span className="ml-auto shrink-0 rounded-full border border-accent/30 bg-accent/10 px-1.5 py-px text-badge font-medium text-accent">
             {t('zenskill.card.statusNext')}
           </span>
         )}

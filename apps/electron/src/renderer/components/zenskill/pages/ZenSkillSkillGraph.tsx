@@ -25,6 +25,7 @@ import { RadarChart } from '../panels/RadarChart'
 import { PageToChatBridge } from '../PageToChatBridge'
 import { ZS } from '../panels/tokens'
 import { ZENSKILL_SOURCE_SLUG, type ZenSkillPageProps } from '../zenskill-registry'
+import { RELATION_COLORS as SEMANTIC_RELATION_COLORS } from '../panels/semanticColors'
 
 interface SkillNode {
   // growth_dashboard 口径
@@ -121,13 +122,9 @@ const DOMAIN_NAMES: Record<string, string> = {
   life: '生活', general: '通用',
 }
 
-const RELATION_COLORS: Record<string, string> = {
-  prerequisite: '#3b82f6',
-  complementary: '#22c55e',
-  competing: '#ef4444',
-  transfer: '#a855f7',
-  co_occurrence: '#f59e0b',
-}
+// ★ 第二十一批 D 段：关系 5 种色**归位到上游双模语义类**（inline style ⇒ 用 CSS 变量）
+//   —— 原实现是 5 个字面量 hex（无暗色变体 ⇒ 暗色下对比不可控）。
+const RELATION_COLORS: Record<string, string> = SEMANTIC_RELATION_COLORS
 
 const FIVE_DIMS = ['proficiency', 'stability', 'satisfaction', 'responsiveness', 'memory']
 
@@ -155,9 +152,11 @@ const STATE_I18N: Record<string, string> = {
 }
 
 // 治理描边调色板（磁盘版 CSS 变量的字面值）
-const GOLD = '#d97706'
-const EXPERT_STROKE = '#7c5cff'
-const DIM_STROKE = '#6b7280'
+// ★ 第二十一批 D 段：描边色归位到上游语义变量（双模自动跟随）
+//   EXPERT_STROKE = 境界色阶的 EXPERT 档 ⇒ 与 `LEVEL_COLORS.EXPERT` 同源（info 琥珀）
+const GOLD = 'var(--energy-low)'
+const EXPERT_STROKE = 'var(--info)'
+const DIM_STROKE = 'var(--muted-foreground)'
 
 /**
  * Circle Packing — 螺旋放置法（从磁盘版 index.html 原样移植）。

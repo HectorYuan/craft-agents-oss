@@ -8,14 +8,13 @@ import React from 'react'
 import { Wand2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
+import { SUGGEST_TYPE_COLORS } from './semanticColors'
+
 export type SuggestType = 'action' | 'project' | 'reference' | 'calendar'
 
-const TYPE_COLORS: Record<SuggestType, string> = {
-  action: 'bg-accent/15 text-accent',
-  project: 'bg-purple-500/15 text-purple-400',
-  reference: 'bg-info/15 text-info-text',
-  calendar: 'bg-success/15 text-success-text',
-}
+// ★ 第二十一批 D 段：建议类型色**集中到语义色表**（4 类互不撞色；project 用中性灰，
+//   避免与 craft 自己的项目色板打架）
+const TYPE_COLORS: Record<SuggestType, string> = SUGGEST_TYPE_COLORS as Record<SuggestType, string>
 
 export interface AutoClassifyBadgeProps {
   suggestedType: string

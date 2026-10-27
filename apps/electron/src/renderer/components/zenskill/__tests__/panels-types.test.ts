@@ -191,16 +191,14 @@ describe('InsightLevelColors', () => {
 })
 
 // ─── IncubatingPanel channel colors ───
-const CHANNEL_COLORS: Record<string, string> = {
-  reflect: 'bg-accent/15 text-accent',
-  consolidate: 'bg-purple-500/15 text-purple-400',
-  insight: 'bg-info/15 text-info-text',
-  purify: 'bg-success/15 text-success-text',
-}
+// ★ 第二十一批 D 段：测试**直接导入集中语义色表**（不再在测试里复制一份）
+//   —— 复制 ⇒ 测试与产品会分叉（本次就分叉过一次：产品改了 consolidate 的色，
+//   测试还断言着旧的 purple ⇒ 门禁红而产品已改 ⇒ 门禁失去意义）。
+import { LOOP_CHANNEL_COLORS as CHANNEL_COLORS } from '../panels/semanticColors'
 
 describe('IncubatingChannelColors', () => {
   test('reflect → accent', () => expect(CHANNEL_COLORS.reflect).toContain('accent'))
-  test('consolidate → purple', () => expect(CHANNEL_COLORS.consolidate).toContain('purple'))
+  test('consolidate → muted（归位后不再用默认色）', () => expect(CHANNEL_COLORS.consolidate).toContain('muted'))
   test('insight → info', () => expect(CHANNEL_COLORS.insight).toContain('info'))
   test('purify → success', () => expect(CHANNEL_COLORS.purify).toContain('success'))
   test('未知通道 fallback', () => {
@@ -319,14 +317,8 @@ describe('SkillGraphRelationColors', () => {
 
 // ─── ZenLoop channel colors ───
 describe('ZenLoopChannelColors', () => {
-  const CHANNEL_COLORS: Record<string, string> = {
-    reflect: 'bg-accent/15 text-accent',
-    consolidate: 'bg-purple-500/15 text-purple-400',
-    insight: 'bg-info/15 text-info-text',
-    purify: 'bg-success/15 text-success-text',
-  }
   test('reflect → accent', () => expect(CHANNEL_COLORS.reflect).toContain('accent'))
-  test('consolidate → purple', () => expect(CHANNEL_COLORS.consolidate).toContain('purple'))
+  test('consolidate → muted（归位后不再用默认色）', () => expect(CHANNEL_COLORS.consolidate).toContain('muted'))
   test('insight → info', () => expect(CHANNEL_COLORS.insight).toContain('info'))
   test('purify → success', () => expect(CHANNEL_COLORS.purify).toContain('success'))
 })
