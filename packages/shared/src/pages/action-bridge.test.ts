@@ -81,11 +81,36 @@ describe('pages/action-bridge', () => {
     };
   }
 
-  async function readAudit(): Promise<Array<Record<string, unknown>>> {
-    // Audit writes are fire-and-forget; give the microtask queue a tick.
-    await new Promise((resolve) => setTimeout(resolve, 20));
-    if (!existsSync(auditPath)) return [];
-    return readFileSync(auditPath, 'utf-8').trim().split('\n').filter(Boolean).map((l) => JSON.parse(l));
+  /**
+   * Read the audit trail, waiting until the event we care about has landed.
+   *
+   * Audit writes are fire-and-forget (see PageActionBroker.appendAudit: the
+   * audit trail must never fail the action), so each event lands on its own
+   * async schedule — mkdir + appendFile, one write per event.
+   *
+   * ⚠ A FIXED sleep is a race, not a synchronisation primitive. The old
+   * `await setTimeout(20)` was enough on a fast dev box but not on a loaded CI
+   * runner: the audit file already held the ~256 `page_lease_created` rows
+   * while the `page_lease_evicted` row had not been written yet ⇒
+   * `audit.find((e) => e.event === 'page_lease_evicted')` returned undefined
+   * ⇒ the lease-store-cap test failed ~40% of the time with no code change
+   * involved (verified: 5 runs ⇒ 2 red / 3 green on an unchanged tree).
+   *
+   * => Poll for the specific event (bounded), so we wait for the real signal
+   *    instead of guessing how long the write takes. Assertions are unchanged.
+   */
+  async function readAudit(event?: string): Promise<Array<Record<string, unknown>>> {
+    const deadline = Date.now() + 5_000;
+    for (;;) {
+      const events = existsSync(auditPath)
+        ? readFileSync(auditPath, 'utf-8').trim().split('\n').filter(Boolean).map((l) => JSON.parse(l))
+        : [];
+      // Without an event filter, any content is enough (and an empty file is a
+      // legitimate answer). With a filter, keep polling until it shows up.
+      if (!event || events.some((e) => e.event === event)) return events;
+      if (Date.now() >= deadline) return events;
+      await new Promise((resolve) => setTimeout(resolve, 5));
+    }
   }
 
   describe('happy path', () => {
@@ -107,7 +132,7 @@ describe('pages/action-bridge', () => {
       expect(calls).toHaveLength(1);
       expect((calls[0] as { invocation: { sourceSlug: string } }).invocation.sourceSlug).toBe('github');
 
-      const audit = await readAudit();
+      const audit = await readAudit('page_action_executed');
       const executed = audit.find((e) => e.event === 'page_action_executed');
       expect(executed?.ok).toBe(true);
       expect(executed?.policyDecision).toBe('allow');
@@ -381,7 +406,7 @@ describe('pages/action-bridge', () => {
       // The executor receives the grant's pinned script/runtime/args, never page input.
       expect(seen[0]).toEqual({ pageSlug: 'dash', script: 'pages/dash/run.sh', runtime: 'bun', args: ['--once'] });
 
-      const audit = await readAudit();
+      const audit = await readAudit('page_action_executed');
       const executed = audit.find((e) => e.event === 'page_action_executed');
       expect(executed?.ok).toBe(true);
       expect((executed?.invocation as { kind: string }).kind).toBe('script');
@@ -433,7 +458,7 @@ describe('pages/action-bridge', () => {
         }),
       );
 
-      const audit = await readAudit();
+      const audit = await readAudit('page_action_rejected');
       const rejected = audit.find((e) => e.event === 'page_action_rejected');
       expect(rejected?.code).toBe('nonce-mismatch');
       const params = (rejected?.invocation as { params: Record<string, unknown> }).params;
@@ -462,7 +487,7 @@ describe('pages/action-bridge', () => {
       expect(overflow.error).toContain('rate-limited');
 
       // The rejection is part of the audit contract, same as validation rejections.
-      const audit = await readAudit();
+      const audit = await readAudit('page_action_rejected');
       const rejected = audit.find(
         (e) => e.event === 'page_action_rejected' && e.requestId === overflowRequest.requestId,
       );
@@ -526,7 +551,10 @@ describe('pages/action-bridge', () => {
 
       // …the newest works, and the eviction is on the audit trail.
       expect((await broker.executeAction(page, makeRequest(newest))).ok).toBe(true);
-      const audit = await readAudit();
+      // Wait for the eviction row specifically: the audit trail is written
+      // fire-and-forget, one append per event, so the ~256 `page_lease_created`
+      // rows can be on disk while this row is still in flight.
+      const audit = await readAudit('page_lease_evicted');
       const eviction = audit.find((e) => e.event === 'page_lease_evicted');
       expect(eviction?.leaseId).toBe(first.leaseId);
       expect(eviction?.reason).toBe('lease-store-full');
