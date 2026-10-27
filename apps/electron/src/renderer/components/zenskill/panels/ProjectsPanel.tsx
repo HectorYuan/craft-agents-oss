@@ -41,13 +41,37 @@ interface ProjectActionListData {
 }
 
 /** Open actions of one project — mounted only while its row is expanded */
+/**
+ * 项目进度的**标题纯函数**（第二十一批 C 段）—— 可单测。
+ *
+ * ★ 口径：`progress` 是 **0–1 的比例**（后端已统一）⇒ 百分比 = round(p×100)。
+ * ★ `available === false` ⇒ **还没有行动可统计** ⇒ 返回 null（**不画进度条**），
+ *   不用 0% 冒充「一件都没做」。
+ * ★ 有分子分母 ⇒ 显示「7 / 15 行动完成」（GTD 的原话），否则退回纯百分比。
+ */
+export function projectProgressTitle(
+  p: GtdProject,
+  t: (key: string, fallback: string, opts?: Record<string, unknown>) => string,
+): string | null {
+  if (typeof p.progress !== 'number' || p.available === false) return null
+  if (typeof p.done === 'number' && typeof p.total === 'number') {
+    return t('zenskill.gtd.projects.progressCount', '{done} / {total} 行动完成', {
+      done: p.done,
+      total: p.total,
+    })
+  }
+  return `${Math.round(p.progress * 100)}%`
+}
+
 function ProjectActions({ projectId, workspaceId, sourceSlug }: { projectId: string; workspaceId: string; sourceSlug: string }) {
   const { t } = useTranslation()
   const actions = useMcpTool<ProjectActionListData>(
     workspaceId,
     sourceSlug,
     'action_list',
-    { status: 'pending', project_id: projectId, limit: 20 },
+    // ★ 第二十一批 C 段：`sort_by: 'energy'` ⇒ **按能量要求降序**
+    //   （「下一步行动 · 按能量排序」的口径在后端唯一实现处，GUI 不自己排）
+    { status: 'pending', project_id: projectId, sort_by: 'energy', limit: 20 },
   )
   const items = actions.data?.items ?? []
 
@@ -245,9 +269,15 @@ export function ProjectsPanel({
                   ) : null}
                   <span className="truncate flex-1">{p.name}</span>
                   {p.status && <span className="text-xs text-muted-foreground/60 shrink-0">{p.status}</span>}
-                  {isFull && typeof p.progress === 'number' && (
-                    <div className="w-12 h-1 rounded bg-muted/60 overflow-hidden shrink-0" title={`${Math.round(p.progress * 100)}%`}>
-                      <div className="h-full bg-accent/60" style={{ width: `${Math.round(p.progress * 100)}%` }} />
+                  {/* ★ 第二十一批 C 段：`progress` 是 **0–1 比例**（后端已统一口径）。
+                      ★ `available === false` ⇒ **还没有行动可统计** ⇒ 不画进度条
+                        （不拿 0% 冒充「一件都没做」）。 */}
+                  {isFull && projectProgressTitle(p, t) && (
+                    <div
+                      className="w-12 h-1 rounded bg-muted/60 overflow-hidden shrink-0"
+                      title={projectProgressTitle(p, t) ?? undefined}
+                    >
+                      <div className="h-full bg-accent/60" style={{ width: `${Math.round((p.progress ?? 0) * 100)}%` }} />
                     </div>
                   )}
                   {isFull && (

@@ -69,7 +69,14 @@ export interface GtdProject {
   id: string
   name: string
   status?: string
+  /** ★ 第二十一批 C 段：进度是 **0–1 的比例**（本仓比例型读数只有这一种形态）。
+   *  之前后端给 0–100 整数 ⇒ 进度条恒满、title 显示 4600%。 */
   progress?: number
+  /** 分子分母（进度条 title 里显示「7 / 15 行动完成」） */
+  done?: number
+  total?: number
+  /** ★ false = **还没有行动可统计**（不是「一件没做」）⇒ 不显示成 0% */
+  available?: boolean
   /** project_update editable fields — optional, contract-pending on project_list */
   outcome?: string
   notes?: string

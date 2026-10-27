@@ -1946,6 +1946,7 @@
   "zenskill.gtd.projects.formName": "Projekt neve",
   "zenskill.gtd.projects.formNotes": "Jegyzetek (nem kötelező)",
   "zenskill.gtd.projects.formOutcome": "Eredmény (nem kötelező)",
+  "zenskill.gtd.projects.progressCount": "{done} / {total} művelet kész",
   "zenskill.gtd.projects.toggle": "Projekt teendők megjelenítése",
   "zenskill.gtd.review.doneToday": "Ma kész",
   "zenskill.gtd.review.energy": "Energia {{level}} {{pct}}%",

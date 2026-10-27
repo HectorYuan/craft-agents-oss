@@ -1946,6 +1946,7 @@
   "zenskill.gtd.projects.formName": "Nombre del proyecto",
   "zenskill.gtd.projects.formNotes": "Notas (opcional)",
   "zenskill.gtd.projects.formOutcome": "Resultado (opcional)",
+  "zenskill.gtd.projects.progressCount": "{done} / {total} acciones completadas",
   "zenskill.gtd.projects.toggle": "Mostrar acciones del proyecto",
   "zenskill.gtd.review.doneToday": "Hecho hoy",
   "zenskill.gtd.review.energy": "Energía {{level}} {{pct}}%",
