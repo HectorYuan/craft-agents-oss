@@ -618,11 +618,11 @@ export function ZenSkillSkillGraph({ workspaceId }: ZenSkillPageProps) {
 
   const dimLabels = useMemo<Record<string, string>>(
     () => ({
-      proficiency: t('zenskill.skillGraph.dim.proficiency', '熟练度'),
-      stability: t('zenskill.skillGraph.dim.stability', '稳定性'),
-      satisfaction: t('zenskill.skillGraph.dim.satisfaction', '满意度'),
-      responsiveness: t('zenskill.skillGraph.dim.responsiveness', '响应力'),
-      memory: t('zenskill.skillGraph.dim.memory', '记忆力'),
+      proficiency: t('zenskill.profile.dim.proficiency'),
+      stability: t('zenskill.profile.dim.stability'),
+      satisfaction: t('zenskill.profile.dim.satisfaction'),
+      responsiveness: t('zenskill.profile.dim.responsiveness'),
+      memory: t('zenskill.profile.dim.memory'),
     }),
     [t],
   )

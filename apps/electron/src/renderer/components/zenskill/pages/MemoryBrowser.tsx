@@ -271,7 +271,7 @@ export function MemoryBrowser({ workspaceId }: ZenSkillPageProps) {
             disabled={consolidating}
             className="ml-auto px-2 py-1 text-badge rounded bg-accent/10 text-accent hover:bg-accent/20 disabled:opacity-50 transition-colors"
           >
-            {consolidating ? '升华中…' : '整合记忆'}
+            {consolidating ? t('zenskill.memoryCopy.consolidating') : t('zenskill.memoryCopy.consolidate')}
           </button>
         )}
       </div>
@@ -283,9 +283,9 @@ export function MemoryBrowser({ workspaceId }: ZenSkillPageProps) {
             {([
               // ★ 第二十一批 D 段：L1/L2/L3 是**技术分层** ⇒ **三层同色**
               //   （原实现 L3 用 purple ⇒ 技术分层被画成了「等级」；档位由标签文字承载）
-              ['L1 工作', stats.data.working?.count ?? 0, stats.data.working?.capacity ?? 0, MEMORY_LAYER_COLORS.L1],
-              ['L2 情景', stats.data.episodic?.count ?? 0, stats.data.episodic?.capacity ?? 0, MEMORY_LAYER_COLORS.L2],
-              ['L3 语义', stats.data.semantic?.total_facts ?? 0, null, MEMORY_LAYER_COLORS.L3],
+              [t('zenskill.memoryCopy.layerL1'), stats.data.working?.count ?? 0, stats.data.working?.capacity ?? 0, MEMORY_LAYER_COLORS.L1],
+              [t('zenskill.memoryCopy.layerL2'), stats.data.episodic?.count ?? 0, stats.data.episodic?.capacity ?? 0, MEMORY_LAYER_COLORS.L2],
+              [t('zenskill.memoryCopy.layerL3'), stats.data.semantic?.total_facts ?? 0, null, MEMORY_LAYER_COLORS.L3],
             ] as const).map(([label, used, cap, color]) => {
               const pct = cap ? Math.min(100, Math.round((used / cap) * 100)) : null
               return (
@@ -379,7 +379,7 @@ export function MemoryBrowser({ workspaceId }: ZenSkillPageProps) {
             <ListSkeleton rows={5} />
           ) : (semanticQuery.data?.facts?.length ?? 0) === 0 ? (
             <div className="text-xs text-muted-foreground italic py-8 text-center">
-              暂无语义事实 — 点击右上「整合记忆」从情景记忆升华
+              {t('zenskill.memoryCopy.noSemanticFacts')}
             </div>
           ) : (
             <div className="space-y-1.5">

@@ -5,23 +5,24 @@
  * 只展示 5 个核心维度（排除 composite）。
  */
 import React, { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
 export interface RadarChartProps {
   scores: Record<string, number> // 0-100 per dimension
   size?: number
   highlight?: string
   onHover?: (key: string | null) => void
-  /** Optional display labels per dimension; falls back to the Chinese defaults below. */
+  /** Optional display labels per dimension; falls back to the i18n defaults below. */
   labels?: Record<string, string>
 }
 
-const DIM_LABELS: Record<string, string> = {
-  proficiency: '熟练度',
-  stability: '稳定性',
-  satisfaction: '满意度',
-  responsiveness: '响应力',
-  memory: '记忆力',
-}
+/**
+ * ★ 第二十二批 D-3 第二批：维度名的**兜底默认值**改走 locale。
+ * ★ 原本是模块级中文字面量（`DIM_LABELS`）⇒ 纯硬编码 ⇒ 无门禁覆盖。
+ * ★ ★ **收敛**：维度名此前有**两套 key**（`zenskill.profile.dim.*` 与
+ * `zenskill.skillGraph.dim.*`，值逐字相同）⇒ 保留 `profile.dim.*` 作**唯一来源**，
+ * `skillGraph.dim.*` 已删除 ⇒ ★ 同一句话不再被登记两遍。
+ */
 
 function pentagonPoints(cx: number, cy: number, r: number, n: number): string[] {
   const points: string[] = []
@@ -33,6 +34,7 @@ function pentagonPoints(cx: number, cy: number, r: number, n: number): string[] 
 }
 
 export function RadarChart({ scores, size = 200, highlight, onHover, labels }: RadarChartProps) {
+  const { t } = useTranslation()
   const [internalHighlight, setInternalHighlight] = useState<string | null>(null)
   const activeHighlight = highlight ?? internalHighlight
 
@@ -108,7 +110,7 @@ export function RadarChart({ scores, size = 200, highlight, onHover, labels }: R
           onMouseEnter={() => handleMouseEnter(dim)}
           onMouseLeave={handleMouseLeave}
         >
-          {labels?.[dim] ?? DIM_LABELS[dim] ?? dim}
+          {labels?.[dim] ?? t(`zenskill.profile.dim.${dim}`, { defaultValue: dim })}
         </text>
       ))}
     </svg>

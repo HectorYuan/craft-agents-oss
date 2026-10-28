@@ -109,7 +109,7 @@ export function ZenSkillOverview({ workspaceId, onNavigateToChat }: ZenSkillOver
     review?: { inbox?: { pending?: number }; actions?: { completed?: number } } | null
   }) => {
     const energy = data.companion?.energy ?? data.energy?.status
-    const level = typeof energy?.level === 'string' ? energy.level : '未知'
+    const level = typeof energy?.level === 'string' ? energy.level : t('common.unknown')
     const pct = typeof energy?.pct === 'number' ? Math.round(energy.pct * 100) : null
     const pendingActions = data.companion?.pending_actions ?? 0
     const inboxPending = data.companion?.inbox_pending ?? data.review?.inbox?.pending ?? 0
