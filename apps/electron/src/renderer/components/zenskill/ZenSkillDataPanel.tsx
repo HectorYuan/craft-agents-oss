@@ -142,9 +142,9 @@ export function ZenSkillDataPanel({ workspaceId, sourceSlug, onGtdItemClick }: Z
     if (!lastAlert || Date.now() - Number(lastAlert) > 24 * 3600 * 1000) {
       sessionStorage.setItem(alertKey, String(Date.now()))
       if (c.overdue > 0) {
-        toast.warning(`⚠ ${c.overdue} 个行动已逾期`, { description: c.mood })
+        toast.warning(t('zenskill.readout.actionsOverdue', { n: c.overdue }), { description: c.mood })
       } else if (c.energy.level === 'critical') {
-        toast.info('⚡ 能量不足，建议休息一下', { description: c.mood })
+        toast.info(t('zenskill.readout.energyLowToast'), { description: c.mood })
       }
     }
   }, [companionData.data])

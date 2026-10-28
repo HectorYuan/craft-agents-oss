@@ -515,7 +515,7 @@ export function ActionsPanel({
                 {/* W3.2: 用 Agent 执行 */}
                 <button
                   className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-accent/20 text-muted-foreground hover:text-accent shrink-0"
-                  title="用 Agent 执行"
+                  title={t('zenskill.readout.agentExecute')}
                   onClick={() => navigate(routes.action.newSession({ input: `执行行动: ${a.title}。完成后用 action_done 标记 ${a.id}。`, label: `gtd-action::${a.id}` }))}
                 >
                   <Bot className="h-3 w-3" />
@@ -526,7 +526,7 @@ export function ActionsPanel({
                       ? 'bg-destructive/25 text-destructive-text'
                       : 'hover:bg-destructive/20 text-muted-foreground hover:text-destructive-text'
                   }`}
-                  title={activeConfirmId === a.id ? '点击再次确认删除' : 'Delete'}
+                  title={activeConfirmId === a.id ? t('zenskill.readout.confirmDeleteAgain') : t('zenskill.readout.deleteAction')}
                   disabled={busyId === a.id}
                   onClick={() => {
                     if (activeConfirmId === a.id) {
@@ -620,7 +620,7 @@ export function ActionsPanel({
             <button
               onClick={() => setViewMode(viewMode === 'list' ? 'board' : 'list')}
               className="ml-auto p-1 text-sm rounded text-muted-foreground hover:bg-muted/60 hover:text-foreground transition-colors"
-              title={viewMode === 'list' ? '切换看板' : '切换列表'}
+              title={viewMode === 'list' ? t('zenskill.readout.switchBoard') : t('zenskill.readout.switchList')}
             >
               {viewMode === 'list' ? <LayoutGrid className="h-3.5 w-3.5" /> : <List className="h-3.5 w-3.5" />}
             </button>
@@ -792,7 +792,7 @@ export function ActionsPanel({
                         <button
                           onClick={() => navigate(routes.action.newSession({ input: `执行行动: ${a.title}。完成后用 action_done 标记 ${a.id}。`, label: `gtd-action::${a.id}` }))}
                           className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-accent"
-                          title="用 Agent 执行"
+                          title={t('zenskill.readout.agentExecute')}
                         >
                           <Bot className="h-3 w-3" />
                         </button>
