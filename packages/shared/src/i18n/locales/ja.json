@@ -2137,6 +2137,7 @@
   "zenskill.readout.skillSuccessRate": "成功率 {p}%",
   "zenskill.readout.skillUsage": "利用履歴",
   "zenskill.readout.skillUsageCount": "{n} 回",
+  "zenskill.readout.unitsDisjoint": "この2つの単位は足し合わせできません：エネルギーは燃料、集中力はゲート",
   "zenskill.session.empty": "セッションはまだありません — 作成してみましょう",
   "zenskill.skillGraph.allDomains": "すべて",
   "zenskill.skillGraph.allHidden": "すべてのドメインを非表示にしました — 上のチップをクリックして復元",

@@ -2137,6 +2137,7 @@
   "zenskill.readout.skillSuccessRate": "Erfolgsquote {p}%",
   "zenskill.readout.skillUsage": "Nutzung",
   "zenskill.readout.skillUsageCount": "{n} Nutzungen",
+  "zenskill.readout.unitsDisjoint": "Diese beiden Einheiten lassen sich nicht addieren: Energie ist Treibstoff, Aufmerksamkeit ist ein Tor",
   "zenskill.session.empty": "Noch keine Sitzung — leg eine an",
   "zenskill.skillGraph.allDomains": "Alle",
   "zenskill.skillGraph.allHidden": "Alle Domänen ausgeblendet — klicke oben auf ein Chip, um sie wiederherzustellen",

@@ -2137,6 +2137,7 @@
   "zenskill.readout.skillSuccessRate": "Skuteczność {p}%",
   "zenskill.readout.skillUsage": "Użytkowanie",
   "zenskill.readout.skillUsageCount": "{n} użyć",
+  "zenskill.readout.unitsDisjoint": "Te dwie jednostki nie sumują się: energia jest paliwem, uwaga jest bramką",
   "zenskill.session.empty": "Brak sesji — utwórz jedną",
   "zenskill.skillGraph.allDomains": "Wszystkie",
   "zenskill.skillGraph.allHidden": "Wszystkie domeny ukryte — kliknij chip powyżej, aby przywrócić",

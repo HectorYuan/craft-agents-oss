@@ -2137,6 +2137,7 @@
   "zenskill.readout.skillSuccessRate": "Success rate {p}%",
   "zenskill.readout.skillUsage": "Usage",
   "zenskill.readout.skillUsageCount": "{n} uses",
+  "zenskill.readout.unitsDisjoint": "These two units cannot be added: energy is fuel, attention is a gate",
   "zenskill.session.empty": "No session yet — create one",
   "zenskill.skillGraph.allDomains": "All",
   "zenskill.skillGraph.allHidden": "All domains hidden — click a chip above to restore",

@@ -2137,6 +2137,7 @@
   "zenskill.readout.skillSuccessRate": "成功率 {p}%",
   "zenskill.readout.skillUsage": "使用记录",
   "zenskill.readout.skillUsageCount": "{n} 次",
+  "zenskill.readout.unitsDisjoint": "两种单位不可相加：能量是燃料，注意力是闸门",
   "zenskill.session.empty": "还没有会话 —— 新建一个试试",
   "zenskill.skillGraph.allDomains": "全部",
   "zenskill.skillGraph.allHidden": "所有域已隐藏 — 点击上方标签恢复",

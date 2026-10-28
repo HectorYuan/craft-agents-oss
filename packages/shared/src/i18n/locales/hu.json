@@ -2137,6 +2137,7 @@
   "zenskill.readout.skillSuccessRate": "Sikerarány {p}%",
   "zenskill.readout.skillUsage": "Használat",
   "zenskill.readout.skillUsageCount": "{n} használat",
+  "zenskill.readout.unitsDisjoint": "E két egység nem adható össze: az energia üzemanyag, a figyelem kapu",
   "zenskill.session.empty": "Még nincs munkamenet — hozz létre egyet",
   "zenskill.skillGraph.allDomains": "Összes",
   "zenskill.skillGraph.allHidden": "Minden tartomány elrejtve — kattints a fenti chipre a visszaállításhoz",

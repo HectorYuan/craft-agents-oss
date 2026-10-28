@@ -2137,6 +2137,7 @@
   "zenskill.readout.skillSuccessRate": "Tasa de éxito {p}%",
   "zenskill.readout.skillUsage": "Uso",
   "zenskill.readout.skillUsageCount": "{n} usos",
+  "zenskill.readout.unitsDisjoint": "Estas dos unidades no se suman: la energía es combustible, la atención es una compuerta",
   "zenskill.session.empty": "Aún no hay sesión — crea una",
   "zenskill.skillGraph.allDomains": "Todos",
   "zenskill.skillGraph.allHidden": "Todos los dominios ocultos — haz clic en una etiqueta de arriba para restaurarlos",

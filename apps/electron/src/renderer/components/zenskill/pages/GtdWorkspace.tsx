@@ -462,7 +462,6 @@ export function GtdWorkspace({ workspaceId, initialTab }: GtdWorkspaceProps) {
   // ★ 会话侧读不到时，剩余值是**上限**（未计入近期深度占用）—— 必须说清楚，
   //   否则「读不到」会被读成「没有深度占用」（同「回执绿 ≠ 事实对」纪律）。
   const attentionSessionAvailable = attentionStatus.data?.status?.session_available !== false
-  const attentionWindow = attentionStatus.data?.status?.session_window
   const doneToday = dailyReview.data?.actions?.completed ?? 0
   const pendingCount = dailyReview.data?.inbox?.pending ?? 0
   const overdueCount = (dueActions.data?.items ?? []).filter(
@@ -548,19 +547,29 @@ export function GtdWorkspace({ workspaceId, initialTab }: GtdWorkspaceProps) {
           —— 两种单位**不可相加**：能量是燃料，注意力是闸门。
           能量用真数据（energy_level 的 current_energy = 点）；
           注意力用真数据（attention_status 的 remaining_minutes = 分钟）。
-          ★ 会话侧读不到时，注意力值只是**上限**（未计近期深度占用）⇒ 标注清楚。 */}
+          ★ 会话侧读不到时，注意力值只是**上限**（未计近期深度占用）⇒ 标注清楚。
+          ★ 第二十二批 D 段：★ **文案不再硬编码** ⇒ 全部走 `t()` 取 locale
+          （locale 是载体，**真相源才是源**：`specs/design/copy_terminology.json`
+          的 `stateCopy.readout` 段）⇒ ★ 真相源改口径，这里会跟着改（原先是副本 ⇒ 会分叉）。
+          ★ label 也与全局读数条**统一**（「能量」/「注意力」，不再是「任务能量」/「注意力预算」）
+          ⇒ ★ 同一概念不再有两个名字。★ 「至多」改作**前缀**（与读数条 `prefix` 同形）
+          ⇒ ★ 顺带消掉「还剩」这个词（★ 不造近义键）。 */}
       <div className="flex items-center gap-4 px-5 py-3 border-b border-border/30">
         <DualReadoutBar
-          taskLabel={currentEnergy !== null ? `任务能量 ${currentEnergy} 点` : '任务能量（点）'}
+          taskLabel={
+            currentEnergy !== null
+              ? `${t('zenskill.readout.energy')} ${currentEnergy} ${t('zenskill.unit.point')}`
+              : `${t('zenskill.readout.energy')}（${t('zenskill.unit.point')}）`
+          }
           attentionLabel={
             attentionRemaining !== null
-              ? `注意力预算 · ${attentionSessionAvailable ? '还剩' : '至多还剩'} ${attentionRemaining} 分钟`
-              : '注意力预算（分钟）'
+              ? `${t('zenskill.readout.attention')} · ${attentionSessionAvailable ? '' : `${t('zenskill.readout.atMost')} `}${attentionRemaining} ${t('zenskill.unit.minute')}`
+              : `${t('zenskill.readout.attention')}（${t('zenskill.unit.minute')}）`
           }
           footnote={
             attentionSessionAvailable
-              ? '两种单位不可相加：能量是燃料，注意力是闸门'
-              : `两种单位不可相加：能量是燃料，注意力是闸门（近期${attentionWindow ?? 10}条深度占用暂不可读，此值为上限）`
+              ? t('zenskill.readout.unitsDisjoint')
+              : `${t('zenskill.readout.unitsDisjoint')}（${t('zenskill.readout.attentionUpperHint')}）`
           }
         />
       </div>
