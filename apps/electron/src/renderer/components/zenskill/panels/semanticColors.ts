@@ -100,6 +100,27 @@ export const LOOP_CHANNEL_COLORS: Record<string, string> = {
 }
 
 /**
+ * 母题「五层回路」签名图形 + 回合状态徽章的颜色（稿 `3:304` / `3:310`）。
+ *
+ * ★ SVG 的 `fill` / `stroke` 走 CSS 变量（Tailwind 类进不了 SVG 属性）⇒ 用 `var(--Semantic-*)`。
+ * ★ ardot 里的等效 hex 与这些 token 的值**逐字一致**（值见 `panels/LoopMotif.tsx` 的文件头说明）
+ *   ⇒ 稿面 = 代码面，且暗色自动跟随。
+ * ★ ★ 本表**不写 hex 字面量** —— 判据 3 盯的就是「集中只是搬家」⇒ 值一律指 token。
+ */
+export const LOOP_MOTIF_COLORS: Record<string, string> = {
+  /** 当前层高亮段（稿把第 3 段/底横 高亮 = 「96 · 当前 L3」） */
+  current: 'var(--Semantic-accent-primary)',
+  /** 未到的段（结构性描边） */
+  track: 'var(--Semantic-border-strong)',
+  /** 回合状态：进行中 */
+  statusActive: 'var(--Semantic-accent-primary)',
+  /** 回合状态：待触发 */
+  statusPending: 'var(--Semantic-text-muted)',
+  /** 回合状态：已完成 */
+  statusDone: 'var(--Semantic-semantic-success)',
+}
+
+/**
  * 建议类型 4 类（自动分类徽标：action / project / reference / calendar）。
  *
  * ★ 四类**互不撞色**；★ `project` 用**中性灰** —— 避免与 craft 自己的

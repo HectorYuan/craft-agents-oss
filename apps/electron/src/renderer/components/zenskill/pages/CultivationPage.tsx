@@ -55,6 +55,7 @@ import { isNoDataSourceError } from '../panels/errors'
 import { LoadingBlock, ErrorBlock, NoDataSourceBlock } from '../panels/stateBlocks'
 import { HabitList, type Habit } from '../panels/HabitList'
 import { IncubatingPanel } from '../panels/IncubatingPanel'
+import { LoopMotif, LoopStatusMotif } from '../panels/LoopMotif'
 import { RadarChart } from '../panels/RadarChart'
 import { ZENSKILL_SOURCE_SLUG } from '../zenskill-registry'
 
@@ -288,6 +289,13 @@ export function CultivationPage({
   const channelCount = Object.keys(byChannel).length
   const activeCount = loop.data?.active ?? 0
 
+  /* ---- 母题徽章（稿 `6:379`）：当前层 = 当前回路所在通道在五层回路里的层号 ---- */
+  const topChannelIdx = CHANNEL_ORDER.indexOf(
+    (loop.data?.top?.[0]?.channel ?? '') as (typeof CHANNEL_ORDER)[number],
+  )
+  /** ★ 通道不在四档里（数据异常）时退回稿 `3:396` 的示例（第 3 层 = 洞见） */
+  const currentLayer = topChannelIdx >= 0 ? topChannelIdx + 1 : 3
+
   /* ---- 回合看板：按稿 `6:387` 的顺序列通道 ---- */
   const channelLine = CHANNEL_ORDER.filter((c) => (byChannel[c] ?? 0) > 0)
     .map((c) => `${t(`zenskill.gtd.incubating.channel.${c}`)} · ${byChannel[c]}`)
@@ -463,33 +471,37 @@ export function CultivationPage({
                 <LoadingBlock label={t('zenskill.state.loading', '读取中')} />
               )}
               {loop.data && (
-                <div className="space-y-2">
-                  {/* 本轮目标（稿 6:381/6:382） */}
-                  <div className="space-y-0.5">
-                    <div className="text-[11.25px] font-medium text-muted-foreground">
-                      {t('zenskill.cultivation.section.goal', '本轮目标')}
+                <div className="flex gap-4">
+                  {/* 母题徽章位（稿 `6:379`，96×96）：徽章在左、内容在右 */}
+                  <LoopMotif currentLayer={currentLayer} size={96} className="shrink-0" />
+                  <div className="flex-1 space-y-2">
+                    {/* 本轮目标（稿 6:381/6:382） */}
+                    <div className="space-y-0.5">
+                      <div className="text-[11.25px] font-medium text-muted-foreground">
+                        {t('zenskill.cultivation.section.goal', '本轮目标')}
+                      </div>
+                      <div className="text-[13.125px] font-medium text-foreground">
+                        {topConcept || t('zenskill.cultivation.section.goalEmpty', '这一轮还没有目标 —— 去「ZenLoop」定一个')}
+                      </div>
                     </div>
-                    <div className="text-[13.125px] font-medium text-foreground">
-                      {topConcept || t('zenskill.cultivation.section.goalEmpty', '这一轮还没有目标 —— 去「ZenLoop」定一个')}
-                    </div>
-                  </div>
 
-                  {/* 进行中动作（稿 6:383）：真数据 = 推进建议 */}
-                  <div className="space-y-1">
-                    <div className="text-[11.25px] font-medium text-muted-foreground">
-                      {t('zenskill.cultivation.section.actions', '进行中动作')}
+                    {/* 进行中动作（稿 6:383）：真数据 = 推进建议 */}
+                    <div className="space-y-1">
+                      <div className="text-[11.25px] font-medium text-muted-foreground">
+                        {t('zenskill.cultivation.section.actions', '进行中动作')}
+                      </div>
+                      {actions.error && <ErrorBlock message={actions.error} onRetry={actions.refresh} />}
+                      {!actions.error && (actions.data?.progressions?.length ?? 0) === 0 && (
+                        <div className="text-[13.125px] text-muted-foreground">
+                          {t('zenskill.cultivation.section.actionsEmpty', '暂无推进建议 —— 去「项目」域看待办')}
+                        </div>
+                      )}
+                      {(actions.data?.progressions ?? []).map((p, i) => (
+                        <div key={`${p.trigger ?? 'p'}-${i}`} className="text-[13.125px] text-foreground">
+                          {p.suggestion}
+                        </div>
+                      ))}
                     </div>
-                    {actions.error && <ErrorBlock message={actions.error} onRetry={actions.refresh} />}
-                    {!actions.error && (actions.data?.progressions?.length ?? 0) === 0 && (
-                      <div className="text-[13.125px] text-muted-foreground">
-                        {t('zenskill.cultivation.section.actionsEmpty', '暂无推进建议 —— 去「项目」域看待办')}
-                      </div>
-                    )}
-                    {(actions.data?.progressions ?? []).map((p, i) => (
-                      <div key={`${p.trigger ?? 'p'}-${i}`} className="text-[13.125px] text-foreground">
-                        {p.suggestion}
-                      </div>
-                    ))}
                   </div>
                 </div>
               )}
@@ -505,6 +517,8 @@ export function CultivationPage({
               {loop.error && <ErrorBlock message={loop.error} onRetry={loop.refresh} />}
               {!loop.error && (
                 <>
+                  {/* 回合状态徽章（稿 `6:418`，24×24）：在阶段分布文本上方 */}
+                  <LoopStatusMotif status={activeCount > 0 ? 'active' : 'pending'} size={24} />
                   <div className="text-[13.125px] text-foreground">
                     {channelLine ||
                       t('zenskill.cultivation.section.boardEmpty', '还没有轮次 —— 去「ZenLoop」启动一轮')}
