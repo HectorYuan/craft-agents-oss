@@ -9,7 +9,7 @@ import {
   validateStoredBackendConnection,
 } from '@craft-agent/shared/agent/backend'
 import { getModelRefreshService } from '@craft-agent/server-core/model-fetchers'
-import { parseTestConnectionError, createBuiltInConnection, validateModelList, piAuthProviderDisplayName, validateSetupTestInput, setupTestRequiresApiKey, resolveCustomEndpointSetup } from '@craft-agent/server-core/domain'
+import { parseTestConnectionError, buildConnectionTestError, createBuiltInConnection, validateModelList, piAuthProviderDisplayName, validateSetupTestInput, setupTestRequiresApiKey, resolveCustomEndpointSetup } from '@craft-agent/server-core/domain'
 import { buildModelsUrl, parseModelsPayload, extractServerMessage, type CatalogProtocol, buildLlmCatalogSnapshot, findCatalogEntryByBaseUrl, findSiblingRegionProvider, isRegionMismatchResponse } from '@craft-agent/server-core/domain'
 import { PROVIDER_PRESETS } from '@craft-agent/shared/config/provider-presets'
 import { CONFIG_DIR } from '@craft-agent/shared/config/paths'
@@ -424,10 +424,19 @@ export function registerLlmConnectionsHandlers(server: RpcServer, deps: HandlerD
       if (!result.success) {
         deps.platform.logger?.info(`[testLlmConnectionSetup] Elapsed: ${elapsed}ms, success=false`)
         deps.platform.logger?.info(`[testLlmConnectionSetup] Raw error: ${(result.error || '').slice(0, 1000)}`)
+        // ★ 401 ⇒ 用**同一把 key** 试同厂商的另一个区域端点做确证（与「拉取线上型号」
+        //   路径同一套诊断）⇒ 确证得了就报「key 属于哪区 / 该用哪个端点」；
+        //   确证不了 ⇒ 只报原始错误（不猜区域）。
+        const regionMismatch = await diagnoseRegionMismatch(baseUrl ?? '', trimmedKey)
         return {
           success: false,
           // 带上下文（端点 + 型号）⇒ 错误信息里能看到「打的是哪台、用的是哪个型号」
-          error: parseTestConnectionError(result.error || 'Unknown error', { baseUrl, model: testModel }),
+          error: buildConnectionTestError({
+            rawError: result.error || 'Unknown error',
+            baseUrl,
+            model: testModel,
+            regionMismatch,
+          }),
         }
       }
       deps.platform.logger?.info(`[testLlmConnectionSetup] Elapsed: ${elapsed}ms, success=true`)

@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'bun:test'
 import {
   parseTestConnectionError,
+  buildConnectionTestError,
   createBuiltInConnection,
   validateModelList,
   validateSetupTestInput,
@@ -244,5 +245,46 @@ describe('parseTestConnectionError', () => {
   it('passes through short unknown errors as-is', () => {
     const result = parseTestConnectionError('Something went wrong')
     expect(result).toBe('Something went wrong')
+  })
+})
+
+// ============================================================
+// buildConnectionTestError
+// ============================================================
+
+describe('buildConnectionTestError', () => {
+  // ★ 回归守卫（2026-10-31）：验证连接路径原先**从不**做区域确证 ⇒ 401 一律附
+  //   「key 可能跨区」的通用提示 ⇒ 用户被引导去查 key 与端点（两者可能都对）。
+  //   ⇒ 有确证 ⇒ 用确证文案；无确证 ⇒ 原始错误 + **条件式**提示。
+  it('uses the confirmed region diagnosis when one is available', () => {
+    const msg = buildConnectionTestError({
+      rawError: 'HTTP 401: unauthorized',
+      baseUrl: 'https://api.minimaxi.com/v1',
+      model: 'MiniMax-M3',
+      regionMismatch: {
+        message: '这个 key 属于国际站，但当前端点是国内站——该厂商的 key 不能跨区使用。请改用「Minimax」端点。',
+      },
+    })
+    expect(msg).toContain('请改用')
+    expect(msg).not.toContain('region-bound')
+  })
+
+  it('falls back to the parsed error with a conditional region hint', () => {
+    const msg = buildConnectionTestError({
+      rawError: 'HTTP 401: unauthorized',
+      baseUrl: 'https://api.minimaxi.com/v1',
+      model: 'MiniMax-M3',
+    })
+    expect(msg).toContain('Invalid API key')
+    expect(msg).toContain('region-bound')
+    expect(msg).toContain('if this key is from another region')
+  })
+
+  it('keeps non-401 errors untouched', () => {
+    const msg = buildConnectionTestError({
+      rawError: 'HTTP 404: not found',
+      baseUrl: 'https://api.minimaxi.com/v1',
+    })
+    expect(msg).toContain('API endpoint not found')
   })
 })

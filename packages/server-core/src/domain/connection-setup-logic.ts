@@ -64,6 +64,26 @@ function _statusOf(msg: string): number | undefined {
  * 保真原则（2026-10-22）：**不把不同原因压成同一句话**。
  * 错误信息里必须能看到 ① HTTP 状态 ② 实际端点 host ③ 厂商原文。
  */
+/**
+ * 构造「验证连接」失败时的用户可见文案。
+ *
+ * ★ 2026-10-31：区域判断**必须有据**。原先 401 一律附「key 可能跨区」的通用提示，
+ *   而验证连接这条路径**从未**做区域确证 ⇒ 文案是猜的 ⇒ 用户被引导去查 key
+ *   与端点（两者可能都对）。⇒ 有确证 ⇒ 用确证文案；无确证 ⇒ 原始错误 + 条件式提示。
+ */
+export function buildConnectionTestError(params: {
+  rawError: string
+  baseUrl?: string
+  model?: string
+  regionMismatch?: { message: string }
+}): string {
+  if (params.regionMismatch?.message) return params.regionMismatch.message
+  return parseTestConnectionError(params.rawError, {
+    baseUrl: params.baseUrl,
+    model: params.model,
+  })
+}
+
 export function parseTestConnectionError(msg: string, context?: ConnectionTestErrorContext): string {
   const lower = msg.toLowerCase()
 
@@ -96,7 +116,7 @@ export function parseTestConnectionError(msg: string, context?: ConnectionTestEr
     const host = _endpointHost(context?.baseUrl)
     if (host) {
       parts.push(`· endpoint: ${host}`)
-      parts.push('· API keys are region-bound for many providers — check that this endpoint matches the key’s region.')
+      parts.push('· Some providers issue region-bound keys — if this key is from another region, try the matching endpoint.')
     }
     const detail = _serverDetail(msg)
     if (detail) parts.push(`· server: ${detail}`)
