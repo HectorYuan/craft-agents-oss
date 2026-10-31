@@ -28,6 +28,7 @@ import { pickTierDefaults, resolveTierModels, type PiModelInfo } from "./tier-mo
 import {
   mergeEnginePresets,
   resolveCustomEndpointPayload,
+  resolveEndpointProtocol,
   resolvePiAuthProviderForSubmit,
   resolvePresetStateForBaseUrlChange,
   type PresetKey,
@@ -337,8 +338,11 @@ export function ApiKeyInput({
   const hasPiModels = isPiApiKeyFlow && piModels.length > 0 && !isDefaultProviderPreset && activePreset !== 'custom' && !isBedrock
 
   // 端点协议：决定拉哪个型号清单 URL（openai → {base}/models；anthropic → {base}/v1/models）
+  // ★ 协议以**预设自带的 api**（provider 契约下发的真相源）为准；只有 custom 预设
+  //   才由 mode 开关决定。★ 否则「openai 预设 + Anthropic mode」会把 x-api-key
+  //   发给 openai 兼容端点 ⇒ 厂商 401 且文案误判为「key 无效 / 区域不符」。
   const endpointProtocol: 'openai-completions' | 'anthropic-messages' =
-    customApi === 'anthropic-messages' ? 'anthropic-messages' : 'openai-completions'
+    resolveEndpointProtocol({ presetKey: activePreset, modeApi: customApi })
 
   /**
    * 拉取厂商线上型号清单（真实 HTTP）。
@@ -449,6 +453,8 @@ export function ApiKeyInput({
 
   const handlePresetSelect = (preset: Preset) => {
     setActivePreset(preset.key)
+    // 选预设 ⇒ 协议跟随预设（mode 开关同步），否则保存下来的连接会带着错配的协议
+    setCustomApi(resolveEndpointProtocol({ presetKey: preset.key, modeApi: customApi }))
     if (preset.key !== 'custom') {
       setLastNonCustomPreset(preset.key)
     }

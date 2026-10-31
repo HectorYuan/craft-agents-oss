@@ -2,6 +2,7 @@ import { describe, expect, it } from 'bun:test'
 import {
   mergeEnginePresets,
   resolveCustomEndpointPayload,
+  resolveEndpointProtocol,
   resolvePiAuthProviderForSubmit,
   resolvePresetStateForBaseUrlChange,
 } from '../submit-helpers'
@@ -205,5 +206,33 @@ describe('mergeEnginePresets —— 引擎真相源优先', () => {
     // 引擎区块（anthropic 之后）里追加了真相源新增项
     expect(keys.indexOf('minimax-cn-anthropic')).toBeGreaterThan(keys.indexOf('anthropic'))
     expect(keys.indexOf('minimax-cn-anthropic')).toBeLessThan(keys.indexOf('groq'))
+  })
+})
+
+describe('resolveEndpointProtocol', () => {
+  // ★ 回归守卫（2026-10-31）：mode 开关与预设清单是两条独立的轴 ⇒
+  //   「openai 预设 + Anthropic mode」会把 x-api-key 发给 openai 兼容端点 ⇒
+  //   厂商 401 且报错文案被渲染成「key 无效 / 区域不符」⇒ 用户去查 key 与
+  //   Base URL（两者其实都对）。协议必须以**预设自带**的 api 为准。
+  it('follows the preset protocol even when the mode toggle says anthropic', () => {
+    expect(resolveEndpointProtocol({ presetKey: 'minimax-cn', modeApi: 'anthropic-messages' }))
+      .toBe('openai-completions')
+  })
+
+  it('keeps the anthropic protocol for anthropic-compatible presets', () => {
+    expect(resolveEndpointProtocol({ presetKey: 'minimax-cn-anthropic', modeApi: 'openai-completions' }))
+      .toBe('anthropic-messages')
+  })
+
+  it('falls back to the mode toggle for the custom preset', () => {
+    expect(resolveEndpointProtocol({ presetKey: 'custom', modeApi: 'anthropic-messages' }))
+      .toBe('anthropic-messages')
+    expect(resolveEndpointProtocol({ presetKey: 'custom', modeApi: 'openai-completions' }))
+      .toBe('openai-completions')
+  })
+
+  it('falls back to the mode toggle for GUI-only presets', () => {
+    expect(resolveEndpointProtocol({ presetKey: 'openrouter', modeApi: 'openai-completions' }))
+      .toBe('openai-completions')
   })
 })

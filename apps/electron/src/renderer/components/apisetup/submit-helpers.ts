@@ -76,6 +76,30 @@ const PI_AUTH_PROVIDER_ALIASES: Record<string, string> = {
   'minimax-global': 'minimax',
 }
 
+/**
+ * 端点协议解析：**预设自带协议优先**，mode 开关只对 custom 预设（与 GUI 专有预设）生效。
+ *
+ * ★ 为什么（2026-10-31 线上回归）：mode 开关（OpenAI Compatible / Anthropic Compatible）
+ *   与预设清单是**两条独立的轴**（预设按 providerType 选，mode 按开关选）⇒
+ *   「openai 预设 + Anthropic mode」会把 `x-api-key` 发给 openai 兼容端点 ⇒
+ *   厂商返 401，且报错文案被渲染成「Invalid API key / 区域不符」⇒ 用户去查 key 与
+ *   Base URL（**两者其实都对**）。
+ * ★ 实测（同一把 key、同一端点）：`Authorization: Bearer` → 200 且拿到线上型号；
+ *   `x-api-key` → 401，且厂商报文与界面报错**逐字一致**。
+ */
+export function resolveEndpointProtocol(params: {
+  presetKey: PresetKey
+  modeApi: CustomEndpointApi
+}): CustomEndpointApi {
+  const { presetKey, modeApi } = params
+  if (presetKey !== 'custom') {
+    const preset = PROVIDER_PRESETS.find(p => p.key === presetKey)
+    // 真相源里登记了协议 ⇒ 以它为准（无论 mode 开关停在哪一侧）
+    if (preset) return preset.api
+  }
+  return modeApi
+}
+
 export function resolvePiAuthProviderForSubmit(
   activePreset: PresetKey,
   lastNonCustomPreset: PresetKey | null
