@@ -5,10 +5,10 @@
 
 import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
 import { Database } from 'bun:sqlite';
-import { mkdtempSync, rmSync, existsSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { mkdtempSync, rmSync, existsSync, readFileSync, mkdirSync } from 'node:fs';
+import { join, dirname } from 'node:path';
 import { tmpdir } from 'node:os';
-import { openPageDataStore, PageDataStore, PAGE_DATA_MAX_KV_KEYS, PAGE_DATA_MAX_SERIES } from './data-store.ts';
+import { openPageDataStore, PageDataStore, enableWal, PAGE_DATA_MAX_KV_KEYS, PAGE_DATA_MAX_SERIES } from './data-store.ts';
 import { getPageSnapshotPath, getPageStorePath } from './storage.ts';
 
 describe('pages/data-store', () => {
@@ -163,6 +163,37 @@ describe('pages/data-store', () => {
       store = openPageDataStore(workspaceDir, 'dash');
       expect(store.kvGet<string>('persist')).toBe('yes');
       expect(existsSync(getPageStorePath(workspaceDir, 'dash'))).toBe(true);
+    });
+  });
+
+  describe('WAL enablement under a concurrent writer', () => {
+    it('does not die when a peer holds the db lock (SQLITE_BUSY on the flip)', () => {
+      // The journal_mode flip needs an EXCLUSIVE lock and SQLite does NOT invoke
+      // the busy handler for it ⇒ busy_timeout alone does not save the flip.
+      // enableWal() must give up gracefully instead of throwing, and must land
+      // the flip once the peer releases the db.
+      const dbPath = getPageStorePath(workspaceDir, 'locked');
+      mkdirSync(dirname(dbPath), { recursive: true });
+      const db = new Database(dbPath);
+      db.exec('PRAGMA busy_timeout = 5000;');
+      db.exec('CREATE TABLE IF NOT EXISTS kv (key TEXT PRIMARY KEY, value TEXT NOT NULL, updated_at INTEGER NOT NULL);');
+
+      const peer = new Database(dbPath);
+      peer.exec('PRAGMA busy_timeout = 5000;');
+      peer.exec('BEGIN IMMEDIATE;');
+      peer.exec("INSERT OR REPLACE INTO kv (key, value, updated_at) VALUES ('peer', '1', 0);");
+
+      // Locked for the whole retry window ⇒ reports "not WAL yet", no throw.
+      expect(enableWal(db)).toBe(false);
+
+      peer.exec('ROLLBACK;');
+      peer.close();
+
+      // Peer gone ⇒ the flip lands.
+      expect(enableWal(db)).toBe(true);
+      const mode = db.query('PRAGMA journal_mode;').get() as Record<string, unknown>;
+      expect(String(mode.journal_mode).toLowerCase()).toBe('wal');
+      db.close();
     });
   });
 });

@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from 'bun:test';
+import { Database } from 'bun:sqlite';
 import { mkdtempSync, rmSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -142,6 +143,42 @@ describe('page data write (spawned Bun one-shot)', () => {
     store.close();
     for (let i = 0; i < N; i++) expect(finalSnap.kv[`k${i}`]).toBe(i);
     expect(finalSnap.series.s?.length).toBe(N);
+  });
+
+  it('survives a peer holding the db write lock (the WAL flip ignores busy_timeout)', async () => {
+    // Deterministic reproduction of the race that killed a CI run (2026-10-31):
+    // the journal_mode flip needs an EXCLUSIVE lock and SQLite does NOT invoke
+    // the busy handler for it ⇒ concurrent first-writers get SQLITE_BUSY
+    // immediately and the write is LOST. A peer holding the write lock turns
+    // that probabilistic race into a deterministic one.
+    // The writer must wait the peer out instead of dying.
+    const page = createPage(workspace, { name: 'Locked Peer', kind: 'live' }).slug;
+    const dbPath = getPageStorePath(workspace, page);
+
+    // Materialize the db in delete-journal mode so the flip is a real flip.
+    const seed = new Database(dbPath);
+    seed.exec('PRAGMA busy_timeout = 5000;');
+    seed.exec('CREATE TABLE IF NOT EXISTS kv (key TEXT PRIMARY KEY, value TEXT NOT NULL, updated_at INTEGER NOT NULL);');
+    seed.close();
+
+    const peer = new Database(dbPath);
+    peer.exec('PRAGMA busy_timeout = 5000;');
+    peer.exec('BEGIN IMMEDIATE;');
+    peer.exec("INSERT OR REPLACE INTO kv (key, value, updated_at) VALUES ('peer', '1', 0);");
+
+    const patchPromise = applyPageDataPatch(workspace, page, { set: { survived: true } });
+    // Release the peer shortly after the writer starts retrying the flip.
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    peer.exec('ROLLBACK;');
+    peer.close();
+
+    const result = await patchPromise;
+    expect(result.kvCount).toBeGreaterThan(0);
+
+    const store = new PageDataStore(getPageStorePath(workspace, page));
+    const finalSnap = store.exportSnapshot();
+    store.close();
+    expect(finalSnap.kv.survived).toBe(true);
   });
 
   it('enforces the kv/series growth caps transactionally (violating patch rolls back whole)', async () => {

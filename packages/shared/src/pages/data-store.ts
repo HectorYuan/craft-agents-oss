@@ -59,6 +59,45 @@ export interface ExportSnapshotOptions {
   maxPointsPerSeries?: number;
 }
 
+/**
+ * Enable WAL on a database that concurrent writers may be opening at the same time.
+ *
+ * WHY THIS EXISTS (2026-10-31, real CI failure):
+ *   `PRAGMA journal_mode = WAL` needs an EXCLUSIVE lock, and SQLite does NOT
+ *   invoke the busy handler for that lock. Setting `busy_timeout` first is
+ *   therefore NOT enough: concurrent first-writers on a brand-new db get
+ *   SQLITE_BUSY *immediately* and the write is lost. Observed on the CI runner
+ *   (six concurrent page-data writers ⇒ one died with "database is locked").
+ *
+ * HOW IT STAYS CORRECT:
+ *   - journal_mode is persistent in the db header, so a peer that is flipping
+ *     right now leaves the db in WAL for everyone;
+ *   - reading `PRAGMA journal_mode` needs no lock, so a writer that arrives
+ *     after the flip simply skips it;
+ *   - ordinary writes keep serializing through busy_timeout, so proceeding
+ *     without WAL (peer still holding the lock) is safe.
+ *
+ * @returns true when the db is in WAL mode, false when a peer kept it locked
+ *          for the whole retry window (writes still work).
+ */
+export function enableWal(db: Database): boolean {
+  for (let attempt = 0; attempt < 40; attempt++) {
+    const row = db.query('PRAGMA journal_mode;').get() as Record<string, unknown> | undefined;
+    const mode = row ? Object.values(row)[0] : undefined;
+    if (typeof mode === 'string' && mode.toLowerCase() === 'wal') return true;
+    try {
+      db.exec('PRAGMA journal_mode = WAL;');
+      return true;
+    } catch (err) {
+      const code = String((err as { code?: string } | null)?.code ?? '');
+      const message = String((err as { message?: string } | null)?.message ?? err);
+      if (!code.includes('SQLITE_BUSY') && !message.includes('database is locked')) throw err;
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 50);
+    }
+  }
+  return false;
+}
+
 export class PageDataStore {
   private readonly db: Database;
   private readonly snapshotPath: string;
@@ -68,12 +107,16 @@ export class PageDataStore {
     this.snapshotPath = snapshotPath ?? join(dirname(dbPath), PAGE_SNAPSHOT_FILENAME);
     this.db = new Database(dbPath);
     // busy_timeout MUST be set before switching to WAL: on a brand-new db,
-    // concurrent first-writers each need the exclusive lock to flip journal_mode,
-    // and without a timeout that contends immediately as SQLITE_BUSY. Setting it
-    // first makes the WAL switch (and every later write) wait instead of failing
-    // (refresh script vs. agent write_page_data).
+    // concurrent first-writers each need the exclusive lock to flip journal_mode.
+    // ⚠️ busy_timeout does NOT cover that flip: SQLite does not invoke the busy
+    // handler for the EXCLUSIVE lock a journal_mode change needs ⇒ concurrent
+    // first-writers get SQLITE_BUSY immediately and the write is LOST (observed
+    // on CI: six concurrent page-data writers on a fresh db ⇒ one died with
+    // SQLITE_BUSY). ⇒ enableWal() below re-reads the mode and retries the flip;
+    // journal_mode is persistent in the db header, so a peer flipping right now
+    // leaves the db in WAL for everyone. (Kept in lockstep with pages/data-write.ts.)
     this.db.exec('PRAGMA busy_timeout = 5000;');
-    this.db.exec('PRAGMA journal_mode = WAL;');
+    enableWal(this.db);
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS kv (
         key TEXT PRIMARY KEY,

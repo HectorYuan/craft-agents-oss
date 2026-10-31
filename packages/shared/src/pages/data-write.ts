@@ -150,11 +150,38 @@ const patch = INPUT.patch;
 
 mkdirSync(dirname(INPUT.dbPath), { recursive: true });
 const db = new Database(INPUT.dbPath);
-// busy_timeout before WAL: concurrent first-writers each need the exclusive
-// lock to flip journal_mode, which contends immediately as SQLITE_BUSY without
-// a timeout set first. (Kept in lockstep with pages/data-store.ts.)
 db.exec('PRAGMA busy_timeout = 5000;');
-db.exec('PRAGMA journal_mode = WAL;');
+// WAL enablement that survives concurrent first-writers.
+// The journal_mode flip needs an EXCLUSIVE lock, and SQLite does NOT invoke
+// the busy handler for that lock — so busy_timeout alone does NOT make the
+// flip wait: concurrent first-writers get SQLITE_BUSY immediately and the
+// write is LOST (observed on CI: six concurrent page-data writers on a fresh
+// db ⇒ one died with SQLITE_BUSY and the patch never landed).
+// journal_mode is persistent in the db header, so a peer that is flipping
+// right now leaves the db in WAL for everyone.
+// ⇒ read the mode first (needs no lock) → skip the flip when already WAL →
+//   on SQLITE_BUSY, wait briefly and re-read: the peer's flip will land.
+// (Kept in lockstep with pages/data-store.ts.)
+function enableWal(target) {
+  for (let attempt = 0; attempt < 40; attempt++) {
+    const row = target.query('PRAGMA journal_mode;').get();
+    const mode = row && Object.values(row)[0];
+    if (typeof mode === 'string' && mode.toLowerCase() === 'wal') return;
+    try {
+      target.exec('PRAGMA journal_mode = WAL;');
+      return;
+    } catch (err) {
+      const code = String((err && err.code) || '');
+      const message = String((err && err.message) || err);
+      if (!code.includes('SQLITE_BUSY') && !message.includes('database is locked')) throw err;
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 50);
+    }
+  }
+  // Still locked after ~2s: a peer holds the db. Ordinary writes still
+  // serialize through busy_timeout, so continuing is safe even if the db
+  // keeps its previous journal mode.
+}
+enableWal(db);
 db.exec(\`
   CREATE TABLE IF NOT EXISTS kv (
     key TEXT PRIMARY KEY,
