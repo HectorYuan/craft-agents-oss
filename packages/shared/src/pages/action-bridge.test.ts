@@ -5,7 +5,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
-import { mkdtempSync, rmSync, readFileSync, existsSync } from 'node:fs';
+import { mkdtempSync, rmSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import type { PageActionGrant, PageActionRequest, PageConfig, PageRenderLease } from '@craft-agent/core';
@@ -102,15 +102,58 @@ describe('pages/action-bridge', () => {
   async function readAudit(event?: string): Promise<Array<Record<string, unknown>>> {
     const deadline = Date.now() + 5_000;
     for (;;) {
-      const events = existsSync(auditPath)
-        ? readFileSync(auditPath, 'utf-8').trim().split('\n').filter(Boolean).map((l) => JSON.parse(l))
-        : [];
+      const events = readAuditLines(auditPath);
       // Without an event filter, any content is enough (and an empty file is a
       // legitimate answer). With a filter, keep polling until it shows up.
       if (!event || events.some((e) => e.event === event)) return events;
       if (Date.now() >= deadline) return events;
       await new Promise((resolve) => setTimeout(resolve, 5));
     }
+  }
+
+  /**
+   * Parse the audit trail, tolerating a **half-written trailing line**.
+   *
+   * The trail is append-only NDJSON; every event is one `appendFile` of
+   * `<json>\n` (PageActionBroker.appendAudit). ★ That write is **not atomic
+   * with respect to a concurrent reader** ⇒ a reader can catch the file
+   * mid-append and see a **partial last line** ⇒ `JSON.parse` then throws
+   * `SyntaxError: Unterminated string` ⇒ the test dies with a *parse error*
+   * instead of an assertion.
+   *
+   * ⚠ This is a **different** failure mode from the one the bounded poll above
+   * was written for: the poll covers "the event has not landed yet"; it does
+   * **not** cover "the event is landing right now, in halves".
+   * ⇒ Real CI evidence (2026-10-31, run 41150800047): `Vendor Tests` red on
+   *   `lease store cap` with `SyntaxError: JSON Parse error: Unterminated
+   *   string` at `action-bridge.test.ts:106` — on a runner that was
+   *   concurrently building the release, i.e. exactly when an append is most
+   *   likely to be torn. The same file had already been hardened against the
+   *   *missing* event once (see the readAudit comment) ⇒ ★★ **同一个文件里
+   *   同族的第二个竞态**，必须单独治，不能假设「上一次修过就安全了」。
+   *
+   * => Drop an unterminated tail (a line without its trailing newline is by
+   *    definition still being written) and never let one unparsable line abort
+   *    the whole read.
+   */
+  function readAuditLines(path: string): Array<Record<string, unknown>> {
+    if (!existsSync(path)) return [];
+    const raw = readFileSync(path, 'utf-8');
+    const lines = raw.split('\n');
+    // A complete record always ends with "\n" ⇒ a tail without it is a
+    // half-written append ⇒ drop it (it will be complete on the next poll).
+    if (!raw.endsWith('\n')) lines.pop();
+    const events: Array<Record<string, unknown>> = [];
+    for (const line of lines) {
+      if (!line) continue;
+      try {
+        events.push(JSON.parse(line));
+      } catch {
+        // Append-only writes cannot tear a line in the middle, but a single
+        // unparsable line must not abort the whole read.
+      }
+    }
+    return events;
   }
 
   describe('happy path', () => {
@@ -464,6 +507,28 @@ describe('pages/action-bridge', () => {
       const params = (rejected?.invocation as { params: Record<string, unknown> }).params;
       expect(params.apiToken).toBe('[REDACTED]');
       expect(params.page).toBe(2);
+    });
+
+    /**
+     * 确定性守卫：读取端必须能容忍**写了一半的末行**。
+     *
+     * ★ 这条用例不是"顺手加的断言"，而是**竞态的确定性复现**：
+     *   审计文件是 append-only NDJSON，每个事件一次 `appendFile`（`<json>\n`）
+     *   ⇒ 该写入**对并发读者不是原子的** ⇒ 读者可能读到**半行**
+     *   ⇒ 旧读法 `JSON.parse(半行)` 抛 `SyntaxError: Unterminated string`
+     *   ⇒ 用例以**解析错误**挂掉（而不是断言失败）⇒ 现场极具迷惑性：
+     *   看起来像"测试坏了"，实则是"读到了正在写的文件"。
+     * ★ 负控自证：把读法退回旧版（保留本守卫）⇒ 本条必红。
+     */
+    it('ignores a half-written trailing audit line instead of throwing', async () => {
+      writeFileSync(
+        auditPath,
+        `${JSON.stringify({ event: 'page_lease_created', leaseId: 'lease_a' })}\n{"event":"page_lease_evic`,
+        'utf-8',
+      );
+      const events = await readAudit();
+      expect(events.length).toBe(1);
+      expect(events[0]?.event).toBe('page_lease_created');
     });
   });
 
