@@ -73,6 +73,15 @@ export interface LinkItem {
   expanded?: boolean
   onToggle?: () => void
   items?: SidebarItem[]    // Subitems as data (rendered as nested LeftSidebar) - supports separators
+  /**
+   * Optional group heading rendered above this item.
+   *
+   * Used to give a run of sibling items a shared label (e.g. grouping
+   * navigator entries by their owning domain). The first item of a group
+   * carries the label; it renders above the button and is not interactive.
+   * Styling reuses the existing sidebar section-heading language.
+   */
+  sectionLabel?: string
   // Compact mode: reduced vertical padding (4px less total height)
   compact?: boolean
   // Tutorial system
@@ -227,6 +236,14 @@ export function LeftSidebar({ links, isCollapsed, getItemProps, focusedItemId, i
           // so only the clicked item highlights, not the entire section.
           const content = (
             <div className="group/section">
+              {link.sectionLabel && (
+                <div
+                  className="px-3 pt-1.5 pb-1 text-[11px] font-medium text-muted-foreground/60 uppercase tracking-wider"
+                  aria-hidden="true"
+                >
+                  {link.sectionLabel}
+                </div>
+              )}
               {link.contextMenu ? (
                 <ContextMenu modal={true}>
                   <ContextMenuTrigger asChild>

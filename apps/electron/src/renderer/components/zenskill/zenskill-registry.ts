@@ -1,5 +1,5 @@
 /**
- * ZenSkill page registry (L1).
+ * ZenSkill page registry (L1) — 组件与图标侧；**视图归属侧见 zenskill-views.ts**。
  *
  * Single source of truth for ZenSkill top-level full-page views surfaced
  * through the app shell sidebar and MainContentPanel. Adding a page is a
@@ -9,6 +9,11 @@
  * Route logic (parse/build) lives in the sibling zero-dependency module
  * zenskill-routes.ts so shared/route-parser.ts can delegate without
  * importing the component tree.
+ *
+ * ★ 视图元数据（归哪个域 / 以什么形态出现）在 zenskill-views.ts ——
+ *   那里是纯数据模块，不 import 任何组件 ⇒ 无循环依赖。
+ *   本文件只负责把元数据**挂到**每个注册项上，
+ *   两边按 slug 关联，1:1 完整性由 __tests__/view-registry.test.ts 守住。
  */
 import type { ComponentType } from 'react'
 import type { LucideIcon } from 'lucide-react'
@@ -24,6 +29,7 @@ import { SkillMarketPage } from './pages/SkillMarketPage'
 import { LearningPathPage } from './pages/LearningPathPage'
 import { ZenloopStandalonePage } from './pages/ZenloopStandalonePage'
 import { CultivationPage } from './pages/CultivationPage'
+import { resolveViewSpec, type HostDomain, type ViewMode } from './zenskill-views'
 
 /**
  * The ZenSkill MCP source slug all ZenSkill pages talk to.
@@ -50,9 +56,16 @@ export interface ZenSkillPageRegistration {
   i18nLabelKey: string
   /** 自定义路由构建器；缺省使用 zenskill/{slug} */
   routeBuilder?: () => string
+  /** 归哪个对象域（会话/项目/技能/今日/设置）—— 侧边栏据此分组 */
+  hostDomain: HostDomain
+  /** 以什么形态出现（page/tab/panel/quick）—— 侧边栏据此决定是否列出 */
+  mode: ViewMode
+  /** 宿主页内锚点（P1+ 随内容归位生效） */
+  slot?: string
 }
 
-export const ZENSKILL_PAGES: ZenSkillPageRegistration[] = [
+/** 组件侧登记表（slug + 组件 + 图标 + 文案键）。 */
+const PAGE_COMPONENTS: Array<Omit<ZenSkillPageRegistration, 'hostDomain' | 'mode' | 'slot'>> = [
   {
     slug: 'overview',
     component: ZenSkillOverview,
@@ -123,6 +136,22 @@ export const ZENSKILL_PAGES: ZenSkillPageRegistration[] = [
     i18nLabelKey: 'zenskill.cultivation.title',
   },
 ]
+
+/**
+ * 完整注册表 = 组件侧 × 视图元数据侧（按 slug 关联）。
+ *
+ * ★ 若某个 slug 在 zenskill-views.ts 里漏登记 ⇒ hostDomain/mode 兜底为
+ *   'settings' + 'page'（**不崩、不丢页**），并由 view-registry.test.ts 判红。
+ */
+export const ZENSKILL_PAGES: ZenSkillPageRegistration[] = PAGE_COMPONENTS.map((page) => {
+  const spec = resolveViewSpec(page.slug)
+  return {
+    ...page,
+    hostDomain: spec?.hostDomain ?? 'settings',
+    mode: spec?.mode ?? 'page',
+    slot: spec?.slot,
+  }
+})
 
 /** Resolve a page registration by route slug; falls back to the first page. */
 export function resolveZenSkillPage(pageSlug?: string): ZenSkillPageRegistration | undefined {

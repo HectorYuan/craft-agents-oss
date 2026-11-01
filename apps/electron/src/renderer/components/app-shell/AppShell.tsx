@@ -109,7 +109,7 @@ import { resolveEntityColor } from "@craft-agent/shared/colors"
 import * as storage from "@/lib/local-storage"
 import { toast } from "sonner"
 import { ZenSkillToastMount } from "@/components/zenskill/ZenSkillToastMount"
-import { ZENSKILL_PAGES } from "@/components/zenskill/zenskill-registry"
+import { buildDomainGroupedNavItems } from "@/components/zenskill/zenskill-nav-items"
 import { pageIcon } from "@/components/pages/page-visuals"
 import { navigate, routes } from "@/lib/navigate"
 import {
@@ -2145,6 +2145,13 @@ function AppShellContent({
     return result
   }, [handleAllSessionsClick, handleFlaggedClick, handleArchivedClick, handleSessionStatusClick, effectiveSessionStatuses, handleLabelClick, labelTree, handleSourcesClick, handleSkillsClick, handleProjectsClick, handlePagesClick, handleAutomationsClick, handleSettingsClick, handleWhatsNewClick])
 
+  // ★ 按宿主域分组的侧边栏条目（会话 / 项目 / 技能 / 今日 / 设置）。
+  //   构造逻辑与不变式说明见该模块自身的注释。
+  const domainGroupedNavItems = React.useMemo(
+    () => buildDomainGroupedNavItems(t, navigate, navState),
+    [t, navState],
+  )
+
   // Toggle folder expanded state
   const handleToggleFolder = React.useCallback((path: string) => {
     setExpandedFolders(prev => {
@@ -2663,16 +2670,13 @@ function AppShellContent({
                       icon: Zap,
                       variant: isZenSkillNavigation(navState) ? "default" as const : "ghost" as const,
                       onClick: () => navigate(routes.view.zenskillOverview()),
-                      expandable: ZENSKILL_PAGES.length > 0,
+                      expandable: domainGroupedNavItems.length > 0,
                       expanded: isExpanded('nav:zenskill'),
                       onToggle: () => toggleExpanded('nav:zenskill'),
-                      items: ZENSKILL_PAGES.map(page => ({
-                        id: `nav:zenskill:${page.slug}`,
-                        title: t(page.i18nLabelKey),
-                        icon: page.icon,
-                        variant: (isZenSkillNavigation(navState) && navState.details?.type === 'zenskill-page' && navState.details.pageSlug === page.slug) ? "default" as const : "ghost" as const,
-                        onClick: () => navigate((page.routeBuilder?.() ?? `zenskill/${page.slug}`) as any),
-                      })),
+                      // 按宿主域分组（会话 / 项目 / 技能 / 今日 / 设置）——
+                      // 把「11 个平铺页」变成「每个能力归哪个域一眼可见」。
+                      // 形态由视图注册表的 `mode` 决定：'panel'/'quick' 不进侧边栏，'page'/'tab' 进。
+                      items: domainGroupedNavItems,
                     },
                     {
                       id: "nav:automations",
