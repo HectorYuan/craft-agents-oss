@@ -130,3 +130,61 @@ describe('ZenSkill view registry', () => {
     expect(resolveViewSpec('gtd')?.hostDomain).toBe('project')
   })
 })
+
+/**
+ * 侧边栏条目构造器 —— 分组、标题落位、活跃判定。
+ *
+ * ★ 为什么要单独守：
+ *   这层是「信息架构」在界面上的唯一落点 —— 分组错了就等于设计没实现。
+ *   且它有三条容易被改坏的隐含契约：
+ *   ① 分组顺序固定（不是字母序）
+ *   ② 分组标题只挂在**组首项**上（否则一个组会出现两个标题）
+ *   ③ 活跃判定必须与路由 slug 一致（点错高亮会误导用户）
+ */
+import { buildDomainGroupedNavItems } from '../zenskill-nav-items'
+
+const t = (key: string) => key
+const navigate = () => {}
+
+describe('ZenSkill domain-grouped nav items', () => {
+  test('按 HOST_DOMAIN_ORDER 分组，且每组第一个条目带分组标题', () => {
+    const items = buildDomainGroupedNavItems(t, navigate, { navigator: 'sessions' })
+    const labels = items
+      .map((i) => ('sectionLabel' in i ? (i as { sectionLabel?: string }).sectionLabel : undefined))
+      .filter(Boolean)
+    // 每个分组只出现一次标题
+    expect(new Set(labels).size).toBe(labels.length)
+    expect(labels.length).toBeGreaterThan(1)
+    // 顺序 = 会话 → 项目 → 技能 → 今日 → 设置
+    expect(labels).toEqual([
+      'zenskill.domain.conversation',
+      'zenskill.domain.project',
+      'zenskill.domain.skill',
+      'zenskill.domain.today',
+      'zenskill.domain.settings',
+    ])
+  })
+
+  test('条目 id 与 slug 一一对应（点击目标不漂移）', () => {
+    const items = buildDomainGroupedNavItems(t, navigate, { navigator: 'sessions' })
+    const ids = items.map((i) => i.id)
+    expect(new Set(ids).size).toBe(ids.length)
+    expect(ids.every((id) => id.startsWith('nav:zenskill:'))).toBe(true)
+  })
+
+  test('当前页高亮，且只有当前页高亮', () => {
+    const items = buildDomainGroupedNavItems(t, navigate, {
+      navigator: 'zenskill',
+      details: { type: 'zenskill-page', pageSlug: 'gtd' },
+    })
+    const active = items.filter((i) => ('variant' in i ? i.variant : '') === 'default')
+    expect(active).toHaveLength(1)
+    expect(active[0].id).toBe('nav:zenskill:gtd')
+  })
+
+  test('不在该导航上时不高亮任何条目', () => {
+    const items = buildDomainGroupedNavItems(t, navigate, { navigator: 'sessions' })
+    const active = items.filter((i) => ('variant' in i ? i.variant : '') === 'default')
+    expect(active).toHaveLength(0)
+  })
+})

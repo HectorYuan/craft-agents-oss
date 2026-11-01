@@ -35,7 +35,6 @@ import {
   FolderKanban,
   PanelsTopLeft,
 } from "lucide-react"
-import type { LucideIcon } from "lucide-react"
 // SessionStatusIcons no longer used - icons come from dynamic sessionStatuses
 import { SourceAvatar } from "@/components/ui/source-avatar"
 import { TopBar } from "./TopBar"
@@ -110,8 +109,7 @@ import { resolveEntityColor } from "@craft-agent/shared/colors"
 import * as storage from "@/lib/local-storage"
 import { toast } from "sonner"
 import { ZenSkillToastMount } from "@/components/zenskill/ZenSkillToastMount"
-import { ZENSKILL_PAGES } from "@/components/zenskill/zenskill-registry"
-import { groupViewsByHostDomain, isSidebarVisibleMode } from "@/components/zenskill/zenskill-views"
+import { buildDomainGroupedNavItems } from "@/components/zenskill/zenskill-nav-items"
 import { pageIcon } from "@/components/pages/page-visuals"
 import { navigate, routes } from "@/lib/navigate"
 import {
@@ -2147,58 +2145,12 @@ function AppShellContent({
     return result
   }, [handleAllSessionsClick, handleFlaggedClick, handleArchivedClick, handleSessionStatusClick, effectiveSessionStatuses, handleLabelClick, labelTree, handleSourcesClick, handleSkillsClick, handleProjectsClick, handlePagesClick, handleAutomationsClick, handleSettingsClick, handleWhatsNewClick])
 
-  /**
-   * ★ ZenSkill 侧边栏条目 —— 按**宿主域**分组（会话 / 项目 / 技能 / 今日 / 设置）。
-   *
-   * 真相源：`components/zenskill/zenskill-views.ts`
-   *（设计文档 `docs/spec_zenskill_domain_architecture_v1_20261031.md` §5.2）
-   *
-   * 三条不变式：
-   * 1. **分组顺序固定** —— 做事 → 推进 → 学会 → 今日 → 运维（不是字母序）
-   * 2. **`mode` 决定是否列出** —— 'panel'/'quick' 不进侧边栏（可直达），'page'/'tab' 进
-   * 3. **旧 slug 全部仍可路由** —— 点击目标与改造前逐字一致（零回归）
-   */
-  const buildZenSkillSidebarItems = React.useMemo(() => {
-    type ZenSkillSidebarEntry = {
-      id: string
-      title: string
-      icon: LucideIcon
-      variant: "default" | "ghost"
-      onClick: () => void
-      sectionLabel?: string
-    }
-
-    const groups = groupViewsByHostDomain(
-      ZENSKILL_PAGES
-        .map((p) => ({ slug: p.slug, hostDomain: p.hostDomain, mode: p.mode, slot: p.slot }))
-        // 'panel' 在宿主页内部、'quick' 靠命令面板直达 ⇒ 两者都不占侧边栏位
-        .filter((v) => isSidebarVisibleMode(v.mode)),
-    )
-
-    const entries: ZenSkillSidebarEntry[] = []
-    for (const group of groups) {
-      const groupLabel = t(group.labelKey)
-      group.views.forEach((view, indexInGroup) => {
-        const page = ZENSKILL_PAGES.find((p) => p.slug === view.slug)
-        if (!page) return
-        const isActive =
-          isZenSkillNavigation(navState) &&
-          navState.details?.type === 'zenskill-page' &&
-          navState.details.pageSlug === page.slug
-        entries.push({
-          id: `nav:zenskill:${page.slug}`,
-          title: t(page.i18nLabelKey),
-          icon: page.icon,
-          variant: isActive ? "default" : "ghost",
-          onClick: () => navigate((page.routeBuilder?.() ?? `zenskill/${page.slug}`) as any),
-          // 分组标题挂在**组首项**上（渲染在按钮之上，不可交互）
-          sectionLabel: indexInGroup === 0 ? groupLabel : undefined,
-        })
-      })
-    }
-    return entries
-    // `navigate` is a module-level import (stable), not reactive state.
-  }, [t, navState])
+  // ★ 按宿主域分组的侧边栏条目（会话 / 项目 / 技能 / 今日 / 设置）。
+  //   构造逻辑与不变式说明见该模块自身的注释。
+  const domainGroupedNavItems = React.useMemo(
+    () => buildDomainGroupedNavItems(t, navigate, navState),
+    [t, navState],
+  )
 
   // Toggle folder expanded state
   const handleToggleFolder = React.useCallback((path: string) => {
@@ -2718,14 +2670,13 @@ function AppShellContent({
                       icon: Zap,
                       variant: isZenSkillNavigation(navState) ? "default" as const : "ghost" as const,
                       onClick: () => navigate(routes.view.zenskillOverview()),
-                      expandable: ZENSKILL_PAGES.length > 0,
+                      expandable: domainGroupedNavItems.length > 0,
                       expanded: isExpanded('nav:zenskill'),
                       onToggle: () => toggleExpanded('nav:zenskill'),
-                      // ★ 按宿主域分组（会话 / 项目 / 技能 / 今日 / 设置）——
-                      //   把「11 个平铺页」变成「每个能力归哪个域一眼可见」。
-                      //   形态仍由 zenskill-views.ts 的 `mode` 决定：
-                      //   'panel'/'quick' 不进侧边栏，'page'/'tab' 进。
-                      items: buildZenSkillSidebarItems,
+                      // 按宿主域分组（会话 / 项目 / 技能 / 今日 / 设置）——
+                      // 把「11 个平铺页」变成「每个能力归哪个域一眼可见」。
+                      // 形态由视图注册表的 `mode` 决定：'panel'/'quick' 不进侧边栏，'page'/'tab' 进。
+                      items: domainGroupedNavItems,
                     },
                     {
                       id: "nav:automations",

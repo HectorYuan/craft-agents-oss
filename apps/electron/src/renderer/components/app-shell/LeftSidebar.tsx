@@ -76,8 +76,8 @@ export interface LinkItem {
   /**
    * Optional group heading rendered above this item.
    *
-   * Used to give a run of sibling items a shared label (e.g. the ZenSkill
-   * navigator grouping views by their host domain). The first item of a group
+   * Used to give a run of sibling items a shared label (e.g. grouping
+   * navigator entries by their owning domain). The first item of a group
    * carries the label; it renders above the button and is not interactive.
    * Styling reuses the existing sidebar section-heading language.
    */
