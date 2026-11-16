@@ -6,7 +6,7 @@
  * .craft-agent dir. applyZenskillSelfHeal() rewrites those in place.
  */
 import { describe, it, expect } from 'bun:test';
-import { mkdtempSync, writeFileSync } from 'fs';
+import { mkdirSync, mkdtempSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { applyZenskillSelfHeal, ZENSKILL_SOURCE_SLUG } from '../zenskill-seed.ts';
@@ -94,6 +94,53 @@ describe('applyZenskillSelfHeal', () => {
       mcp: { transport: 'stdio' },
     }), NEW_PATHS)).toBe(false);
     expect(applyZenskillSelfHeal(makeConfig({ mcp: undefined }), NEW_PATHS)).toBe(false);
+  });
+
+  it('prefers the prebuilt venv interpreter over uv run when the pack dir is read-only', () => {
+    const root = mkdtempSync(join(tmpdir(), 'zenskill-seed-'));
+    const venvDir = join(root, 'venv');
+    const binDir = join(venvDir, process.platform === 'win32' ? 'Scripts' : 'bin');
+    mkdirSync(binDir, { recursive: true });
+    const pythonPath = join(binDir, process.platform === 'win32' ? 'python.exe' : 'python');
+    writeFileSync(pythonPath, '');
+    const liveUv = join(root, 'uv');
+    writeFileSync(liveUv, '');
+
+    const config = makeConfig({
+      mcp: {
+        transport: 'stdio',
+        command: liveUv,
+        args: ['run', '--project', '/new/install/resources/zenskill', '--python', '3.12', 'zenskill', 'mcp', 'serve'],
+        env: { UV_PROJECT_ENVIRONMENT: venvDir },
+      },
+    });
+
+    expect(applyZenskillSelfHeal(config, { ...NEW_PATHS, venvDir })).toBe(true);
+    expect(config.mcp?.command).toBe(pythonPath);
+    expect(config.mcp?.args).toEqual(['-m', 'zenskill', 'mcp', 'serve']);
+    expect(config.mcp?.env?.UV_PROJECT_ENVIRONMENT).toBeUndefined();
+  });
+
+  it('is idempotent when the config already points at the venv interpreter', () => {
+    const root = mkdtempSync(join(tmpdir(), 'zenskill-seed-'));
+    const venvDir = join(root, 'venv');
+    const binDir = join(venvDir, process.platform === 'win32' ? 'Scripts' : 'bin');
+    mkdirSync(binDir, { recursive: true });
+    const pythonPath = join(binDir, process.platform === 'win32' ? 'python.exe' : 'python');
+    writeFileSync(pythonPath, '');
+
+    const config = makeConfig({
+      mcp: {
+        transport: 'stdio',
+        command: pythonPath,
+        args: ['-m', 'zenskill', 'mcp', 'serve'],
+        env: { ZENSKILL_CONFIG_DIR: NEW_PATHS.configDir },
+      },
+    });
+
+    expect(applyZenskillSelfHeal(config, { ...NEW_PATHS, venvDir })).toBe(false);
+    expect(config.mcp?.command).toBe(pythonPath);
+    expect(config.mcp?.args).toEqual(['-m', 'zenskill', 'mcp', 'serve']);
   });
 
   it('keeps the seeded slug at zenskill (R-series slug unification)', () => {

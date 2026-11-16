@@ -11,4 +11,12 @@ export UV_PYTHON_INSTALL_DIR="${CRAFT_ZENSKILL}/python"
 # 2026-10-22 实测：一次运行即产生 234 个 .pyc，签名随即失效。
 export PYTHONDONTWRITEBYTECODE=1
 cd "$CRAFT_ZENSKILL" || exit 1
+# 打包后 zenskill/ 目录是只读的（dr-xr-xr-x，保护签名），而 `uv run` 要在
+# project 目录里建 .tmpXXXX 临时文件 ⇒ Permission denied (os error 13) ⇒
+# 进程秒退 ⇒ 桌面端报 `MCP error -32000: Connection closed`。
+# venv 已建好时直接用解释器：`-m zenskill` 走 editable 安装，只读不写。
+VENV_PY="${UV_PROJECT_ENVIRONMENT}/bin/python"
+if [ -x "$VENV_PY" ]; then
+  exec "$VENV_PY" -m zenskill "$@"
+fi
 exec "$CRAFT_UV" run --python 3.12 --project "$CRAFT_ZENSKILL" python -m zenskill "$@"

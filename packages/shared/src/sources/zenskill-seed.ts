@@ -71,6 +71,65 @@ function resolveUvPath(): string | null {
 
 export const ZENSKILL_SOURCE_SLUG = 'zenskill';
 
+/** Interpreter inside the per-user venv, when that venv has been created. */
+function resolveVenvPython(venvDir: string): string | null {
+  const isWin = process.platform === 'win32';
+  const p = join(venvDir, isWin ? 'Scripts' : 'bin', isWin ? 'python.exe' : 'python');
+  return existsSync(p) ? p : null;
+}
+
+interface ZenskillLaunchSpec {
+  command: string;
+  args: string[];
+  env: Record<string, string>;
+}
+
+/**
+ * Stdio launch spec for the engine pack.
+ *
+ * The pack ships inside a signed app bundle where `zenskill/` is read-only
+ * (`dr-xr-xr-x` on macOS). `uv run --project <pack>` writes scratch files
+ * (`.tmpXXXX`) into the project dir, fails there with
+ * `Permission denied (os error 13)`, and exits immediately — the MCP handshake
+ * then surfaces as `-32000 Connection closed`. Once the venv exists we launch
+ * the interpreter directly: `-m zenskill` resolves through the editable install
+ * (no cwd requirement) and only reads the pack, never writes into it.
+ * uv stays the bootstrap path for installs that have no venv yet.
+ */
+function buildLaunchSpec(args: {
+  engineDir: string;
+  venvDir: string;
+  configDir?: string;
+  uvPath: string | null;
+}): ZenskillLaunchSpec | null {
+  const venvPy = resolveVenvPython(args.venvDir);
+  if (venvPy) {
+    const env: Record<string, string> = {};
+    if (args.configDir) env.ZENSKILL_CONFIG_DIR = args.configDir;
+    return { command: venvPy, args: ['-m', 'zenskill', 'mcp', 'serve'], env };
+  }
+  if (!args.uvPath) return null;
+  const env: Record<string, string> = {
+    // Keep uv's virtualenv out of a potentially read-only install dir.
+    UV_PROJECT_ENVIRONMENT: args.venvDir,
+  };
+  if (args.configDir) env.ZENSKILL_CONFIG_DIR = args.configDir;
+  return {
+    command: args.uvPath,
+    args: [
+      'run',
+      '--project',
+      args.engineDir,
+      '--python',
+      '3.12',
+      'zenskill',
+      'mcp',
+      'serve',
+    ],
+    env,
+  };
+}
+
 /** guide.md shown next to the source in the UI and referenced by api-tools. */
 const ZENSKILL_GUIDE = `# ZenSkill
 
@@ -94,9 +153,20 @@ const ZENSKILL_GUIDE = `# ZenSkill
 
 function buildZenskillConfig(): FolderSourceConfig | null {
   const engineDir = resolveEngineDir();
-  const uvPath = resolveUvPath();
-  if (!engineDir || !uvPath) {
-    debug('[zenskill-seed] Engine pack or bundled uv not found, skipping seed');
+  if (!engineDir) {
+    debug('[zenskill-seed] Engine pack not found, skipping seed');
+    return null;
+  }
+
+  const venvDir = join(CONFIG_DIR, 'zenskill', 'venv');
+  const spec = buildLaunchSpec({
+    engineDir,
+    venvDir,
+    configDir: CONFIG_DIR,
+    uvPath: resolveUvPath(),
+  });
+  if (!spec) {
+    debug('[zenskill-seed] No venv interpreter and no bundled uv, skipping seed');
     return null;
   }
 
@@ -111,25 +181,12 @@ function buildZenskillConfig(): FolderSourceConfig | null {
     tagline: 'GTD 收集、记忆、技能生态与成长报告',
     mcp: {
       transport: 'stdio',
-      command: uvPath,
-      args: [
-        'run',
-        '--project',
-        engineDir,
-        '--python',
-        '3.12',
-        'zenskill',
-        'mcp',
-        'serve',
-      ],
-      env: {
-        // Keep uv's virtualenv out of a potentially read-only install dir.
-        UV_PROJECT_ENVIRONMENT: join(CONFIG_DIR, 'zenskill', 'venv'),
-        // Point the engine's config/data dir at the desktop registry
-        // (~/.zenskill) so the Python side resolves the same
-        // workspaces/profiles as this app instead of the CLI's ~/.zenskill.
-        ZENSKILL_CONFIG_DIR: CONFIG_DIR,
-      },
+      command: spec.command,
+      args: spec.args,
+      // Point the engine's config/data dir at the desktop registry
+      // (~/.zenskill) so the Python side resolves the same
+      // workspaces/profiles as this app instead of the CLI's ~/.zenskill.
+      env: spec.env,
     },
     isAuthenticated: true,
     createdAt: Date.now(),
@@ -203,7 +260,7 @@ export function seedZenskillSource(workspaceRootPath: string): void {
             const migrated = loadSourceConfig(workspaceRootPath, ZENSKILL_SOURCE_SLUG);
             const engineDir = resolveEngineDir();
             const uvPath = resolveUvPath();
-            if (migrated && engineDir && uvPath) {
+            if (migrated && engineDir) {
               if (
                 applyZenskillSelfHeal(migrated, {
                   uvPath,
@@ -246,8 +303,8 @@ export function seedZenskillSource(workspaceRootPath: string): void {
     // install location (no-op when the configured command still exists).
     const engineDir = resolveEngineDir();
     const uvPath = resolveUvPath();
-    if (!engineDir || !uvPath) {
-      debug('[zenskill-seed] Self-heal skipped: engine pack or bundled uv not found');
+    if (!engineDir) {
+      debug('[zenskill-seed] Self-heal skipped: engine pack not found');
       return;
     }
     if (applyZenskillSelfHeal(config, {
@@ -287,37 +344,66 @@ export function seedZenskillSource(workspaceRootPath: string): void {
 }
 
 /**
- * Rewrite a ZenSkill source config whose `mcp.command` points at a missing
- * file: command/args are replaced with the current install's uv + engine
- * pack paths, UV_PROJECT_ENVIRONMENT is re-derived from CONFIG_DIR when
- * it references the legacy `.craft-agent` directory, and a missing
- * ZENSKILL_CONFIG_DIR is backfilled so the engine reads the desktop registry.
+ * Rewrite a ZenSkill source config whose launch spec is stale or broken:
  *
- * Pure (no fs/IO apart from the caller's existsSync inputs decision) and
- * exported for tests. Returns true when `config` was mutated.
+ * - a missing `mcp.command` is rebuilt from the current install's paths;
+ * - a config that still launches through `uv run` is upgraded to the venv
+ *   interpreter once that venv exists (uv cannot write its scratch files into
+ *   the read-only bundled pack — see buildLaunchSpec);
+ * - `UV_PROJECT_ENVIRONMENT` is re-derived from CONFIG_DIR when it references
+ *   the legacy `.craft-agent` directory, and dropped once we launch the
+ *   interpreter directly (uv is not involved any more);
+ * - a missing `ZENSKILL_CONFIG_DIR` is backfilled so the engine reads the
+ *   desktop registry.
+ *
+ * Pure (no fs/IO apart from existsSync probes) and exported for tests.
+ * Returns true when `config` was mutated.
  */
 export function applyZenskillSelfHeal(
   config: FolderSourceConfig,
-  paths: { uvPath: string; engineDir: string; venvDir: string; configDir?: string }
+  paths: {
+    uvPath: string | null;
+    engineDir: string;
+    venvDir: string;
+    configDir?: string;
+  }
 ): boolean {
   const mcp = config.mcp;
   if (!mcp || mcp.transport !== 'stdio' || !mcp.command) return false;
-  if (existsSync(mcp.command)) return false; // command still valid — nothing to heal
 
-  mcp.command = paths.uvPath;
-  mcp.args = [
-    'run',
-    '--project',
-    paths.engineDir,
-    '--python',
-    '3.12',
-    'zenskill',
-    'mcp',
-    'serve',
-  ];
+  const venvPy = resolveVenvPython(paths.venvDir);
+  const commandAlive = existsSync(mcp.command);
+  const launchesViaUv =
+    /(^|[\\/])uv(\.exe)?$/i.test(mcp.command) || (mcp.args ?? [])[0] === 'run';
 
-  const env = { ...mcp.env };
-  if (
+  if (venvPy && (launchesViaUv || !commandAlive)) {
+    // Upgrade (or repair) to the prebuilt interpreter — no writes to the pack.
+    mcp.command = venvPy;
+    mcp.args = ['-m', 'zenskill', 'mcp', 'serve'];
+  } else if (!commandAlive) {
+    // No venv yet: bootstrap through uv, which creates one on first run.
+    if (!paths.uvPath) return false;
+    mcp.command = paths.uvPath;
+    mcp.args = [
+      'run',
+      '--project',
+      paths.engineDir,
+      '--python',
+      '3.12',
+      'zenskill',
+      'mcp',
+      'serve',
+    ];
+  } else {
+    // Command still valid and nothing to upgrade — leave the config alone.
+    return false;
+  }
+
+  const env: Record<string, string> = { ...(mcp.env ?? {}) };
+  const launchesDirectly = venvPy !== null && mcp.command === venvPy;
+  if (launchesDirectly) {
+    delete env.UV_PROJECT_ENVIRONMENT;
+  } else if (
     !env.UV_PROJECT_ENVIRONMENT ||
     env.UV_PROJECT_ENVIRONMENT.includes('.craft-agent')
   ) {

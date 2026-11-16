@@ -342,11 +342,6 @@ export class ZenskillAgent extends BaseAgent {
       p.startsWith('~') ? require('path').join(require('os').homedir(), p.slice(1)) : p;
     let cwd = this.workingDirectory ? expandTilde(this.workingDirectory) : process.cwd();
     if (process.platform === 'win32' && /\.cmd$/i.test(zenskillPath) && env['CRAFT_UV'] && env['CRAFT_ZENSKILL']) {
-      command = env['CRAFT_UV'] as string;
-      spawnArgs = [
-        'run', '--project', env['CRAFT_ZENSKILL'] as string, '--python', '3.12',
-        'zenskill', ...args,
-      ];
       if (!env['UV_PROJECT_ENVIRONMENT']) {
         env['UV_PROJECT_ENVIRONMENT'] = require('path').join(
           env['USERPROFILE'] || require('os').homedir(), '.zenskill', 'electron-venv',
@@ -356,6 +351,21 @@ export class ZenskillAgent extends BaseAgent {
         env['UV_PYTHON_INSTALL_DIR'] = require('path').join(env['CRAFT_ZENSKILL'], 'python');
       }
       cwd = env['CRAFT_ZENSKILL'] as string;
+      // 打包后 engine pack 目录只读，`uv run` 写 .tmp 会被拒 ⇒ 进程秒退 ⇒
+      // MCP 握手失败（-32000 Connection closed）。venv 建好后直接调解释器。
+      const venvPython = require('path').join(
+        env['UV_PROJECT_ENVIRONMENT'] as string, 'Scripts', 'python.exe',
+      );
+      if (require('fs').existsSync(venvPython)) {
+        command = venvPython;
+        spawnArgs = ['-m', 'zenskill', ...args];
+      } else {
+        command = env['CRAFT_UV'] as string;
+        spawnArgs = [
+          'run', '--project', env['CRAFT_ZENSKILL'] as string, '--python', '3.12',
+          'zenskill', ...args,
+        ];
+      }
     }
 
     const spawnOpts: SpawnOptions = {
