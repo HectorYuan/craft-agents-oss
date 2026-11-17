@@ -411,7 +411,7 @@ export function CultivationPage({
       <div className="flex items-center gap-2">
         <Sparkles className="h-4 w-4 text-accent" />
         <div>
-          <div className={ZS.title}>{t('zenskill.cultivation.title', '修炼域')}</div>
+          <div className={ZS.title}>{t('zenskill.cultivation.title', '修炼')}</div>
           <div className={ZS.subtitle}>
             {t('zenskill.cultivation.subtitle', '和智能体一起，把成长变成看得见的回路')}
           </div>
@@ -493,7 +493,7 @@ export function CultivationPage({
                       {actions.error && <ErrorBlock message={actions.error} onRetry={actions.refresh} />}
                       {!actions.error && (actions.data?.progressions?.length ?? 0) === 0 && (
                         <div className="text-[13.125px] text-muted-foreground">
-                          {t('zenskill.cultivation.section.actionsEmpty', '暂无推进建议 —— 去「项目」域看待办')}
+                          {t('zenskill.cultivation.section.actionsEmpty', '暂无推进建议 —— 去「项目」看待办')}
                         </div>
                       )}
                       {(actions.data?.progressions ?? []).map((p, i) => (
@@ -737,7 +737,7 @@ export function CultivationPage({
               <div className="text-[11.25px] text-muted-foreground">
                 {t(
                   'zenskill.cultivation.section.adviceScope',
-                  '任务和行动项在「项目」域，这里只放成长与过程',
+                  '任务和行动项在「项目」，这里只放成长与过程',
                 )}
               </div>
             </div>
