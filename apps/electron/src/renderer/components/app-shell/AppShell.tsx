@@ -109,7 +109,7 @@ import { resolveEntityColor } from "@craft-agent/shared/colors"
 import * as storage from "@/lib/local-storage"
 import { toast } from "sonner"
 import { ZenSkillToastMount } from "@/components/zenskill/ZenSkillToastMount"
-import { buildDomainGroupedNavItems } from "@/components/zenskill/zenskill-nav-items"
+import { buildDomainNavBuckets } from "@/components/zenskill/zenskill-nav-items"
 import { pageIcon } from "@/components/pages/page-visuals"
 import { navigate, routes } from "@/lib/navigate"
 import {
@@ -2145,10 +2145,11 @@ function AppShellContent({
     return result
   }, [handleAllSessionsClick, handleFlaggedClick, handleArchivedClick, handleSessionStatusClick, effectiveSessionStatuses, handleLabelClick, labelTree, handleSourcesClick, handleSkillsClick, handleProjectsClick, handlePagesClick, handleAutomationsClick, handleSettingsClick, handleWhatsNewClick])
 
-  // ★ 按宿主域分组的侧边栏条目（会话 / 项目 / 技能 / 今日 / 设置）。
-  //   构造逻辑与不变式说明见该模块自身的注释。
-  const domainGroupedNavItems = React.useMemo(
-    () => buildDomainGroupedNavItems(t, navigate, navState),
+  // ★ 按宿主域拆桶（会话 / 项目 / 技能 / 今日 / 设置）——
+  //   各域条目并入下方对应的**原生分组**（所有会话 / 项目 / 技能 / 设置），
+  //   不再自成一块；构造逻辑与不变式说明见该模块自身的注释。
+  const domainNavBuckets = React.useMemo(
+    () => buildDomainNavBuckets(t, navigate, navState),
     [t, navState],
   )
 
@@ -2528,6 +2529,9 @@ function AppShellContent({
                           variant: (sessionFilter?.kind === 'archived' ? "default" : "ghost") as "default" | "ghost",
                           onClick: handleArchivedClick,
                         },
+                        // 会话域页面（洞察 / ZenLoop）并入会话分组尾部
+                        // （trailing 区不参与状态排序；该区渲染时会滤掉分隔线，故不加分隔线）
+                        ...domainNavBuckets.conversation,
                       ],
                     },
                     // Labels: navigable header (shows all labeled sessions) + hierarchical tree (drag-and-drop reorder + re-parent)
@@ -2616,6 +2620,11 @@ function AppShellContent({
                       icon: Zap,
                       variant: isSkillsNavigation(navState) ? "default" : "ghost",
                       onClick: handleSkillsClick,
+                      // 技能域页面（记忆库 / 画像 / 图谱 / 市场 / 学习路径 / 修炼域）并入技能分组
+                      expandable: domainNavBuckets.skill.length > 0,
+                      expanded: isExpanded('nav:skills'),
+                      onToggle: () => toggleExpanded('nav:skills'),
+                      items: domainNavBuckets.skill,
                       contextMenu: {
                         type: 'skills',
                         onAddSkill: openAddSkill,
@@ -2629,21 +2638,26 @@ function AppShellContent({
                       // Highlight only when on Projects view itself, not when a child is "active" (jumped-to filter)
                       variant: isProjectsNavigation(navState) ? "default" : "ghost",
                       onClick: handleProjectsClick,
-                      expandable: projects.length > 0,
+                      expandable: true,
                       expanded: isExpanded('nav:projects'),
                       onToggle: () => toggleExpanded('nav:projects'),
                       contextMenu: {
                         type: 'projects' as const,
                         onAddProject: openAddProject,
                       },
-                      items: projects.map(p => ({
-                        id: `nav:projects:${p.config.id}`,
-                        title: p.config.name,
-                        icon: FolderKanban,
-                        // Highlight when on allSessions view AND filter includes this project (the jump-to state)
-                        variant: (sessionFilter?.kind === 'allSessions' && projectFilter.get(p.config.id) === 'include') ? "default" as const : "ghost" as const,
-                        onClick: () => handleJumpToProjectSessions(p.config.id),
-                      })),
+                      items: [
+                        // 项目域页面（GTD 工作台）置顶，随后是项目实例列表
+                        ...domainNavBuckets.project,
+                        ...(projects.length > 0 ? [{ id: 'separator:project-domain', type: 'separator' as const }] : []),
+                        ...projects.map(p => ({
+                          id: `nav:projects:${p.config.id}`,
+                          title: p.config.name,
+                          icon: FolderKanban,
+                          // Highlight when on allSessions view AND filter includes this project (the jump-to state)
+                          variant: (sessionFilter?.kind === 'allSessions' && projectFilter.get(p.config.id) === 'include') ? "default" as const : "ghost" as const,
+                          onClick: () => handleJumpToProjectSessions(p.config.id),
+                        })),
+                      ],
                     },
                     {
                       id: "nav:pages",
@@ -2664,11 +2678,8 @@ function AppShellContent({
                         onClick: () => navigate(routes.view.pages(p.config.slug)),
                       })),
                     },
-                    // ★ 按宿主域直接平铺（会话 / 项目 / 技能 / 今日 / 设置）——
-                    //   不再包一层可折叠的「ZenSkill」父级：对齐设计稿，五域即侧栏一等分组，
-                    //   用户只看到对象名。分组标题由 sectionLabel 渲染（不可交互），零路由改动。
-                    { id: "separator:zenskill", type: "separator" as const },
-                    ...domainGroupedNavItems,
+                    // 今日域（跨域读模型总览）—— 放在页面与自动化之间
+                    ...domainNavBuckets.today,
                     {
                       id: "nav:automations",
                       title: t("sidebar.automations"),
@@ -2723,6 +2734,8 @@ function AppShellContent({
                       variant: isSettingsNavigation(navState) ? "default" : "ghost",
                       onClick: () => handleSettingsClick(),
                     },
+                    // 设置域页面（协同）紧随设置
+                    ...domainNavBuckets.settings,
                     // --- What's New ---
                     {
                       id: "nav:whats-new",

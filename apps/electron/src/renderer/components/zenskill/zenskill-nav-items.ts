@@ -18,7 +18,8 @@ import type { LucideIcon } from 'lucide-react'
 import type { SidebarItem } from '@/components/app-shell/LeftSidebar'
 import type { NavigateOptions, Route } from '@/lib/navigate'
 import { ZENSKILL_PAGES } from './zenskill-registry'
-import { groupViewsByHostDomain, isSidebarVisibleMode } from './zenskill-views'
+import { groupViewsByHostDomain, isSidebarVisibleMode, HOST_DOMAIN_ORDER } from './zenskill-views'
+import type { HostDomain } from './zenskill-views'
 
 type Translate = (key: string) => string
 type Navigate = (route: Route, options?: NavigateOptions) => void
@@ -78,4 +79,46 @@ export function buildDomainGroupedNavItems(
     })
   }
   return entries
+}
+
+/**
+ * 按宿主域拆成「桶」—— 供宿主侧栏把各域条目**并入对应的原生分组**：
+ * 会话域 → 「所有会话」尾部；项目域 → 「项目」组内；技能域 → 「技能」组内；
+ * 今日域 → 页面与自动化之间；设置域 → 「设置」之后。
+ *
+ * 与 buildDomainGroupedNavItems 的区别：不带 sectionLabel（原生分组标题已承担
+ * 分区语义），点击目标 / 高亮 / id 与平铺版逐字一致（零路由回归）。
+ */
+export function buildDomainNavBuckets(
+  t: Translate,
+  navigate: Navigate,
+  navState: NavigationSnapshot,
+): Record<HostDomain, SidebarItem[]> {
+  const buckets = Object.fromEntries(
+    HOST_DOMAIN_ORDER.map((d) => [d, [] as SidebarItem[]]),
+  ) as Record<HostDomain, SidebarItem[]>
+
+  const groups = groupViewsByHostDomain(
+    ZENSKILL_PAGES
+      .map((p) => ({ slug: p.slug, hostDomain: p.hostDomain, mode: p.mode, slot: p.slot }))
+      .filter((v) => isSidebarVisibleMode(v.mode)),
+  )
+  for (const group of groups) {
+    for (const view of group.views) {
+      const page = ZENSKILL_PAGES.find((p) => p.slug === view.slug)
+      if (!page) continue
+      const isActive =
+        navState.navigator === 'zenskill' &&
+        navState.details?.type === 'zenskill-page' &&
+        navState.details.pageSlug === page.slug
+      buckets[group.hostDomain].push({
+        id: `nav:zenskill:${page.slug}`,
+        title: t(page.i18nLabelKey),
+        icon: page.icon,
+        variant: isActive ? 'default' : 'ghost',
+        onClick: () => navigate((page.routeBuilder?.() ?? `zenskill/${page.slug}`) as Route),
+      })
+    }
+  }
+  return buckets
 }
