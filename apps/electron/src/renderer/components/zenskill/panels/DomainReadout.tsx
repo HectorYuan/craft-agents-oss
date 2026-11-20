@@ -29,6 +29,7 @@ import { useTranslation } from 'react-i18next'
 import { useMcpTool } from '@/hooks/zenskill/useMcpTool'
 import { ZENSKILL_SOURCE_SLUG } from '../zenskill-registry'
 import { ReadoutStrip, type ReadoutCell } from './ReadoutStrip'
+import { NowReadoutBar } from './NowReadoutBar'
 import { isNoDataSourceError } from './errors'
 
 export interface ZenloopStatusData {
@@ -207,5 +208,10 @@ export function DomainReadout({ workspaceId }: { workspaceId?: string }) {
 
   if (cells.length === 0) return null
 
-  return <ReadoutStrip cells={cells} />
+  // ready 态：卡片化「此刻」三格（数据与 hooks 不变，仅展示层升级）
+  return (
+    <div className="px-5 py-2">
+      <NowReadoutBar loop={loop.data} energy={energy.data} attention={attention.data} delegation={delegation.data} />
+    </div>
+  )
 }
