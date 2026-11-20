@@ -4,6 +4,7 @@
  * 从 ZenSkillDataPanel Memory tab 提取。已解锁彩色 + 未解锁灰色 + 进度条。
  */
 import React from 'react'
+import { useTranslation } from 'react-i18next'
 import { Trophy } from 'lucide-react'
 import { ZS } from './tokens'
 
@@ -27,6 +28,7 @@ export interface AchievementGridProps {
 }
 
 export function AchievementGrid({ unlocked, locked, completionRate, onNavigateToChat }: AchievementGridProps) {
+  const { t } = useTranslation()
   if (unlocked.length === 0 && locked.length === 0) {
     return <div className={ZS.emptyState}>暂无成就</div>
   }
@@ -36,7 +38,7 @@ export function AchievementGrid({ unlocked, locked, completionRate, onNavigateTo
       <div className={ZS.sectionHeader}>
         <Trophy className="h-3.5 w-3.5 text-muted-foreground" />
         <span className={ZS.body + ' font-medium text-muted-foreground'}>
-          Achievements ({unlocked.length}/{unlocked.length + locked.length})
+          {t('zenskill.profile.achievements', '成就')} ({unlocked.length}/{unlocked.length + locked.length})
         </span>
         {completionRate > 0 && (
           <span className={ZS.micro + ' text-muted-foreground/60 ml-auto'}>

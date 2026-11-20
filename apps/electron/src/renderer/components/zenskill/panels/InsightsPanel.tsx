@@ -109,7 +109,7 @@ export function InsightsPanel({
                 onClick={() => handleExpand(insight)}
                 role="button"
                 aria-expanded={isExpanded}
-                aria-label={`${insight.title} - ${insight.level} priority`}
+                aria-label={`${insight.title} - ${t(`zenskill.insights.level.${insight.level}`, insight.level)}`}
                 tabIndex={0}
                 onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') handleExpand(insight) }}
               >
@@ -132,9 +132,9 @@ export function InsightsPanel({
                   {insight.title}
                 </span>
 
-                {/* 级别标签 */}
+                {/* 级别标签 —— 引擎给的是 high/medium/low，界面必须本地化 */}
                 <span className={`text-xs px-1 py-0.5 rounded shrink-0 ${LEVEL_COLORS[insight.level] || LEVEL_COLORS.low}`}>
-                  {insight.level}
+                  {t(`zenskill.insights.level.${insight.level}`, insight.level)}
                 </span>
               </div>
 

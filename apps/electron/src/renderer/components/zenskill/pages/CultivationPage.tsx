@@ -83,6 +83,14 @@ interface GrowthData {
   }[]
 }
 
+interface SkillGrowthData {
+  available?: boolean
+  level?: string
+  level_progress?: number
+  next_level?: string
+  total_interactions?: number
+}
+
 interface AchievementData {
   badges?: {
     id: string
@@ -275,6 +283,12 @@ export function CultivationPage({
 
   /* 侧区 B：成长 */
   const growth = useMcpTool<GrowthData>(workspaceId, ZENSKILL_SOURCE_SLUG, 'growth_dashboard', {})
+  // ★ 境界进度只认 skill_growth（与「成长」页同一出口）：成就徽章的 level_*
+  //   进度是「事件统计」口径，用它会得出「还差 67%」而成长页是 11%。
+  const headSkillId = growth.data?.skills?.[0]?.skill_id
+  const skillGrowth = useMcpTool<SkillGrowthData>(
+    workspaceId, ZENSKILL_SOURCE_SLUG, 'skill_growth', { skill_id: headSkillId ?? '' },
+  )
   const achievements = useMcpTool<AchievementData>(workspaceId, ZENSKILL_SOURCE_SLUG, 'achievement_list', {})
   const companion = useMcpTool<CompanionData>(workspaceId, ZENSKILL_SOURCE_SLUG, 'companion_summary', {})
 
@@ -309,16 +323,30 @@ export function CultivationPage({
       const lv = s.level || '—'
       counts.set(lv, (counts.get(lv) ?? 0) + 1)
     }
-    return [...counts.entries()].map(([lv, n]) => `${lv} ${n}`).join(' · ')
-  }, [skills])
+    return [...counts.entries()]
+      .map(([lv, n]) => `${t(`zenskill.skillGraph.level.${lv}`, lv)} ${n}`)
+      .join(' · ')
+  }, [skills, t])
 
   const unlockedBadges = achievements.data?.badges ?? []
   const lockedBadges = achievements.data?.locked ?? []
-  /** 下一个境界里程碑：level_* 且有进度 */
-  const nextRealm = lockedBadges.find(
+  // ★ 境界读数：skill_growth（真实出口）优先；成就徽章只用来做成就墙
+  const sg = skillGrowth.data
+  const currentRealmRaw = sg?.level || skills[0]?.level || ''
+  const currentRealm = currentRealmRaw
+    ? t(`zenskill.skillGraph.level.${currentRealmRaw}`, currentRealmRaw)
+    : '—'
+  const nextRealmInfo = sg?.next_level
+    ? {
+        title: t(`zenskill.skillGraph.level.${sg.next_level}`, sg.next_level),
+        progress: sg.level_progress ?? 0,
+      }
+    : undefined
+  // 兼容旧出口：没有 skill_growth 时才退回徽章里的 level_* 进度
+  const legacyNextRealm = lockedBadges.find(
     (b) => b.id?.startsWith('level_') && (b.progress ?? 0) > 0,
   )
-  const currentRealm = skills[0]?.level || '—'
+  const nextRealm = nextRealmInfo ?? (sg ? undefined : legacyNextRealm)
 
   /* ---- 今日习惯：今日该做的（due）+ 今日已完成的 ---- */
   const habitRows = useMemo(() => {
@@ -562,7 +590,7 @@ export function CultivationPage({
                               '{{current}} → {{next}}（还差 {{pct}}%）',
                               {
                                 current: currentRealm,
-                                next: nextRealm.title ?? nextRealm.id,
+                                next: nextRealm.title ?? '',
                                 pct: Math.round((nextRealm.progress ?? 0) * 100),
                               },
                             )

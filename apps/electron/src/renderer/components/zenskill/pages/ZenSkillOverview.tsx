@@ -250,8 +250,13 @@ export function ZenSkillOverview({ workspaceId, onNavigateToChat }: ZenSkillOver
                 <div className="text-muted-foreground flex items-center gap-1">
                   {t('zenskill.overview.energy', 'Energy')}
                 </div>
-                <div className="text-lg font-semibold capitalize">
-                  {energy.data?.status?.level ?? '—'}
+                <div className="text-lg font-semibold">
+                  {energy.data?.status?.level
+                    ? t(
+                        `zenskill.gtd.review.energyLevel.${energy.data.status.level}`,
+                        energy.data.status.level,
+                      )
+                    : '—'}
                 </div>
               </div>
             </div>
@@ -333,7 +338,12 @@ export function ZenSkillOverview({ workspaceId, onNavigateToChat }: ZenSkillOver
                     {t('zenskill.overview.growth', 'Growth')} — {growth.data.skills[0].skill_id}
                   </span>
                   <span className={ZS.micro + ' text-muted-foreground/60 ml-auto'}>
-                    {growth.data.skills[0].level}
+                    {growth.data.skills[0].level
+                      ? t(
+                          `zenskill.skillGraph.level.${growth.data.skills[0].level.toUpperCase()}`,
+                          growth.data.skills[0].level,
+                        )
+                      : ''}
                   </span>
                 </div>
                 <div className="flex justify-center">

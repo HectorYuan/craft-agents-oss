@@ -4,6 +4,7 @@
  * 从 ZenSkillDataPanel Skills tab 提取。显示多个习惯的 streak/完成率/热力图/打卡按钮。
  */
 import React from 'react'
+import { useTranslation } from 'react-i18next'
 import { Flame, Check } from 'lucide-react'
 import { ZS } from './tokens'
 import { HabitHeatmap } from './HabitHeatmap'
@@ -27,6 +28,7 @@ export interface HabitListProps {
 }
 
 export function HabitList({ habits, maxItems = 4, onCheckIn }: HabitListProps) {
+  const { t } = useTranslation()
   if (habits.length === 0) {
     return <div className={ZS.emptyState}>暂无习惯</div>
   }
@@ -36,7 +38,7 @@ export function HabitList({ habits, maxItems = 4, onCheckIn }: HabitListProps) {
       <div className={ZS.sectionHeader}>
         <Flame className="h-3.5 w-3.5 text-muted-foreground" />
         <span className={ZS.body + ' font-medium text-muted-foreground'}>
-          Habits ({habits.length})
+          {t('zenskill.profile.habits', '习惯')} ({habits.length})
         </span>
       </div>
       <div className="space-y-1.5">
@@ -54,7 +56,7 @@ export function HabitList({ habits, maxItems = 4, onCheckIn }: HabitListProps) {
                 {onCheckIn && (
                   <button
                     className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-success/20 text-muted-foreground hover:text-success-text"
-                    title="Check in"
+                    title={t('zenskill.profile.habits.checkIn', '打卡')}
                     onClick={() => onCheckIn(h.id)}
                   >
                     <Check className="h-3 w-3" />

@@ -41,6 +41,40 @@ interface GrowthData {
   snapshots?: { scores?: Record<string, number>; timestamp?: string }[]
 }
 
+/**
+ * ★ 第二十二批：`skill_growth` 的返回契约（`registry._skill_growth` L1246+）。
+ * `growth_dashboard` 只给 {count, skills[]}，**不返回** realm / realm_progress /
+ * next_realm / total_interactions / snapshots ⇒ 页头读它必然全零。真实出口是
+ * `skill_growth`（需 skill_id，等级来自 `core/skill_profile.py` 的 level /
+ * level_progress / total_interactions）。
+ */
+interface SkillGrowthData {
+  ok?: boolean
+  available?: boolean
+  skill_id?: string
+  name?: string
+  display_name?: string
+  level?: string
+  level_progress?: number
+  total_interactions?: number
+  success_count?: number
+  fail_count?: number
+  success_rate?: number
+  last_interaction_at?: string
+  milestones?: { name?: string; achieved_at?: string }[]
+  abilities?: Record<string, number>
+}
+
+/** 境界递进顺序（与 `core/skill_profile.py` 的 Level 枚举一致） */
+const REALM_ORDER = ['NOVICE', 'APPRENTICE', 'ADEPT', 'EXPERT', 'MASTER']
+
+function nextRealmOf(level?: string): string | undefined {
+  if (!level) return undefined
+  const i = REALM_ORDER.indexOf(level.toUpperCase())
+  if (i < 0 || i >= REALM_ORDER.length - 1) return undefined
+  return REALM_ORDER[i + 1]
+}
+
 /** ★ 第二十批 D 段：了解度（误差范围）payload —— 单位 = 分数单位 */
 interface UnderstandingData {
   status?: {
@@ -98,6 +132,8 @@ interface WritePayload { ok?: boolean; success?: boolean; message?: string; erro
 
 interface EnergyData {
   status?: { level?: string; pct?: number; current_energy?: number; max_energy?: number }
+  /** ★ 引擎真实形状：建议在 advice.suggestions 下（不是顶层 suggestions） */
+  advice?: { suggestions?: string[]; total_burned_7d?: number; peak_hour?: number }
   suggestions?: string[]
 }
 
@@ -191,6 +227,12 @@ export function ZenSkillProfile({ workspaceId }: ZenSkillProfileProps) {
   }
 
   const growth = useMcpTool<GrowthData>(workspaceId, ZENSKILL_SOURCE_SLUG, 'growth_dashboard', {})
+  // ★ 页头「境界 / 进度 / 累计交互」只认 skill_growth（growth_dashboard 不返回）；
+  //   skill_id 从 growth 的首个技能来，拿到后才带真实参数重取。
+  const headSkillId = growth.data?.skills?.[0]?.skill_id
+  const skillGrowth = useMcpTool<SkillGrowthData>(
+    workspaceId, ZENSKILL_SOURCE_SLUG, 'skill_growth', { skill_id: headSkillId ?? '' },
+  )
   const achievements = useMcpTool<AchievementData>(workspaceId, ZENSKILL_SOURCE_SLUG, 'achievement_list', {})
   const habits = useMcpTool<HabitData>(workspaceId, ZENSKILL_SOURCE_SLUG, 'habit_analyze', { days: 28 })
   const goals = useMcpTool<GoalProgressData>(workspaceId, ZENSKILL_SOURCE_SLUG, 'goal_progress', {})
@@ -335,7 +377,9 @@ export function ZenSkillProfile({ workspaceId }: ZenSkillProfileProps) {
   }
 
   const isLoading = growth.loading && !growth.data
-  const hasError = growth.error && !growth.data
+  // ★ 首屏横幅：不只报 growth 一处 —— 能量/成就读不到时也必须说清（避免页头显示「—」却不给原因）
+  const firstError = growth.error ?? energy.error ?? achievements.error ?? skillGrowth.error
+  const hasError = Boolean(firstError) && !growth.data
 
   // Derived data
   const firstSkill = growth.data?.skills?.[0]
@@ -344,11 +388,16 @@ export function ZenSkillProfile({ workspaceId }: ZenSkillProfileProps) {
     return filterScores(firstSkill.scores)
   }, [firstSkill])
 
-  const realm = growth.data?.realm ?? '—'
-  const realmProgress = growth.data?.realm_progress ?? 0
-  const nextRealm = growth.data?.next_realm ?? '—'
-  const totalInteractions = growth.data?.total_interactions ?? 0
-  const interactionsForNext = growth.data?.interactions_for_next ?? 100
+  // ★ 页头读数：优先 skill_growth（真实出口），growth_dashboard 只留作旧版兜底
+  const rawRealm = skillGrowth.data?.level ?? growth.data?.realm
+  const realmLabel = rawRealm
+    ? t(`zenskill.skillGraph.level.${rawRealm.toUpperCase()}`, rawRealm)
+    : '—'
+  const realmProgress = skillGrowth.data?.level_progress ?? growth.data?.realm_progress ?? 0
+  const nextRealmRaw = nextRealmOf(rawRealm) ?? growth.data?.next_realm
+  const nextRealm = nextRealmRaw ? t(`zenskill.skillGraph.level.${nextRealmRaw.toUpperCase()}`, nextRealmRaw) : '—'
+  const totalInteractions = skillGrowth.data?.total_interactions ?? growth.data?.total_interactions ?? 0
+  const interactionsForNext = growth.data?.interactions_for_next ?? 0
 
   const badges = achievements.data?.badges ?? []
   const locked = achievements.data?.locked ?? []
@@ -368,7 +417,7 @@ export function ZenSkillProfile({ workspaceId }: ZenSkillProfileProps) {
 
   const energyLevel = energy.data?.status?.level ?? '—'
   const energyPct = energy.data?.status?.pct ?? 0
-  const energySuggestions = energy.data?.suggestions ?? []
+  const energySuggestions = energy.data?.advice?.suggestions ?? energy.data?.suggestions ?? []
 
   // Day 1 PageToChatBridge prompt — five-dimension snapshot as a planning
   // request; composite/weakest read from the first skill's radar scores.
@@ -416,7 +465,7 @@ export function ZenSkillProfile({ workspaceId }: ZenSkillProfileProps) {
       </div>
 
       {hasError && (
-        <div className={`${ZS.errorBanner} mx-5 mt-3`}>{growth.error}</div>
+        <div className={`${ZS.errorBanner} mx-5 mt-3`}>{firstError}</div>
       )}
 
       <div className="flex-1 overflow-y-auto px-6 py-5">
@@ -425,7 +474,9 @@ export function ZenSkillProfile({ workspaceId }: ZenSkillProfileProps) {
           <div className={`${ZS.card}`}>
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2">
-                <span className="text-sm font-semibold text-accent">{realm}</span>
+                <span className="text-sm font-semibold text-accent">
+                  {skillGrowth.loading && !skillGrowth.data ? '…' : realmLabel}
+                </span>
                 {nextRealm !== '—' && (
                   <span className="text-xs text-muted-foreground">
                     {t('zenskill.profile.nextRealm', 'Next:')} {nextRealm}
@@ -436,7 +487,7 @@ export function ZenSkillProfile({ workspaceId }: ZenSkillProfileProps) {
                 {t('zenskill.profile.interactions', '{{total}} interactions', { total: totalInteractions })}
               </span>
             </div>
-            {/* Realm progress bar */}
+            {/* Realm progress bar —— 进度 = 当前境界内完成度（0–1） */}
             <div className="h-1.5 rounded bg-muted/60 overflow-hidden mb-2">
               <div
                 className="h-full rounded bg-accent/70 transition-all"
@@ -446,7 +497,11 @@ export function ZenSkillProfile({ workspaceId }: ZenSkillProfileProps) {
             <div className="flex items-center gap-1">
               <Zap className="h-3 w-3 text-muted-foreground" />
               <span className="text-xs text-muted-foreground">{t('zenskill.profile.energy', 'Energy')}</span>
-              <span className="text-xs font-medium capitalize">{energyLevel}</span>
+              <span className="text-xs font-medium">
+                {energyLevel === '—'
+                  ? (energy.loading ? '…' : '—')
+                  : t(`zenskill.gtd.review.energyLevel.${energyLevel}`, energyLevel)}
+              </span>
               <span className="text-xs text-muted-foreground ml-auto">{Math.round(energyPct * 100)}%</span>
             </div>
           </div>
@@ -494,12 +549,16 @@ export function ZenSkillProfile({ workspaceId }: ZenSkillProfileProps) {
               </span>
             </div>
             <div className="flex items-center gap-2 text-xs">
-              <span className="font-medium">{realm}</span>
+              <span className="font-medium">{realmLabel}</span>
               <div className="flex-1 h-1 rounded bg-muted/60 overflow-hidden">
                 <div className="h-full bg-accent/70" style={{ width: `${Math.min(realmProgress * 100, 100)}%` }} />
               </div>
               <span className="text-muted-foreground">
-                {totalInteractions}/{interactionsForNext}
+                {/* ★ 口径：skill_growth 只给「档内进度比例」，不给「距下一档还差几次」
+                    ⇒ 这里只报百分比，**不拼 x/y**（避免再造一组假分母）。 */}
+                {interactionsForNext > 0
+                  ? `${totalInteractions}/${interactionsForNext}`
+                  : `${Math.round(realmProgress * 100)}%`}
               </span>
               {nextRealm !== '—' && <span className="font-medium">{nextRealm}</span>}
             </div>

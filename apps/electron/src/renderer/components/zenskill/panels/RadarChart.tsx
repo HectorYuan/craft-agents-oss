@@ -46,6 +46,11 @@ export function RadarChart({ scores, size = 200, highlight, onHover, labels }: R
 
   if (dims.length === 0) return null
 
+  // ★ 外圈留白：标签中心半径 1.12r + 三字标签半宽约 27px ⇒ 需要 26px 边距，
+  //   否则最左/最右标签会被 viewBox 裁掉（真机「记忆力」曾缺首字）。
+  const pad = 26
+  const canvas = size + pad * 2
+
   // 网格顶点（5 层）
   const gridLayers = [0.2, 0.4, 0.6, 0.8, 1.0]
 
@@ -56,10 +61,10 @@ export function RadarChart({ scores, size = 200, highlight, onHover, labels }: R
     return `${cx + r * val * Math.cos(angle)},${cy + r * val * Math.sin(angle)}`
   })
 
-  // 标签位置（外移 15%）
+  // 标签位置（外移 12%，落在留白区）
   const labelPoints = dims.map((dim, i) => {
     const angle = (2 * Math.PI * i) / n - Math.PI / 2
-    const lr = r * 1.18
+    const lr = r * 1.12
     return { dim, x: cx + lr * Math.cos(angle), y: cy + lr * Math.sin(angle) }
   })
 
@@ -74,7 +79,7 @@ export function RadarChart({ scores, size = 200, highlight, onHover, labels }: R
   }
 
   return (
-    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+    <svg width={canvas} height={canvas} viewBox={`${-pad} ${-pad} ${canvas} ${canvas}`} style={{ maxWidth: '100%' }}>
       {/* 网格 */}
       {gridLayers.map((layer) => (
         <polygon
