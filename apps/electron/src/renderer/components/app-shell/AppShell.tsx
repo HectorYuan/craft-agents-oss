@@ -2664,20 +2664,11 @@ function AppShellContent({
                         onClick: () => navigate(routes.view.pages(p.config.slug)),
                       })),
                     },
-                    {
-                      id: "nav:zenskill",
-                      title: t("sidebar.zenskill"),
-                      icon: Zap,
-                      variant: isZenSkillNavigation(navState) ? "default" as const : "ghost" as const,
-                      onClick: () => navigate(routes.view.zenskillOverview()),
-                      expandable: domainGroupedNavItems.length > 0,
-                      expanded: isExpanded('nav:zenskill'),
-                      onToggle: () => toggleExpanded('nav:zenskill'),
-                      // 按宿主域分组（会话 / 项目 / 技能 / 今日 / 设置）——
-                      // 把「11 个平铺页」变成「每个能力归哪个域一眼可见」。
-                      // 形态由视图注册表的 `mode` 决定：'panel'/'quick' 不进侧边栏，'page'/'tab' 进。
-                      items: domainGroupedNavItems,
-                    },
+                    // ★ 按宿主域直接平铺（会话 / 项目 / 技能 / 今日 / 设置）——
+                    //   不再包一层可折叠的「ZenSkill」父级：对齐设计稿，五域即侧栏一等分组，
+                    //   用户只看到对象名。分组标题由 sectionLabel 渲染（不可交互），零路由改动。
+                    { id: "separator:zenskill", type: "separator" as const },
+                    ...domainGroupedNavItems,
                     {
                       id: "nav:automations",
                       title: t("sidebar.automations"),
