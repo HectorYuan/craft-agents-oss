@@ -1967,7 +1967,7 @@
   "zenskill.gtd.tab.inbox": "Inbox",
   "zenskill.gtd.tab.incubating": "Incubating",
   "zenskill.gtd.tab.projects": "Projects",
-  "zenskill.gtd.title": "GTD Workspace",
+  "zenskill.gtd.title": "Actions",
   "zenskill.inbox.batchClassify": "Batch Organize",
   "zenskill.inbox.capture": "Capture to inbox",
   "zenskill.inbox.capturePlaceholder": "Capture a thought... (Enter)",
@@ -2003,7 +2003,7 @@
   "zenskill.market.sources.healthy": "Healthy",
   "zenskill.market.sources.unhealthy": "Unhealthy",
   "zenskill.market.subtitle": "Discover, install and manage skills",
-  "zenskill.market.title": "Skill Market",
+  "zenskill.market.title": "Market",
   "zenskill.market.trending": "Trending",
   "zenskill.market.uninstall": "Uninstall",
   "zenskill.market.uninstallConfirm": "Confirm uninstall?",
@@ -2099,7 +2099,7 @@
   "zenskill.profile.realmProgress": "Realm Progress",
   "zenskill.profile.streak": "day streak",
   "zenskill.profile.subtitle": "Your growth journey",
-  "zenskill.profile.title": "Profile",
+  "zenskill.profile.title": "Growth",
   "zenskill.progression.celebrationReview": "Start the retrospective",
   "zenskill.progression.celebrationShare": "Share card generated",
   "zenskill.progression.dismiss": "Dismiss",
@@ -2193,7 +2193,7 @@
   "zenskill.skillGraph.tier.T0": "Core T0",
   "zenskill.skillGraph.tier.T1": "Common T1",
   "zenskill.skillGraph.tier.T2": "Low-frequency T2",
-  "zenskill.skillGraph.title": "Skill Graph",
+  "zenskill.skillGraph.title": "Graph",
   "zenskill.skillGraph.topUsage": "Top usage",
   "zenskill.skillGraph.uncategorized": "{{pct}}% skills pending classification",
   "zenskill.skillGraph.uses": "Usage count:",
@@ -2238,5 +2238,5 @@
   "zenskill.zenloop.runDone": "Cycle executed",
   "zenskill.zenloop.status": "Status Overview",
   "zenskill.zenloop.subtitle": "Automated reflection cycles",
-  "zenskill.zenloop.title": "ZenLoop"
+  "zenskill.zenloop.title": "Loops"
 }

@@ -1967,7 +1967,7 @@
   "zenskill.gtd.tab.inbox": "Skrzynka",
   "zenskill.gtd.tab.incubating": "Inkubacja",
   "zenskill.gtd.tab.projects": "Projekty",
-  "zenskill.gtd.title": "Obszar roboczy GTD",
+  "zenskill.gtd.title": "Działania",
   "zenskill.inbox.batchClassify": "Porządkowanie wsadowe",
   "zenskill.inbox.capture": "Dodaj do skrzynki",
   "zenskill.inbox.capturePlaceholder": "Zapisz myśl… (Enter)",
@@ -2003,7 +2003,7 @@
   "zenskill.market.sources.healthy": "Sprawne",
   "zenskill.market.sources.unhealthy": "Uszkodzone",
   "zenskill.market.subtitle": "Odkrywaj, instaluj i zarządzaj umiejętnościami",
-  "zenskill.market.title": "Rynek umiejętności",
+  "zenskill.market.title": "Rynek",
   "zenskill.market.trending": "Popularne",
   "zenskill.market.uninstall": "Odinstaluj",
   "zenskill.market.uninstallConfirm": "Potwierdzić odinstalowanie?",
@@ -2099,7 +2099,7 @@
   "zenskill.profile.realmProgress": "Postęp poziomu",
   "zenskill.profile.streak": "dni z rzędu",
   "zenskill.profile.subtitle": "Twoja droga rozwoju",
-  "zenskill.profile.title": "Profil",
+  "zenskill.profile.title": "Rozwój",
   "zenskill.progression.celebrationReview": "Rozpocznij podsumowanie",
   "zenskill.progression.celebrationShare": "Karta wygenerowana",
   "zenskill.progression.dismiss": "Odrzuć",
@@ -2193,7 +2193,7 @@
   "zenskill.skillGraph.tier.T0": "Rdzeń T0",
   "zenskill.skillGraph.tier.T1": "Powszechne T1",
   "zenskill.skillGraph.tier.T2": "Rzadkie T2",
-  "zenskill.skillGraph.title": "Graf umiejętności",
+  "zenskill.skillGraph.title": "Graf",
   "zenskill.skillGraph.topUsage": "Najczęstsze użycie",
   "zenskill.skillGraph.uncategorized": "{{pct}}% umiejętności czeka na klasyfikację",
   "zenskill.skillGraph.uses": "Liczba użyć:",
@@ -2238,5 +2238,5 @@
   "zenskill.zenloop.runDone": "Cykl wykonany",
   "zenskill.zenloop.status": "Przegląd statusu",
   "zenskill.zenloop.subtitle": "Automatyczne cykle refleksji",
-  "zenskill.zenloop.title": "ZenLoop"
+  "zenskill.zenloop.title": "Pętle"
 }

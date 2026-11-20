@@ -1967,7 +1967,7 @@
   "zenskill.gtd.tab.inbox": "インボックス",
   "zenskill.gtd.tab.incubating": "インキュベート",
   "zenskill.gtd.tab.projects": "プロジェクト",
-  "zenskill.gtd.title": "GTD ワークスペース",
+  "zenskill.gtd.title": "アクション",
   "zenskill.inbox.batchClassify": "一括整理",
   "zenskill.inbox.capture": "受信トレイに収集",
   "zenskill.inbox.capturePlaceholder": "思いついたことを収集…（Enter）",
@@ -2003,7 +2003,7 @@
   "zenskill.market.sources.healthy": "正常",
   "zenskill.market.sources.unhealthy": "異常",
   "zenskill.market.subtitle": "スキルの発見・インストール・管理",
-  "zenskill.market.title": "スキルマーケット",
+  "zenskill.market.title": "マーケット",
   "zenskill.market.trending": "人気",
   "zenskill.market.uninstall": "アンインストール",
   "zenskill.market.uninstallConfirm": "アンインストールを確認しますか？",
@@ -2099,7 +2099,7 @@
   "zenskill.profile.realmProgress": "境界の進捗",
   "zenskill.profile.streak": "日連続",
   "zenskill.profile.subtitle": "あなたの成長の記録",
-  "zenskill.profile.title": "プロフィール",
+  "zenskill.profile.title": "成長",
   "zenskill.progression.celebrationReview": "振り返りを始める",
   "zenskill.progression.celebrationShare": "シェアカードを生成しました",
   "zenskill.progression.dismiss": "閉じる",
@@ -2193,7 +2193,7 @@
   "zenskill.skillGraph.tier.T0": "中核 T0",
   "zenskill.skillGraph.tier.T1": "標準 T1",
   "zenskill.skillGraph.tier.T2": "低頻度 T2",
-  "zenskill.skillGraph.title": "スキルグラフ",
+  "zenskill.skillGraph.title": "グラフ",
   "zenskill.skillGraph.topUsage": "最高使用回数",
   "zenskill.skillGraph.uncategorized": "{{pct}}% のスキルが未分類です",
   "zenskill.skillGraph.uses": "使用回数：",
@@ -2238,5 +2238,5 @@
   "zenskill.zenloop.runDone": "サイクルを実行しました",
   "zenskill.zenloop.status": "ステータス概要",
   "zenskill.zenloop.subtitle": "自動リフレクションサイクル",
-  "zenskill.zenloop.title": "ZenLoop"
+  "zenskill.zenloop.title": "ループ"
 }

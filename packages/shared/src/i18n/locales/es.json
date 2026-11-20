@@ -1967,7 +1967,7 @@
   "zenskill.gtd.tab.inbox": "Entrada",
   "zenskill.gtd.tab.incubating": "Incubar",
   "zenskill.gtd.tab.projects": "Proyectos",
-  "zenskill.gtd.title": "Espacio de trabajo GTD",
+  "zenskill.gtd.title": "Acciones",
   "zenskill.inbox.batchClassify": "Organizar en lote",
   "zenskill.inbox.capture": "Guardar en la bandeja",
   "zenskill.inbox.capturePlaceholder": "Captura una idea… (Intro)",
@@ -2003,7 +2003,7 @@
   "zenskill.market.sources.healthy": "Saludable",
   "zenskill.market.sources.unhealthy": "Con errores",
   "zenskill.market.subtitle": "Descubre, instala y gestiona habilidades",
-  "zenskill.market.title": "Mercado de habilidades",
+  "zenskill.market.title": "Mercado",
   "zenskill.market.trending": "Tendencias",
   "zenskill.market.uninstall": "Desinstalar",
   "zenskill.market.uninstallConfirm": "¿Confirmar desinstalación?",
@@ -2099,7 +2099,7 @@
   "zenskill.profile.realmProgress": "Progreso del Reino",
   "zenskill.profile.streak": "días de racha",
   "zenskill.profile.subtitle": "Tu viaje de crecimiento",
-  "zenskill.profile.title": "Perfil",
+  "zenskill.profile.title": "Crecimiento",
   "zenskill.progression.celebrationReview": "Iniciar la retrospectiva",
   "zenskill.progression.celebrationShare": "Tarjeta generada",
   "zenskill.progression.dismiss": "Descartar",
@@ -2193,7 +2193,7 @@
   "zenskill.skillGraph.tier.T0": "Núcleo T0",
   "zenskill.skillGraph.tier.T1": "Común T1",
   "zenskill.skillGraph.tier.T2": "Poco usado T2",
-  "zenskill.skillGraph.title": "Grafo de Habilidades",
+  "zenskill.skillGraph.title": "Grafo",
   "zenskill.skillGraph.topUsage": "Mayor uso",
   "zenskill.skillGraph.uncategorized": "{{pct}}% de habilidades sin clasificar",
   "zenskill.skillGraph.uses": "Conteo de uso:",
@@ -2238,5 +2238,5 @@
   "zenskill.zenloop.runDone": "Ciclo ejecutado",
   "zenskill.zenloop.status": "Resumen de estado",
   "zenskill.zenloop.subtitle": "Ciclos de reflexión automatizados",
-  "zenskill.zenloop.title": "ZenLoop"
+  "zenskill.zenloop.title": "Bucles"
 }

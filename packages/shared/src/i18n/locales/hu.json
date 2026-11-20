@@ -1967,7 +1967,7 @@
   "zenskill.gtd.tab.inbox": "Gyűjtő",
   "zenskill.gtd.tab.incubating": "Inkubálás",
   "zenskill.gtd.tab.projects": "Projektek",
-  "zenskill.gtd.title": "GTD munkaterület",
+  "zenskill.gtd.title": "Teendők",
   "zenskill.inbox.batchClassify": "Kötegelt renderezés",
   "zenskill.inbox.capture": "Mentés a beérkezésekbe",
   "zenskill.inbox.capturePlaceholder": "Gondolat rögzítése… (Enter)",
@@ -2003,7 +2003,7 @@
   "zenskill.market.sources.healthy": "Egészséges",
   "zenskill.market.sources.unhealthy": "Hibás",
   "zenskill.market.subtitle": "Készségek felfedezése, telepítése és kezelése",
-  "zenskill.market.title": "Készségpiac",
+  "zenskill.market.title": "Piac",
   "zenskill.market.trending": "Népszerű",
   "zenskill.market.uninstall": "Eltávolítás",
   "zenskill.market.uninstallConfirm": "Megerősíti az eltávolítást?",
@@ -2099,7 +2099,7 @@
   "zenskill.profile.realmProgress": "Szint előrehaladás",
   "zenskill.profile.streak": "napos sorozat",
   "zenskill.profile.subtitle": "A fejlődési utad",
-  "zenskill.profile.title": "Profil",
+  "zenskill.profile.title": "Fejlődés",
   "zenskill.progression.celebrationReview": "Visszatekintés indítása",
   "zenskill.progression.celebrationShare": "Megosztási kártya elkészült",
   "zenskill.progression.dismiss": "Elrejtés",
@@ -2193,7 +2193,7 @@
   "zenskill.skillGraph.tier.T0": "Alap T0",
   "zenskill.skillGraph.tier.T1": "Gyakori T1",
   "zenskill.skillGraph.tier.T2": "Ritka T2",
-  "zenskill.skillGraph.title": "Készségráf",
+  "zenskill.skillGraph.title": "Gráf",
   "zenskill.skillGraph.topUsage": "Leggyakoribb",
   "zenskill.skillGraph.uncategorized": "{{pct}}% készség besorolásra vár",
   "zenskill.skillGraph.uses": "Használat:",
@@ -2238,5 +2238,5 @@
   "zenskill.zenloop.runDone": "Ciklus lefutott",
   "zenskill.zenloop.status": "Állapot áttekintés",
   "zenskill.zenloop.subtitle": "Automatizált reflexiós ciklusok",
-  "zenskill.zenloop.title": "ZenLoop"
+  "zenskill.zenloop.title": "Hurkok"
 }
