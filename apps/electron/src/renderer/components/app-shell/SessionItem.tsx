@@ -155,6 +155,7 @@ export function SessionItem({
           onSendToWorkspace={ctx.onSendToWorkspace ? () => ctx.onSendToWorkspace!([item.id]) : undefined}
           hasTransferTargets={canSendToWorkspace}
           onDelete={() => ctx.onDelete(item.id)}
+          onConvertToAction={ctx.onConvertToAction ? () => ctx.onConvertToAction!(item) : undefined}
           projects={ctx.projects}
           onSetProjectId={ctx.onSetProjectId ? (pid) => ctx.onSetProjectId!(item.id, pid) : undefined}
         />

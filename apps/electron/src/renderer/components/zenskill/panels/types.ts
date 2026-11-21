@@ -25,6 +25,9 @@ export interface GtdAction {
   energy_required?: number
   /** Origin marker from the backend ("agent" | "user") — rendered as a source chip in full variant */
   created_by?: string
+  /** Session this action was converted from (F06 `action_add` internal `_source_session_id`).
+   *  Absent = no source link; the panel renders no chip for it. */
+  source_session_id?: string
 }
 
 export interface GtdCalendarEvent {

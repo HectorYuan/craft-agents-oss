@@ -123,3 +123,40 @@ export function formatModel(meta: SessionMeta): string {
   const model = meta.model?.trim()
   return model ? model : METRIC_PLACEHOLDER
 }
+
+/**
+ * Title prefill when converting a session to an action: the first user message
+ * preview takes priority, falling back to the session name. Blank / whitespace
+ * on both sides resolves to `''` — the dialog submit gate then blocks on the
+ * title, mirroring the existing add-action form.
+ */
+export function actionTitleFromSession(meta: SessionMeta): string {
+  const preview = meta.preview?.trim()
+  if (preview) return preview
+  const name = meta.name?.trim()
+  return name ?? ''
+}
+
+/**
+ * Source link resolution for an action card (F06).
+ * - `none`: no `source_session_id` (missing / blank) → render no chip at all.
+ * - `unlinked`: id present but the session is gone from the meta map → muted
+ *   "未关联" chip, no navigation.
+ * - `linked`: id present and the session exists → clickable chip, back-link to it.
+ */
+export type ActionSourceRef =
+  | { state: 'none' }
+  | { state: 'linked'; sessionId: string; name: string }
+  | { state: 'unlinked'; sessionId: string }
+
+export function resolveActionSource(
+  sourceSessionId: string | undefined,
+  metaMap: Map<string, SessionMeta>,
+): ActionSourceRef {
+  const sid = sourceSessionId?.trim()
+  if (!sid) return { state: 'none' }
+  const meta = metaMap.get(sid)
+  if (!meta) return { state: 'unlinked', sessionId: sid }
+  const name = meta.name?.trim() || meta.preview?.trim() || sid
+  return { state: 'linked', sessionId: sid, name }
+}

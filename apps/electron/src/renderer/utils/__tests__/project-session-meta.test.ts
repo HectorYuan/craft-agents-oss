@@ -1,5 +1,5 @@
 /**
- * project-session-meta 纯函数单测（D4.2.1 · F02 / F03 / F04 / F05）
+ * project-session-meta 纯函数单测（D4.2.1 · F02 / F03 / F04 / F05 / F06）
  *
  * 守的口径：
  *  - 只有 `projectId` 精确匹配项目 `config.id` 且非归档的会话才计入该项目；
@@ -10,12 +10,14 @@
 import { describe, expect, it } from 'bun:test'
 import type { SessionMeta } from '../../atoms/sessions'
 import {
+  actionTitleFromSession,
   formatMessageCount,
   formatModel,
   formatTokenTotal,
   maxActiveAt,
   METRIC_PLACEHOLDER,
   recentProjectSessions,
+  resolveActionSource,
   resolveSessionProject,
   sessionActiveAt,
   sessionsForProject,
@@ -149,5 +151,37 @@ describe('F04 指标卡：消息数 / Token / 模型', () => {
     expect(formatModel(meta({ id: 'b', model: '' }))).toBe(METRIC_PLACEHOLDER)
     expect(formatModel(meta({ id: 'c', model: '   ' }))).toBe(METRIC_PLACEHOLDER)
     expect(formatModel(meta({ id: 'd', model: 'minimax-m2' }))).toBe('minimax-m2')
+  })
+})
+
+describe('F06 会话转行动：标题预填与来源回链解析', () => {
+  it('标题预填：首条用户消息 preview 优先，否则会话名；都缺为 ""', () => {
+    expect(actionTitleFromSession(meta({ id: 'a', preview: '帮我整理周报', name: '未命名' }))).toBe('帮我整理周报')
+    expect(actionTitleFromSession(meta({ id: 'b', name: '重构评审' }))).toBe('重构评审')
+    expect(actionTitleFromSession(meta({ id: 'c', preview: '   ', name: '  ' }))).toBe('')
+    expect(actionTitleFromSession(meta({ id: 'd' }))).toBe('')
+  })
+
+  it('来源解析：无 id → none（不渲染 chip）；id 缺失会话 → unlinked；存在 → linked', () => {
+    const map = new Map<string, SessionMeta>([
+      ['s-1', meta({ id: 's-1', name: '设计讨论' })],
+    ])
+
+    expect(resolveActionSource(undefined, map)).toEqual({ state: 'none' })
+    expect(resolveActionSource('   ', map)).toEqual({ state: 'none' })
+
+    expect(resolveActionSource('s-999', map)).toEqual({ state: 'unlinked', sessionId: 's-999' })
+
+    const linked = resolveActionSource('s-1', map)
+    expect(linked).toEqual({ state: 'linked', sessionId: 's-1', name: '设计讨论' })
+  })
+
+  it('linked 名称回退：会话名缺省时取 preview，再缺取 id', () => {
+    const map = new Map<string, SessionMeta>([
+      ['s-2', meta({ id: 's-2', preview: '第一条消息' })],
+      ['s-3', meta({ id: 's-3' })],
+    ])
+    expect(resolveActionSource('s-2', map)).toEqual({ state: 'linked', sessionId: 's-2', name: '第一条消息' })
+    expect(resolveActionSource('s-3', map)).toEqual({ state: 'linked', sessionId: 's-3', name: 's-3' })
   })
 })

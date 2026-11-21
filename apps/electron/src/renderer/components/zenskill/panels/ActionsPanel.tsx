@@ -20,6 +20,7 @@ import { ArrowRight, Bot, CalendarCheck, CalendarPlus, Check, Circle, CircleDash
 import { sessionMetaMapAtom } from '@/atoms/sessions'
 import { navigate, routes } from '@/lib/navigate'
 import { PRIORITY_COLOR, energyChipClass, parseIsoDate, weekKey, type GtdAction } from './types'
+import { resolveActionSource } from '@/utils/project-session-meta'
 
 export type ActionStatusFilter = 'pending' | 'next' | 'done'
 export type ActionGroupMode = 'none' | 'due' | 'project'
@@ -387,6 +388,34 @@ export function ActionsPanel({
                 {a.created_by}
               </span>
             )}
+            {isFull && (() => {
+              // F06: session-conversion source chip. No id → no chip at all;
+              // id present but session deleted → muted "未关联", no navigation.
+              const source = resolveActionSource(a.source_session_id, sessionMetaMap)
+              if (source.state === 'none') return null
+              if (source.state === 'unlinked') {
+                return (
+                  <span
+                    className="text-xs px-1 py-px rounded shrink-0 bg-muted/60 text-muted-foreground/70"
+                    title={t('gtd.action.sourceNone')}
+                  >
+                    {t('gtd.action.sourceNone')}
+                  </span>
+                )
+              }
+              return (
+                <button
+                  className="text-xs px-1 py-px rounded shrink-0 bg-accent/10 text-accent hover:bg-accent/25 transition-colors"
+                  title={t('gtd.action.sourceSession', { name: source.name })}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    void navigate(routes.view.allSessions(source.sessionId))
+                  }}
+                >
+                  {t('gtd.action.sourceSession', { name: source.name })}
+                </button>
+              )
+            })()}
             {isFull && a.project_id && (() => {
               const proj = (projects ?? []).find((p) => p.id === a.project_id)
               return proj ? (

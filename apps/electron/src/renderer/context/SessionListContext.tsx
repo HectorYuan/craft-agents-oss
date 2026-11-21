@@ -18,6 +18,8 @@ export interface SessionListContextValue {
   onLabelsChange?: (sessionId: string, labels: string[]) => void
   /** Set or clear the project binding for a session (null = unbind) */
   onSetProjectId?: (sessionId: string, projectId: string | null) => void
+  /** F06: open the "convert session to action" collection dialog for this session */
+  onConvertToAction?: (item: SessionMeta) => void
   /** Available workspace projects for the context-menu submenu */
   projects?: Array<{ id: string; slug: string; name: string; color?: string }>
   onSelectSessionById: (sessionId: string) => void

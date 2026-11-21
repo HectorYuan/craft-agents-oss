@@ -16,6 +16,7 @@ import { Spinner } from "@craft-agent/ui"
 import { EntityListEmptyScreen } from "@/components/ui/entity-list-empty"
 import { EntityList, type EntityListGroup } from "@/components/ui/entity-list"
 import { RenameDialog } from "@/components/ui/rename-dialog"
+import { SessionToActionDialog, type SessionToActionInput } from "./SessionToActionDialog"
 import { SessionSearchHeader } from "./SessionSearchHeader"
 import { SessionItem } from "./SessionItem"
 import { SessionListProvider, type SessionListContextValue } from "@/context/SessionListContext"
@@ -28,6 +29,9 @@ import { useEscapeInterrupt } from "@/context/EscapeInterruptContext"
 import { useNavigation, useNavigationState, routes, isSessionsNavigation } from "@/contexts/NavigationContext"
 import { useFocusContext } from "@/context/FocusContext"
 import { sendToWorkspaceAtom, type SessionMeta } from "@/atoms/sessions"
+import { toast } from "sonner"
+import { extractMcpJson } from "@/hooks/zenskill/useMcpTool"
+import { ZENSKILL_SOURCE_SLUG } from "@/components/zenskill/zenskill-registry"
 import { resolveSessionProject } from "@/utils/project-session-meta"
 import type { ViewConfig } from "@craft-agent/shared/views"
 import type { SessionStatusId, SessionStatus } from "@/config/session-status-config"
@@ -175,6 +179,9 @@ export function SessionList({
   const [renameDialogOpen, setRenameDialogOpen] = useState(false)
   const [renameSessionId, setRenameSessionId] = useState<string | null>(null)
   const [renameName, setRenameName] = useState("")
+  // F06: convert-session-to-action dialog
+  const [convertSession, setConvertSession] = useState<SessionMeta | null>(null)
+  const [converting, setConverting] = useState(false)
   // Track if search input has actual DOM focus (for proper keyboard navigation gating)
   const [isSearchInputFocused, setIsSearchInputFocused] = useState(false)
 
@@ -664,6 +671,44 @@ export function SessionList({
     setRenameName("")
   }
 
+  // --- F06: convert session to action ---
+  const handleConvertClick = useCallback((item: SessionMeta) => {
+    setConvertSession(item)
+  }, [])
+
+  const handleConvertSubmit = useCallback(async (input: SessionToActionInput) => {
+    if (!convertSession || !workspaceId) return
+    setConverting(true)
+    try {
+      const args: Record<string, unknown> = {
+        title: input.title,
+        priority: input.priority,
+        skill_id: 'zenskill-core',
+        // Internal link back to the source session; never rendered as an id.
+        _source_session_id: convertSession.id,
+      }
+      if (input.dueDate) args.due_date = input.dueDate
+      const result = await window.electronAPI.callMcpTool(
+        workspaceId,
+        ZENSKILL_SOURCE_SLUG,
+        'action_add',
+        args,
+      )
+      const data = extractMcpJson(result)
+      if (result?.success === false || data?.ok === false) {
+        toast.error(t('session.action.failed'))
+        return
+      }
+      // Success: close the dialog. The zenskill:changed broadcast refreshes the
+      // action list; no fake local action state is written on the session side.
+      setConvertSession(null)
+    } catch {
+      toast.error(t('session.action.failed'))
+    } finally {
+      setConverting(false)
+    }
+  }, [convertSession, workspaceId, t])
+
   // --- Search input key handler ---
   const handleSearchKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Escape') {
@@ -697,6 +742,7 @@ export function SessionList({
     onLabelsChange,
     projects,
     onSetProjectId,
+    onConvertToAction: handleConvertClick,
     onSelectSessionById: handleSelectSessionById,
     onOpenInNewWindow: handleOpenInNewWindow,
     onSendToWorkspace: (ids: string[]) => setSendToWorkspace(ids),
@@ -718,6 +764,7 @@ export function SessionList({
     onArchive, handleArchiveWithToast, onUnarchive, handleUnarchiveWithToast,
     onMarkUnread, handleDeleteWithToast, onLabelsChange,
     projects, onSetProjectId,
+    handleConvertClick,
     handleSelectSessionById, handleOpenInNewWindow, setSendToWorkspace, handleFocusZone, handleKeyDown,
     sessionStatuses, flatLabels, labels, resolvedSearchQuery,
     focusedSessionId, selectionStore.state.selected, isMultiSelectActive,
@@ -856,6 +903,17 @@ export function SessionList({
         onValueChange={setRenameName}
         onSubmit={handleRenameSubmit}
         placeholder={t("session.enterSessionName")}
+      />
+
+      {/* F06: convert session to action collection bar */}
+      <SessionToActionDialog
+        open={convertSession !== null}
+        session={convertSession}
+        submitting={converting}
+        onOpenChange={(open) => {
+          if (!open) setConvertSession(null)
+        }}
+        onSubmit={handleConvertSubmit}
       />
     </div>
   )

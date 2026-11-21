@@ -32,6 +32,7 @@ import {
   Send,
   FolderKanban,
   Check,
+  ListTodo,
 } from 'lucide-react'
 import { useMenuComponents } from '@/components/ui/menu-context'
 import { getStateColor, getStateIcon, type SessionStatusId } from '@/config/session-status-config'
@@ -65,6 +66,8 @@ export interface SessionMenuProps {
   projects?: SessionMenuProjectOption[]
   /** Callback for binding/unbinding the session to a project. `null` = unbind. */
   onSetProjectId?: (projectId: string | null) => void
+  /** F06: convert this session into a GTD action (opens the collection dialog) */
+  onConvertToAction?: () => void
   /** Callbacks */
   onRename: () => void
   onFlag: () => void
@@ -97,6 +100,7 @@ export function SessionMenu({
   onOpenInNewWindow,
   onSendToWorkspace,
   onDelete,
+  onConvertToAction,
   hasTransferTargets,
   projects = [],
   onSetProjectId,
@@ -228,6 +232,14 @@ export function SessionMenu({
             })}
           </SubContent>
         </Sub>
+      )}
+
+      {/* Convert to action — F06, grouped with labels / archive / project binding */}
+      {onConvertToAction && (
+        <MenuItem onClick={onConvertToAction}>
+          <ListTodo className="h-3.5 w-3.5" />
+          <span className="flex-1">{t("session.action.toAction")}</span>
+        </MenuItem>
       )}
 
       {/* Flag/Unflag */}
