@@ -28,6 +28,7 @@ import { useEscapeInterrupt } from "@/context/EscapeInterruptContext"
 import { useNavigation, useNavigationState, routes, isSessionsNavigation } from "@/contexts/NavigationContext"
 import { useFocusContext } from "@/context/FocusContext"
 import { sendToWorkspaceAtom, type SessionMeta } from "@/atoms/sessions"
+import { resolveSessionProject } from "@/utils/project-session-meta"
 import type { ViewConfig } from "@craft-agent/shared/views"
 import type { SessionStatusId, SessionStatus } from "@/config/session-status-config"
 import { buildCollapsedGroupsScopeSuffix } from "@/utils/session-list-collapse"
@@ -396,8 +397,8 @@ export function SessionList({
 
       const groupsByKey = new Map<string, { rows: SessionListRow[], projectId: string | null }>()
       for (const row of rows) {
-        const rawProjectId = (row.item as { projectId?: string }).projectId
-        const resolvedProjectId = rawProjectId && projectNameById.has(rawProjectId) ? rawProjectId : null
+        const bound = resolveSessionProject(row.item, projects)
+        const resolvedProjectId = bound?.id ?? null
         const key = resolvedProjectId ? `project-${resolvedProjectId}` : 'project-__none__'
         if (!groupsByKey.has(key)) groupsByKey.set(key, { rows: [], projectId: resolvedProjectId })
         groupsByKey.get(key)!.rows.push(row)
@@ -509,10 +510,9 @@ export function SessionList({
       const allKeys = new Set(items.map(item => item.hasUnread ? 'unread-yes' : 'unread-no'))
       setCollapsedGroups(allKeys)
     } else if (groupingMode === 'project') {
-      const knownProjectIds = new Set((projects ?? []).map(p => p.id))
       const allKeys = new Set(items.map(item => {
-        const pid = (item as { projectId?: string }).projectId
-        return pid && knownProjectIds.has(pid) ? `project-${pid}` : 'project-__none__'
+        const bound = resolveSessionProject(item, projects)
+        return bound ? `project-${bound.id}` : 'project-__none__'
       }))
       setCollapsedGroups(allKeys)
     } else {

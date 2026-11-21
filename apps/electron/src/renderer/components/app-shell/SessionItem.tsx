@@ -16,6 +16,7 @@ import { SessionProjectColorWrapper } from "./SessionProjectColorWrapper"
 import { hasTransferTargets } from "./transfer-targets"
 import { useProjectColorTreatment } from "@/hooks/useProjectColorTreatment"
 import { getSessionTitle, getSessionPreviewText, highlightMatch, hasUnreadMeta, shortTimeLocale } from "@/utils/session"
+import { resolveSessionProject } from "@/utils/project-session-meta"
 import { useSessionListContext } from "@/context/SessionListContext"
 import { useAppShellContext } from "@/context/AppShellContext"
 import { navigate, routes } from "@/lib/navigate"
@@ -80,12 +81,12 @@ export function SessionItem({
   const hasMessagingBinding = sessionBindings.length > 0
 
   // Resolve the bound project so the row can show a project-themed stripe /
-  // tint and reveal the project name on hover. Treatment is a user preference
-  // under Appearance.
+  // tint and reveal the project name. Matching is exact on `config.id`; an
+  // unbound or stale (deleted) binding resolves to undefined — no stripe, no
+  // chip, and the session stays in the existing no-project bucket. Treatment is
+  // a user preference under Appearance.
   const projectColorTreatment = useProjectColorTreatment()
-  const boundProject = item.projectId
-    ? ctx.projects?.find(p => p.id === item.projectId)
-    : undefined
+  const boundProject = resolveSessionProject(item, ctx.projects)
   const projectColor = boundProject?.color
   const projectName = boundProject?.name
 
@@ -218,7 +219,10 @@ export function SessionItem({
           <div className="flex items-center gap-1">
             {projectName && (
               <span
-                className="text-[11px] text-foreground/40 whitespace-nowrap truncate max-w-[120px] opacity-0 group-hover:opacity-100 transition-opacity duration-150"
+                className={cn(
+                  "text-[11px] text-foreground/40 whitespace-nowrap truncate max-w-[120px] transition-opacity duration-150",
+                  isCompactMode ? "opacity-0 group-hover:opacity-100" : "opacity-100"
+                )}
                 style={projectColor ? { color: projectColor } : undefined}
                 title={projectName}
               >

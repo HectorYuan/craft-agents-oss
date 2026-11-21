@@ -8,6 +8,8 @@
 
 import * as React from 'react'
 import { useTranslation } from 'react-i18next'
+import { useAtomValue } from 'jotai'
+import { formatDistanceToNowStrict, type Locale } from 'date-fns'
 import { FolderKanban, MessageSquare, Plus, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
@@ -21,6 +23,9 @@ import {
   StyledContextMenuContent,
 } from '@/components/ui/styled-context-menu'
 import type { LoadedProject } from '@craft-agent/shared/projects/types'
+import { sessionMetaMapAtom, type SessionMeta } from '@/atoms/sessions'
+import { shortTimeLocale } from '@/utils/session'
+import { maxActiveAt, sessionsForProject } from '@/utils/project-session-meta'
 
 export interface ProjectsListPanelProps {
   projects: LoadedProject[]
@@ -43,6 +48,7 @@ export function ProjectsListPanel({
   className,
 }: ProjectsListPanelProps) {
   const { t } = useTranslation()
+  const sessionMetaMap = useAtomValue(sessionMetaMapAtom)
 
   const handleDelete = React.useCallback(async (project: LoadedProject) => {
     // Deleting a project rm -rf's its folder + all assets, so confirm first — mirrors the
@@ -89,6 +95,7 @@ export function ProjectsListPanel({
               <ProjectRow
                 key={project.config.slug}
                 project={project}
+                metaMap={sessionMetaMap}
                 isSelected={selectedProjectSlug === project.config.slug}
                 isFirst={index === 0}
                 onClick={() => onProjectClick(project.config.slug)}
@@ -105,6 +112,7 @@ export function ProjectsListPanel({
 
 interface ProjectRowProps {
   project: LoadedProject
+  metaMap: Map<string, SessionMeta>
   isSelected: boolean
   isFirst: boolean
   onClick: () => void
@@ -112,9 +120,24 @@ interface ProjectRowProps {
   onJumpToSessions?: () => void
 }
 
-function ProjectRow({ project, isSelected, isFirst, onClick, onDelete, onJumpToSessions }: ProjectRowProps) {
+function ProjectRow({ project, metaMap, isSelected, isFirst, onClick, onDelete, onJumpToSessions }: ProjectRowProps) {
+  const { t } = useTranslation()
   const config = project.config
   const subtitle = config.description?.trim() || config.workingDirectory || ''
+
+  // D421-F02: aggregate sessions bound to this project (archived excluded);
+  // count is a real enumerable number, active time shows `—` when absent.
+  const bound = sessionsForProject(metaMap, config.id)
+  const sessionCount = bound.length
+  const activeAt = maxActiveAt(bound)
+  const activeLabel = activeAt !== undefined
+    ? t('projectsList.lastActive', {
+        time: formatDistanceToNowStrict(new Date(activeAt), {
+          locale: shortTimeLocale as Locale,
+          roundingMethod: 'floor',
+        }),
+      })
+    : '—'
 
   return (
     <ContextMenu modal={true}>
@@ -129,7 +152,16 @@ function ProjectRow({ project, isSelected, isFirst, onClick, onDelete, onJumpToS
             }}
             icon={<FolderKanban className="h-3.5 w-3.5 text-foreground/60" />}
             title={config.name}
-            subtitle={subtitle}
+            subtitle={
+              <div className="space-y-0.5">
+                {subtitle && <div className="truncate">{subtitle}</div>}
+                <div className="text-foreground/45">
+                  {t('projectsList.sessionCount', { count: sessionCount })}
+                  <span className="mx-1">·</span>
+                  {activeLabel}
+                </div>
+              </div>
+            }
           />
         </div>
       </ContextMenuTrigger>

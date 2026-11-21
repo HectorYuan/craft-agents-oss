@@ -1,7 +1,7 @@
 /**
  * ProjectInfoPage
  *
- * Workspace-project detail page with three tabs: Sessions, Assets, Settings.
+ * Workspace-project detail page with four tabs: Overview, Sessions, Assets, Settings.
  * v1 scope only — no memory tab, no provider selection, no plugin marketplace.
  */
 
@@ -9,7 +9,8 @@ import * as React from 'react'
 import { useTranslation } from 'react-i18next'
 import { useEffect, useState, useCallback, useMemo } from 'react'
 import { useAtomValue } from 'jotai'
-import { FolderKanban, FolderOpen, Plus, Trash2, Upload } from 'lucide-react'
+import { formatDistanceToNowStrict, type Locale } from 'date-fns'
+import { ArrowRight, FolderKanban, FolderOpen, Plus, Trash2, Upload } from 'lucide-react'
 import { toast } from 'sonner'
 import { DomainReadout } from '@/components/zenskill/panels/DomainReadout'
 // ★ 第二十一批 B 段：项目域特有读数（进度 / 下一步行动）—— 「项目路径 ↔ 项目实体」整合的呈现侧
@@ -17,6 +18,8 @@ import { ProjectDomainReadout } from '@/components/zenskill/panels/ProjectDomain
 import { useActiveWorkspace, useAppShellContext } from '@/context/AppShellContext'
 import { navigate, routes } from '@/lib/navigate'
 import { sessionMetaMapAtom } from '@/atoms/sessions'
+import { shortTimeLocale } from '@/utils/session'
+import { maxActiveAt, recentProjectSessions, sessionsForProject } from '@/utils/project-session-meta'
 import {
   Info_Page,
   Info_Section,
@@ -35,7 +38,7 @@ interface ProjectInfoPageProps {
   projectSlug: string
 }
 
-type TabKey = 'sessions' | 'assets' | 'settings'
+type TabKey = 'overview' | 'sessions' | 'assets' | 'settings'
 
 export default function ProjectInfoPage({ projectSlug }: ProjectInfoPageProps) {
   const { t } = useTranslation()
@@ -47,7 +50,7 @@ export default function ProjectInfoPage({ projectSlug }: ProjectInfoPageProps) {
   const [project, setProject] = useState<LoadedProject | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [tab, setTab] = useState<TabKey>('sessions')
+  const [tab, setTab] = useState<TabKey>('overview')
   const [assets, setAssets] = useState<ProjectAsset[]>([])
   const [editName, setEditName] = useState('')
   const [editDescription, setEditDescription] = useState('')
@@ -112,16 +115,30 @@ export default function ProjectInfoPage({ projectSlug }: ProjectInfoPageProps) {
     if (tab === 'assets') refreshAssets()
   }, [tab, refreshAssets])
 
+  // D421-F03: sessions bound to this project (archived excluded), newest first.
   const projectSessions = useMemo(() => {
     if (!project) return []
-    const result: { id: string; name: string }[] = []
-    for (const meta of sessionMetaMap.values()) {
-      if ((meta as { projectId?: string }).projectId === project.config.id) {
-        result.push({ id: meta.id, name: meta.name ?? meta.id })
-      }
-    }
-    return result
+    return recentProjectSessions(
+      sessionsForProject(sessionMetaMap, project.config.id),
+      Number.MAX_SAFE_INTEGER,
+    )
   }, [project, sessionMetaMap])
+
+  const recentSessions = useMemo(
+    () => recentProjectSessions(projectSessions, 4),
+    [projectSessions],
+  )
+
+  const sessionCount = projectSessions.length
+  const activeAt = maxActiveAt(projectSessions)
+
+  const formatActiveAt = useCallback((at?: number) => {
+    if (at === undefined) return '—'
+    return formatDistanceToNowStrict(new Date(at), {
+      locale: shortTimeLocale as Locale,
+      roundingMethod: 'floor',
+    })
+  }, [])
 
   const handleStartSession = useCallback(async () => {
     if (!workspaceId || !project) return
@@ -225,6 +242,9 @@ export default function ProjectInfoPage({ projectSlug }: ProjectInfoPageProps) {
 
           {/* Tab bar */}
           <div className="flex items-center gap-1 border-b border-border/50 px-2 mb-4">
+            <TabButton active={tab === 'overview'} onClick={() => setTab('overview')}>
+              {t('projectInfo.tabOverview')}
+            </TabButton>
             <TabButton active={tab === 'sessions'} onClick={() => setTab('sessions')}>
               {t('projectInfo.tabSessions')}
             </TabButton>
@@ -235,6 +255,60 @@ export default function ProjectInfoPage({ projectSlug }: ProjectInfoPageProps) {
               {t('projectInfo.tabSettings')}
             </TabButton>
           </div>
+
+          {/* Overview tab (D421-F03) */}
+          {tab === 'overview' && (
+            <>
+              <Info_Section title={t('projectInfo.gtdSection')}>
+                {/* ★ 第十九批 D 段：项目域的 ZenSkill 读数条（回路 / 能量点 / 注意力分钟） */}
+                <DomainReadout workspaceId={workspaceId} />
+                {/* ★ 第二十一批 B 段：项目域特有读数（进度 / 下一步行动 · 按能量排序） */}
+                <ProjectDomainReadout workspaceId={workspaceId} projectSlug={projectSlug} />
+              </Info_Section>
+
+              <Info_Section title={t('projectInfo.overviewSessions')}>
+                <div className="px-4 pb-2 text-xs text-muted-foreground">
+                  {t('projectsList.sessionCount', { count: sessionCount })}
+                  <span className="mx-1">·</span>
+                  {activeAt !== undefined
+                    ? t('projectsList.lastActive', { time: formatActiveAt(activeAt) })
+                    : '—'}
+                </div>
+                {recentSessions.length === 0 ? (
+                  <div className="px-4 py-6 text-sm text-muted-foreground">
+                    {t('projectInfo.noSessions')}
+                  </div>
+                ) : (
+                  <ul className="divide-y divide-border/50">
+                    {recentSessions.map((s) => (
+                      <li key={s.id} className="px-4 py-2 flex items-center gap-2">
+                        <button
+                          type="button"
+                          className="flex-1 text-sm text-foreground hover:underline text-left truncate"
+                          onClick={() => navigate(routes.view.allSessions(s.id))}
+                        >
+                          {s.name ?? s.id}
+                        </button>
+                        <span className="shrink-0 text-[11px] text-foreground/40">
+                          {formatActiveAt(maxActiveAt([s]))}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                <div className="px-4 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setTab('sessions')}
+                    className="inline-flex items-center gap-1 text-xs text-foreground/70 hover:text-foreground transition-colors"
+                  >
+                    {t('projectInfo.viewAllSessions')}
+                    <ArrowRight className="h-3 w-3" />
+                  </button>
+                </div>
+              </Info_Section>
+            </>
+          )}
 
           {/* Sessions tab */}
           {tab === 'sessions' && (
@@ -247,10 +321,6 @@ export default function ProjectInfoPage({ projectSlug }: ProjectInfoPageProps) {
                 </Button>
               }
             >
-              {/* ★ 第十九批 D 段：项目域的 ZenSkill 读数条（回路 / 能量点 / 注意力分钟） */}
-              <DomainReadout workspaceId={workspaceId} />
-              {/* ★ 第二十一批 B 段：项目域特有读数（进度 / 下一步行动 · 按能量排序） */}
-              <ProjectDomainReadout workspaceId={workspaceId} projectSlug={projectSlug} />
               {projectSessions.length === 0 ? (
                 <div className="px-4 py-6 text-sm text-muted-foreground">
                   {t('projectInfo.noSessions')}
@@ -264,7 +334,7 @@ export default function ProjectInfoPage({ projectSlug }: ProjectInfoPageProps) {
                         className="text-sm text-foreground hover:underline text-left"
                         onClick={() => navigate(routes.view.allSessions(s.id))}
                       >
-                        {s.name}
+                        {s.name ?? s.id}
                       </button>
                     </li>
                   ))}
