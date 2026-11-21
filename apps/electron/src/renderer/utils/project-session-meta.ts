@@ -87,3 +87,39 @@ export function resolveSessionProject(
   if (!pid) return undefined
   return projects?.find((p) => p.id === pid)
 }
+
+/** Unified no-data placeholder (U+2014). Missing keys never render as 0. */
+export const METRIC_PLACEHOLDER = '—'
+
+/**
+ * Token total for the metric card: `tokenUsage.totalTokens`, falling back to
+ * `inputTokens + outputTokens`. `undefined` when the whole block is absent or
+ * neither field carries a number. Cost (`costUsd`) is deliberately excluded.
+ */
+export function tokenTotal(meta: SessionMeta): number | undefined {
+  const usage = meta.tokenUsage
+  if (!usage) return undefined
+  if (typeof usage.totalTokens === 'number') return usage.totalTokens
+  const hasInput = typeof usage.inputTokens === 'number'
+  const hasOutput = typeof usage.outputTokens === 'number'
+  if (!hasInput && !hasOutput) return undefined
+  return (hasInput ? usage.inputTokens : 0) + (hasOutput ? usage.outputTokens : 0)
+}
+
+/** Message count for the card: a real 0 renders "0"; a missing key → placeholder. */
+export function formatMessageCount(meta: SessionMeta): string {
+  return meta.messageCount === undefined ? METRIC_PLACEHOLDER : String(meta.messageCount)
+}
+
+/** Token total, thousands-separated; placeholder when absent. */
+export function formatTokenTotal(meta: SessionMeta): string {
+  const total = tokenTotal(meta)
+  if (total === undefined) return METRIC_PLACEHOLDER
+  return total.toLocaleString('en-US')
+}
+
+/** Model id as provided; blank / whitespace / missing → placeholder. No display-name mapping. */
+export function formatModel(meta: SessionMeta): string {
+  const model = meta.model?.trim()
+  return model ? model : METRIC_PLACEHOLDER
+}

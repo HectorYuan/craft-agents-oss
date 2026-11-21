@@ -17,9 +17,17 @@ import { DomainReadout } from '@/components/zenskill/panels/DomainReadout'
 import { ProjectDomainReadout } from '@/components/zenskill/panels/ProjectDomainReadout'
 import { useActiveWorkspace, useAppShellContext } from '@/context/AppShellContext'
 import { navigate, routes } from '@/lib/navigate'
-import { sessionMetaMapAtom } from '@/atoms/sessions'
+import { sessionMetaMapAtom, type SessionMeta } from '@/atoms/sessions'
 import { shortTimeLocale } from '@/utils/session'
-import { maxActiveAt, recentProjectSessions, sessionsForProject } from '@/utils/project-session-meta'
+import {
+  formatMessageCount,
+  formatModel,
+  formatTokenTotal,
+  maxActiveAt,
+  recentProjectSessions,
+  sessionActiveAt,
+  sessionsForProject,
+} from '@/utils/project-session-meta'
 import {
   Info_Page,
   Info_Section,
@@ -326,19 +334,17 @@ export default function ProjectInfoPage({ projectSlug }: ProjectInfoPageProps) {
                   {t('projectInfo.noSessions')}
                 </div>
               ) : (
-                <ul className="divide-y divide-border/50">
+                <div className="grid gap-3 sm:grid-cols-2">
                   {projectSessions.map((s) => (
-                    <li key={s.id} className="px-4 py-2">
-                      <button
-                        type="button"
-                        className="text-sm text-foreground hover:underline text-left"
-                        onClick={() => navigate(routes.view.allSessions(s.id))}
-                      >
-                        {s.name ?? s.id}
-                      </button>
-                    </li>
+                    <SessionMetricCard
+                      key={s.id}
+                      meta={s}
+                      onOpen={() => navigate(routes.view.allSessions(s.id))}
+                      formatActiveAt={formatActiveAt}
+                      t={t}
+                    />
                   ))}
-                </ul>
+                </div>
               )}
             </Info_Section>
           )}
@@ -495,6 +501,54 @@ export default function ProjectInfoPage({ projectSlug }: ProjectInfoPageProps) {
         </Info_Page.Content>
       )}
     </Info_Page>
+  )
+}
+
+/**
+ * F04 会话指标卡：只放四项真实指标（消息数 / Token / 模型 / 最近活跃）。
+ * 缺数据统一显 `—`；不复用通用 Card 体系，视觉取自既有面板边框/间距层级。
+ */
+function SessionMetricCard({
+  meta,
+  onOpen,
+  formatActiveAt,
+  t,
+}: {
+  meta: SessionMeta
+  onOpen: () => void
+  formatActiveAt: (at?: number) => string
+  t: (key: string) => string
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      className="rounded-[8px] border border-border/30 bg-background px-3 py-3 text-left transition-colors hover:bg-foreground/[0.03]"
+    >
+      <div className="text-sm font-medium truncate">{meta.name ?? meta.id}</div>
+      {meta.workingDirectory?.trim() ? (
+        <div className="mt-0.5 text-[11px] text-muted-foreground truncate">
+          {meta.workingDirectory.trim()}
+        </div>
+      ) : null}
+      <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-2">
+        <Metric label={t('session.card.messages')} value={formatMessageCount(meta)} />
+        <Metric label={t('session.card.token')} value={formatTokenTotal(meta)} />
+        <Metric label={t('session.card.model')} value={formatModel(meta)} />
+        <Metric label={t('session.card.lastActive')} value={formatActiveAt(sessionActiveAt(meta))} />
+      </div>
+    </button>
+  )
+}
+
+function Metric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="min-w-0">
+      <div className="text-[10px] text-muted-foreground">{label}</div>
+      <div className="text-xs text-foreground truncate" title={value}>
+        {value}
+      </div>
+    </div>
   )
 }
 
