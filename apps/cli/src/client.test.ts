@@ -385,12 +385,18 @@ describe('CliRpcClient', () => {
 
 // ---------------------------------------------------------------------------
 // TLS cert helper — generates a real self-signed cert via openssl
+//
+// 用 RSA 而非 EC：本机 /usr/bin/openssl 是 LibreSSL 3.3.6，`-newkey ec`
+// 生成的 EC 私钥带显式曲线参数（PEM 以 `MIIBeQIBADCCAQMGByqGSM49AgE...` 开头），
+// Bun 的 BoringSSL 解析时报 ERR_OSSL_EC_DECODE_ERROR；LibreSSL 下
+// `openssl ec -param_enc named_curve` 也写不出命名曲线编码。本夹具只验证
+// wss 传输链路，不校验密钥算法，故改用兼容性最好的 RSA 2048。
 // ---------------------------------------------------------------------------
 
 function generateSelfSignedCert(): { cert: string; key: string } | null {
   try {
     const keyResult = Bun.spawnSync({
-      cmd: ['openssl', 'req', '-x509', '-newkey', 'ec', '-pkeyopt', 'ec_paramgen_curve:prime256v1',
+      cmd: ['openssl', 'req', '-x509', '-newkey', 'rsa:2048',
         '-keyout', '/dev/stdout', '-out', '/dev/stdout',
         '-days', '1', '-nodes', '-subj', '/CN=localhost', '-batch'],
       stderr: 'pipe',
@@ -399,7 +405,7 @@ function generateSelfSignedCert(): { cert: string; key: string } | null {
 
     const pem = keyResult.stdout.toString()
     const certMatch = pem.match(/(-----BEGIN CERTIFICATE-----[\s\S]+?-----END CERTIFICATE-----)/)
-    const keyMatch = pem.match(/(-----BEGIN (?:EC )?PRIVATE KEY-----[\s\S]+?-----END (?:EC )?PRIVATE KEY-----)/)
+    const keyMatch = pem.match(/(-----BEGIN (?:RSA |EC )?PRIVATE KEY-----[\s\S]+?-----END (?:RSA |EC )?PRIVATE KEY-----)/)
     if (!certMatch || !keyMatch) return null
 
     return { cert: certMatch[1], key: keyMatch[1] }

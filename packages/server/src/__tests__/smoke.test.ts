@@ -9,6 +9,8 @@
  */
 
 import { describe, it, expect, afterEach } from 'bun:test'
+import { mkdtempSync, rmSync, appendFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { Subprocess } from 'bun'
 import WebSocket from 'ws'
@@ -17,22 +19,57 @@ const SERVER_ENTRY = join(import.meta.dir, '..', 'index.ts')
 const STARTUP_TIMEOUT = 15_000
 const TEST_TIMEOUT = 30_000
 
+interface IsolatedEnv {
+  env: NodeJS.ProcessEnv
+  configDir: string
+  stdoutLog: string
+  stderrLog: string
+  cleanup: () => void
+}
+
 interface SpawnedServer {
   url: string
   token: string
   healthPort: number
   proc: Subprocess
   stop: () => Promise<void>
+  cleanup: () => void
+}
+
+/**
+ * 为每个被测实例分配独立临时配置目录，避免与本机 dev 实例
+ * （默认配置目录下的 `.server.lock`，pid 常驻）争用单实例锁；
+ * 同时把 stdout/stderr tee 到目录内日志文件，启动失败时回传绝对路径。
+ */
+function createIsolatedEnv(extraEnv?: Record<string, string>): IsolatedEnv {
+  const configDir = mkdtempSync(join(tmpdir(), 'craft-smoke-'))
+  const stdoutLog = join(configDir, 'server-stdout.log')
+  const stderrLog = join(configDir, 'server-stderr.log')
+  const { CLAUDECODE: _, ...parentEnv } = process.env
+
+  const env: NodeJS.ProcessEnv = {
+    ...parentEnv,
+    ...extraEnv,
+    CRAFT_CONFIG_DIR: configDir,
+    ZENSKILL_CONFIG_DIR: configDir,
+  }
+
+  return {
+    env,
+    configDir,
+    stdoutLog,
+    stderrLog,
+    cleanup: () => rmSync(configDir, { recursive: true, force: true }),
+  }
 }
 
 async function spawnTestServer(extraEnv?: Record<string, string>): Promise<SpawnedServer> {
   const token = crypto.randomUUID() + crypto.randomUUID() // 72 chars, well above 16 minimum
-  const { CLAUDECODE: _, ...parentEnv } = process.env
+  const iso = createIsolatedEnv(extraEnv)
 
   const proc = Bun.spawn(['bun', 'run', SERVER_ENTRY], {
     env: {
-      ...parentEnv,
-      ...extraEnv,
+      ...iso.env,
       CRAFT_SERVER_TOKEN: token,
       CRAFT_RPC_PORT: '0',
       CRAFT_RPC_HOST: '127.0.0.1',
@@ -45,11 +82,21 @@ async function spawnTestServer(extraEnv?: Record<string, string>): Promise<Spawn
   return new Promise<SpawnedServer>((resolve, reject) => {
     const timer = setTimeout(() => {
       proc.kill()
-      reject(new Error(`Server did not start within ${STARTUP_TIMEOUT}ms`))
+      reject(new Error(
+        `Server did not start within ${STARTUP_TIMEOUT}ms\n  stdout log: ${iso.stdoutLog}\n  stderr log: ${iso.stderrLog}`,
+      ))
     }, STARTUP_TIMEOUT)
 
     let url = ''
     let buffer = ''
+    let stderrTail = ''
+
+    const fail = (reason: string) => {
+      clearTimeout(timer)
+      reject(new Error(
+        `${reason}\n  stdout log: ${iso.stdoutLog}\n  stderr log: ${iso.stderrLog}\n  stderr tail: ${stderrTail.slice(-2000)}`,
+      ))
+    }
 
     const processLines = () => {
       const lines = buffer.split('\n')
@@ -69,6 +116,7 @@ async function spawnTestServer(extraEnv?: Record<string, string>): Promise<Spawn
               proc.kill('SIGTERM')
               await proc.exited
             },
+            cleanup: iso.cleanup,
           })
           return
         }
@@ -82,15 +130,31 @@ async function spawnTestServer(extraEnv?: Record<string, string>): Promise<Spawn
         while (true) {
           const { done, value } = await reader.read()
           if (done) break
-          buffer += decoder.decode(value, { stream: true })
+          const chunk = decoder.decode(value, { stream: true })
+          appendFileSync(iso.stdoutLog, chunk)
+          buffer += chunk
           processLines()
         }
       } catch {
         // Stream closed
       }
-      clearTimeout(timer)
-      if (!url) {
-        reject(new Error('Server exited before printing CRAFT_SERVER_URL'))
+      if (!url) fail('Server exited before printing CRAFT_SERVER_URL')
+    })()
+
+    // 消费并落盘 stderr：既避免管道背压，也不吞掉服务器报错输出。
+    ;(async () => {
+      const reader = proc.stderr!.getReader()
+      const decoder = new TextDecoder()
+      try {
+        while (true) {
+          const { done, value } = await reader.read()
+          if (done) break
+          const chunk = decoder.decode(value, { stream: true })
+          appendFileSync(iso.stderrLog, chunk)
+          stderrTail += chunk
+        }
+      } catch {
+        // Stream closed
       }
     })()
   })
@@ -130,6 +194,7 @@ describe('headless server smoke test', () => {
   afterEach(async () => {
     if (server) {
       await server.stop().catch(() => {})
+      server.cleanup()
       server = null
     }
   })
@@ -150,10 +215,10 @@ describe('headless server smoke test', () => {
 
   it('rejects short token at startup', async () => {
     const token = 'short'
-    const { CLAUDECODE: _, ...parentEnv } = process.env
+    const iso = createIsolatedEnv()
     const proc = Bun.spawn(['bun', 'run', SERVER_ENTRY], {
       env: {
-        ...parentEnv,
+        ...iso.env,
         CRAFT_SERVER_TOKEN: token,
         CRAFT_RPC_PORT: '0',
         CRAFT_RPC_HOST: '127.0.0.1',
@@ -163,6 +228,7 @@ describe('headless server smoke test', () => {
     })
 
     const exitCode = await proc.exited
+    iso.cleanup()
     expect(exitCode).not.toBe(0)
   }, TEST_TIMEOUT)
 
@@ -178,7 +244,8 @@ describe('headless server smoke test', () => {
     const exitCode = await server.proc.exited
     expect(exitCode).toBe(0)
 
-    // Mark as stopped so afterEach doesn't double-kill
+    // 清理独立配置目录；置 null 防止 afterEach 二次 kill
+    server.cleanup()
     server = null
   }, TEST_TIMEOUT)
 })
