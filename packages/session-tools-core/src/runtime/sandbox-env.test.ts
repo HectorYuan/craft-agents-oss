@@ -62,14 +62,38 @@ describe('sandbox-env', () => {
     const dataDir = mkdtempSync(join(tmpdir(), 'sandbox-env-node-'));
     createdDirs.push(dataDir);
 
+    // 显式传入带 python 专属缓存变量的 base env（canary），断言不继承；
+    // 确定性回归，不依赖主机环境是否恰好带这些变量。
     const env = createScriptRuntimeEnv({
       language: 'node',
       dataDir,
+    }, {
+      SAFE_VAR: 'ok',
+      PYTHONPYCACHEPREFIX: '/host/pycache',
+      UV_CACHE_DIR: '/host/uv',
+      XDG_CACHE_HOME: '/host/xdg',
     });
 
+    expect(env.SAFE_VAR).toBe('ok');
     expect(env.TMPDIR).toBe(join(dataDir, '.tmp'));
     expect(env.UV_CACHE_DIR).toBeUndefined();
     expect(env.XDG_CACHE_HOME).toBeUndefined();
     expect(env.PYTHONPYCACHEPREFIX).toBeUndefined();
+  });
+
+  it('does not leak host python-specific vars into node/bun runtime', () => {
+    const dataDir = mkdtempSync(join(tmpdir(), 'sandbox-env-node-leak-'));
+    createdDirs.push(dataDir);
+
+    for (const language of ['node', 'bun'] as const) {
+      const env = createScriptRuntimeEnv({ language, dataDir }, {
+        PYTHONPYCACHEPREFIX: '/host/pycache',
+        UV_CACHE_DIR: '/host/uv',
+        XDG_CACHE_HOME: '/host/xdg',
+      });
+      expect(env.PYTHONPYCACHEPREFIX).toBeUndefined();
+      expect(env.UV_CACHE_DIR).toBeUndefined();
+      expect(env.XDG_CACHE_HOME).toBeUndefined();
+    }
   });
 });

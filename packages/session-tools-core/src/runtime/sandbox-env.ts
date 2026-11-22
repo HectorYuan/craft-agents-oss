@@ -73,6 +73,12 @@ export function createScriptRuntimeEnv(
     env.UV_CACHE_DIR = uvCacheDir;
     env.XDG_CACHE_HOME = xdgCacheHome;
     env.PYTHONPYCACHEPREFIX = pythonPyCachePrefix;
+  } else {
+    // 这三个是 Python/uv 专属缓存重定向；node/bun 运行时不应继承宿主值，
+    // 显式清掉，避免主机 PYTHONPYCACHEPREFIX 等变量泄漏进子进程。
+    delete env.PYTHONPYCACHEPREFIX;
+    delete env.UV_CACHE_DIR;
+    delete env.XDG_CACHE_HOME;
   }
 
   return env;
