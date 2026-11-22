@@ -10,3 +10,6 @@ preload = ["./packages/shared/src/unified-network-interceptor.ts"]
 linker = "hoisted"
 [test]
 roots = ["packages", "apps"]
+# 打包产物内的源码/测试副本（apps/electron/release/**）是发布镜像，不作为测试根；
+# 忽略其重复测试文件，避免与 apps/electron/src 下的真实套件重复计数。
+pathIgnorePatterns = ["apps/electron/release/**"]
