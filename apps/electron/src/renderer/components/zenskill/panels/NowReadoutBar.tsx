@@ -130,7 +130,7 @@ export function NowReadoutBar({ loop, energy, attention, delegation }: NowReadou
             <span
               className={
                 upperBound
-                  ? 'inline-flex items-center rounded-full border border-amber-500/40 px-2 py-0.5 text-[11px] text-amber-600 dark:text-amber-400'
+                  ? 'inline-flex items-center rounded-full border border-info/40 px-2 py-0.5 text-[11px] text-info'
                   : 'inline-flex items-center rounded-full border border-border/40 px-2 py-0.5 text-[11px] text-foreground/80'
               }
               title={upperBound ? t('zenskill.readout.atMost', '至多') : undefined}
