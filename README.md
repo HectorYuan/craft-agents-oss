@@ -35,6 +35,24 @@ bun run electron:start   # 构建并运行
 bun run typecheck:all    # 类型检查
 ```
 
+## 本地测试
+
+前置：Bun ≥ 1.2 必须可被解析。脚本执行、页面数据一次性写入等用例会派生 Bun 运行时，
+解析顺序为 `CRAFT_BUN` 环境变量 → 内置 bun → PATH 上的 `bun`（见 `.env.example`）。
+
+```bash
+# packages/shared 套件（在 vendor 子模块根目录下）
+cd packages/shared && bun test --timeout 30000
+```
+
+- 若 `bun` 未加入 PATH（例如装在 `~/.bun/bin`），二选一：
+  - 把 `~/.bun/bin` 加入 PATH：`export PATH="$HOME/.bun/bin:$PATH"`；或
+  - 显式指定绝对路径：`export CRAFT_BUN="$HOME/.bun/bin/bun"`。
+- 运行时缺失时，派生动作会以明确报错
+  `Bun runtime unavailable: configure CRAFT_BUN or install bun on PATH.` 失败；
+  这是“缺运行时”信号，不会被静默 skip 成通过。
+- CI 在跑测前已把 `$HOME/.bun/bin` 加入 PATH，流水线无需另设 `CRAFT_BUN`。
+
 ## 数据目录
 
 桌面端数据（配置、凭据、会话、来源、技能等）默认存放于 **`~/.zenskill/desktop/`**：
