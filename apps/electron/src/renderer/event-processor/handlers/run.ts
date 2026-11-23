@@ -1,17 +1,31 @@
 /**
- * Swarm run event handlers (P2-4 minimal wiring).
+ * Swarm run event handlers (P2-4 minimal wiring; P3-4 subtask detail rows).
  *
  * Pure reducer mapping `run:event` envelopes (`swarm.run.*` / `swarm.subtask.*`)
  * onto a per-run renderer state. Unknown or malformed envelopes are ignored
  * gracefully — the reducer never throws and never fabricates a status/count.
+ *
+ * Subtask detail rows are keyed by `subtaskId` (attempt-derived rows do not
+ * duplicate a line). The distinct count (`subtaskTotal`) is taken from the
+ * authoritative `run:status.subtaskSummary.total` only — events never sum
+ * into the total. Missing data stays `undefined`/empty, never a fake 0.
  */
 
 import type {
   RunEventEnvelope,
   RunStatus,
   RunStatusDto,
+  RunSubtaskSnapshot,
   RunSubtaskSummary,
 } from '../../../shared/types'
+
+/** One deduplicated subtask row for the chip detail list. */
+export interface RunSubtaskEntry {
+  subtaskId: string
+  status: string
+  attempt: number
+  capabilityId: string
+}
 
 /** Per-session mirror of the current run's lifecycle state. */
 export interface RunState {
@@ -19,8 +33,9 @@ export interface RunState {
   /** Run lifecycle status; `null` until the first authoritative signal. */
   status: RunStatus | null
   sessionId?: string
-  /** Subtask count from `run:status` summary, or observed registered events.
-   *  `undefined` = unknown (rendered as a placeholder, never a fake 0). */
+  /** Deduplicated subtask detail rows, keyed by `subtaskId`. */
+  subtasks: RunSubtaskEntry[]
+  /** Distinct subtask count from `run:status` summary; `undefined` = unknown. */
   subtaskTotal?: number
   subtaskByStatus?: Record<string, number>
   terminal: boolean
@@ -34,6 +49,15 @@ const RUN_TERMINAL: ReadonlySet<string> = new Set([
   'cancelled',
   'timed_out',
 ])
+
+/** Subtask status carried by a `swarm.subtask.*` event. */
+const SUBTASK_EVENT_STATUS: Record<string, string> = {
+  'swarm.subtask.registered': 'queued',
+  'swarm.subtask.started': 'running',
+  'swarm.subtask.succeeded': 'succeeded',
+  'swarm.subtask.failed': 'failed',
+  'swarm.subtask.timed_out': 'timed_out',
+}
 
 export function isTerminalRunStatus(status: string | null | undefined): boolean {
   return status != null && RUN_TERMINAL.has(status)
@@ -62,6 +86,51 @@ function terminalStatusOf(type: string): RunStatus | null {
   }
 }
 
+function payloadText(payload: Record<string, unknown>, key: string): string {
+  const v = payload[key]
+  return typeof v === 'string' && v.length > 0 ? v : ''
+}
+
+function payloadAttempt(payload: Record<string, unknown>): number {
+  const v = payload.attempt
+  return typeof v === 'number' && Number.isFinite(v) && v > 0 ? v : 1
+}
+
+/**
+ * Upsert a subtask row, deduplicated by `subtaskId`. Later attempts win; the
+ * first-seen row keeps its place in the list order.
+ */
+function upsertSubtask(rows: RunSubtaskEntry[], entry: RunSubtaskEntry): RunSubtaskEntry[] {
+  const idx = rows.findIndex((r) => r.subtaskId === entry.subtaskId)
+  if (idx < 0) return [...rows, entry]
+  const next = rows.slice()
+  const prev = next[idx]
+  next[idx] = {
+    subtaskId: entry.subtaskId,
+    status: entry.status || prev.status,
+    attempt: Math.max(prev.attempt, entry.attempt),
+    capabilityId: entry.capabilityId || prev.capabilityId,
+  }
+  return next
+}
+
+/** Dedupe authoritative DTO rows by `subtaskId`; the highest attempt wins. */
+function dedupeSubtasks(rows: RunSubtaskSnapshot[] | undefined): RunSubtaskEntry[] {
+  if (!rows) return []
+  const byId = new Map<string, RunSubtaskEntry>()
+  for (const r of rows) {
+    if (typeof r.subtaskId !== 'string' || !r.subtaskId) continue
+    const attempt = typeof r.attempt === 'number' && r.attempt > 0 ? r.attempt : 1
+    const capabilityId = typeof r.capabilityId === 'string' ? r.capabilityId : ''
+    const status = typeof r.status === 'string' ? r.status : ''
+    const existing = byId.get(r.subtaskId)
+    if (!existing || attempt >= existing.attempt) {
+      byId.set(r.subtaskId, { subtaskId: r.subtaskId, status, attempt, capabilityId })
+    }
+  }
+  return [...byId.values()]
+}
+
 /**
  * Reduce the current run state with one envelope.
  *
@@ -84,6 +153,7 @@ export function reduceRunState(prev: RunState | null, env: RunEventEnvelope): Ru
       runId: env.runId,
       status: 'running',
       sessionId,
+      subtasks: [],
       terminal: false,
       errorReason: null,
       updatedAt: ts,
@@ -93,14 +163,24 @@ export function reduceRunState(prev: RunState | null, env: RunEventEnvelope): Ru
   const base: RunState = prev ?? {
     runId: env.runId,
     status: null,
+    subtasks: [],
     terminal: false,
     updatedAt: ts,
   }
 
-  if (env.type === 'swarm.subtask.registered') {
+  const subtaskStatus = SUBTASK_EVENT_STATUS[env.type]
+  if (subtaskStatus) {
+    const subtaskId = payloadText(payload, 'subtaskId') || (env.subtaskId ?? '')
+    if (!subtaskId) return base
+    const entry: RunSubtaskEntry = {
+      subtaskId,
+      status: subtaskStatus,
+      attempt: payloadAttempt(payload),
+      capabilityId: payloadText(payload, 'capabilityId'),
+    }
     return {
       ...base,
-      subtaskTotal: (base.subtaskTotal ?? 0) + 1,
+      subtasks: upsertSubtask(base.subtasks, entry),
       updatedAt: ts,
     }
   }
@@ -131,6 +211,7 @@ export function runStateFromStatusDto(dto: RunStatusDto): RunState {
     runId: dto.runId,
     status: (dto.status as RunStatus) ?? null,
     sessionId: dto.sessionId ?? undefined,
+    subtasks: dedupeSubtasks(dto.subtasks),
     subtaskTotal: summary?.total,
     subtaskByStatus: summary?.byStatus,
     terminal: isTerminalRunStatus(dto.status),

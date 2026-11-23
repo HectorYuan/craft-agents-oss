@@ -236,6 +236,7 @@
   "chat.runStatusFailed": "sikertelen",
   "chat.runStatusQueued": "várólistán",
   "chat.runStatusRunning": "futtatás alatt",
+  "chat.runStatusSkipped": "kihagyva",
   "chat.runStatusSucceeded": "sikeres",
   "chat.runStatusTimedOut": "időtúllépés",
   "chat.runSubtasksCount": "{{count}} alfeladat",

@@ -21,6 +21,10 @@ function env(type: string, overrides: Partial<RunEventEnvelope> = {}): RunEventE
   }
 }
 
+function subtaskPayload(subtaskId: string, attempt: number, capabilityId: string) {
+  return { subtaskId, attempt, capabilityId }
+}
+
 describe('classifyRunEventType', () => {
   it('recognizes the two swarm prefixes', () => {
     expect(classifyRunEventType('swarm.run.started')).toBe('run')
@@ -46,6 +50,7 @@ describe('reduceRunState', () => {
     expect(next?.sessionId).toBe('session-1')
     expect(next?.terminal).toBe(false)
     expect(next?.subtaskTotal).toBeUndefined()
+    expect(next?.subtasks).toEqual([])
   })
 
   it('replaces the previous run state when a new started event arrives', () => {
@@ -54,17 +59,70 @@ describe('reduceRunState', () => {
 
     expect(next?.runId).toBe('run-new')
     expect(next?.subtaskTotal).toBeUndefined()
+    expect(next?.subtasks).toEqual([])
   })
 
-  it('counts registered subtasks, leaving the count undefined before the first observation', () => {
+  it('upserts a detail row on registered/started without counting events into the total', () => {
     const started = reduceRunState(null, env('swarm.run.started', { payload: { sessionId: 'session-1' } }))
     expect(started?.subtaskTotal).toBeUndefined()
 
-    const afterFirst = reduceRunState(started, env('swarm.subtask.registered'))
-    expect(afterFirst?.subtaskTotal).toBe(1)
+    const afterRegistered = reduceRunState(started, env('swarm.subtask.registered', {
+      payload: subtaskPayload('sub-a', 1, 'delegate'),
+    }))
+    expect(afterRegistered?.subtaskTotal).toBeUndefined()
+    expect(afterRegistered?.subtasks).toEqual([
+      { subtaskId: 'sub-a', status: 'queued', attempt: 1, capabilityId: 'delegate' },
+    ])
 
-    const afterSecond = reduceRunState(afterFirst, env('swarm.subtask.registered', { seq: 2 }))
-    expect(afterSecond?.subtaskTotal).toBe(2)
+    const afterStarted = reduceRunState(afterRegistered, env('swarm.subtask.started', {
+      seq: 2,
+      payload: subtaskPayload('sub-a', 1, 'delegate'),
+    }))
+    expect(afterStarted?.subtasks).toEqual([
+      { subtaskId: 'sub-a', status: 'running', attempt: 1, capabilityId: 'delegate' },
+    ])
+
+    const afterSecondRegistered = reduceRunState(afterStarted, env('swarm.subtask.registered', {
+      seq: 3,
+      payload: subtaskPayload('sub-b', 1, 'multi_agent'),
+    }))
+    expect(afterSecondRegistered?.subtasks).toHaveLength(2)
+    // Event counts never feed the distinct total.
+    expect(afterSecondRegistered?.subtaskTotal).toBeUndefined()
+  })
+
+  it('maps subtask terminal events onto their detail row status', () => {
+    const started = reduceRunState(null, env('swarm.run.started', { payload: { sessionId: 'session-1' } }))
+    const registered = reduceRunState(started, env('swarm.subtask.registered', {
+      payload: subtaskPayload('sub-a', 1, 'delegate'),
+    }))
+
+    const succeeded = reduceRunState(registered, env('swarm.subtask.succeeded', {
+      seq: 2, payload: subtaskPayload('sub-a', 1, 'delegate'),
+    }))
+    expect(succeeded?.subtasks[0].status).toBe('succeeded')
+
+    const failed = reduceRunState(registered, env('swarm.subtask.failed', {
+      seq: 2, payload: { ...subtaskPayload('sub-a', 1, 'delegate'), status: 'failed', reason: 'boom' },
+    }))
+    expect(failed?.subtasks[0].status).toBe('failed')
+
+    const timedOut = reduceRunState(registered, env('swarm.subtask.timed_out', {
+      seq: 2, payload: subtaskPayload('sub-a', 1, 'delegate'),
+    }))
+    expect(timedOut?.subtasks[0].status).toBe('timed_out')
+  })
+
+  it('keeps the highest attempt row when the same subtaskId retries', () => {
+    const started = reduceRunState(null, env('swarm.run.started', { payload: { sessionId: 'session-1' } }))
+    const a1 = reduceRunState(started, env('swarm.subtask.registered', {
+      payload: subtaskPayload('sub-a', 1, 'delegate'),
+    }))
+    const a2 = reduceRunState(a1, env('swarm.subtask.registered', {
+      seq: 2, payload: subtaskPayload('sub-a', 2, 'delegate'),
+    }))
+    expect(a2?.subtasks).toHaveLength(1)
+    expect(a2?.subtasks[0].attempt).toBe(2)
   })
 
   it('maps terminal run events to their terminal status', () => {
@@ -121,14 +179,55 @@ describe('runStateFromStatusDto', () => {
       status: 'succeeded',
       sessionId: 'session-1',
       errorReason: null,
-      subtaskSummary: { total: 3, byStatus: { succeeded: 3 } },
+      subtasks: [
+        { subtaskId: 'sub-a', attempt: 1, capabilityId: 'delegate', status: 'succeeded' },
+        { subtaskId: 'sub-b', attempt: 1, capabilityId: 'multi_agent', status: 'succeeded' },
+      ],
+      subtaskSummary: { total: 2, byStatus: { succeeded: 2 } },
     })
 
     expect(state.runId).toBe('run-1')
     expect(state.status).toBe('succeeded')
     expect(state.terminal).toBe(true)
-    expect(state.subtaskTotal).toBe(3)
-    expect(state.subtaskByStatus).toEqual({ succeeded: 3 })
+    expect(state.subtaskTotal).toBe(2)
+    expect(state.subtaskByStatus).toEqual({ succeeded: 2 })
+    expect(state.subtasks).toHaveLength(2)
+  })
+
+  it('deduplicates detail rows by subtaskId and keeps the latest attempt', () => {
+    const state = runStateFromStatusDto({
+      runId: 'run-1',
+      status: 'failed',
+      subtasks: [
+        { subtaskId: 'sub-a', attempt: 1, capabilityId: 'delegate', status: 'failed' },
+        { subtaskId: 'sub-a', attempt: 2, capabilityId: 'delegate', status: 'failed' },
+        { subtaskId: 'sub-b', attempt: 1, capabilityId: 'delegate', status: 'failed' },
+      ],
+      subtaskSummary: { total: 2, byStatus: { failed: 3 } },
+    })
+
+    expect(state.subtaskTotal).toBe(2)
+    expect(state.subtasks).toHaveLength(2)
+    const rowA = state.subtasks.find((r) => r.subtaskId === 'sub-a')
+    expect(rowA?.attempt).toBe(2)
+  })
+
+  it('preserves skipped_by_cancel rows read back from the status DTO', () => {
+    const state = runStateFromStatusDto({
+      runId: 'run-1',
+      status: 'cancelled',
+      subtasks: [
+        { subtaskId: 'sub-a', attempt: 1, capabilityId: 'delegate', status: 'cancelled' },
+        { subtaskId: 'sub-b', attempt: 1, capabilityId: 'delegate', status: 'skipped_by_cancel' },
+      ],
+      subtaskSummary: { total: 2, byStatus: { cancelled: 1, skipped_by_cancel: 1 } },
+    })
+
+    expect(state.status).toBe('cancelled')
+    expect(state.terminal).toBe(true)
+    expect(state.subtaskTotal).toBe(2)
+    const skipped = state.subtasks.find((r) => r.subtaskId === 'sub-b')
+    expect(skipped?.status).toBe('skipped_by_cancel')
   })
 
   it('leaves the subtask count undefined when the summary is absent (placeholder, not 0)', () => {
@@ -139,6 +238,7 @@ describe('runStateFromStatusDto', () => {
 
     expect(state.subtaskTotal).toBeUndefined()
     expect(state.terminal).toBe(false)
+    expect(state.subtasks).toEqual([])
   })
 })
 

@@ -236,6 +236,7 @@
   "chat.runStatusFailed": "失敗",
   "chat.runStatusQueued": "待機中",
   "chat.runStatusRunning": "実行中",
+  "chat.runStatusSkipped": "スキップ",
   "chat.runStatusSucceeded": "完了",
   "chat.runStatusTimedOut": "タイムアウト",
   "chat.runSubtasksCount": "サブタスク {{count}} 件",

@@ -367,11 +367,23 @@ export type RunStatus = 'queued' | 'running' | 'succeeded' | 'failed' | 'cancell
 /** Statuses from which the run cannot transition further. */
 export const RUN_TERMINAL_STATUSES: readonly RunStatus[] = ['succeeded', 'failed', 'cancelled', 'timed_out']
 
+/** Subtask lifecycle status vocabulary shared with the Python swarm subtask store. */
+export type RunSubtaskStatus =
+  | 'pending'
+  | 'ready'
+  | 'queued'
+  | 'running'
+  | 'succeeded'
+  | 'failed'
+  | 'cancelled'
+  | 'timed_out'
+  | 'skipped_by_cancel'
+
 export interface RunSubtaskSnapshot {
   subtaskId: string
   attempt: number
   capabilityId: string
-  status: string
+  status: RunSubtaskStatus | string
 }
 
 export interface RunSubtaskSummary {

@@ -236,6 +236,7 @@
   "chat.runStatusFailed": "fehlgeschlagen",
   "chat.runStatusQueued": "wartet",
   "chat.runStatusRunning": "läuft",
+  "chat.runStatusSkipped": "übersprungen",
   "chat.runStatusSucceeded": "abgeschlossen",
   "chat.runStatusTimedOut": "Zeitüberschreitung",
   "chat.runSubtasksCount": "{{count}} Unteraufgaben",

@@ -236,6 +236,7 @@
   "chat.runStatusFailed": "niepowodzenie",
   "chat.runStatusQueued": "w kolejce",
   "chat.runStatusRunning": "w toku",
+  "chat.runStatusSkipped": "pominięte",
   "chat.runStatusSucceeded": "zakończony",
   "chat.runStatusTimedOut": "przekroczono czas",
   "chat.runSubtasksCount": "{{count}} zadań podrzędnych",
