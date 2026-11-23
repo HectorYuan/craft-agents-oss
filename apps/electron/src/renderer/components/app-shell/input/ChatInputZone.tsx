@@ -6,6 +6,7 @@ import type { PermissionMode } from '@craft-agent/shared/agent/modes'
 import type { SessionStatus } from '@/config/session-status-config'
 import type { BackgroundTask } from '../ActiveTasksBar'
 import { ActiveOptionBadges } from '../ActiveOptionBadges'
+import { RunStatusChip } from '../RunStatusChip'
 import { InputContainer } from './InputContainer'
 import { InputErrorBoundary } from './InputErrorBoundary'
 
@@ -99,6 +100,9 @@ export function ChatInputZone({
           onSessionStatusChange={onSessionStatusChange}
         />
       )}
+
+      {/* Swarm run status chip (self-gating; renders nothing when the channel is disabled or idle). */}
+      <RunStatusChip sessionId={sessionId} />
 
       <InputErrorBoundary
         sessionId={sessionId}

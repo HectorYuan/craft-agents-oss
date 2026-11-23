@@ -191,6 +191,10 @@ import type {
   TaskRunSnapshotDto,
   TaskGetResult,
   TaskResultsDto,
+  RunStatusDto,
+  RunEventsDto,
+  RunCancelResultDto,
+  RunEventEnvelope,
   FileAttachment,
   SendMessageOptions,
   SessionEvent,
@@ -253,6 +257,12 @@ export interface ElectronAPI {
   getTask(workspaceId: string, slug: string, runId?: string): Promise<TaskGetResult>
   listTasks(workspaceId: string): Promise<string[]>
   getTaskResults(workspaceId: string, slug: string, runId?: string): Promise<TaskResultsDto>
+
+  // Swarm run (P2-4 minimal read-only wiring; absent when the unified-capabilities flag is off)
+  getRunStatus(runId: string): Promise<RunStatusDto>
+  getRunEvents(runId: string, limit?: number, offset?: number): Promise<RunEventsDto>
+  cancelRun(runId: string): Promise<RunCancelResultDto>
+  onRunEvent(callback: (env: RunEventEnvelope) => void): () => void
 
   respondToPermission(sessionId: string, requestId: string, allowed: boolean, alwaysAllow: boolean, options?: PermissionResponseOptions): Promise<boolean>
   respondToCredential(sessionId: string, requestId: string, response: CredentialResponse): Promise<boolean>

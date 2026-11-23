@@ -350,6 +350,12 @@ export const RPC_CHANNELS = {
     GET: 'releaseNotes:get',
     GET_LATEST_VERSION: 'releaseNotes:getLatestVersion',
   },
+  run: {
+    STATUS: 'run:status',
+    EVENTS: 'run:events',
+    CANCEL: 'run:cancel',
+    EVENT: 'run:event',
+  },
   git: {
     GET_BRANCH: 'git:getBranch',
   },

@@ -357,6 +357,74 @@ export interface TaskResultsDto {
   nodes: TaskResultNodeDto[]
 }
 
+// ---------------------------------------------------------------------------
+// Swarm run (P2-2/P2-3 read-only channels; P2-4 renderer wiring)
+// ---------------------------------------------------------------------------
+
+/** Lifecycle status vocabulary shared with the Python swarm run store. */
+export type RunStatus = 'queued' | 'running' | 'succeeded' | 'failed' | 'cancelled' | 'timed_out'
+
+/** Statuses from which the run cannot transition further. */
+export const RUN_TERMINAL_STATUSES: readonly RunStatus[] = ['succeeded', 'failed', 'cancelled', 'timed_out']
+
+export interface RunSubtaskSnapshot {
+  subtaskId: string
+  attempt: number
+  capabilityId: string
+  status: string
+}
+
+export interface RunSubtaskSummary {
+  total: number
+  byStatus: Record<string, number>
+}
+
+/** `run:status` result: current run state plus subtask summary. */
+export interface RunStatusDto {
+  runId: string
+  status: RunStatus | string
+  sessionId?: string
+  surface?: string
+  parentRunId?: string | null
+  replayOf?: string | null
+  errorReason?: string | null
+  createdAt?: number
+  updatedAt?: number
+  subtasks?: RunSubtaskSnapshot[]
+  subtaskSummary?: RunSubtaskSummary
+}
+
+/** Outbound `run:event` envelope (seq-ordered, hash-chained). */
+export interface RunEventEnvelope {
+  runId: string
+  seq: number
+  ts: number
+  type: string
+  payload: Record<string, unknown>
+  prevHash: string
+  subtaskId?: string
+  depth?: number
+}
+
+/** `run:events` result: a page of run events, seq ascending. */
+export interface RunEventsDto {
+  runId: string
+  events: RunEventEnvelope[]
+  total: number
+  limit: number
+  offset: number
+  hasMore: boolean
+}
+
+/** `run:cancel` result: reconciled final state from the authoritative store. */
+export interface RunCancelResultDto {
+  runId: string
+  status: RunStatus | string
+  errorReason?: string | null
+  subtaskSummary: RunSubtaskSummary
+  outcome?: unknown
+}
+
 export interface PermissionModeState {
   permissionMode: PermissionMode
   previousPermissionMode?: PermissionMode

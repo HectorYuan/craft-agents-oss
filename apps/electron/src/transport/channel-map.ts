@@ -29,6 +29,12 @@ export const CHANNEL_MAP = {
   killShell: invoke(RPC_CHANNELS.sessions.KILL_SHELL),
   getTaskOutput: invoke(RPC_CHANNELS.tasks.GET_OUTPUT),
 
+  // Swarm run (read-only; server-side gated by the unified-capabilities flag)
+  getRunStatus: invoke(RPC_CHANNELS.run.STATUS),
+  getRunEvents: invoke(RPC_CHANNELS.run.EVENTS),
+  cancelRun: invoke(RPC_CHANNELS.run.CANCEL),
+  onRunEvent: listener(RPC_CHANNELS.run.EVENT),
+
   // Tasks (Conductor)
   validateTask: invoke(RPC_CHANNELS.tasks.VALIDATE),
   createTask: invoke(RPC_CHANNELS.tasks.CREATE),

@@ -33,6 +33,7 @@ import { coerceInputText } from './lib/input-text'
 import { getSessionsToRefreshAfterStaleReconnect } from './lib/reconnect-recovery'
 import { formatSessionLoadFailure, shouldTreatSessionLoadFailureAsTransportFallback } from './lib/session-load'
 import { extractWorkspaceSlugFromPath } from '@craft-agent/shared/utils/workspace-slug'
+import { RPC_CHANNELS } from '@craft-agent/shared/protocol'
 import { DEFAULT_THINKING_LEVEL } from '@craft-agent/shared/agent/thinking-levels'
 import { initRendererPerf } from './lib/perf'
 import {
@@ -60,6 +61,9 @@ import {
   pushBackgroundFinishedAtom,
 } from '@/atoms/background-finished'
 import { visibleSessionIdsAtom } from '@/atoms/panel-stack'
+import { runStateAtomFamily, recordRunSession, sessionForRun } from '@/atoms/run'
+import { reduceRunState } from './event-processor/handlers/run'
+import type { RunEventEnvelope } from '../shared/types'
 import { getSessionTitle } from '@/utils/session'
 import { extractBadges } from '@/lib/mentions'
 import { getDefaultStore } from 'jotai'
@@ -861,6 +865,29 @@ export default function App() {
   const handleOpenSettings = useCallback(() => {
     navigate(routes.view.settings())
   }, [])
+
+  // Swarm run events (P2-4): per-session run status + subtask count. The server
+  // omits these channels when the unified-capabilities flag is off, so the listener
+  // simply never fires; the chip re-checks availability before rendering too.
+  useEffect(() => {
+    // Broadcast listener channels are never advertised in the handshake channel
+    // list; gate on the paired RPC channel instead (`run:status`).
+    if (!window.electronAPI.isChannelAvailable(RPC_CHANNELS.run.STATUS)) return
+    const cleanup = window.electronAPI.onRunEvent((env: RunEventEnvelope) => {
+      try {
+        if (!env || typeof env.runId !== 'string' || !env.runId) return
+        const sessionId =
+          (typeof env.payload?.sessionId === 'string' ? env.payload.sessionId : undefined)
+          ?? sessionForRun(env.runId)
+        if (!sessionId) return
+        recordRunSession(env.runId, sessionId)
+        store.set(runStateAtomFamily(sessionId), (prev) => reduceRunState(prev, env))
+      } catch (err) {
+        console.error('Failed to process run event:', err)
+      }
+    })
+    return cleanup
+  }, [store])
 
   // Listen for session events - uses centralized event processor for consistent state transitions
   //
