@@ -10,6 +10,7 @@ import { defaultSessionOptions, mergeSessionOptions } from './hooks/useSessionOp
 import { generateMessageId } from '../shared/types'
 import { useEventProcessor } from './event-processor'
 import type { AgentEvent, Effect } from './event-processor'
+import { pushPermissionRequest } from './event-processor/helpers'
 import { AppShell } from '@/components/app-shell/AppShell'
 import type { AppShellContextType } from '@/context/AppShellContext'
 import { OnboardingWizard, ReauthScreen } from '@/components/onboarding'
@@ -917,7 +918,9 @@ export default function App() {
             setPendingPermissions(prevPerms => {
               const next = new Map(prevPerms)
               const existingQueue = next.get(sessionId) || []
-              next.set(sessionId, [...existingQueue, effect.request])
+              // Idempotent by requestId: legacy/bridge duplicates must not
+              // open a second dialog or shift the queue (see pushPermissionRequest).
+              next.set(sessionId, pushPermissionRequest(existingQueue, effect.request))
               return next
             })
 

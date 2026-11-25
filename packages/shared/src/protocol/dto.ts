@@ -470,6 +470,7 @@ export type SessionEvent =
   | { type: 'async_operation'; sessionId: string; isOngoing: boolean }
   | { type: 'working_directory_changed'; sessionId: string; workingDirectory: string }
   | { type: 'permission_request'; sessionId: string; request: PermissionRequest }
+  | { type: 'approval.requested'; sessionId: string; request: ApprovalRequestedRequest }
   | { type: 'credential_request'; sessionId: string; request: CredentialRequest }
   | { type: 'permission_mode_changed'; sessionId: string; permissionMode: PermissionMode; previousPermissionMode?: PermissionMode; transitionDisplay?: string; modeVersion?: number; changedAt?: string; changedBy?: PermissionModeState['changedBy'] }
   | { type: 'plan_submitted'; sessionId: string; message: Message }
@@ -568,6 +569,22 @@ export type { BasePermissionRequest }
  */
 export interface PermissionRequest extends BasePermissionRequest {
   sessionId: string
+}
+
+/**
+ * Unified approval gate request (bridge path). Reuses the legacy permission
+ * reply channel (`sessions:respondToPermission`) but carries bridge-only
+ * traceability fields; the renderer normalizes it into a PermissionRequest.
+ */
+export interface ApprovalRequestedRequest {
+  requestId: string
+  capId?: string
+  toolName: string
+  argsPreview?: string
+  timeoutMs?: number
+  runId?: string
+  subtaskId?: string
+  depth?: number
 }
 
 export interface PermissionResponseOptions {

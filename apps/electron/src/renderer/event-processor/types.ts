@@ -134,6 +134,12 @@ export interface PermissionRequestEvent {
 }
 
 /**
+ * Unified approval gate request (bridge path). Normalized to a legacy
+ * PermissionRequest by the handler; reply reuses the same permission channel.
+ */
+export type ApprovalRequestedEvent = Extract<SessionEvent, { type: 'approval.requested' }>
+
+/**
  * Sources changed event
  */
 export interface SourcesChangedEvent {
@@ -529,6 +535,7 @@ export type AgentEvent =
   | ErrorEvent
   | TypedErrorEvent
   | PermissionRequestEvent
+  | ApprovalRequestedEvent
   | CredentialRequestEvent
   | SourcesChangedEvent
   | LabelsChangedEvent

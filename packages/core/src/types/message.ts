@@ -527,6 +527,18 @@ export interface PermissionRequest {
   commandHash?: string;
   /** Approval validity window */
   approvalTtlSeconds?: number;
+  /** Bridge-only: raw args preview emitted by the unified approval gate */
+  argsPreview?: string;
+  /** Bridge-only: approval wait window in milliseconds (request emit) */
+  timeoutMs?: number;
+  /** Bridge-only: originating run id for audit traceability */
+  runId?: string;
+  /** Bridge-only: originating subtask id for audit traceability */
+  subtaskId?: string;
+  /** Bridge-only: originating task depth for audit traceability */
+  depth?: number;
+  /** Bridge-only: capability id that raised the request */
+  capId?: string;
 }
 
 /**

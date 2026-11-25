@@ -22,6 +22,7 @@ import type {
   SessionUnarchivedEvent,
   NameChangedEvent,
   PermissionRequestEvent,
+  ApprovalRequestedEvent,
   CredentialRequestEvent,
   PlanSubmittedEvent,
   StatusEvent,
@@ -846,6 +847,42 @@ export function handlePermissionRequest(
     effects: [{
       type: 'permission_request',
       request: event.request,
+    }]
+  }
+}
+
+/**
+ * Handle approval.requested - normalize the unified approval gate request into
+ * the legacy permission queue shape. Reply reuses the existing
+ * `sessions:respondToPermission` channel; the backend resolves the future by
+ * requestId, so both legacy (`perm-`) and bridge (`apv-`) ids work unchanged.
+ */
+export function handleApprovalRequested(
+  state: SessionState,
+  event: ApprovalRequestedEvent
+): ProcessResult {
+  const req = event.request
+  const preview = req.argsPreview ?? ''
+  return {
+    state,
+    effects: [{
+      type: 'permission_request',
+      request: {
+        requestId: req.requestId,
+        sessionId: event.sessionId,
+        toolName: req.toolName,
+        description: preview || `${req.toolName} requires approval`,
+        command: preview || undefined,
+        approvalTtlSeconds: req.timeoutMs != null
+          ? Math.max(0, Math.round(req.timeoutMs / 1000))
+          : undefined,
+        argsPreview: req.argsPreview,
+        timeoutMs: req.timeoutMs,
+        runId: req.runId,
+        subtaskId: req.subtaskId,
+        depth: req.depth,
+        capId: req.capId,
+      },
     }]
   }
 }

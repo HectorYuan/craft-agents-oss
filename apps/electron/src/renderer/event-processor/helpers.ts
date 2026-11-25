@@ -5,7 +5,7 @@
  * All lookups are by ID (turnId, toolUseId) - NEVER by position.
  */
 
-import type { Message, Session } from '../../shared/types'
+import type { Message, Session, PermissionRequest } from '../../shared/types'
 
 let messageIdCounter = 0
 
@@ -178,4 +178,20 @@ export function createEmptySession(sessionId: string, workspaceId: string, works
     messages: [],
     isProcessing: true,
   }
+}
+
+/**
+ * Append a permission request to a session queue, idempotent by requestId.
+ *
+ * Legacy `permission_request` and bridge `approval.requested` events share one
+ * queue; a replayed/duplicate event for the same requestId must not open a
+ * second dialog or shift the queue. When the request is already queued the
+ * original queue reference is returned unchanged.
+ */
+export function pushPermissionRequest(
+  queue: PermissionRequest[],
+  request: PermissionRequest,
+): PermissionRequest[] {
+  if (queue.some(q => q.requestId === request.requestId)) return queue
+  return [...queue, request]
 }
