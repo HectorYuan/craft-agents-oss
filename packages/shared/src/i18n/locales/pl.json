@@ -348,6 +348,7 @@
   "common.rename": "Zmień nazwę",
   "common.rendering": "Renderowanie...",
   "common.reset": "Resetuj",
+  "common.resultTruncated": "Obcięto",
   "common.retry": "Spróbuj ponownie",
   "common.retrying": "Ponawianie…",
   "common.revert": "Przywróć",

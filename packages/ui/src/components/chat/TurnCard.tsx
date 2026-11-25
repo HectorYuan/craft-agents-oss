@@ -1027,7 +1027,7 @@ function ActivityRow({ activity, onOpenDetails, isLastChild, sessionFolderPath, 
         : null
     : null
 
-  const resultCard = activity.status === 'completed' ? renderResultCard?.(activity) : null
+  const resultCard = (activity.status === 'completed' || activity.status === 'error') ? renderResultCard?.(activity) : null
 
   return (
     <>

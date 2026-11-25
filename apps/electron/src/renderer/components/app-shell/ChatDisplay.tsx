@@ -73,6 +73,7 @@ import { useAppShellContext } from "@/context/AppShellContext"
 import { navigate, routes } from "@/lib/navigate"
 import { CHAT_LAYOUT } from "@/config/layout"
 import { GtdToolResultCard, isGtdToolName } from "@/components/zenskill/GtdToolResultCard"
+import { GenericToolResultCard } from "@/components/app-shell/GenericToolResultCard"
 import { ZENSKILL_SOURCE_SLUG } from "@/components/zenskill/zenskill-registry"
 import { collectFileChangesFromActivities, getFirstFileChangeIdForActivity } from "@/lib/file-changes"
 import { resolveBranchNewPanelOption } from "./branching"
@@ -1733,8 +1734,21 @@ export const ChatDisplay = React.forwardRef<ChatDisplayHandle, ChatDisplayProps>
                         onOpenFile={onOpenFile}
                         onOpenUrl={onOpenUrl}
                         renderToolResultCard={(activity) => {
-                          if (!activity.content || !activity.toolName || !isGtdToolName(activity.toolName)) return null
-                          return <GtdToolResultCard toolName={activity.toolName} resultText={activity.content} workspaceId={session.workspaceId} sourceSlug={ZENSKILL_SOURCE_SLUG} />
+                          if (!activity.toolName) return null
+                          if (isGtdToolName(activity.toolName)) {
+                            if (!activity.content) return null
+                            return <GtdToolResultCard toolName={activity.toolName} resultText={activity.content} workspaceId={session.workspaceId} sourceSlug={ZENSKILL_SOURCE_SLUG} />
+                          }
+                          const text = (activity.content || '').trim()
+                          if (!text) return null
+                          return (
+                            <GenericToolResultCard
+                              toolName={activity.toolName}
+                              resultText={text}
+                              isError={activity.status === 'error'}
+                              errorText={activity.error}
+                            />
+                          )
                         }}
                         isLastResponse={isLastResponse}
                         compactMode={compactMode}

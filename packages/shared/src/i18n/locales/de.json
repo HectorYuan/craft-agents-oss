@@ -348,6 +348,7 @@
   "common.rename": "Umbenennen",
   "common.rendering": "Wird gerendert...",
   "common.reset": "Zurücksetzen",
+  "common.resultTruncated": "Abgeschnitten",
   "common.retry": "Erneut versuchen",
   "common.retrying": "Wird erneut versucht…",
   "common.revert": "Zurücksetzen",

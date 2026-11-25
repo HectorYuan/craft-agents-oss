@@ -348,6 +348,7 @@
   "common.rename": "名前を変更",
   "common.rendering": "レンダリング中...",
   "common.reset": "リセット",
+  "common.resultTruncated": "切り詰め済み",
   "common.retry": "再試行",
   "common.retrying": "再試行中…",
   "common.revert": "元に戻す",

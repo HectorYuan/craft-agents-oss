@@ -348,6 +348,7 @@
   "common.rename": "Renombrar",
   "common.rendering": "Renderizando...",
   "common.reset": "Resetear",
+  "common.resultTruncated": "Truncado",
   "common.retry": "Reintentar",
   "common.retrying": "Reintentando…",
   "common.revert": "Revertir",
