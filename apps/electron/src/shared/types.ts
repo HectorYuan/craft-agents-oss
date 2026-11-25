@@ -236,7 +236,15 @@ export interface ElectronAPI {
   getSessions(): Promise<Session[]>
   getUnreadSummary(): Promise<UnreadSummary>
   markAllSessionsRead(workspaceId: string): Promise<void>
-  getSessionMessages(sessionId: string): Promise<Session | null>
+  getSessionMessages(sessionId: string, sinceSeq?: number): Promise<(Session & {
+    events?: Array<Record<string, unknown>>
+    resume?: {
+      replayable: boolean
+      oldestSeq: number | null
+      latestSeq: number | null
+      sinceSeq: number | null
+    }
+  }) | null>
   createSession(workspaceId: string, options?: CreateSessionOptions): Promise<Session>
   deleteSession(sessionId: string): Promise<void>
   sendMessage(sessionId: string, message: string, attachments?: FileAttachment[], storedAttachments?: StoredAttachmentType[], options?: SendMessageOptions): Promise<void>

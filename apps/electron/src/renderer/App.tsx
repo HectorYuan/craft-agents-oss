@@ -375,6 +375,11 @@ export default function App() {
   // during typing; attachments are stored as lightweight refs (path + name) and
   // hydrated via readFileAttachment() on session switch.
   const sessionDraftsRef = useRef<Map<string, SessionDraft>>(new Map())
+  // G3 断线续读：每会话已渲染事件的单调 seq 水位 + 去重集合；事件回调镜像到 ref，
+  // 供重连回放路径复用同一事件处理器。无新增公共通道，复用 sessions:getMessages。
+  const lastSeqRef = useRef<Map<string, number>>(new Map())
+  const seenSeqRef = useRef<Map<string, Set<number>>>(new Map())
+  const sessionEventHandlerRef = useRef<((event: SessionEvent) => void) | null>(null)
   // Unified session options for all session-scoped settings
   const [sessionOptions, setSessionOptions] = useState<Map<string, SessionOptions>>(new Map())
 
@@ -507,20 +512,48 @@ export default function App() {
 
   const refreshSessionFromServer = useCallback(async (sessionId: string): Promise<'refreshed' | 'preserved_stale_messages' | 'failed'> => {
     try {
-      const fresh = await window.electronAPI.getSessionMessages(sessionId)
+      const sinceSeq = lastSeqRef.current.get(sessionId)
+      const fresh = await window.electronAPI.getSessionMessages(sessionId, sinceSeq)
       if (!fresh) return 'failed'
 
-      const prevSession = store.get(sessionAtomFamily(sessionId))
-      const preservedStaleMessages = !!prevSession && prevSession.messages.length > 0 && (!fresh.messages || fresh.messages.length === 0)
-      const nextSession = preservedStaleMessages
-        ? { ...fresh, messages: prevSession.messages }
-        : fresh
+      const resume = fresh.resume
+      const replayable = resume?.replayable !== false
+      const replayEvents = replayable && Array.isArray(fresh.events) ? fresh.events : []
+      rendererLog.info('[App] resume replay refresh', { sessionId, sinceSeq, events: replayEvents.length, resume, messages: (fresh.messages || []).length })
 
-      clearStreamingState(sessionId)
-      replaceLoadedSession(nextSession)
-      syncSessionOptionsFromSession(nextSession)
-      void reconcilePermissionModeState(sessionId)
-      return preservedStaleMessages ? 'preserved_stale_messages' : 'refreshed'
+      // 窗口溢出（replayable=false）或无回放载荷：整段持久化重载，不静默丢。
+      if (!replayable || replayEvents.length === 0) {
+        const prevSession = store.get(sessionAtomFamily(sessionId))
+        const preservedStaleMessages = !!prevSession && prevSession.messages.length > 0 && (!fresh.messages || fresh.messages.length === 0)
+        const nextSession = preservedStaleMessages
+          ? { ...fresh, messages: prevSession.messages }
+          : fresh
+
+        clearStreamingState(sessionId)
+        replaceLoadedSession(nextSession)
+        syncSessionOptionsFromSession(nextSession)
+        void reconcilePermissionModeState(sessionId)
+        return preservedStaleMessages ? 'preserved_stale_messages' : 'refreshed'
+      }
+
+      // 增量回放：按 seq 去重后把缓冲事件喂回同一事件处理器，叠加在当前 atom 状态上。
+      const seen = seenSeqRef.current.get(sessionId) ?? new Set<number>()
+      let applied = 0
+      for (const ev of replayEvents) {
+        const s = (ev as Record<string, unknown>).seq
+        if (typeof s === 'number' && seen.has(s)) continue
+        sessionEventHandlerRef.current?.(ev as unknown as SessionEvent)
+        if (typeof s === 'number') {
+          seen.add(s)
+          lastSeqRef.current.set(sessionId, s)
+        }
+        applied += 1
+      }
+      seenSeqRef.current.set(sessionId, seen)
+      const refreshed = store.get(sessionAtomFamily(sessionId))
+      rendererLog.info('[App] resume replay applied', { sessionId, applied, messages: refreshed?.messages?.length ?? 0 })
+      if (refreshed) syncSessionOptionsFromSession(refreshed)
+      return applied > 0 ? 'refreshed' : 'preserved_stale_messages'
     } catch (err) {
       console.error(`[App] Failed to refresh session ${sessionId}:`, err)
       return 'failed'
@@ -1009,11 +1042,21 @@ export default function App() {
       }
     }
 
-    const cleanup = window.electronAPI.onSessionEvent((event: SessionEvent) => {
+    const handleSessionEvent = (event: SessionEvent) => {
       if (!('sessionId' in event)) return
 
       const sessionId = event.sessionId
       const workspaceId = windowWorkspaceId ?? ''
+
+      // G3 续读水位：记录服务端单调 seq，供重连时按 sinceSeq 增量回放去重。
+      const rawSeq = (event as Record<string, unknown>).seq
+      if (typeof rawSeq === 'number') {
+        lastSeqRef.current.set(sessionId, rawSeq)
+        if (!seenSeqRef.current.has(sessionId)) {
+          seenSeqRef.current.set(sessionId, new Set())
+        }
+        seenSeqRef.current.get(sessionId)!.add(rawSeq)
+      }
 
       // Session lifecycle events are handled explicitly (not by the agent event processor).
       if (event.type === 'session_created') {
@@ -1145,7 +1188,9 @@ export default function App() {
       const newMetaMap = new Map(metaMap)
       newMetaMap.set(sessionId, extractSessionMeta(updatedSession))
       store.set(sessionMetaMapAtom, newMetaMap)
-    })
+    }
+    sessionEventHandlerRef.current = handleSessionEvent
+    const cleanup = window.electronAPI.onSessionEvent(handleSessionEvent)
 
     return cleanup
   }, [
