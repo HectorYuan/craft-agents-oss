@@ -126,6 +126,36 @@ function workspaceDistribution(sessions: Iterable<{ workspaceId?: string }>): Re
   return distribution
 }
 
+// P5-3 终态识别：经典终态事件 + swarm.run.* 终态后缀 + 审批终态事件。
+// 终态到达时清掉该会话挂起的权限/凭证队列（幂等，不影响已决策项）。
+const TERMINAL_CLASSIC_EVENTS = new Set(['complete', 'interrupted', 'error', 'typed_error'])
+const TERMINAL_RUN_SUFFIXES = new Set(['succeeded', 'failed', 'cancelled', 'timed_out', 'interrupted'])
+const APPROVAL_TERMINAL_TYPES = new Set([
+  'approval.resolved',
+  'approval.decided',
+  'approval.approved',
+  'approval.denied',
+  'permission_resolved',
+])
+
+function isTerminalRunEvent(event: Record<string, unknown>): boolean {
+  const type = String(event.type ?? '')
+  if (TERMINAL_CLASSIC_EVENTS.has(type)) return true
+  if (type.startsWith('swarm.run.')) {
+    return TERMINAL_RUN_SUFFIXES.has(type.slice('swarm.run.'.length))
+  }
+  return false
+}
+
+function isApprovalTerminalEvent(event: Record<string, unknown>): boolean {
+  const type = String(event.type ?? '')
+  if (!APPROVAL_TERMINAL_TYPES.has(type)) return false
+  const outcome = event.decide ?? event.decision ?? event.outcome ?? event.status
+  if (outcome == null) return true
+  const accepted = ['succeeded', 'approved', 'denied', 'rejected', 'cancelled', 'timeout', 'timed_out', 'disconnect']
+  return accepted.includes(String(outcome))
+}
+
 /**
  * Helper to handle background task events from the agent.
  * Updates the backgroundTasksAtomFamily based on event type.
@@ -370,6 +400,22 @@ export default function App() {
   const [pendingPermissions, setPendingPermissions] = useState<Map<string, PermissionRequest[]>>(new Map())
   // Credential requests per session (queue to handle multiple concurrent requests)
   const [pendingCredentials, setPendingCredentials] = useState<Map<string, CredentialRequest[]>>(new Map())
+
+  // P5-3：run 终态 / 审批终态到达时，幂等清空该会话挂起的权限与凭证队列。
+  const clearPendingForSession = useCallback((sessionId: string) => {
+    setPendingPermissions(prev => {
+      if (!prev.has(sessionId)) return prev
+      const next = new Map(prev)
+      next.delete(sessionId)
+      return next
+    })
+    setPendingCredentials(prev => {
+      if (!prev.has(sessionId)) return prev
+      const next = new Map(prev)
+      next.delete(sessionId)
+      return next
+    })
+  }, [])
   // Draft composer state per session (text + attachment refs), preserved across mode
   // switches, conversation changes, and app restarts. Using a ref avoids re-renders
   // during typing; attachments are stored as lightweight refs (path + name) and
@@ -511,6 +557,25 @@ export default function App() {
   }, [])
 
   const refreshSessionFromServer = useCallback(async (sessionId: string): Promise<'refreshed' | 'preserved_stale_messages' | 'failed'> => {
+    // 严格去重：只应用本地水位之后、且未见过的 seq；水位存本地内存。
+    const applyReplayEvents = (events: Array<Record<string, unknown>>): number => {
+      const seen = seenSeqRef.current.get(sessionId) ?? new Set<number>()
+      let applied = 0
+      for (const ev of events) {
+        const s = ev.seq
+        if (typeof s === 'number') {
+          const watermark = lastSeqRef.current.get(sessionId)
+          if (seen.has(s) || (watermark != null && s <= watermark)) continue
+          seen.add(s)
+          lastSeqRef.current.set(sessionId, s)
+        }
+        sessionEventHandlerRef.current?.(ev as unknown as SessionEvent)
+        applied += 1
+      }
+      seenSeqRef.current.set(sessionId, seen)
+      return applied
+    }
+
     try {
       const sinceSeq = lastSeqRef.current.get(sessionId)
       const fresh = await window.electronAPI.getSessionMessages(sessionId, sinceSeq)
@@ -521,8 +586,11 @@ export default function App() {
       const replayEvents = replayable && Array.isArray(fresh.events) ? fresh.events : []
       rendererLog.info('[App] resume replay refresh', { sessionId, sinceSeq, events: replayEvents.length, resume, messages: (fresh.messages || []).length })
 
-      // 窗口溢出（replayable=false）或无回放载荷：整段持久化重载，不静默丢。
+      // 窗口溢出（replayable=false）或无回放载荷：整段持久化重载，不静默丢；
+      // 整段重载后本地水位/去重集合重置，避免旧 seq 污染后续增量。
       if (!replayable || replayEvents.length === 0) {
+        lastSeqRef.current.delete(sessionId)
+        seenSeqRef.current.delete(sessionId)
         const prevSession = store.get(sessionAtomFamily(sessionId))
         const preservedStaleMessages = !!prevSession && prevSession.messages.length > 0 && (!fresh.messages || fresh.messages.length === 0)
         const nextSession = preservedStaleMessages
@@ -536,20 +604,32 @@ export default function App() {
         return preservedStaleMessages ? 'preserved_stale_messages' : 'refreshed'
       }
 
-      // 增量回放：按 seq 去重后把缓冲事件喂回同一事件处理器，叠加在当前 atom 状态上。
-      const seen = seenSeqRef.current.get(sessionId) ?? new Set<number>()
-      let applied = 0
-      for (const ev of replayEvents) {
-        const s = (ev as Record<string, unknown>).seq
-        if (typeof s === 'number' && seen.has(s)) continue
-        sessionEventHandlerRef.current?.(ev as unknown as SessionEvent)
-        if (typeof s === 'number') {
-          seen.add(s)
-          lastSeqRef.current.set(sessionId, s)
+      // 增量回放首拉；重连瞬间后端可能仍在产出，随后按水位追平若干轮。
+      // 容忍瞬时空轮（后端尚未产出下一段），连续两轮无新事件才停。
+      let applied = applyReplayEvents(replayEvents)
+      const CATCHUP_ROUNDS = 6
+      const CATCHUP_DELAY_MS = 600
+      let emptyRounds = 0
+      for (let round = 0; round < CATCHUP_ROUNDS; round += 1) {
+        await new Promise(r => setTimeout(r, CATCHUP_DELAY_MS))
+        const follow = await window.electronAPI.getSessionMessages(sessionId, lastSeqRef.current.get(sessionId))
+        if (!follow || follow.resume?.replayable === false) break
+        const followEvents = Array.isArray(follow.events) ? follow.events : []
+        if (followEvents.length === 0) {
+          emptyRounds += 1
+          if (emptyRounds >= 2) break
+          continue
         }
-        applied += 1
+        const followApplied = applyReplayEvents(followEvents)
+        applied += followApplied
+        if (followApplied === 0) {
+          emptyRounds += 1
+          if (emptyRounds >= 2) break
+        } else {
+          emptyRounds = 0
+        }
       }
-      seenSeqRef.current.set(sessionId, seen)
+
       const refreshed = store.get(sessionAtomFamily(sessionId))
       rendererLog.info('[App] resume replay applied', { sessionId, applied, messages: refreshed?.messages?.length ?? 0 })
       if (refreshed) syncSessionOptionsFromSession(refreshed)
@@ -1021,8 +1101,8 @@ export default function App() {
         }
       }
 
-      // Clear pending permissions and credentials on complete
-      if (eventType === 'complete') {
+      // Clear pending permissions and credentials on terminal run events
+      if (TERMINAL_CLASSIC_EVENTS.has(eventType)) {
         setPendingPermissions(prevPerms => {
           if (prevPerms.has(sessionId)) {
             const next = new Map(prevPerms)
@@ -1043,19 +1123,32 @@ export default function App() {
     }
 
     const handleSessionEvent = (event: SessionEvent) => {
-      if (!('sessionId' in event)) return
+      const rec = event as Record<string, unknown>
+      const eventSessionId = typeof rec.sessionId === 'string' ? rec.sessionId : null
+      const terminal = isTerminalRunEvent(rec) || isApprovalTerminalEvent(rec)
+      // swarm.run.* 终态事件只带 runId、不带 sessionId；best-effort 回落到当前
+      // 选中会话（待 A 线契约在事件上补 sessionId 后收紧）。
+      const sessionId = eventSessionId ?? (terminal ? sessionSelection.selected : null)
+      if (!sessionId) return
 
-      const sessionId = event.sessionId
       const workspaceId = windowWorkspaceId ?? ''
 
+      // P5-3：run 终态 / 审批终态到达，幂等清空该会话挂起的权限与凭证队列。
+      if (terminal) {
+        rendererLog.info('[App] clear pending on terminal event', { sessionId, type: rec.type })
+        clearPendingForSession(sessionId)
+      }
+
       // G3 续读水位：记录服务端单调 seq，供重连时按 sinceSeq 增量回放去重。
-      const rawSeq = (event as Record<string, unknown>).seq
-      if (typeof rawSeq === 'number') {
-        lastSeqRef.current.set(sessionId, rawSeq)
-        if (!seenSeqRef.current.has(sessionId)) {
-          seenSeqRef.current.set(sessionId, new Set())
+      if (eventSessionId) {
+        const rawSeq = rec.seq
+        if (typeof rawSeq === 'number') {
+          lastSeqRef.current.set(sessionId, rawSeq)
+          if (!seenSeqRef.current.has(sessionId)) {
+            seenSeqRef.current.set(sessionId, new Set())
+          }
+          seenSeqRef.current.get(sessionId)!.add(rawSeq)
         }
-        seenSeqRef.current.get(sessionId)!.add(rawSeq)
       }
 
       // Session lifecycle events are handled explicitly (not by the agent event processor).
@@ -1208,6 +1301,8 @@ export default function App() {
     syncSessionOptionsFromSession,
     applyPermissionModeState,
     reconcilePermissionModeState,
+    clearPendingForSession,
+    sessionSelection.selected,
   ])
 
   // Transport reconnect recovery — refresh session metadata plus active/processing
