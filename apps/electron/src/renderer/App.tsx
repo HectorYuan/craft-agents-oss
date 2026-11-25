@@ -996,12 +996,18 @@ export default function App() {
         if (!sessionId) return
         recordRunSession(env.runId, sessionId)
         store.set(runStateAtomFamily(sessionId), (prev) => reduceRunState(prev, env))
+        // P5-3：run:event 通道的 swarm.run.* 终态（含 cancelled）同样幂等清挂起队列；
+        // 与 session:event 审批终态路径互为冗余，delete 幂等不影响已决策项。
+        if (isTerminalRunEvent({ type: env.type, ...env.payload })) {
+          rendererLog.info('[App] clear pending on run terminal event', { sessionId, type: env.type })
+          clearPendingForSession(sessionId)
+        }
       } catch (err) {
         console.error('Failed to process run event:', err)
       }
     })
     return cleanup
-  }, [store])
+  }, [store, clearPendingForSession])
 
   // Listen for session events - uses centralized event processor for consistent state transitions
   //
