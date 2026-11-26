@@ -343,6 +343,36 @@ export interface GroupTurnsOptions {
 }
 
 /**
+ * Fork patch: whether a completed turn should be hidden entirely.
+ *
+ * Upstream hides turns where every tool activity is an error, all intermediates
+ * are empty, and there is no response text. This fork narrows that:
+ *  - A real tool failure must stay visible in history so its error result is
+ *    reachable; the original "all errors → hide" rule swallowed it.
+ *  - Only turns whose errors are the user-interruption marker (`'Interrupted'`,
+ *    set by `flushCurrentTurn` when the user cuts in) keep the upstream hidden
+ *    behavior; the "Response interrupted" banner remains the intended feedback.
+ */
+export function shouldHideInterruptedOnlyTurn(turn: {
+  activities: ActivityItem[]
+  response?: ResponseContent | null
+}): boolean {
+  if (turn.activities.length === 0) return false
+  if (turn.response) return false
+  return turn.activities.every(a => {
+    // Tool activities must be interrupted errors to stay hidden; real failures
+    // (error text other than the Interrupted marker) keep the turn visible.
+    if (a.type === 'tool') return a.status === 'error' && a.error === 'Interrupted'
+    // Intermediate activities must have no meaningful content
+    if (a.type === 'intermediate') return !a.content?.trim()
+    // Plan activities are meaningful work
+    if (a.type === 'plan') return false
+    // Other activity types - consider as no meaningful work
+    return true
+  })
+}
+
+/**
  * Groups messages into turns for TurnCard rendering
  *
  * Rules:

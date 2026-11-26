@@ -38,7 +38,7 @@ import { Tooltip, TooltipTrigger, TooltipContent } from '../tooltip'
 import { parseDiffFromFile, type FileContents } from '@pierre/diffs'
 import { getDiffStats, getUnifiedDiffStats } from '../code-viewer'
 import { TurnCardActionsMenu } from './TurnCardActionsMenu'
-import { computeLastChildSet, groupActivitiesByParent, isActivityGroup, formatDuration, formatTokens, deriveTurnPhase, shouldShowThinkingIndicator, type ActivityGroup, type AssistantTurn } from './turn-utils'
+import { computeLastChildSet, groupActivitiesByParent, isActivityGroup, formatDuration, formatTokens, deriveTurnPhase, shouldShowThinkingIndicator, shouldHideInterruptedOnlyTurn, type ActivityGroup, type AssistantTurn } from './turn-utils'
 import { extractAnnotationSelectedText } from './follow-up-helpers'
 import {
   formatAnnotationFollowUpTooltipText,
@@ -771,6 +771,10 @@ function getPreviewText(
 
   // When complete, show summary (badge already shows count)
   if (isComplete || (!isStreaming && activities.length > 0)) {
+    const nonPlan = activities.filter(a => a.type !== 'plan')
+    const allFailed = nonPlan.length > 0 && nonPlan.every(a => a.status === 'error')
+    // All tool activities failed: do not say "Completed · N errors" (contradictory).
+    if (allFailed) return i18n.t('turnCard.stepsFailed')
     const errorSuffix = errorCount > 0
       ? i18n.t('turnCard.errorCount', { count: errorCount })
       : ''
@@ -2945,25 +2949,11 @@ export const TurnCard = React.memo(function TurnCard({
   }
 
   // Don't render turns that were interrupted before any meaningful work happened.
-  // Hide the turn if:
-  // - All tool activities are errors (nothing completed successfully)
-  // - Any intermediate activities have no meaningful content (empty or just whitespace)
-  // - No response text to show
-  // - No plan activities
-  // The "Response interrupted" info banner alone is sufficient feedback.
-  const hasNoMeaningfulWork = activities.length > 0
-    && activities.every(a => {
-      // Tool activities must be errors (interrupted/failed)
-      if (a.type === 'tool') return a.status === 'error'
-      // Intermediate activities must have no meaningful content
-      if (a.type === 'intermediate') return !a.content?.trim()
-      // Plan activities are meaningful work
-      if (a.type === 'plan') return false
-      // Other activity types - consider as no meaningful work
-      return true
-    })
-    && !response
-  if (hasNoMeaningfulWork) {
+  // Fork patch: only pure-interruption turns stay hidden; a real tool failure
+  // keeps the turn visible so its error result is reachable in history.
+  // The "Response interrupted" info banner alone is sufficient feedback for
+  // interrupted turns.
+  if (shouldHideInterruptedOnlyTurn({ activities, response })) {
     return null
   }
 

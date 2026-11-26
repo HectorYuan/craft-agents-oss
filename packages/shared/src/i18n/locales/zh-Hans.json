@@ -1759,6 +1759,7 @@
   "turnCard.responding": "回复中...",
   "turnCard.starting": "启动中...",
   "turnCard.stepsCompleted": "步骤已完成",
+  "turnCard.stepsFailed": "步骤失败",
   "viewer.clearSession": "清除会话",
   "webui.connectingToServer": "正在连接服务器...",
   "webui.connectionFailed": "连接失败",
