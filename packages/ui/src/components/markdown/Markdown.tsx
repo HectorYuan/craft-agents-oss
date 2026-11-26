@@ -32,6 +32,7 @@ import { useCollapsibleMarkdown } from './CollapsibleMarkdownContext'
 import { wrapWithSafeProxy } from './safe-components'
 import { MARKDOWN_MATH_OPTIONS } from './math-options'
 import { markdownUrlTransform } from './url-transform'
+import { withBalancedFence } from './fence-balance'
 
 /**
  * Names of preview-block code-fence types that recursive `Markdown` callers
@@ -602,9 +603,11 @@ export function Markdown({
     [mode, onUrlClick, onFileClick, collapsible, collapsibleContext, hideFirstMermaidExpand, disablePreviewBlocks]
   )
 
-  // Preprocess to convert raw URLs and file paths to markdown links
+  // Preprocess to convert raw URLs and file paths to markdown links.
+  // Streaming fence tolerance: a half-open fence gets a render-only closing
+  // fence so the block visually completes; persisted content is untouched.
   const processedContent = React.useMemo(
-    () => preprocessLinks(children),
+    () => preprocessLinks(withBalancedFence(children)),
     [children]
   )
 
