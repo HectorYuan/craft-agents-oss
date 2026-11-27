@@ -38,7 +38,7 @@ import { Tooltip, TooltipTrigger, TooltipContent } from '../tooltip'
 import { parseDiffFromFile, type FileContents } from '@pierre/diffs'
 import { getDiffStats, getUnifiedDiffStats } from '../code-viewer'
 import { TurnCardActionsMenu } from './TurnCardActionsMenu'
-import { computeLastChildSet, groupActivitiesByParent, isActivityGroup, formatDuration, formatTokens, deriveTurnPhase, shouldShowThinkingIndicator, shouldHideInterruptedOnlyTurn, type ActivityGroup, type AssistantTurn } from './turn-utils'
+import { computeLastChildSet, groupActivitiesByParent, isActivityGroup, formatDuration, formatTokens, deriveTurnPhase, shouldShowThinkingIndicator, shouldHideInterruptedOnlyTurn, summarizeToolActivities, type ActivityGroup, type AssistantTurn } from './turn-utils'
 import { extractAnnotationSelectedText } from './follow-up-helpers'
 import {
   formatAnnotationFollowUpTooltipText,
@@ -771,14 +771,31 @@ function getPreviewText(
 
   // When complete, show summary (badge already shows count)
   if (isComplete || (!isStreaming && activities.length > 0)) {
-    const nonPlan = activities.filter(a => a.type !== 'plan')
-    const allFailed = nonPlan.length > 0 && nonPlan.every(a => a.status === 'error')
-    // All tool activities failed: do not say "Completed · N errors" (contradictory).
-    if (allFailed) return i18n.t('turnCard.stepsFailed')
-    const errorSuffix = errorCount > 0
-      ? i18n.t('turnCard.errorCount', { count: errorCount })
-      : ''
-    return `${i18n.t('turnCard.stepsCompleted')}${errorSuffix}`
+    const summary = summarizeToolActivities(activities)
+    if (summary.totalTools === 0) {
+      // Plain-text turn with no tool activities: keep prior summary behavior.
+      const nonPlan = activities.filter(a => a.type !== 'plan')
+      const allFailed = nonPlan.length > 0 && nonPlan.every(a => a.status === 'error')
+      // All tool activities failed: do not say "Completed · N errors" (contradictory).
+      if (allFailed) return i18n.t('turnCard.stepsFailed')
+      const errorSuffix = errorCount > 0
+        ? i18n.t('turnCard.errorCount', { count: errorCount })
+        : ''
+      return `${i18n.t('turnCard.stepsCompleted')}${errorSuffix}`
+    }
+    // P0-A: header carries a tool-name summary; mixed success/failure takes the failure side.
+    const head = summary.hasFailure
+      ? i18n.t('turnCard.stepsFailed')
+      : i18n.t('turnCard.stepsCompleted')
+    const parts = summary.entries.map(entry => {
+      const name = getToolDisplayName(entry.toolName)
+      return entry.inputHint ? `${name} ${entry.inputHint}` : name
+    })
+    if (summary.totalTools > summary.entries.length) {
+      parts.push(i18n.t('turnCard.toolsMore', { count: summary.totalTools }))
+    }
+    const separator = i18n.t('turnCard.toolSummarySeparator')
+    return `${head}${separator}${parts.join(', ')}`
   }
 
   return i18n.t('turnCard.starting')

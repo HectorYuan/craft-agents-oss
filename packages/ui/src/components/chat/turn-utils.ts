@@ -372,6 +372,83 @@ export function shouldHideInterruptedOnlyTurn(turn: {
   })
 }
 
+// ============================================================================
+// P0-A: collapsed header tool summary
+// ============================================================================
+
+/** Preferred path/command-class input keys, checked in order for the header hint. */
+const INPUT_HINT_KEYS = [
+  'path',
+  'file_path',
+  'filePath',
+  'directory',
+  'dir',
+  'pattern',
+  'url',
+  'command',
+  'cmd',
+  'skill',
+]
+
+/** Single-line hint budget for one tool entry in the collapsed header. */
+const INPUT_HINT_LIMIT = 40
+
+/** One tool entry rendered in the collapsed header summary. */
+export interface ToolSummaryEntry {
+  toolName: string
+  inputHint: string
+}
+
+function asString(value: unknown): string {
+  return typeof value === 'string' ? value.trim() : ''
+}
+
+/**
+ * Extract the first path/command-class fragment of a tool input for header
+ * display. Returns '' when the input carries no usable string — the caller
+ * then renders the tool name alone (no fabricated hint).
+ */
+export function summarizeToolInput(
+  toolInput: Record<string, unknown> | undefined
+): string {
+  if (!toolInput) return ''
+  for (const key of INPUT_HINT_KEYS) {
+    const hint = asString(toolInput[key])
+    if (hint) return hint.slice(0, INPUT_HINT_LIMIT)
+  }
+  for (const value of Object.values(toolInput)) {
+    const hint = asString(value)
+    if (hint) return hint.slice(0, INPUT_HINT_LIMIT)
+  }
+  return ''
+}
+
+/**
+ * Summarize the tool activities of one turn for the collapsed header.
+ *
+ * - `entries` keeps at most the first 3 tools; `totalTools` retains the full
+ *   count so the caller can append the "等 N 个" suffix.
+ * - `hasFailure` is true when at least one tool activity errored; a mixed
+ *   success/failure turn reports the failure tone (header takes failure side).
+ * - Plan / intermediate activities are excluded.
+ */
+export function summarizeToolActivities(activities: ActivityItem[]): {
+  entries: ToolSummaryEntry[]
+  totalTools: number
+  hasFailure: boolean
+} {
+  const tools = activities.filter(a => a.type === 'tool' && a.toolName)
+  const entries = tools.slice(0, 3).map(a => ({
+    toolName: a.toolName!,
+    inputHint: summarizeToolInput(a.toolInput),
+  }))
+  return {
+    entries,
+    totalTools: tools.length,
+    hasFailure: tools.some(a => a.status === 'error'),
+  }
+}
+
 /**
  * Groups messages into turns for TurnCard rendering
  *
