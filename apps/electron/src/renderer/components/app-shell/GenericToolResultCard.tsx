@@ -11,6 +11,7 @@
 import React from 'react'
 import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
+import { formatDuration } from '@craft-agent/ui'
 
 /** 展示侧折叠阈值（字符）；超过即省略号截断并标注。 */
 const DISPLAY_LIMIT = 1200
@@ -24,6 +25,8 @@ interface GenericToolResultCardProps {
   isError?: boolean
   /** 错误活动的剥离后错误文本（可选，优先于正文展示） */
   errorText?: string
+  /** O1-1: 完成耗时（毫秒）；缺省/非法不渲染耗时，不显示 NaN */
+  durationMs?: number
 }
 
 export function GenericToolResultCard({
@@ -31,6 +34,7 @@ export function GenericToolResultCard({
   resultText,
   isError = false,
   errorText,
+  durationMs,
 }: GenericToolResultCardProps) {
   const { t } = useTranslation()
   const trimmed = resultText.trim()
@@ -39,6 +43,9 @@ export function GenericToolResultCard({
   const truncated = trimmed.length > DISPLAY_LIMIT
   const body = truncated ? `${trimmed.slice(0, DISPLAY_LIMIT)}…` : trimmed
   const shownError = (errorText || '').trim()
+  const shownDuration = typeof durationMs === 'number' && Number.isFinite(durationMs) && durationMs >= 0
+    ? formatDuration(durationMs)
+    : undefined
 
   return (
     <div
@@ -53,6 +60,11 @@ export function GenericToolResultCard({
           {isError ? '✕' : '✓'}
         </span>
         <span className="truncate font-medium text-foreground">{toolName}</span>
+        {shownDuration && (
+          <span className="ml-auto shrink-0 tabular-nums text-muted-foreground/70">
+            {shownDuration}
+          </span>
+        )}
         {isError && shownError && (
           <span className="ml-auto shrink-0 rounded-[4px] border border-destructive/30 bg-destructive/10 px-1.5 py-px text-badge font-medium text-destructive">
             {t('common.error')}

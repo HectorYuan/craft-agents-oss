@@ -38,7 +38,7 @@ import { Tooltip, TooltipTrigger, TooltipContent } from '../tooltip'
 import { parseDiffFromFile, type FileContents } from '@pierre/diffs'
 import { getDiffStats, getUnifiedDiffStats } from '../code-viewer'
 import { TurnCardActionsMenu } from './TurnCardActionsMenu'
-import { computeLastChildSet, groupActivitiesByParent, isActivityGroup, formatDuration, formatTokens, deriveTurnPhase, shouldShowThinkingIndicator, shouldHideInterruptedOnlyTurn, summarizeToolActivities, type ActivityGroup, type AssistantTurn } from './turn-utils'
+import { computeLastChildSet, groupActivitiesByParent, isActivityGroup, formatDuration, formatTokens, deriveTurnPhase, shouldShowThinkingIndicator, shouldHideInterruptedOnlyTurn, summarizeToolActivities, shouldForceExpandTurn, type ActivityGroup, type AssistantTurn } from './turn-utils'
 import { extractAnnotationSelectedText } from './follow-up-helpers'
 import {
   formatAnnotationFollowUpTooltipText,
@@ -262,6 +262,10 @@ export interface ActivityItem {
   shellId?: string        // For background Bash shells
   elapsedSeconds?: number // Live progress updates
   isBackground?: boolean  // Flag for UI differentiation
+  /** O1-1: 后端 tool_start 新增的起始时刻（毫秒），缺省由解析函数回退 timestamp */
+  startedAt?: number
+  /** O1-1: 后端 tool_result 新增的完成耗时（毫秒），缺省由解析函数回退 elapsedSeconds */
+  durationMs?: number
 }
 
 export interface ResponseContent {
@@ -2858,7 +2862,10 @@ export const TurnCard = React.memo(function TurnCard({
 
   // Use local state if no controlled state provided
   const [localExpandedTurns, setLocalExpandedTurns] = useState<Set<string>>(() => defaultExpanded ? new Set([turnId]) : new Set())
-  const isExpanded = externalIsExpanded ?? localExpandedTurns.has(turnId)
+  // O1-2: running 工具活动存在时强制展开（活动行挂载可见）；全部终结后交回既有折叠/展开策略。
+  const forceExpanded = useMemo(() => shouldForceExpandTurn({ activities }), [activities])
+  const storedExpanded = externalIsExpanded ?? localExpandedTurns.has(turnId)
+  const isExpanded = forceExpanded || storedExpanded
 
   // Track if user has toggled expansion (skip animation on initial mount)
   const hasUserToggled = useRef(false)
@@ -3063,6 +3070,8 @@ export const TurnCard = React.memo(function TurnCard({
                     sortedActivities.length > SIZE_CONFIG.maxVisibleActivities && "rounded-r-md overflow-y-auto scrollbar-hover py-1.5"
                   )}
                   style={{
+                    // O1-2: 单活动行高度作为最小高度，running/结果卡交换时容器不塌缩跳动
+                    minHeight: sortedActivities.length > 0 ? SIZE_CONFIG.activityRowHeight : undefined,
                     maxHeight: sortedActivities.length > SIZE_CONFIG.maxVisibleActivities
                       ? SIZE_CONFIG.maxVisibleActivities * SIZE_CONFIG.activityRowHeight
                       : undefined

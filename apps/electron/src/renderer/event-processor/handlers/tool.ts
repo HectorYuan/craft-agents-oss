@@ -58,6 +58,7 @@ export function handleToolStart(
     toolIntent: event.toolIntent,
     toolDisplayName: event.toolDisplayName,
     toolDisplayMeta: event.toolDisplayMeta,
+    startedAt: event.startedAt,
   }
 
   return {
@@ -103,6 +104,7 @@ export function handleToolResult(
       toolStatus: newToolStatus,
       isError: effectiveIsError,
       errorCode: isPersistedOutput ? 'response_too_large' : undefined,
+      durationMs: event.durationMs,
     })
 
     // Safety net: when a parent Task completes, auto-complete any still-pending child tools.
@@ -158,6 +160,7 @@ export function handleToolResult(
     errorCode: isPersistedOutput ? 'response_too_large' : undefined,
     turnId: event.turnId,
     parentToolUseId: event.parentToolUseId,
+    durationMs: event.durationMs,
   }
 
   return {

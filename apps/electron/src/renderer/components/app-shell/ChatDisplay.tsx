@@ -39,6 +39,8 @@ import {
   type ActivityItem,
   type FileChange,
   type DiffViewerSettings,
+  resolveActivityStartMs,
+  resolveActivityDurationMs,
 } from "@craft-agent/ui"
 import { useFocusZone } from "@/hooks/keyboard"
 import { useTheme } from "@/hooks/useTheme"
@@ -1742,7 +1744,7 @@ export const ChatDisplay = React.forwardRef<ChatDisplayHandle, ChatDisplayProps>
                               <ToolRunningCard
                                 toolName={activity.toolName}
                                 toolInput={activity.toolInput}
-                                startTime={activity.timestamp}
+                                startTime={resolveActivityStartMs(activity)}
                               />
                             )
                           }
@@ -1758,6 +1760,7 @@ export const ChatDisplay = React.forwardRef<ChatDisplayHandle, ChatDisplayProps>
                               resultText={text}
                               isError={activity.status === 'error'}
                               errorText={activity.error}
+                              durationMs={resolveActivityDurationMs(activity)}
                             />
                           )
                         }}

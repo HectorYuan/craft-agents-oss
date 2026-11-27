@@ -72,4 +72,15 @@ describe('GenericToolResultCard', () => {
     expect(html).not.toContain('x'.repeat(1201))
     expect(html).toContain('…')
   })
+
+  test('O1-1: 传入 durationMs 展示完成耗时', () => {
+    const html = render({ toolName: 'read', resultText: 'ok', durationMs: 2_500 })
+    expect(html).toContain('2.5s')
+  })
+
+  test('O1-1: 缺字段 / 非法耗时不渲染耗时，不出现 NaN', () => {
+    expect(render({ toolName: 'read', resultText: 'ok' })).not.toContain('NaN')
+    expect(render({ toolName: 'read', resultText: 'ok', durationMs: NaN })).not.toContain('NaN')
+    expect(render({ toolName: 'read', resultText: 'ok', durationMs: -100 })).not.toContain('NaN')
+  })
 })

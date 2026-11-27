@@ -72,6 +72,8 @@ export interface ToolStartEvent {
   toolDisplayName?: string
   /** Tool display metadata with base64-encoded icon for viewer compatibility */
   toolDisplayMeta?: ToolDisplayMeta
+  /** O1-1: 起始时刻（毫秒）；缺省由渲染侧回退 event.timestamp */
+  startedAt?: number
 }
 
 /**
@@ -88,6 +90,8 @@ export interface ToolResultEvent {
   parentToolUseId?: string
   /** Timestamp from main process for consistent ordering */
   timestamp?: number
+  /** O1-1: 完成耗时（毫秒）；缺省由渲染侧回退 elapsedSeconds */
+  durationMs?: number
 }
 
 /**

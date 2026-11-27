@@ -271,6 +271,10 @@ export interface Message {
   shellId?: string;         // For Bash with run_in_background
   elapsedSeconds?: number;  // Live progress updates
   isBackground?: boolean;   // Flag for UI differentiation
+  /** O1-1: tool_start 新增的起始时刻（毫秒）；缺省由渲染侧回退 timestamp */
+  startedAt?: number;
+  /** O1-1: tool_result 新增的完成耗时（毫秒）；缺省由渲染侧回退 elapsedSeconds */
+  durationMs?: number;
   // Stored attachments for user messages (persistent, no base64)
   attachments?: StoredAttachment[];
   // Content badges for inline display (sources, skills)
@@ -364,6 +368,10 @@ export interface StoredMessage {
   shellId?: string;
   elapsedSeconds?: number;
   isBackground?: boolean;
+  /** O1-1: 持久化起始时刻（毫秒），可选 */
+  startedAt?: number;
+  /** O1-1: 持久化完成耗时（毫秒），可选 */
+  durationMs?: number;
   isError?: boolean;
   /** Stored attachments for user messages (persisted to disk) */
   attachments?: StoredAttachment[];

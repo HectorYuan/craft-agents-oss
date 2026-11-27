@@ -239,6 +239,9 @@ function messageToActivity(message: Message, existingActivities: ActivityItem[] 
     shellId: message.shellId,
     elapsedSeconds: message.elapsedSeconds,
     isBackground: message.isBackground,
+    // O1-1: 后端新增的起始/耗时字段（缺字段时由解析辅助函数回退 timestamp / elapsedSeconds）
+    startedAt: message.startedAt,
+    durationMs: message.durationMs,
   }
 
   // Calculate depth incrementally using existing activities
@@ -798,6 +801,52 @@ export function getTurnIntent(turn: AssistantTurn): string | undefined {
  */
 export function hasPendingActivities(turn: AssistantTurn): boolean {
   return turn.activities.some(a => a.status === 'running' || a.status === 'pending' || a.status === 'backgrounded')
+}
+
+/**
+ * O1-2: 是否存在仍在运行的工具活动（强制展开判据）。
+ *
+ * 口径与 deriveTurnPhase 的 tool_active 一致：仅统计 `type === 'tool'` 且
+ * `status === 'running'`；intermediate / status 的 running 不计入。
+ */
+export function hasRunningToolActivity(activities: ActivityItem[]): boolean {
+  return activities.some(a => a.type === 'tool' && a.status === 'running')
+}
+
+/**
+ * O1-2: 流式轮是否强制展开。
+ *
+ * running 工具活动存在 → true（活动行必须挂载、可见）；全部活动终结 → false，
+ * 交回既有折叠/展开策略（历史完成轮默认折叠成一行分组头）。
+ * 本函数只读活动数据，不改动 `shouldHideInterruptedOnlyTurn` 与历史态默认值。
+ */
+export function shouldForceExpandTurn(turn: Pick<AssistantTurn, 'activities'>): boolean {
+  return hasRunningToolActivity(turn.activities)
+}
+
+/** 有限且非负的毫秒值，否则 undefined（NaN / 负值不得进入渲染层）。 */
+function finiteMs(value: unknown): number | undefined {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) return undefined
+  return value
+}
+
+/**
+ * O1-1: 活动起始时刻（毫秒）。
+ * 优先 `startedAt`；缺失回退 `timestamp`；两者都缺返回 undefined。
+ */
+export function resolveActivityStartMs(activity: ActivityItem): number | undefined {
+  return finiteMs(activity.startedAt) ?? finiteMs(activity.timestamp)
+}
+
+/**
+ * O1-1: 活动完成耗时（毫秒）。
+ * 优先 `durationMs`；缺失回退 `elapsedSeconds×1000`；都缺或非法值返回 undefined，
+ * 渲染层不得据此显示 NaN / 负时长。
+ */
+export function resolveActivityDurationMs(activity: ActivityItem): number | undefined {
+  if (finiteMs(activity.durationMs) !== undefined) return finiteMs(activity.durationMs)
+  const elapsedSeconds = finiteMs(activity.elapsedSeconds)
+  return elapsedSeconds !== undefined ? elapsedSeconds * 1000 : undefined
 }
 
 /**
