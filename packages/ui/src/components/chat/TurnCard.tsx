@@ -1049,6 +1049,8 @@ function ActivityRow({ activity, onOpenDetails, isLastChild, sessionFolderPath, 
     : null
 
   const resultCard = (activity.status === 'completed' || activity.status === 'error') ? renderResultCard?.(activity) : null
+  // P0-B: running 态经同一钩子渲染执行反馈卡（完成/失败/取消转出 running 后即卸载停表）。
+  const runningCard = activity.status === 'running' ? renderResultCard?.(activity) : null
 
   return (
     <>
@@ -1231,9 +1233,9 @@ function ActivityRow({ activity, onOpenDetails, isLastChild, sessionFolderPath, 
         )}
       </div>
       </div>
-      {resultCard && (
+      {(resultCard || runningCard) && (
         <div className="pb-1" style={{ paddingLeft: depth * 16 + 20, paddingRight: 8 }}>
-          {resultCard}
+          {resultCard || runningCard}
         </div>
       )}
     </>

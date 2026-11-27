@@ -349,6 +349,8 @@
   "common.rendering": "渲染中...",
   "common.reset": "重置",
   "common.resultTruncated": "已截断",
+  "common.paramsNotPassed": "参数未回传",
+  "common.waitingForToolReturn": "等待工具返回",
   "common.retry": "重试",
   "common.retrying": "正在重试…",
   "common.revert": "还原",

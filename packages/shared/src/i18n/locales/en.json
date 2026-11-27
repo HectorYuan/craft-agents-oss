@@ -349,6 +349,8 @@
   "common.rendering": "Rendering...",
   "common.reset": "Reset",
   "common.resultTruncated": "Truncated",
+  "common.paramsNotPassed": "No parameters passed",
+  "common.waitingForToolReturn": "Waiting for tool…",
   "common.retry": "Retry",
   "common.retrying": "Retrying…",
   "common.revert": "Revert",
