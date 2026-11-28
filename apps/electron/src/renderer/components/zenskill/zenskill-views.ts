@@ -62,6 +62,7 @@ export const ZENSKILL_VIEW_SPECS: ZenSkillViewSpec[] = [
   // ── 技能域（Skill）：能力的地方 ───────────────────────────────────
   { slug: 'memory', hostDomain: 'skill', mode: 'page', slot: 'skill.knowledge' },
   { slug: 'profile', hostDomain: 'skill', mode: 'page', slot: 'skill.growth' },
+  { slug: 'profile-plans', hostDomain: 'skill', mode: 'page', slot: 'skill.plan' },
   { slug: 'skill-graph', hostDomain: 'skill', mode: 'page', slot: 'skill.graph' },
   { slug: 'skill-market', hostDomain: 'skill', mode: 'page', slot: 'skill.market' },
   { slug: 'learning-path', hostDomain: 'skill', mode: 'page', slot: 'skill.learningPath' },

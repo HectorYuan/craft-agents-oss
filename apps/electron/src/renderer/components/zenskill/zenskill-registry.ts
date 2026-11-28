@@ -17,12 +17,13 @@
  */
 import type { ComponentType } from 'react'
 import type { LucideIcon } from 'lucide-react'
-import { Brain, Inbox, Zap, Lightbulb, User, Network, GitBranch, BookOpen, RefreshCw, Store, Sprout } from 'lucide-react'
+import { Brain, Inbox, Zap, Lightbulb, User, Network, CalendarClock, GitBranch, BookOpen, RefreshCw, Store, Sprout } from 'lucide-react'
 import { GtdWorkspace } from './pages/GtdWorkspace'
 import { MemoryBrowser } from './pages/MemoryBrowser'
 import { ZenSkillOverview } from './pages/ZenSkillOverview'
 import { ZenSkillInsights } from './pages/ZenSkillInsights'
 import { ZenSkillProfile } from './pages/ZenSkillProfile'
+import { PlansPage } from './pages/PlansPage'
 import { ZenSkillCollaboration } from './pages/ZenSkillCollaboration'
 import { ZenSkillSkillGraph } from './pages/ZenSkillSkillGraph'
 import { SkillMarketPage } from './pages/SkillMarketPage'
@@ -95,6 +96,12 @@ const PAGE_COMPONENTS: Array<Omit<ZenSkillPageRegistration, 'hostDomain' | 'mode
     component: ZenSkillProfile,
     icon: User,
     i18nLabelKey: 'zenskill.profile.title',
+  },
+  {
+    slug: 'profile-plans',
+    component: PlansPage,
+    icon: CalendarClock,
+    i18nLabelKey: 'zenskill.profilePlans.title',
   },
   {
     slug: 'skill-graph',
