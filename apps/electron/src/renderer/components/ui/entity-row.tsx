@@ -281,7 +281,7 @@ export function EntityRow({
           "transition-[background-color] duration-75",
           (isSelected || isInMultiSelect)
             ? "bg-foreground/3"
-            : "hover:bg-foreground/2",
+            : "hover:bg-foreground/2 active:bg-foreground/4",
           (buttonProps as Record<string, unknown>)?.className as string | undefined,
         )}
         onMouseDown={wrappedOnMouseDown}
