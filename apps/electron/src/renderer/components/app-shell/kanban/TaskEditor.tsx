@@ -121,7 +121,7 @@ const SelectButton = React.forwardRef<
       {...rest}
     >
       {children}
-      <ChevronDown className="ml-auto h-3.5 w-3.5 shrink-0 text-foreground/40" strokeWidth={2} />
+      <ChevronDown className="ml-auto h-3.5 w-3.5 shrink-0 text-neutral" strokeWidth={2} />
     </button>
   )
 })
@@ -243,7 +243,7 @@ function SourcesField({
         onClick={() => setOpen((prev) => !prev)}
       >
         {selected.length === 0 ? (
-          <DatabaseZap className="h-4 w-4 shrink-0 text-foreground/40" strokeWidth={2} />
+          <DatabaseZap className="h-4 w-4 shrink-0 text-neutral" strokeWidth={2} />
         ) : (
           <AvatarStack avatars={selected.map((s) => <SourceAvatar key={s.config.slug} source={s} size="xs" />)} />
         )}
@@ -299,7 +299,7 @@ function SkillsField({
         onClick={() => setOpen((prev) => !prev)}
       >
         {selected.length === 0 ? (
-          <Zap className="h-4 w-4 shrink-0 text-foreground/40" strokeWidth={2} />
+          <Zap className="h-4 w-4 shrink-0 text-neutral" strokeWidth={2} />
         ) : (
           <AvatarStack avatars={selected.map((s) => <SkillAvatar key={s.slug} skill={s} size="xs" workspaceId={workspaceId} />)} />
         )}
@@ -342,7 +342,7 @@ function FolderField({
       align="start"
       renderTrigger={({ hasFolder, folderName }) => (
         <SelectButton style={{ width: 168 }} title={t('tasks.workingDirectoryHint')}>
-          <Folder className="h-3.5 w-3.5 shrink-0 text-foreground/40" strokeWidth={2} />
+          <Folder className="h-3.5 w-3.5 shrink-0 text-neutral" strokeWidth={2} />
           <span className={cn('min-w-0 flex-1 truncate text-left', !hasFolder && 'text-foreground/50')}>
             {folderName ?? t('chat.workInFolder')}
           </span>
@@ -424,7 +424,7 @@ function SubtaskCard({
                   type="button"
                   onClick={() => removeDep(depUid)}
                   aria-label={t('tasks.removeDependency')}
-                  className="grid h-4 w-4 shrink-0 place-items-center rounded text-foreground/40 hover:bg-foreground/10 hover:text-red-500"
+                  className="grid h-4 w-4 shrink-0 place-items-center rounded text-neutral hover:bg-foreground/10 hover:text-red-500"
                 >
                   <X className="h-3 w-3" strokeWidth={2.5} />
                 </button>
@@ -445,7 +445,7 @@ function SubtaskCard({
                   </DropdownMenuItem>
                 ))}
                 {candidates.length === 0 && (
-                  <div className="px-2 py-1.5 text-[11px] text-foreground/40">{t('tasks.noAvailableSubtasks')}</div>
+                  <div className="px-2 py-1.5 text-[11px] text-neutral">{t('tasks.noAvailableSubtasks')}</div>
                 )}
               </DropdownMenuContent>
             </DropdownMenu>
@@ -455,7 +455,7 @@ function SubtaskCard({
           type="button"
           onClick={onRemove}
           aria-label={t('tasks.removeSubtask')}
-          className="grid h-6 w-6 shrink-0 place-items-center rounded text-foreground/40 opacity-0 transition-all hover:bg-foreground/10 hover:text-red-500 group-hover:opacity-100"
+          className="grid h-6 w-6 shrink-0 place-items-center rounded text-neutral opacity-0 transition-all hover:bg-foreground/10 hover:text-red-500 group-hover:opacity-100"
         >
           <Trash2 className="h-3.5 w-3.5" strokeWidth={2} />
         </button>
@@ -1160,14 +1160,14 @@ export function TaskEditor({
                 {subtasks.length === 0 && (
                   <button
                     onClick={addSubtask}
-                    className="flex w-full items-center justify-center gap-1.5 rounded-[10px] border border-dashed border-border py-2.5 text-[12.5px] font-semibold text-foreground/40 transition-colors hover:border-foreground/30 hover:text-foreground/60"
+                    className="flex w-full items-center justify-center gap-1.5 rounded-[10px] border border-dashed border-border py-2.5 text-[12.5px] font-semibold text-neutral transition-colors hover:border-foreground/30 hover:text-foreground/60"
                   >
                     <Plus className="h-3.5 w-3.5" strokeWidth={2.5} /> {t('tasks.addFirstSubtask')}
                   </button>
                 )}
               </div>
 
-              <div className="shrink-0 border-t border-border/60 px-4 py-2.5 text-[10.5px] text-foreground/40">
+              <div className="shrink-0 border-t border-border/60 px-4 py-2.5 text-[10.5px] text-neutral">
                 {t('tasks.subtaskFooter')}
               </div>
             </>
@@ -1204,7 +1204,7 @@ export function TaskEditor({
               <Btn variant="primary" onClick={generatePlan} disabled={busy}>
                 <Sparkles className="h-3.5 w-3.5" strokeWidth={2.5} /> {t('tasks.generatePlan')}
               </Btn>
-              <span className="text-[11px] text-foreground/40">{t('tasks.generateHint')}</span>
+              <span className="text-[11px] text-neutral">{t('tasks.generateHint')}</span>
             </div>
           )}
         </div>
@@ -1273,7 +1273,7 @@ function ResultsPanel({
           ) : verdict.result === 'fail' ? (
             <XCircle className="mt-0.5 h-4 w-4 shrink-0 text-red-500" strokeWidth={2.5} />
           ) : (
-            <CircleSlash className="mt-0.5 h-4 w-4 shrink-0 text-foreground/40" strokeWidth={2.5} />
+            <CircleSlash className="mt-0.5 h-4 w-4 shrink-0 text-neutral" strokeWidth={2.5} />
           )}
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
@@ -1305,7 +1305,7 @@ function ResultsPanel({
                 ) : v.result === 'fail' ? (
                   <XCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-red-500" strokeWidth={2.5} />
                 ) : (
-                  <CircleSlash className="mt-0.5 h-3.5 w-3.5 shrink-0 text-foreground/40" strokeWidth={2.5} />
+                  <CircleSlash className="mt-0.5 h-3.5 w-3.5 shrink-0 text-neutral" strokeWidth={2.5} />
                 )}
                 <span className="min-w-0 flex-1 text-foreground/60">
                   {v.reason || (v.result === 'pass' ? t('tasks.verdictPass') : v.result === 'fail' ? t('tasks.verdictFail') : t('tasks.verdictUnparsed'))}
@@ -1340,7 +1340,7 @@ function ResultsPanel({
               <Markdown>{node.output}</Markdown>
             </div>
           ) : (
-            <p className="mt-1.5 text-[11.5px] text-foreground/40">{t('tasks.noOutput')}</p>
+            <p className="mt-1.5 text-[11.5px] text-neutral">{t('tasks.noOutput')}</p>
           )}
         </div>
         )

@@ -31,7 +31,7 @@ function CurrentValueIndicator({ value }: { value: string }) {
   return (
     <svg
       viewBox="0 0 20 20"
-      className="h-5 w-5 shrink-0 text-foreground/40"
+      className="h-5 w-5 shrink-0 text-neutral"
       role="img"
       aria-label={value ? `Selected color ${value}` : 'No color selected'}
     >

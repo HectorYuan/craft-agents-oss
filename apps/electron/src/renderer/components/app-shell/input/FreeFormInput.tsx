@@ -1745,7 +1745,7 @@ export function FreeFormInput({
                           </Tooltip>
                           <span className="min-w-0 max-w-full overflow-hidden text-ellipsis whitespace-nowrap pr-0.5 text-left">
                             <span className="italic text-foreground/60">{selectedExcerpt}</span>
-                            <span className="mx-1 text-foreground/40">·</span>
+                            <span className="mx-1 text-neutral">·</span>
                             <span>{noteExcerpt}</span>
                           </span>
                         </motion.button>

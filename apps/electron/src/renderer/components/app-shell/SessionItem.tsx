@@ -221,7 +221,7 @@ export function SessionItem({
             {projectName && (
               <span
                 className={cn(
-                  "text-[11px] text-foreground/40 whitespace-nowrap truncate max-w-[120px] transition-opacity duration-150",
+                  "text-[11px] text-neutral whitespace-nowrap truncate max-w-[120px] transition-opacity duration-150",
                   isCompactMode ? "opacity-0 group-hover:opacity-100" : "opacity-100"
                 )}
                 style={projectColor ? { color: projectColor } : undefined}
@@ -267,7 +267,7 @@ export function SessionItem({
           <Flag className="h-3.5 w-3.5 text-info" />
         </div>
       ) : item.lastMessageAt ? (
-        <span className="text-[11px] text-foreground/40 whitespace-nowrap">
+        <span className="text-[11px] text-neutral whitespace-nowrap">
           {formatDistanceToNowStrict(new Date(item.lastMessageAt), { locale: shortTimeLocale as Locale, roundingMethod: 'floor' })}
         </span>
       ) : undefined}

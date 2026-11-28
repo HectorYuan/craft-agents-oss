@@ -104,7 +104,7 @@ function OwnerRow({
             </span>
           )}
           {!enforced && (
-            <span className="shrink-0 text-[10px] uppercase tracking-wide text-foreground/40">
+            <span className="shrink-0 text-[10px] uppercase tracking-wide text-neutral">
               {t('settings.messaging.telegram.access.owners.notEnforced')}
             </span>
           )}

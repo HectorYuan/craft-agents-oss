@@ -77,7 +77,7 @@ function CopyButton({ details }: { details: import('./types').WebhookDetails }) 
     <button
       className={cn(
         'shrink-0 p-1 rounded hover:bg-foreground/10 transition-colors',
-        copied ? 'text-success' : 'text-foreground/40 hover:text-foreground/60',
+        copied ? 'text-success' : 'text-neutral hover:text-foreground/60',
       )}
       onClick={handleCopy}
       title={t('automations.copyPayload')}
@@ -164,7 +164,7 @@ export function AutomationEventTimeline({ entries, className, onReplay }: Automa
               {/* Expand chevron for webhook entries */}
               {isWebhook && (
                 <ChevronDown className={cn(
-                  'h-3 w-3 shrink-0 text-foreground/40 transition-transform duration-150',
+                  'h-3 w-3 shrink-0 text-neutral transition-transform duration-150',
                   isExpanded && 'rotate-180',
                 )} />
               )}

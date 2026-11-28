@@ -336,7 +336,7 @@ export function EntityRow({
                         aria-haspopup="dialog"
                         aria-expanded={compactMenuOpen}
                       >
-                        <MoreHorizontal className="h-3.5 w-3.5 text-foreground/40" />
+                        <MoreHorizontal className="h-3.5 w-3.5 text-neutral" />
                       </button>
                     ) : (
                       <DropdownMenu modal={true} open={menuOpen} onOpenChange={setMenuOpen}>
@@ -443,7 +443,7 @@ export function EntityRow({
                 aria-haspopup="dialog"
                 aria-expanded={compactMenuOpen}
               >
-                <MoreHorizontal className="h-4 w-4 text-foreground/40" />
+                <MoreHorizontal className="h-4 w-4 text-neutral" />
               </button>
             ) : (
               <DropdownMenu modal={true} open={menuOpen} onOpenChange={setMenuOpen}>

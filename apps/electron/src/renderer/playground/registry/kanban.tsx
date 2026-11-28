@@ -161,7 +161,7 @@ function StubSessionList() {
           )
         })}
       </div>
-      <p className="mx-auto mt-3 max-w-md text-center text-xs text-foreground/40">
+      <p className="mx-auto mt-3 max-w-md text-center text-xs text-neutral">
         List view is a stub here — the Board toggle is the focus of this preview.
       </p>
     </div>
@@ -249,7 +249,7 @@ function TaskWindowOverlay({ windowProps, onClose }: { windowProps: TaskWindowPr
         onClick={e => e.stopPropagation()}
       >
         <div className="flex items-center justify-between border-b border-border/40 bg-foreground/[0.02] px-3 py-1.5">
-          <span className="text-[11px] font-medium text-foreground/40">Session window</span>
+          <span className="text-[11px] font-medium text-neutral">Session window</span>
           <button
             type="button"
             onClick={onClose}

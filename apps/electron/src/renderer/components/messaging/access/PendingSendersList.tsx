@@ -70,7 +70,7 @@ function PendingRow({
         <div className="flex items-baseline gap-2">
           <span className="truncate text-sm">{primary}</span>
           {sender.username && (
-            <span className="shrink-0 truncate text-xs text-foreground/40">
+            <span className="shrink-0 truncate text-xs text-neutral">
               @{sender.username}
             </span>
           )}

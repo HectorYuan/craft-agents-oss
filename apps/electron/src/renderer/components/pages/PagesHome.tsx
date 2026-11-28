@@ -132,7 +132,7 @@ export function PagesHome() {
       <div className="flex items-center justify-between gap-2 border-b border-border/50 px-4 py-2.5">
         <div className="flex min-w-0 items-center gap-2.5">
           <span className="text-sm font-medium">{t('sidebar.pages')}</span>
-          <span className="text-xs text-foreground/40">{pages.length}</span>
+          <span className="text-xs text-neutral">{pages.length}</span>
           {(projectOptions.length > 0 || projectFilter.length > 0) && (
             <ProjectMultiSelectFilter
               projects={projectOptions}

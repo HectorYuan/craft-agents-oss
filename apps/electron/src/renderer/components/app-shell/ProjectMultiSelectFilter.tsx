@@ -76,7 +76,7 @@ export function ProjectMultiSelectFilter({
         >
           <FolderKanban className="h-3.5 w-3.5 shrink-0 text-foreground/50" strokeWidth={2} />
           <span className="truncate">{label}</span>
-          <ChevronDown className="h-3 w-3 shrink-0 text-foreground/40" strokeWidth={2} />
+          <ChevronDown className="h-3 w-3 shrink-0 text-neutral" strokeWidth={2} />
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="max-w-[260px]">

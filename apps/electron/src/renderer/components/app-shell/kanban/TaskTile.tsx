@@ -489,7 +489,7 @@ function AddSubtask({
                   <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-foreground/40" aria-hidden />
                 )}
                 <span className="truncate">{selectedName}</span>
-                <ChevronDown className="h-3 w-3 shrink-0 text-foreground/40" strokeWidth={2} />
+                <ChevronDown className="h-3 w-3 shrink-0 text-neutral" strokeWidth={2} />
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="max-w-[240px]">

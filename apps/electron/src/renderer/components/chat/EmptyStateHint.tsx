@@ -147,7 +147,7 @@ interface EntityBadgeProps {
  */
 function EntityBadge({ label }: EntityBadgeProps) {
   return (
-    <span className="inline-flex pl-[8px] pr-[10px] py-0.5 mx-[2px] rounded-[8px] bg-foreground/5 shadow-minimal text-foreground/40">
+    <span className="inline-flex pl-[8px] pr-[10px] py-0.5 mx-[2px] rounded-[8px] bg-foreground/5 shadow-minimal text-neutral">
       {label}
     </span>
   )

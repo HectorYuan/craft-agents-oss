@@ -991,7 +991,7 @@ function PlannerBoard() {
                 <div className="mb-1 text-sm font-semibold">Attached Sessions</div>
                 <div className="space-y-2 mt-3">
                   {selectedLinks.length === 0 ? (
-                    <div className="text-xs text-foreground/40">No sessions linked.</div>
+                    <div className="text-xs text-neutral">No sessions linked.</div>
                   ) : (
                     selectedLinks.map(link => {
                       const snap = snapshots.find(s => s.id === link.snapshotId)
@@ -1031,7 +1031,7 @@ function PlannerBoard() {
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="text-xs text-foreground/75">{ev.payloadSummary}</div>
-                        <div className="mt-0.5 text-[11px] text-foreground/40">
+                        <div className="mt-0.5 text-[11px] text-neutral">
                           {ev.actor} · {ev.at}
                         </div>
                       </div>

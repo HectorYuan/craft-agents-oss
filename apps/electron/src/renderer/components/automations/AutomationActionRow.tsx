@@ -48,7 +48,7 @@ function WebhookText({ action }: { action: Extract<AutomationAction, { type: 'we
       <span className="font-mono font-medium text-accent">{method}</span>{' '}
       <span className="text-foreground/70">{action.url}</span>
       {action.bodyFormat && (
-        <span className="text-foreground/40 ml-1">({action.bodyFormat})</span>
+        <span className="text-neutral ml-1">({action.bodyFormat})</span>
       )}
     </span>
   )

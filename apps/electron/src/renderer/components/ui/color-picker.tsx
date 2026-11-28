@@ -79,7 +79,7 @@ export function ColorPicker({
           />
 
           <div className="flex items-center gap-2 px-0.5">
-            <span className="text-foreground/40 text-xs font-mono">#</span>
+            <span className="text-neutral text-xs font-mono">#</span>
             <HexColorInput
               color={displayColor}
               onChange={onChange}

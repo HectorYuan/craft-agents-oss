@@ -904,7 +904,7 @@ export function ApiKeyInput({
           拉取线上型号
         </Button>
         {onlineModels.length > 0 && (
-          <span className="text-xs text-foreground/40">线上 {onlineModels.length} 个型号</span>
+          <span className="text-xs text-neutral">线上 {onlineModels.length} 个型号</span>
         )}
       </div>
 

@@ -203,7 +203,7 @@ function SelectButton({
     >
       {children}
       <ChevronDown
-        className={cn('ml-auto shrink-0 text-foreground/40', size === 'sm' ? 'h-3 w-3' : 'h-3.5 w-3.5')}
+        className={cn('ml-auto shrink-0 text-neutral', size === 'sm' ? 'h-3 w-3' : 'h-3.5 w-3.5')}
         strokeWidth={2}
       />
     </button>
@@ -263,7 +263,7 @@ function SubtaskCard({
       <div className="flex items-start gap-2">
         {/* Drag handle on the left edge — the conventional reorder affordance. */}
         <GripVertical
-          className="mt-1 h-4 w-4 shrink-0 cursor-grab text-foreground/20 transition-colors group-hover:text-foreground/40"
+          className="mt-1 h-4 w-4 shrink-0 cursor-grab text-foreground/20 transition-colors group-hover:text-neutral"
           strokeWidth={2}
           aria-hidden
         />
@@ -300,7 +300,7 @@ function SubtaskCard({
                   </DropdownMenuItem>
                 ))}
                 {earlier.length === 0 && (
-                  <div className="px-2 py-1.5 text-[11px] text-foreground/40">No earlier subtasks</div>
+                  <div className="px-2 py-1.5 text-[11px] text-neutral">No earlier subtasks</div>
                 )}
               </DropdownMenuContent>
             </DropdownMenu>
@@ -311,7 +311,7 @@ function SubtaskCard({
           type="button"
           onClick={onRemove}
           aria-label="Remove subtask"
-          className="grid h-6 w-6 shrink-0 place-items-center rounded text-foreground/40 opacity-0 transition-all hover:bg-foreground/10 hover:text-red-500 group-hover:opacity-100"
+          className="grid h-6 w-6 shrink-0 place-items-center rounded text-neutral opacity-0 transition-all hover:bg-foreground/10 hover:text-red-500 group-hover:opacity-100"
         >
           <Trash2 className="h-3.5 w-3.5" strokeWidth={2} />
         </button>
@@ -366,7 +366,7 @@ function TaskEditorPreview({ mode: initialMode = 'generate' }: { mode?: Mode }) 
         <span className="text-foreground/25">/</span>
         <span className="text-sm font-semibold">New Task</span>
         {/* Disclaimer demoted to a quiet inline note (was a loud amber pill). */}
-        <span className="inline-flex items-center gap-1 text-[11px] text-foreground/40">
+        <span className="inline-flex items-center gap-1 text-[11px] text-neutral">
           <Clock3 className="h-3 w-3" strokeWidth={2} /> prepares only — nothing runs yet
         </span>
         <div className="ml-auto flex items-center gap-2">
@@ -528,18 +528,18 @@ function TaskEditorPreview({ mode: initialMode = 'generate' }: { mode?: Mode }) 
                   <div className="flex flex-col items-center gap-2 py-6">
                     <button
                       onClick={addSubtask}
-                      className="flex w-full items-center justify-center gap-1.5 rounded-[10px] border border-dashed border-border py-2.5 text-[12.5px] font-semibold text-foreground/40 transition-colors hover:border-foreground/30 hover:text-foreground/60"
+                      className="flex w-full items-center justify-center gap-1.5 rounded-[10px] border border-dashed border-border py-2.5 text-[12.5px] font-semibold text-neutral transition-colors hover:border-foreground/30 hover:text-foreground/60"
                     >
                       <Plus className="h-3.5 w-3.5" strokeWidth={2.5} /> Add subtask
                     </button>
-                    <p className="px-1 text-center text-[12px] text-foreground/40">
+                    <p className="px-1 text-center text-[12px] text-neutral">
                       No subtasks yet — add the first one to define the breakdown.
                     </p>
                   </div>
                 )}
               </div>
 
-              <div className="shrink-0 border-t border-border/60 px-4 py-2.5 text-[10.5px] text-foreground/40">
+              <div className="shrink-0 border-t border-border/60 px-4 py-2.5 text-[10.5px] text-neutral">
                 Reorder by drag · each subtask spawns a child session (pending) · models route per-subtask
               </div>
             </>
@@ -569,7 +569,7 @@ function TaskEditorPreview({ mode: initialMode = 'generate' }: { mode?: Mode }) 
                 </div>
               </div>
 
-              <div className="shrink-0 border-t border-border/60 px-4 py-2.5 text-[10.5px] text-foreground/40">
+              <div className="shrink-0 border-t border-border/60 px-4 py-2.5 text-[10.5px] text-neutral">
                 Drafted on Prepare · each becomes a pending child session · models route per-subtask
               </div>
             </>
@@ -594,7 +594,7 @@ function TaskEditorPreview({ mode: initialMode = 'generate' }: { mode?: Mode }) 
             <Hash className="h-3 w-3" strokeWidth={2} />
             workspace/tasks/{slug}.yaml
           </span>
-          <span className="ml-auto text-[11px] text-foreground/40">
+          <span className="ml-auto text-[11px] text-neutral">
             {yamlOpen ? 'generated · editable · written on Prepare' : 'click to preview'}
           </span>
         </button>

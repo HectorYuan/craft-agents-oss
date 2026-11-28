@@ -382,7 +382,7 @@ export function SharePageDialog({
         <DialogFooter className="gap-2 sm:gap-2">
           {share ? (
             <>
-              <span className="mr-auto text-xs text-foreground/40 self-center hidden sm:block">
+              <span className="mr-auto text-xs text-neutral self-center hidden sm:block">
                 {t('pages.share.unpublishHint')}
               </span>
               {confirmingUnpublish ? (

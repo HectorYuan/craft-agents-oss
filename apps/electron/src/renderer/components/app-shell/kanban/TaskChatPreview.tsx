@@ -99,7 +99,7 @@ export function TaskChatPreview({
       <div className="border-t border-border/50 px-4 py-3">
         <div className="mx-auto flex max-w-2xl items-center gap-2 rounded-xl border border-border/60 bg-card px-3 py-2">
           <ModelChip model={model} className="shrink-0" />
-          <span className="flex-1 truncate text-sm text-foreground/40">Reply to this task…</span>
+          <span className="flex-1 truncate text-sm text-neutral">Reply to this task…</span>
           <span
             className={cn(
               'grid h-7 w-7 shrink-0 place-items-center rounded-full',

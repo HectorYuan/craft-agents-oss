@@ -77,13 +77,13 @@ function Calendar({
           'select-none font-medium',
           captionLayout === 'label'
             ? 'text-sm'
-            : 'flex h-7 items-center gap-1 rounded-md pl-2 pr-1 text-sm [&>svg]:text-foreground/40 [&>svg]:size-3.5',
+            : 'flex h-7 items-center gap-1 rounded-md pl-2 pr-1 text-sm [&>svg]:text-neutral [&>svg]:size-3.5',
           defaultClassNames.caption_label
         ),
         table: 'w-full border-collapse',
         weekdays: cn('flex', defaultClassNames.weekdays),
         weekday: cn(
-          'text-foreground/40 flex-1 select-none rounded-md text-[0.8rem] font-normal',
+          'text-neutral flex-1 select-none rounded-md text-[0.8rem] font-normal',
           defaultClassNames.weekday
         ),
         week: cn('mt-2 flex w-full', defaultClassNames.week),
@@ -96,7 +96,7 @@ function Calendar({
           defaultClassNames.today
         ),
         outside: cn(
-          'text-foreground/25 aria-selected:text-foreground/40',
+          'text-foreground/25 aria-selected:text-neutral',
           defaultClassNames.outside
         ),
         disabled: cn(

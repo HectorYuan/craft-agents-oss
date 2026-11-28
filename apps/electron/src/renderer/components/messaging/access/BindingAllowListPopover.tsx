@@ -123,7 +123,7 @@ export function BindingAllowListPopover({ access, workspaceOwners, onChange }: P
                       </div>
                       <div className="min-w-0 flex-1 truncate text-xs">{primary}</div>
                       {owner.username && (
-                        <div className="shrink-0 text-xs text-foreground/40">
+                        <div className="shrink-0 text-xs text-neutral">
                           @{owner.username}
                         </div>
                       )}

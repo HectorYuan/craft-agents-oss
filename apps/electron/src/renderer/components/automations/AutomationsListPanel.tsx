@@ -129,7 +129,7 @@ function AutomationItem({
         automation.lastExecutedAt ? (
           <Tooltip>
             <TooltipTrigger asChild>
-              <span className="shrink-0 text-[11px] text-foreground/40 whitespace-nowrap cursor-default">
+              <span className="shrink-0 text-[11px] text-neutral whitespace-nowrap cursor-default">
                 {formatShortRelativeTime(automation.lastExecutedAt)}
               </span>
             </TooltipTrigger>

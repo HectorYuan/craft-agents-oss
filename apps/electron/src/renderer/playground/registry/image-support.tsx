@@ -33,7 +33,7 @@ function BannerDemo({
             }}
           />
         )}
-        <div className="px-4 py-6 text-foreground/40 text-sm">
+        <div className="px-4 py-6 text-neutral text-sm">
           {enabled
             ? 'Image support enabled — banner dismissed.'
             : 'Imagine the chat input here. Banner sits above any staged attachments.'}

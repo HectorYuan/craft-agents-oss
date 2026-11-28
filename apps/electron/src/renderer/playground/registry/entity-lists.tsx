@@ -234,7 +234,7 @@ function EntityRowPreview({
             <span className="truncate">{subtitle}</span>
           </>
         ) : subtitle ? <span className="truncate text-xs text-foreground/70">{subtitle}</span> : undefined}
-        trailing={showTrailing ? <span className="text-[11px] text-foreground/40">3m</span> : undefined}
+        trailing={showTrailing ? <span className="text-[11px] text-neutral">3m</span> : undefined}
         isSelected={isSelected}
         isInMultiSelect={isInMultiSelect}
         showSeparator={showSeparator}
@@ -311,7 +311,7 @@ function SessionEntityListPreview({
               }
               trailing={
                 session.lastMessageAt ? (
-                  <span className="shrink-0 text-[11px] text-foreground/40 whitespace-nowrap">
+                  <span className="shrink-0 text-[11px] text-neutral whitespace-nowrap">
                     {formatRelativeTime(session.lastMessageAt)}
                   </span>
                 ) : undefined
@@ -508,7 +508,7 @@ function MixedEntityListPreview({
                 )}
               </>
             }
-            trailing={session.lastMessageAt ? <span className="text-[11px] text-foreground/40">{formatRelativeTime(session.lastMessageAt)}</span> : undefined}
+            trailing={session.lastMessageAt ? <span className="text-[11px] text-neutral">{formatRelativeTime(session.lastMessageAt)}</span> : undefined}
             isSelected={currentFlatIndex === selectedIndex}
             showSeparator={!isFirst}
             menuContent={<MockMenuItems />}
@@ -688,7 +688,7 @@ function InteractiveEntityListPreview({
                 )}
               </>
             }
-            trailing={item.lastMessageAt ? <span className="text-[11px] text-foreground/40">{formatRelativeTime(item.lastMessageAt)}</span> : undefined}
+            trailing={item.lastMessageAt ? <span className="text-[11px] text-neutral">{formatRelativeTime(item.lastMessageAt)}</span> : undefined}
             showSeparator={!isFirst}
             menuContent={<MockMenuItems />}
           />
@@ -771,7 +771,7 @@ function InteractiveEntityListPreview({
           header={enableSearch ? (
             <div className="px-3 py-2 border-b border-border">
               <div className="relative">
-                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-foreground/40" />
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-neutral" />
                 <input
                   className="w-full h-8 pl-8 pr-3 text-sm bg-foreground/3 rounded-md border border-transparent focus:border-border focus:outline-none placeholder:text-foreground/30"
                   placeholder="Search entities..."
@@ -796,7 +796,7 @@ function InteractiveEntityListPreview({
       </div>
 
       {/* Instructions */}
-      <div className="text-[11px] text-foreground/40 space-y-0.5 px-1">
+      <div className="text-[11px] text-neutral space-y-0.5 px-1">
         {enableKeyboard && <div>Arrow keys to navigate, Enter to activate</div>}
         {enableMultiSelect && <div>Cmd+Click to toggle, Shift+Click to range select</div>}
         {enableSearch && <div>Type in the search box to filter</div>}

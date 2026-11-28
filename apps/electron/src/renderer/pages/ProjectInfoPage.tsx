@@ -297,7 +297,7 @@ export default function ProjectInfoPage({ projectSlug }: ProjectInfoPageProps) {
                         >
                           {s.name ?? s.id}
                         </button>
-                        <span className="shrink-0 text-[11px] text-foreground/40">
+                        <span className="shrink-0 text-[11px] text-neutral">
                           {formatActiveAt(maxActiveAt([s]))}
                         </span>
                       </li>
