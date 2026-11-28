@@ -71,7 +71,13 @@
 @property --destructive {
   syntax: "<color>";
   inherits: true;
-  initial-value: oklch(0.55 0.22 27);
+  initial-value: oklch(0.604 0.141 46);
+}
+
+@property --warning {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: oklch(0.652 0.132 82);
 }
 
 /* =============================================================================
@@ -104,12 +110,14 @@
   --user-message-bubble-dimmed: oklch(from var(--foreground) l c h / 0.03);
   --accent: oklch(0.506 0.176 283);          /* zen purple #5b4fc4 - brand, Auto mode */
   --accent-rgb: 64, 55, 137;                /* darkened RGB for shadow-tinted (70% of zen accent) */
-  --info: oklch(0.75 0.16 70);              /* amber - warnings, Ask mode */
+  --info: oklch(0.75 0.16 70);              /* amber - Ask mode（历史：craft 把琥珀放在 info） */
   --info-rgb: 180, 120, 40;                 /* RGB for shadow-tinted */
+  --warning: oklch(0.652 0.132 82);         /* zen warning #b8860b - 警告语义专用，待用途迁移 */
+  --warning-rgb: 128, 94, 8;                /* RGB for shadow-tinted */
   --success: oklch(0.55 0.17 145);          /* green - connected, checkmarks */
   --success-rgb: 34, 120, 60;               /* RGB for shadow-tinted */
-  --destructive: oklch(0.58 0.24 28);       /* red - errors, failed */
-  --destructive-rgb: 180, 60, 50;           /* RGB for shadow-tinted */
+  --destructive: oklch(0.604 0.141 46);      /* zen warm red #c4622d - errors, failed */
+  --destructive-rgb: 137, 69, 32;           /* RGB for shadow-tinted (70% of zen destructive) */
 
   /* === SHADOW OPACITY (light mode = subtle, dark mode = stronger) === */
   --shadow-border-opacity: 0.08;            /* Border ring opacity */
@@ -281,10 +289,12 @@
   --accent-rgb: 74, 64, 155;                /* darkened RGB for shadow-tinted (70% of accent) */
   --info: oklch(0.78 0.14 70);               /* amber */
   --info-rgb: 210, 155, 55;                  /* RGB for shadow-tinted */
+  --warning: oklch(0.702 0.145 82);          /* zen warning, lifted for dark */
+  --warning-rgb: 142, 104, 0;                /* RGB for shadow-tinted */
   --success: oklch(0.60 0.17 145);           /* green */
   --success-rgb: 50, 140, 80;               /* RGB for shadow-tinted */
-  --destructive: oklch(0.65 0.22 28);        /* brighter red in dark */
-  --destructive-rgb: 200, 70, 60;            /* RGB for shadow-tinted */
+  --destructive: oklch(0.654 0.156 46);      /* zen warm red, lifted for dark */
+  --destructive-rgb: 153, 76, 34;           /* RGB for shadow-tinted (70% of accent) */
 
   /* === SHADOW OPACITY (stronger in dark mode for visibility) === */
   --shadow-border-opacity: 0.15;
@@ -425,6 +435,7 @@ html[data-font="inter"] {
   --color-info: var(--info);
   --color-success: var(--success);
   --color-destructive: var(--destructive);
+  --color-warning: var(--warning);
 
   /* === MIX VARIANTS (solid interpolation) === */
   --color-foreground-1\.5: var(--foreground-1\.5);
