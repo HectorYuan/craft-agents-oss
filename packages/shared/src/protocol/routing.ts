@@ -260,6 +260,7 @@ export const REMOTE_ELIGIBLE_CHANNELS = new Set<string>([
   RPC_CHANNELS.run.STATUS,
   RPC_CHANNELS.run.EVENTS,
   RPC_CHANNELS.run.CANCEL,
+  RPC_CHANNELS.run.SUBMIT,
   RPC_CHANNELS.run.EVENT,
 
   // transfer — chunked large-payload import (sessions, resources)

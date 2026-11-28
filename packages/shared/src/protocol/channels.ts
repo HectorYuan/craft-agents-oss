@@ -354,6 +354,7 @@ export const RPC_CHANNELS = {
     STATUS: 'run:status',
     EVENTS: 'run:events',
     CANCEL: 'run:cancel',
+    SUBMIT: 'run:submit',
     EVENT: 'run:event',
   },
   git: {
