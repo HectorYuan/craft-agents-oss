@@ -437,6 +437,30 @@ export interface RunCancelResultDto {
   outcome?: unknown
 }
 
+/**
+ * `run:submit` request: dispatch one run into an existing session.
+ *
+ * The executor is session-turn (an AgentLoop turn on the target session); the
+ * server pre-creates the run (queued→running) before starting the turn, so a
+ * failure can never leave a row that never executes. `budget` keys are
+ * `maxSteps`/`timeoutSec` only — omit the key rather than sending null.
+ */
+export interface RunSubmitRequest {
+  taskContract: { title: string; description?: string }
+  capId: string
+  budget?: { maxSteps?: number; timeoutSec?: number }
+  /** Target session; omitted = server picks the workspace's most recent visible session. */
+  sessionId?: string
+}
+
+/** `run:submit` result: the pre-created run, already running. */
+export interface RunSubmitResultDto {
+  runId: string
+  status: RunStatus | string
+  sessionId: string
+  capId: string
+}
+
 export interface PermissionModeState {
   permissionMode: PermissionMode
   previousPermissionMode?: PermissionMode

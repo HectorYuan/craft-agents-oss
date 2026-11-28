@@ -33,6 +33,21 @@ export const CHANNEL_MAP = {
   getRunStatus: invoke(RPC_CHANNELS.run.STATUS),
   getRunEvents: invoke(RPC_CHANNELS.run.EVENTS),
   cancelRun: invoke(RPC_CHANNELS.run.CANCEL),
+  // `run:submit` 的 wire 签名是四个位置参数（taskContract/capId/budget/sessionId），
+  // 公开 API 收一个请求对象 ⇒ 在这里重塑实参，避免 Python 端收到整包对象。
+  runSubmit: {
+    type: 'invoke' as const,
+    channel: RPC_CHANNELS.run.SUBMIT,
+    mapArgs: (args: any[]) => {
+      const req = (args[0] ?? {}) as {
+        taskContract?: unknown
+        capId?: unknown
+        budget?: unknown
+        sessionId?: unknown
+      }
+      return [req.taskContract, req.capId, req.budget, req.sessionId]
+    },
+  },
   onRunEvent: listener(RPC_CHANNELS.run.EVENT),
 
   // Tasks (Conductor)

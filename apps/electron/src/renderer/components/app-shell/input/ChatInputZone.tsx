@@ -7,6 +7,7 @@ import type { SessionStatus } from '@/config/session-status-config'
 import type { BackgroundTask } from '../ActiveTasksBar'
 import { ActiveOptionBadges } from '../ActiveOptionBadges'
 import { RunStatusChip } from '../RunStatusChip'
+import { RunSubmitEntry } from '../RunSubmitForm'
 import { InputContainer } from './InputContainer'
 import { InputErrorBoundary } from './InputErrorBoundary'
 
@@ -101,8 +102,11 @@ export function ChatInputZone({
         />
       )}
 
-      {/* Swarm run status chip (self-gating; renders nothing when the channel is disabled or idle). */}
-      <RunStatusChip sessionId={sessionId} />
+      {/* Swarm run：状态 chip（自门控，idle/通道关闭时不渲染）+ 派发入口（D4，同样自门控）。 */}
+      <div className="flex items-start gap-2 flex-wrap">
+        <RunStatusChip sessionId={sessionId} />
+        <RunSubmitEntry sessionId={sessionId} />
+      </div>
 
       <InputErrorBoundary
         sessionId={sessionId}

@@ -13,7 +13,17 @@ import type { ElectronAPI } from '../shared/types'
 // ---------------------------------------------------------------------------
 
 export type ChannelMapEntry =
-  | { type: 'invoke'; channel: string; transform?: (result: any) => any }
+  | {
+      type: 'invoke'
+      channel: string
+      /** Result transform (response envelope → API result). */
+      transform?: (result: any) => any
+      /**
+       * Argument reshape for RPC methods whose wire signature is positional but
+       * whose public API takes one request object (e.g. `run:submit`).
+       */
+      mapArgs?: (args: any[]) => any[]
+    }
   | { type: 'listener'; channel: string }
 
 export type ChannelMap = Record<string, ChannelMapEntry>
@@ -34,11 +44,13 @@ export function buildClientApi(
     let fn: (...a: any[]) => any
     if (entry.type === 'listener') {
       fn = (cb: (...args: any[]) => void) => client.on(entry.channel, cb)
-    } else if (entry.transform) {
-      const t = entry.transform
-      fn = async (...args: any[]) => t(await client.invoke(entry.channel, ...args))
     } else {
-      fn = (...args: any[]) => client.invoke(entry.channel, ...args)
+      const t = entry.transform
+      const mapArgs = entry.mapArgs
+      fn = async (...args: any[]) => {
+        const out = await client.invoke(entry.channel, ...(mapArgs ? mapArgs(args) : args))
+        return t ? t(out) : out
+      }
     }
 
     // Dotted keys like "browserPane.create" become nested: api.browserPane.create

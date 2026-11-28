@@ -194,6 +194,8 @@ import type {
   RunStatusDto,
   RunEventsDto,
   RunCancelResultDto,
+  RunSubmitRequest,
+  RunSubmitResultDto,
   RunEventEnvelope,
   FileAttachment,
   SendMessageOptions,
@@ -270,6 +272,8 @@ export interface ElectronAPI {
   getRunStatus(runId: string): Promise<RunStatusDto>
   getRunEvents(runId: string, limit?: number, offset?: number): Promise<RunEventsDto>
   cancelRun(runId: string): Promise<RunCancelResultDto>
+  /** Dispatch one run into a session (session-turn executor; D4 UI entry point). */
+  runSubmit(req: RunSubmitRequest): Promise<RunSubmitResultDto>
   onRunEvent(callback: (env: RunEventEnvelope) => void): () => void
 
   respondToPermission(sessionId: string, requestId: string, allowed: boolean, alwaysAllow: boolean, options?: PermissionResponseOptions): Promise<boolean>
