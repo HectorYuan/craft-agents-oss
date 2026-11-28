@@ -1342,11 +1342,15 @@ export const ChatDisplay = React.forwardRef<ChatDisplayHandle, ChatDisplayProps>
     if ((response.type === 'permission' || response.type === 'admin_approval') && pendingPermission && onRespondToPermission) {
       if (response.type === 'permission') {
         const permResponse = response as PermissionResponse
+        const permOptions = permResponse.reason?.trim()
+          ? { reason: permResponse.reason.trim() }
+          : undefined
         onRespondToPermission(
           pendingPermission.sessionId,
           pendingPermission.requestId,
           permResponse.allowed,
-          permResponse.alwaysAllow
+          permResponse.alwaysAllow,
+          permOptions
         )
         return
       }

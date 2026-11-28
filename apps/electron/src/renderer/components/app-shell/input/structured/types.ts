@@ -34,6 +34,8 @@ export interface PermissionResponse {
   type: 'permission'
   allowed: boolean
   alwaysAllow: boolean
+  /** 否决理由（人写，可选）；随 respondToPermission 的 options 回传，后端落审计。 */
+  reason?: string
 }
 
 /**
