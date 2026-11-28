@@ -1112,7 +1112,12 @@ ${formattedMessages}
   /**
    * Respond to a pending permission request.
    */
-  abstract respondToPermission(requestId: string, allowed: boolean, alwaysAllow?: boolean): void;
+  abstract respondToPermission(
+    requestId: string,
+    allowed: boolean,
+    alwaysAllow?: boolean,
+    reason?: string,
+  ): void;
 
   /**
    * Run a simple text completion using the agent's auth infrastructure.

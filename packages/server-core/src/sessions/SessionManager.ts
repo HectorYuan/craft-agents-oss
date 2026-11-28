@@ -6943,7 +6943,7 @@ export class SessionManager implements ISessionManager {
       }
 
       sessionLog.info(`Permission response for ${requestId}: allowed=${allowed}, alwaysAllow=${alwaysAllow}`)
-      managed.agent.respondToPermission(requestId, allowed, alwaysAllow)
+      managed.agent.respondToPermission(requestId, allowed, alwaysAllow, options?.reason)
       return true
     } else {
       sessionLog.warn(`Cannot respond to permission - no agent for session ${sessionId}`)

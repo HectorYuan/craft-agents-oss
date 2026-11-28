@@ -1163,11 +1163,19 @@ export class ZenskillAgent extends BaseAgent {
   // P0-4: Steer
   // ============================================================
 
-  override respondToPermission(requestId: string, allowed: boolean, _alwaysAllow?: boolean): void {
+  override respondToPermission(
+    requestId: string,
+    allowed: boolean,
+    _alwaysAllow?: boolean,
+    reason?: string,
+  ): void {
+    const text = (reason || '').trim()
     this.send({
       type: 'pre_tool_use_response',
       requestId,
       action: allowed ? 'allow' : 'block',
+      // 理由只随否决上报（引擎侧读它落审计）；空理由不发键，保持旧报文形状。
+      ...(text && !allowed ? { reason: text.slice(0, 500) } : {}),
     });
   }
 

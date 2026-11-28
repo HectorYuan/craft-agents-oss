@@ -589,6 +589,8 @@ export interface ApprovalRequestedRequest {
 
 export interface PermissionResponseOptions {
   rememberForMinutes?: number
+  /** 否决理由（人写，可选）。仅用于审计落盘，不回灌 prompt / 消息流。 */
+  reason?: string
 }
 
 // Re-export for handler convenience
