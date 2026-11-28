@@ -60,8 +60,8 @@ export function generateCallbackPage(options: {
     }
 
     .logo {
-      /* Purple accent: oklch(0.62 0.13 293) */
-      color: #8b5fb3;
+      /* Zen purple (D4.2 设计权威): #5b4fc4 */
+      color: #5b4fc4;
       font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Monaco, Consolas, monospace;
       font-size: 6px;
       line-height: 1;

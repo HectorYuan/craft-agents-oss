@@ -53,7 +53,7 @@
 @property --accent {
   syntax: "<color>";
   inherits: true;
-  initial-value: oklch(0.62 0.13 293);
+  initial-value: oklch(0.506 0.176 283);
 }
 
 @property --info {
@@ -102,8 +102,8 @@
   --foreground-rgb: 38, 36, 42;             /* RGB for shadow borders */
   --user-message-bubble: oklch(from var(--foreground) l c h / 0.05);
   --user-message-bubble-dimmed: oklch(from var(--foreground) l c h / 0.03);
-  --accent: oklch(0.62 0.13 293);           /* purple - brand, Auto mode */
-  --accent-rgb: 104, 78, 133;               /* darkened RGB for shadow-tinted (70% of accent) */
+  --accent: oklch(0.506 0.176 283);          /* zen purple #5b4fc4 - brand, Auto mode */
+  --accent-rgb: 64, 55, 137;                /* darkened RGB for shadow-tinted (70% of zen accent) */
   --info: oklch(0.75 0.16 70);              /* amber - warnings, Ask mode */
   --info-rgb: 180, 120, 40;                 /* RGB for shadow-tinted */
   --success: oklch(0.55 0.17 145);          /* green - connected, checkmarks */
@@ -277,8 +277,8 @@
   --foreground-rgb: 237, 236, 240;           /* RGB for shadow borders */
   --user-message-bubble: oklch(from var(--foreground) l c h / 0.05);
   --user-message-bubble-dimmed: oklch(from var(--foreground) l c h / 0.03);
-  --accent: oklch(0.65 0.22 293);            /* brighter purple in dark */
-  --accent-rgb: 130, 75, 185;               /* darkened RGB for shadow-tinted (70% of accent) */
+  --accent: oklch(0.556 0.193 283);          /* zen purple, lifted for dark */
+  --accent-rgb: 74, 64, 155;                /* darkened RGB for shadow-tinted (70% of accent) */
   --info: oklch(0.78 0.14 70);               /* amber */
   --info-rgb: 210, 155, 55;                  /* RGB for shadow-tinted */
   --success: oklch(0.60 0.17 145);           /* green */

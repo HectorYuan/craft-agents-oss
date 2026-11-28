@@ -252,16 +252,16 @@ export const DEFAULT_THEME: ThemeOverrides = {
   background: 'oklch(0.98 0.003 265)',
   foreground: 'oklch(0.185 0.01 270)',
   // 与 apps/electron/src/renderer/index.css 的 :root --accent 保持一致。
-  // 此前此处是 oklch(0.58 0.22 293)，与 index.css 的 oklch(0.62 0.13 293) 不同
-  // ⇒ 同一窗口内 GUI chrome 一种紫、browser-pane 底色另一种紫。
-  accent: 'oklch(0.62 0.13 293)',
+  // 2026-11-29：品牌紫改为 D4.2 设计权威 zen 的 #5b4fc4（原为 craft 的 #8A75CD）。
+  // 此处与 index.css 必须同值，否则同一窗口内 GUI chrome 与 browser-pane 会出现两种紫。
+  accent: 'oklch(0.506 0.176 283)',
   info: 'oklch(0.75 0.16 70)',
   success: 'oklch(0.55 0.17 145)',
   destructive: 'oklch(0.58 0.24 28)',
   dark: {
     background: 'oklch(0.145 0.015 270)',
     foreground: 'oklch(0.95 0.01 270)',
-    accent: 'oklch(0.65 0.22 293)',
+    accent: 'oklch(0.556 0.193 283)',
     info: 'oklch(0.78 0.14 70)',
     success: 'oklch(0.60 0.17 145)',
     destructive: 'oklch(0.65 0.22 28)',
