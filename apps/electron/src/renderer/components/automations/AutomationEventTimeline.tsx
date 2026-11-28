@@ -21,7 +21,7 @@ import { formatShortRelativeTime } from './utils'
 const statusConfig: Record<ExecutionStatus, { icon: React.ElementType; classes: string }> = {
   success: { icon: CheckCircle2, classes: 'text-success' },
   error:   { icon: XCircle,      classes: 'text-destructive' },
-  blocked: { icon: ShieldAlert,   classes: 'text-info' },
+  blocked: { icon: ShieldAlert,   classes: 'text-warning' },
 }
 
 function formatStatusCode(code: number, t: (key: string) => string): string {

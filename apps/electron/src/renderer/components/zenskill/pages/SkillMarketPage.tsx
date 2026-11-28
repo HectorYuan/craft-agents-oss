@@ -88,7 +88,7 @@ function findingsCount(security: any): number {
 function riskBadgeClass(level?: string): string {
   const l = (level || '').toLowerCase()
   if (l.includes('danger') || l === 'high' || l === 'blocked') return 'bg-destructive/10 text-destructive-text'
-  if (l.includes('warn') || l === 'medium' || l === 'degraded') return 'bg-info/10 text-info-text'
+  if (l.includes('warn') || l === 'medium' || l === 'degraded') return 'bg-warning/10 text-warning-text'
   return 'bg-success/10 text-success-text'
 }
 
@@ -570,7 +570,7 @@ export function SkillMarketPage({ workspaceId }: { workspaceId?: string; initial
                     ) : lastReport.ok ? (
                       <ShieldCheck className="h-3.5 w-3.5 text-success-text" />
                     ) : (
-                      <AlertTriangle className="h-3.5 w-3.5 text-info-text" />
+                      <AlertTriangle className="h-3.5 w-3.5 text-warning-text" />
                     )}
                     <span className="truncate font-medium">{lastReport.name}</span>
                     <span className={`text-badge px-1.5 py-0.5 rounded shrink-0 ${riskBadgeClass(lastReport.risk)}`}>

@@ -2376,7 +2376,7 @@ function MessageBubble({
     const level = message.infoLevel || 'info'
     const config = {
       info: { icon: Info, className: 'text-muted-foreground' },
-      warning: { icon: AlertTriangle, className: 'text-info' },
+      warning: { icon: AlertTriangle, className: 'text-warning' },
       error: { icon: CircleAlert, className: 'text-destructive' },
       success: { icon: CheckCircle2, className: 'text-success' },
     }[level]

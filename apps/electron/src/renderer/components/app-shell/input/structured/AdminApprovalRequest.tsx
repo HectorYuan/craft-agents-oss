@@ -55,7 +55,7 @@ export function AdminApprovalRequest({
       <div className="p-4 space-y-3 flex-1 min-h-0 flex flex-col overflow-y-auto">
         <div className="space-y-2 pb-1">
           <div className="flex items-center gap-1.5 text-sm font-medium text-foreground">
-            <ShieldAlert className="h-3.5 w-3.5 text-info" />
+            <ShieldAlert className="h-3.5 w-3.5 text-warning" />
             <span>{t('chat.adminApprovalRequired')}</span>
           </div>
           <div className="text-xs leading-[18px] text-muted-foreground">

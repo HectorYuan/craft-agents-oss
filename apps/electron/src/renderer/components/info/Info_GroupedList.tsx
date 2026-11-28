@@ -18,7 +18,7 @@ const groupHeaderVariants = cva(
       variant: {
         success: 'bg-success/5 text-success',
         info: 'bg-info/5 text-info',
-        warning: 'bg-info/5 text-info',
+        warning: 'bg-warning/5 text-warning',
         muted: 'bg-foreground/5 text-muted-foreground',
       },
     },

@@ -43,7 +43,7 @@ export function ReauthScreen({ onLogin, onReset }: ReauthScreenProps) {
         <StepFormLayout
           iconElement={
             <div className="flex size-16 items-center justify-center rounded-full bg-info/10">
-              <AlertCircle className="size-8 text-info" />
+              <AlertCircle className="size-8 text-warning" />
             </div>
           }
           title={t("onboarding.reauth.title")}

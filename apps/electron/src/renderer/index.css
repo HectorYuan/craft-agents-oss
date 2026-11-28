@@ -182,6 +182,7 @@
   --success-text: color-mix(in oklab, var(--success) 50%, var(--foreground));
   --destructive-text: color-mix(in oklab, var(--destructive) 50%, var(--foreground));
   --info-text: color-mix(in oklab, var(--info) 50%, var(--foreground));
+  --warning-text: color-mix(in oklab, var(--warning) 50%, var(--foreground));
 
   /* === SHADCN COMPATIBILITY (derived from 6 base colors) === */
   /* These variables exist for shadcn/ui component updates */
@@ -321,6 +322,7 @@
   --success-text: color-mix(in oklab, var(--success) 50%, var(--foreground));
   --destructive-text: color-mix(in oklab, var(--destructive) 50%, var(--foreground));
   --info-text: color-mix(in oklab, var(--info) 50%, var(--foreground));
+  --warning-text: color-mix(in oklab, var(--warning) 50%, var(--foreground));
 
   /* === SHADCN COMPATIBILITY (derived from 6 base colors) === */
   --secondary: oklch(from var(--foreground) l c h / 0.05);
@@ -436,6 +438,7 @@ html[data-font="inter"] {
   --color-success: var(--success);
   --color-destructive: var(--destructive);
   --color-warning: var(--warning);
+  --color-warning-text: var(--warning-text);
 
   /* === MIX VARIANTS (solid interpolation) === */
   --color-foreground-1\.5: var(--foreground-1\.5);
